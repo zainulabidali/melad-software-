@@ -1,0 +1,90 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─────────────────────────────────────────────
+    // Helper Functions
+    // ─────────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+    }
+
+    function isApprovedAdmin() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isInstituteAdmin(instituteId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.instituteId == instituteId;
+    }
+
+    // ─────────────────────────────────────────────
+    // users/{uid}
+    // Approved users profiles. Only super admin can create/modify.
+    // ─────────────────────────────────────────────
+    match /users/{userId} {
+      // Users can read their own profile (for auth guard redirect)
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin());
+      // Only super admin can create or update user profiles (after approval)
+      allow create, update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────
+    // pending_admins/{uid}
+    // Teacher registrations awaiting approval.
+    // ─────────────────────────────────────────────
+    match /pending_admins/{uid} {
+      // A registering user can create their own pending document
+      allow create: if isAuthenticated() && request.auth.uid == uid;
+      // Only super admin can read all pending registrations and update status
+      allow read, update, delete: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────
+    // config/{doc}
+    // Super Admin config (WhatsApp number, QR URL, etc.)
+    // ─────────────────────────────────────────────
+    match /config/{docId} {
+      // Public read (for registration-complete page)
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────
+    // institutes/{instituteId}
+    // ─────────────────────────────────────────────
+    match /institutes/{instituteId} {
+      // Public can read institute name and status (for public dropdowns)
+      allow read: if true;
+      // Only super admin manages institutes
+      allow create, update, delete: if isSuperAdmin();
+
+      // ── Nested: Results (publicly readable) ──
+      match /results/{resultId} {
+        // Results are public
+        allow read: if true;
+        // Only the assigned admin or super admin can publish/revoke
+        allow write: if isInstituteAdmin(instituteId) || isSuperAdmin();
+      }
+
+      // ── Nested: All other institute data (teams, categories, students, programs) ──
+      match /{document=**} {
+        // Only the institute's own admin or super admin
+        allow read, write: if isInstituteAdmin(instituteId) || isSuperAdmin();
+      }
+    }
+
+  }
+}

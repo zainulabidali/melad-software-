@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Institute Event Portal — Public Results</title>
+    <meta name="description"
+        content="View live published event results and podium winners across all participating institutes.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --primary: #4338ca;
+            --primary-light: #6366f1;
+            --gold: #f59e0b;
+            --silver: #94a3b8;
+            --bronze: #b45309;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --border: #e2e8f0;
+            --text: #1e293b;
+            --muted: #64748b;
+            --radius: 16px;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.14);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── Header ── */
+        .site-header {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%);
+            padding: 1rem 5%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.25);
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: white;
+            text-decoration: none;
+        }
+
+        .header-brand .logo {
+            font-size: 2rem;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+        }
+
+        .header-brand h1 {
+            font-size: 1.125rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .header-brand p {
+            font-size: 0.7rem;
+            opacity: 0.75;
+            font-weight: 400;
+        }
+
+        .header-nav {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .btn-header {
+            padding: 0.5rem 1.25rem;
+            border-radius: 50px;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .btn-header-outline {
+            border: 1.5px solid rgba(255, 255, 255, 0.5);
+            background: transparent;
+            color: white;
+        }
+
+        .btn-header-outline:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: white;
+        }
+
+        .btn-header-solid {
+            background: white;
+            color: var(--primary);
+            border: none;
+        }
+
+        .btn-header-solid:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        /* ── Hero ── */
+        .hero {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%);
+            padding: 5rem 5% 7rem;
+            text-align: center;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 50%;
+            top: -200px;
+            right: -100px;
+        }
+
+        .hero::after {
+            content: '';
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 50%;
+            bottom: -150px;
+            left: -100px;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            padding: 0.35rem 0.875rem;
+            border-radius: 50px;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            margin-bottom: 1.25rem;
+        }
+
+        .hero h2 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 0.75rem;
+            line-height: 1.15;
+        }
+
+        .hero p {
+            font-size: 1.1rem;
+            opacity: 0.8;
+            max-width: 560px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* ── Search Panel ── */
+        .search-panel {
+            max-width: 900px;
+            margin: -3.5rem auto 0;
+            padding: 0 5%;
+            position: relative;
+            z-index: 10;
+        }
+
+        .search-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+        }
+
+        .search-card h3 {
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 1.25rem;
+        }
+
+        .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            align-items: end;
+        }
+
+        .step-item label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: var(--muted);
+            margin-bottom: 0.4rem;
+        }
+
+        .step-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            font-size: 0.65rem;
+            font-weight: 700;
+        }
+
+        .step-select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            font-size: 0.875rem;
+            color: var(--text);
+            background: #f8fafc;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.875rem center;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s;
+        }
+
+        .step-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(67, 56, 202, 0.1);
+            background-color: white;
+        }
+
+        .step-select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ── Results Area ── */
+        .results-area {
+            max-width: 1100px;
+            margin: 3rem auto;
+            padding: 0 5%;
+        }
+
+        .results-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .results-header h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .results-count {
+            font-size: 0.8125rem;
+            color: var(--muted);
+            background: var(--border);
+            padding: 0.3rem 0.75rem;
+            border-radius: 50px;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+
+        /* ── Result Card ── */
+        .result-card {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .result-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .result-card-header {
+            padding: 1.25rem 1.5rem;
+            background: linear-gradient(135deg, #312e81, #4338ca);
+            color: white;
+        }
+
+        .result-card-category {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            opacity: 0.8;
+            margin-bottom: 0.4rem;
+        }
+
+        .result-card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .result-card-body {
+            padding: 1.25rem 1.5rem;
+        }
+
+        .winner-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.85rem;
+            padding: 0.75rem;
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+            transition: background 0.15s;
+        }
+
+        .winner-item.pos-first {
+            background: #fffbea;
+            border: 1px solid #fef08a;
+        }
+
+        .winner-item.pos-second {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+        }
+
+        .winner-item.pos-third {
+            background: #fef6ee;
+            border: 1px solid #fed7aa;
+        }
+
+        .winner-item.pos-participation {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+        }
+
+        .winner-medal {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+            line-height: 1;
+            margin-top: 0.1rem;
+        }
+
+        .winner-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .winner-name {
+            font-size: 0.9375rem;
+            font-weight: 700;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .winner-meta {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-top: 0.2rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .winner-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.15rem 0.5rem;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 700;
+        }
+
+        .grade-badge {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .marks-badge {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .result-card-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .btn-download {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, #4338ca, #6366f1);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-download:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(67, 56, 202, 0.35);
+        }
+
+        /* ── Hidden Download Target (off-screen rendered card) ── */
+        .download-target {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+            width: 600px;
+            background: white;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* ── Empty/Loading States ── */
+        .state-box {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--muted);
+            grid-column: 1 / -1;
+        }
+
+        .state-box .state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .state-box h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+        }
+
+        .state-box p {
+            font-size: 0.875rem;
+        }
+
+        .spinner-wrap {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 4rem;
+            grid-column: 1/-1;
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 640px) {
+            .steps-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .hero {
+                padding: 3.5rem 5% 5rem;
+            }
+
+            .hero h2 {
+                font-size: 1.75rem;
+            }
+
+            .header-brand p {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="site-header">
+        <a href="#" class="header-brand">
+            <span class="logo">🏫</span>
+            <div>
+                <h1>Institute Event Portal</h1>
+                <p>Cultural & Arts Festival Results</p>
+            </div>
+        </a>
+        <nav class="header-nav">
+            <a href="./pages/login.html" class="btn-header btn-header-outline">Admin Login</a>
+            <a href="./pages/login.html#register" class="btn-header btn-header-solid">Register as Teacher</a>
+        </nav>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-badge">🏆 Live Event Results</div>
+            <h2>Cultural &amp; Arts Festival<br>Results Hub</h2>
+            <p>Browse live published podium results from all participating institutes. Select your institute to get
+                started.</p>
+        </div>
+    </section>
+
+    <!-- Search Panel -->
+    <div class="search-panel">
+        <div class="search-card">
+            <h3>🔍 Find Results</h3>
+            <div class="steps-grid">
+                <div class="step-item">
+                    <label>
+                        <span class="step-badge">1</span>
+                        Institute
+                    </label>
+                    <select id="selectInstitute" class="step-select">
+                        <option value="">Loading...</option>
+                    </select>
+                </div>
+                <div class="step-item">
+                    <label>
+                        <span class="step-badge">2</span>
+                        Category
+                    </label>
+                    <select id="selectCategory" class="step-select" disabled>
+                        <option value="">Select institute first</option>
+                    </select>
+                </div>
+                <div class="step-item">
+                    <label>
+                        <span class="step-badge">3</span>
+                        Program
+                    </label>
+                    <select id="selectProgram" class="step-select" disabled>
+                        <option value="">Select category first</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Area -->
+    <section class="results-area">
+        <div id="resultsHeader" class="results-header hidden">
+            <h2 id="resultsTitle">Results</h2>
+            <span id="resultsCount" class="results-count">0 results</span>
+        </div>
+        <div class="results-grid" id="resultsGrid">
+            <div class="state-box">
+                <span class="state-icon">🎯</span>
+                <h3>Browse Results</h3>
+                <p>Select an institute above to view published event results.</p>
+            </div>
+        </div>
+    </section>
+
+    <script type="module" src="./js/firebase.js"></script>
+    <script type="module" src="./js/public.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Admin Dashboard — Institute Event Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+</head>
+
+<body class="dashboard-body hidden" style="display: none;">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <span style="font-size:1.5rem;">🏫</span>
+            <h2>Super Admin</h2>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" id="navInstitutes" data-section="institutes">
+                <span class="icon">🏢</span> Institutes
+            </a>
+            <a href="#" class="nav-item" id="navPending" data-section="pending">
+                <span class="icon">⏳</span> Pending Registrations
+                <span class="pending-badge hidden" id="pendingBadge">0</span>
+            </a>
+            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:1rem 0;">
+            <a href="#" class="nav-item" id="logoutBtn">
+                <span class="icon">🚪</span> Logout
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="topbar">
+            <h1 class="page-title" id="pageTitle">Manage Institutes</h1>
+            <div class="topbar-actions" id="topbarActions">
+                <button class="btn btn-primary" id="openAddModalBtn">+ Add Institute</button>
+            </div>
+        </header>
+
+        <!-- INSTITUTES SECTION -->
+        <section class="content-area" id="sectionInstitutes">
+            <div id="institutesLoader" class="loader-container hidden">
+                <div class="spinner"></div>
+            </div>
+            <div class="grid" id="institutesGrid"></div>
+        </section>
+
+        <!-- PENDING REGISTRATIONS SECTION -->
+        <section class="content-area hidden" id="sectionPending">
+            <div id="pendingLoader" class="loader-container hidden">
+                <div class="spinner"></div>
+            </div>
+            <div class="pending-info-box">
+                <span>👋</span>
+                <p>These teachers have registered and are awaiting your approval. Approve to assign them to an
+                    institute, or reject their request.</p>
+            </div>
+            <div id="pendingGrid" class="pending-grid"></div>
+        </section>
+    </main>
+
+    <!-- Add Institute Modal -->
+    <div class="modal-overlay hidden" id="addModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Create New Institute</h3>
+                <button class="close-modal" id="closeAddModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="addInstituteForm">
+                    <div class="form-group">
+                        <label class="form-label" for="name">Institute Name</label>
+                        <input type="text" id="name" class="form-input" required placeholder="e.g. Lahore Arts Academy">
+                    </div>
+                    <div class="form-group mb-4">
+                        <label class="form-label" for="type">Type</label>
+                        <input type="text" id="type" class="form-input" required
+                            placeholder="e.g. School, College, Academy">
+                    </div>
+                    <div class="form-group mb-6">
+                        <label class="form-label" for="expiryDate">Expiry Date (Optional)</label>
+                        <input type="date" id="expiryDate" class="form-input">
+                    </div>
+                    <div id="modalAlert" class="alert hidden"></div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancelAddModalBtn">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="saveInstituteBtn" onclick="submitForm()">
+                            <span class="btn-text">Create Institute</span>
+                            <span class="btn-spinner hidden"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Institute Modal -->
+    <div class="modal-overlay hidden" id="editModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Edit Institute</h3>
+                <button class="close-modal" id="closeEditModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="editInstituteForm">
+                    <input type="hidden" id="editInstId">
+                    <div class="form-group">
+                        <label class="form-label" for="editName">Institute Name</label>
+                        <input type="text" id="editName" class="form-input" required>
+                    </div>
+                    <div class="form-group mb-4">
+                        <label class="form-label" for="editType">Type</label>
+                        <input type="text" id="editType" class="form-input" required>
+                    </div>
+                    <div class="form-group mb-6">
+                        <label class="form-label" for="editExpiryDate">Expiry Date (Optional)</label>
+                        <input type="date" id="editExpiryDate" class="form-input">
+                    </div>
+                    <div id="editModalAlert" class="alert hidden"></div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancelEditModalBtn">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="updateInstituteBtn">
+                            <span class="btn-text">Save Changes</span>
+                            <span class="btn-spinner hidden"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approve Modal -->
+    <div class="modal-overlay hidden" id="approveModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Approve Teacher Account</h3>
+                <button class="close-modal" id="closeApproveModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-4" style="font-size:0.875rem;">Select the institute to assign this teacher to.
+                    They will be given admin access for that institute.</p>
+                <div class="form-group mb-2">
+                    <label class="form-label">Teacher Email</label>
+                    <div style="padding:0.625rem; background:#f1f5f9; border-radius:8px; font-size:0.875rem; color:#1e293b;"
+                        id="approveEmail">—</div>
+                </div>
+                <div class="form-group mb-6">
+                    <label class="form-label">Assign to Institute</label>
+                    <select id="approveInstituteSelect" class="form-input" required>
+                        <option value="">Loading institutes...</option>
+                    </select>
+                </div>
+                <input type="hidden" id="approveUid">
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelApproveBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmApproveBtn">
+                        <span class="btn-text">✅ Approve & Assign</span>
+                        <span class="btn-spinner hidden"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script type="module" src="../js/firebase.js"></script>
+    <script type="module" src="../js/auth.js"></script>
+    <script type="module" src="../js/super-admin.js"></script>
+</body>
+
+</html>

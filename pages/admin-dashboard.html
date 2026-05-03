@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Institute Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+</head>
+
+<body class="dashboard-body hidden" style="display: none;"> <!-- Revealed by JS after auth check -->
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <h2 id="instituteNameHeader">Admin Portal</h2>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-view="dashboard">
+                <span class="icon">📊</span> Dashboard
+            </a>
+            <a href="#" class="nav-item" data-view="teams">
+                <span class="icon">👥</span> Teams
+            </a>
+            <a href="#" class="nav-item" data-view="categories">
+                <span class="icon">🏷️</span> Categories/Classes
+            </a>
+            <a href="#" class="nav-item" data-view="students">
+                <span class="icon">🎓</span> Students
+            </a>
+            <a href="#" class="nav-item" data-view="programs">
+                <span class="icon">📝</span> Programs
+            </a>
+            <a href="#" class="nav-item" data-view="results">
+                <span class="icon">🏆</span> Publish Results
+            </a>
+            <br>
+            <hr style="border:0; border-top:1px solid var(--border-color); margin:1rem 0;"><br>
+            <a href="#" class="nav-item" id="logoutBtn">
+                <span class="icon">🚪</span> Logout
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Application Area -->
+    <main class="main-content">
+        <header class="topbar">
+            <h1 class="page-title" id="pageTitle">Dashboard Overview</h1>
+            <div class="topbar-actions" id="topbarActions">
+                <!-- Action buttons injected dynamically per view -->
+            </div>
+        </header>
+
+        <section class="content-area" id="mainContentArea">
+            <!-- Dynamic Module Content Will Render Here -->
+        </section>
+    </main>
+
+    <!-- Global Empty Modal Shell -->
+    <div class="modal-overlay hidden" id="dynamicModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="dynamicModalTitle">Modal Title</h3>
+                <button class="close-modal" id="closeDynamicModalBtn">&times;</button>
+            </div>
+            <div class="modal-body" id="dynamicModalBody">
+                <!-- Content injected dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Bottom Navigation (Mobile Only) -->
+    <nav class="bottom-nav">
+        <a href="#" class="bottom-nav-item active" data-view="dashboard">
+            <span class="icon">📊</span><span class="label">Home</span>
+        </a>
+        <a href="#" class="bottom-nav-item" data-view="teams">
+            <span class="icon">👥</span><span class="label">Teams</span>
+        </a>
+        <a href="#" class="bottom-nav-item" data-view="students">
+            <span class="icon">🎓</span><span class="label">Students</span>
+        </a>
+        <a href="#" class="bottom-nav-item" data-view="programs">
+            <span class="icon">📝</span><span class="label">Programs</span>
+        </a>
+        <a href="#" class="bottom-nav-item" id="btnMoreMenu">
+            <span class="icon">⋯</span><span class="label">More</span>
+        </a>
+    </nav>
+
+    <!-- More Drawer (Mobile Only) -->
+    <div class="more-drawer-overlay" id="moreDrawerOverlay"></div>
+    <div class="more-drawer" id="moreDrawer">
+        <div class="more-drawer-header">
+            <h3>Menu</h3>
+            <button class="close-drawer close-modal" id="closeDrawerBtn">&times;</button>
+        </div>
+        <div class="more-drawer-body">
+            <a href="#" class="drawer-item" data-view="categories">
+                <span class="icon">🏷️</span> Categories/Classes
+            </a>
+            <a href="#" class="drawer-item" data-view="results">
+                <span class="icon">🏆</span> Publish Results
+            </a>
+            <hr>
+            <a href="#" class="drawer-item text-danger" id="logoutDrawerBtn">
+                <span class="icon">🚪</span> Logout
+            </a>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="../js/firebase.js"></script>
+    <script type="module" src="../js/auth.js"></script>
+    <script type="module" src="../js/dashboard.js"></script>
+</body>
+
+</html>

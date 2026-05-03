@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration Complete — Institute Event Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+
+        .page-card {
+            background: white;
+            border-radius: 24px;
+            max-width: 500px;
+            width: 100%;
+            overflow: hidden;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+        }
+
+        .success-banner {
+            background: linear-gradient(135deg, #059669, #10b981);
+            padding: 2.5rem 2rem;
+            text-align: center;
+            color: white;
+        }
+
+        .success-banner .check-icon {
+            font-size: 4rem;
+            display: block;
+            margin-bottom: 1rem;
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .success-banner h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+        }
+
+        .success-banner p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+
+        .page-body {
+            padding: 2rem;
+        }
+
+        .payment-section {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .payment-section h2 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+
+        .payment-section p {
+            font-size: 0.8375rem;
+            color: #64748b;
+            margin-bottom: 1.25rem;
+        }
+
+        .qr-wrapper {
+            display: inline-block;
+            padding: 1rem;
+            border: 2px dashed #c7d2fe;
+            border-radius: 16px;
+            background: #f8f7ff;
+            margin-bottom: 1.25rem;
+        }
+
+        .qr-wrapper img {
+            width: 200px;
+            height: 200px;
+            border-radius: 8px;
+            display: block;
+        }
+
+        .qr-label {
+            font-size: 0.75rem;
+            color: #6366f1;
+            font-weight: 600;
+            margin-top: 0.5rem;
+            display: block;
+        }
+
+        .whatsapp-card {
+            background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+            border: 1px solid #86efac;
+            border-radius: 14px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .wa-icon {
+            font-size: 2.5rem;
+            flex-shrink: 0;
+        }
+
+        .wa-info h3 {
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: #14532d;
+            margin-bottom: 0.25rem;
+        }
+
+        .wa-number {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #166534;
+            letter-spacing: 0.5px;
+        }
+
+        .instructions-box {
+            background: #fefce8;
+            border: 1px solid #fde68a;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .instructions-box h3 {
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: #92400e;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .instructions-box ol {
+            padding-left: 1.25rem;
+        }
+
+        .instructions-box ol li {
+            font-size: 0.8375rem;
+            color: #78350f;
+            line-height: 1.6;
+            margin-bottom: 0.35rem;
+        }
+
+        .btn-back {
+            display: block;
+            width: 100%;
+            padding: 0.875rem;
+            background: linear-gradient(135deg, #4338ca, #6366f1);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.9375rem;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.2s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-back:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(67, 56, 202, 0.35);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: #fef3c7;
+            color: #d97706;
+            padding: 0.4rem 0.875rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border: 1px solid #fde68a;
+            margin-bottom: 1.5rem;
+        }
+
+        .pulse {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #f59e0b;
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.5;
+                transform: scale(0.8);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page-card">
+        <div class="success-banner">
+            <span class="check-icon">✅</span>
+            <h1>Registration Submitted!</h1>
+            <p>Your registration has been submitted successfully.<br>
+                Your account will be activated after Super Admin approval.</p>
+        </div>
+
+        <div class="page-body">
+            <div style="text-align:center; margin-bottom:1.5rem;">
+                <div class="status-badge">
+                    <span class="pulse"></span>
+                    Status: Pending Approval
+                </div>
+            </div>
+
+            <div class="payment-section">
+                <h2>💳 Complete Your Payment</h2>
+                <p>To speed up approval, please make the payment and send a screenshot via WhatsApp.</p>
+
+                <div class="qr-wrapper">
+                    <img src="../images/payment-qr-placeholder.png" alt="Payment QR Code" id="paymentQR">
+                    <span class="qr-label">📱 Scan to Pay</span>
+                </div>
+            </div>
+
+            <div class="whatsapp-card">
+                <span class="wa-icon">💬</span>
+                <div class="wa-info">
+                    <h3>WhatsApp Contact (Super Admin)</h3>
+                    <div class="wa-number" id="waNumber">+92 300 0000000</div>
+                </div>
+            </div>
+
+            <div class="instructions-box">
+                <h3>📋 Steps to Get Approved</h3>
+                <ol>
+                    <li>Make the payment using the QR code above.</li>
+                    <li>Take a screenshot of the payment confirmation.</li>
+                    <li>Send the screenshot to the WhatsApp number above.</li>
+                    <li>Contact or call the same number to notify the Super Admin.</li>
+                    <li>Once verified, your account will be activated and you can log in.</li>
+                </ol>
+            </div>
+
+            <a href="../pages/login.html" class="btn-back">← Back to Login</a>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db } from '../js/firebase.js';
+        import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+
+        // Optionally load WhatsApp number from Firestore config
+        async function loadConfig() {
+            try {
+                const configSnap = await getDoc(doc(db, "config", "super_admin"));
+                if (configSnap.exists()) {
+                    const data = configSnap.data();
+                    if (data.whatsappNumber) {
+                        document.getElementById('waNumber').textContent = data.whatsappNumber;
+                    }
+                    if (data.paymentQRUrl) {
+                        document.getElementById('paymentQR').src = data.paymentQRUrl;
+                    }
+                }
+            } catch (e) {
+                // Use defaults if config not found
+            }
+        }
+        loadConfig();
+    </script>
+</body>
+
+</html>
