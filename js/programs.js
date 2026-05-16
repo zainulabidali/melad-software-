@@ -3,9 +3,11 @@ import {
     collection, addDoc, getDocs, doc, deleteDoc, updateDoc, setDoc,
     onSnapshot, serverTimestamp, writeBatch, query, where
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+import { normalizeClasses } from './categories.js';
 
 let unsubscribePrograms = null;
-let currentCatProg = null;
+let currentCategoryId = null;
+let allCategories = [];
 
 // ─────────────────────────────────────────────
 // Init View
@@ -33,29 +35,25 @@ export async function initProgramsView(container, topActions) {
     `;
 
     const catSel = document.getElementById('progCatSelect');
-    const uniqueCats = new Map();
 
+    // Load Global Categories
     try {
-        const tSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "teams"));
-        for (const tDoc of tSnap.docs) {
-            const cSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "teams", tDoc.id, "categories"));
-            cSnap.forEach(cDoc => {
-                const data = cDoc.data();
-                if (!uniqueCats.has(data.name)) {
-                    uniqueCats.set(data.name, cDoc.id);
-                    const opt = document.createElement('option');
-                    opt.value = data.name; // Using name as global identifier
-                    opt.textContent = data.name;
-                    catSel.appendChild(opt);
-                }
-            });
-        }
+        const catSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "categories"));
+        allCategories = [];
+        catSnap.forEach(d => {
+            const data = d.data();
+            allCategories.push({ id: d.id, ...data, classes: normalizeClasses(data.classes) });
+            const opt = document.createElement('option');
+            opt.value = d.id;
+            opt.textContent = data.name;
+            catSel.appendChild(opt);
+        });
     } catch (e) { console.error("Error loading categories", e); }
 
     catSel.addEventListener('change', (e) => {
-        currentCatProg = e.target.value;
+        currentCategoryId = e.target.value;
         const btn = document.getElementById('btnCreateProgram');
-        if (currentCatProg) {
+        if (currentCategoryId) {
             btn.disabled = false;
             loadProgramsData();
         } else {
@@ -95,7 +93,9 @@ function loadProgramsData() {
     if (unsubscribePrograms) unsubscribePrograms();
 
     const programsRef = collection(db, "institutes", window.currentInstituteId, "programs");
-    const qPrograms = query(programsRef, where("categoryId", "==", currentCatProg));
+    // Support both ID and Name during transition
+    const cat = allCategories.find(c => c.id === currentCategoryId);
+    const qPrograms = query(programsRef, where("categoryId", "in", [currentCategoryId, cat?.name || '']));
 
     unsubscribePrograms = onSnapshot(qPrograms, (snapshot) => {
         const grid = document.getElementById('programsGrid');
@@ -265,7 +265,7 @@ function openProgramModal(progId = null, data = {}) {
                 maxParticipants: type === 'individual' ? null : parseInt(gsRaw, 10),
                 programLocation: document.getElementById('pLocation').value,
                 genderCategory: document.getElementById('pGender').value,
-                categoryId: currentCatProg
+                categoryId: currentCategoryId
             };
 
             const progCollection = collection(db, "institutes", window.currentInstituteId, "programs");
@@ -374,36 +374,23 @@ async function openParticipantsModal(progId, progData) {
         currentParticipants = [];
         availableStudents = [];
         
-        // Find the specific category ID for this team based on the program's global categoryName
-        let teamCatId = null;
         try {
-            const cSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "teams", teamId, "categories"));
-            cSnap.forEach(c => {
-                if (c.data().name === progData.categoryId) teamCatId = c.id;
-            });
-        } catch(e) { console.error(e); }
-
-        if (!teamCatId) {
-            document.getElementById('currentPartList').innerHTML = `<p style="color:red;font-size:0.8rem;">Category not found in this team.</p>`;
-            return;
-        }
-
-        try {
-            const promises = [getDocs(collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants"))];
-            if (!isGroup) {
-                promises.push(getDocs(collection(db, "institutes", window.currentInstituteId, "teams", teamId, "categories", teamCatId, "students")));
-            }
-
-            const [partSnap, stuSnap] = await Promise.all(promises);
-
+            // 1. Get current registrations
+            const partSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants"));
             partSnap.forEach(d => {
                 if (d.data().teamId === teamId) {
                     currentParticipants.push({ docId: d.id, ...d.data() });
                 }
             });
 
-            if (!isGroup && stuSnap) {
-                stuSnap.forEach(d => {
+            // 2. Get students from FLAT collection for this team/category
+            if (!isGroup) {
+                const sSnap = await getDocs(query(
+                    collection(db, "institutes", window.currentInstituteId, "students"),
+                    where("teamId", "==", teamId),
+                    where("categoryId", "==", currentCategoryId)
+                ));
+                sSnap.forEach(d => {
                     const s = d.data();
                     if (genderFilter === 'Boys' && s.gender !== 'Male') return;
                     if (genderFilter === 'Girls' && s.gender !== 'Female') return;
@@ -444,7 +431,7 @@ async function openParticipantsModal(progId, progData) {
                         try {
                             const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
                             const newDocRef = doc(partRef);
-                            await setDoc(newDocRef, { teamId, teamName, isGroupEntry: true, categoryId: progData.categoryId });
+                            await setDoc(newDocRef, { teamId, teamName, isGroupEntry: true, categoryId: currentCategoryId });
                             currentParticipants.push({ docId: newDocRef.id, teamId, isGroupEntry: true });
                             renderInner(teamId);
                         } catch (err) { window.showToast("Error", "error"); regBtn.disabled = false; }
@@ -484,7 +471,7 @@ async function openParticipantsModal(progId, progData) {
                         const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
                         const newDocRef = doc(partRef);
                         await setDoc(newDocRef, {
-                            studentId: stu.id, studentName: stu.name, chestNumber: stu.chestNumber, teamId, teamName, categoryId: progData.categoryId
+                            studentId: stu.id, studentName: stu.name, chestNumber: stu.chestNumber, teamId, teamName, categoryId: currentCategoryId
                         });
                         currentParticipants.push({ docId: newDocRef.id, studentId: stu.id, studentName: stu.name, chestNumber: stu.chestNumber, teamId });
                         renderInner(teamId);

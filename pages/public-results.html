@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Public Results - Competition Management</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #f8fafc; font-family: 'Inter', sans-serif; }
+        .public-container { max-width: 800px; margin: 0 auto; padding: 1.5rem; }
+        .public-header { text-align: center; margin-bottom: 2rem; padding: 2rem; background: white; border-radius: 20px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .inst-name { font-size: 1.5rem; font-weight: 800; color: #1e293b; margin-bottom: 0.5rem; }
+        .page-title { color: #64748b; font-size: 1rem; font-weight: 500; }
+        
+        .filter-bar { background: white; padding: 1rem; border-radius: 15px; margin-bottom: 1.5rem; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1); display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .filter-select { flex: 1; min-width: 140px; padding: 0.6rem; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 0.875rem; color: #1e293b; }
+        
+        .result-card { background: white; border-radius: 15px; padding: 1.25rem; margin-bottom: 1rem; border: 1px solid #e2e8f0; transition: transform 0.2s; }
+        .result-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
+        
+        .prog-name { font-size: 1.125rem; font-weight: 700; color: #1e293b; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; }
+        .winner-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #f8fafc; border-radius: 10px; margin-bottom: 0.5rem; }
+        .position-badge { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 1.25rem; }
+        .winner-info { flex: 1; }
+        .winner-name { font-weight: 600; color: #1e293b; font-size: 0.9375rem; }
+        .winner-team { font-size: 0.75rem; color: #64748b; }
+        
+        .meta-badges { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+        .meta-badge { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; padding: 0.2rem 0.6rem; border-radius: 999px; background: #f1f5f9; color: #475569; letter-spacing: 0.025em; }
+
+        .empty-state { text-align: center; padding: 4rem 2rem; color: #94a3b8; }
+        .empty-icon { font-size: 3rem; margin-bottom: 1rem; }
+        
+        .toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 0.75rem 1.5rem; border-radius: 999px; font-size: 0.875rem; z-index: 1000; opacity: 0; transition: opacity 0.3s; }
+        .toast.show { opacity: 1; }
+
+        @media (max-width: 640px) {
+            .public-container { padding: 0.75rem; }
+            .result-card { padding: 1rem; }
+            .filter-select { min-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="public-container">
+        <div class="public-header" id="headerSection">
+            <div class="spinner" style="margin: 0 auto;"></div>
+        </div>
+
+        <div class="filter-bar" id="filterBar" style="display: none;">
+            <select id="catFilter" class="filter-select"><option value="">All Categories</option></select>
+            <select id="classFilter" class="filter-select"><option value="">All Classes</option></select>
+            <select id="genderFilter" class="filter-select">
+                <option value="">All Genders</option>
+                <option value="Boys">Boys</option>
+                <option value="Girls">Girls</option>
+                <option value="Mixed">Mixed</option>
+            </select>
+            <select id="locationFilter" class="filter-select">
+                <option value="">All Locations</option>
+                <option value="Stage">Stage</option>
+                <option value="Off Stage">Off Stage</option>
+            </select>
+        </div>
+
+        <div id="resultsList"></div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script type="module" src="../js/public-results.js"></script>
+    <div id="loadingOverlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#f8fafc;display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity 0.4s;">
+        <div style="text-align:center;">
+            <div class="spinner" style="margin:0 auto 1rem;"></div>
+            <p style="color:#64748b;font-size:0.875rem;font-weight:600;">Loading Results...</p>
+        </div>
+    </div>
+</body>
+</html>

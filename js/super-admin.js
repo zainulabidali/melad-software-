@@ -1,4 +1,4 @@
-import { app, auth, db } from './firebase.js';
+import { app, auth, db, migrateToNewSchema } from './firebase.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 import {
     doc, getDoc, collection, addDoc, deleteDoc, onSnapshot,
@@ -73,18 +73,36 @@ document.getElementById('navPending').addEventListener('click', (e) => {
     showSection('pending');
 });
 
+document.getElementById('navMigration').addEventListener('click', (e) => {
+    e.preventDefault();
+    showSection('migration');
+});
+
 function showSection(section) {
     const isInstitutes = section === 'institutes';
+    const isPending = section === 'pending';
+    const isMigration = section === 'migration';
 
     document.getElementById('sectionInstitutes').classList.toggle('hidden', !isInstitutes);
-    document.getElementById('sectionPending').classList.toggle('hidden', isInstitutes);
+    document.getElementById('sectionPending').classList.toggle('hidden', !isPending);
+    document.getElementById('sectionMigration').classList.toggle('hidden', !isMigration);
+
     document.getElementById('topbarActions').innerHTML = isInstitutes
         ? `<button class="btn btn-primary" id="openAddModalBtn">+ Add Institute</button>`
         : '';
-    document.getElementById('pageTitle').textContent = isInstitutes ? 'Manage Institutes' : 'Pending Registrations';
+
+    if (isInstitutes) {
+        document.getElementById('pageTitle').textContent = 'Manage Institutes';
+    } else if (isPending) {
+        document.getElementById('pageTitle').textContent = 'Pending Registrations';
+    } else if (isMigration) {
+        document.getElementById('pageTitle').textContent = 'Schema Migration';
+        initMigrationSection();
+    }
 
     document.getElementById('navInstitutes').classList.toggle('active', isInstitutes);
-    document.getElementById('navPending').classList.toggle('active', !isInstitutes);
+    document.getElementById('navPending').classList.toggle('active', isPending);
+    document.getElementById('navMigration').classList.toggle('active', isMigration);
 
     if (isInstitutes) {
         document.getElementById('openAddModalBtn').addEventListener('click', () => {
@@ -93,6 +111,67 @@ function showSection(section) {
             addModal.classList.remove('hidden');
         });
     }
+}
+
+function initMigrationSection() {
+    const select = document.getElementById('migrationInstituteSelect');
+    const startBtn = document.getElementById('startMigrationBtn');
+    const progressArea = document.getElementById('migrationProgressArea');
+    const progressLog = document.getElementById('migrationProgressLog');
+    const closeBtn = document.getElementById('closeMigrationBtn');
+
+    select.innerHTML = '<option value="">-- Choose an Institute --</option>';
+    progressArea.style.display = 'none';
+    progressLog.textContent = '';
+    startBtn.disabled = true;
+
+    getDocs(collection(db, 'institutes')).then((snapshot) => {
+        snapshot.forEach((docSnap) => {
+            const inst = docSnap.data();
+            const option = document.createElement('option');
+            option.value = docSnap.id;
+            option.textContent = inst.name || docSnap.id;
+            select.appendChild(option);
+        });
+    }).catch((error) => {
+        console.error('Error loading institutes for migration:', error);
+        showToast('Failed to load institutes for migration.', 'error');
+    });
+
+    select.onchange = () => {
+        startBtn.disabled = !select.value;
+    };
+
+    startBtn.onclick = async () => {
+        const instituteId = select.value;
+        if (!instituteId) return;
+
+        startBtn.disabled = true;
+        startBtn.querySelector('.btn-text').classList.add('hidden');
+        startBtn.querySelector('.btn-spinner').classList.remove('hidden');
+        progressArea.style.display = 'block';
+        progressLog.textContent = 'Initializing migration...\n';
+
+        try {
+            const result = await migrateToNewSchema(instituteId, (message) => {
+                progressLog.textContent += message + '\n';
+                progressLog.scrollTop = progressLog.scrollHeight;
+            });
+            progressLog.textContent += 'Completed: ' + result.message + '\n';
+            showToast('Migration completed successfully.');
+        } catch (error) {
+            progressLog.textContent += 'Error: ' + error.message + '\n';
+            showToast('Migration failed. Check the log.', 'error');
+        } finally {
+            startBtn.disabled = false;
+            startBtn.querySelector('.btn-text').classList.remove('hidden');
+            startBtn.querySelector('.btn-spinner').classList.add('hidden');
+        }
+    };
+
+    closeBtn.onclick = () => {
+        progressArea.style.display = 'none';
+    };
 }
 
 // ─────────────────────────────────────────────
@@ -217,7 +296,7 @@ function loadInstitutes() {
                     <p class="text-muted" style="font-size:0.75rem;">ID: ${instId}</p>
                 </div>
                 <div class="card-actions" style="flex-wrap: wrap; gap: 0.5rem;">
-                    <button class="btn btn-secondary btn-sm edit-inst-btn" data-id="${instId}" data-all='${JSON.stringify({name: inst.name, type: inst.type, expiryDate: expiryRawStr}).replace(/'/g, "&#39;")}'>✏️ Edit</button>
+                    <button class="btn btn-secondary btn-sm edit-inst-btn" data-id="${instId}" data-all='${JSON.stringify({ name: inst.name, type: inst.type, expiryDate: expiryRawStr }).replace(/'/g, "&#39;")}'>✏️ Edit</button>
                     <button class="btn btn-secondary btn-sm toggle-status-btn" data-id="${instId}" data-status="${inst.status}">
                         ${inst.status === 'active' ? '⏸ Deactivate' : '▶ Activate'}
                     </button>
@@ -271,7 +350,7 @@ function openEditInstituteModal(e) {
     document.getElementById('editName').value = data.name;
     document.getElementById('editType').value = data.type;
     document.getElementById('editExpiryDate').value = data.expiryDate || '';
-    
+
     document.getElementById('editModalAlert').classList.add('hidden');
     editModal.classList.remove('hidden');
 }

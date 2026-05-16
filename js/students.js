@@ -1,20 +1,29 @@
 import { db } from './firebase.js';
-import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc, onSnapshot, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc, onSnapshot, serverTimestamp, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+import { normalizeClasses } from './categories.js';
 
 let unsubscribeStudents = null;
-let currentTeamStu = null;
-let currentCatStu = null;
+let currentTeamId = null;
+let currentCategoryId = null;
+let currentClassId = null;
+let allCategories = [];
 
 export async function initStudentsView(container, topActions) {
-    if (unsubscribeStudents) unsubscribeStudents();
+    if (unsubscribeStudents) {
+        unsubscribeStudents();
+        unsubscribeStudents = null;
+    }
 
     topActions.innerHTML = `
         <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
-            <select id="stuTeamSelect" class="form-input" style="width: 200px;">
-                <option value="">Select Team...</option>
-            </select>
-            <select id="stuCatSelect" class="form-input" style="width: 200px;" disabled>
+            <select id="stuCatSelect" class="form-input" style="width: 180px;">
                 <option value="">Select Category...</option>
+            </select>
+            <select id="stuClassSelect" class="form-input" style="width: 180px;" disabled>
+                <option value="">Select Class...</option>
+            </select>
+            <select id="stuTeamSelect" class="form-input" style="width: 180px;">
+                <option value="">All Teams (Filter)</option>
             </select>
             <button class="btn btn-primary" id="btnAddStudents" disabled>+ Add Students</button>
         </div>
@@ -24,147 +33,250 @@ export async function initStudentsView(container, topActions) {
         <div class="grid" id="studentsGrid">
             <div class="empty-state" style="grid-column: 1 / -1; margin-top:2rem;">
                 <div class="empty-state-icon">🎓</div>
-                <h3>Select a Team &amp; Category</h3>
-                <p>Use the dropdowns above to view students.</p>
+                <h3>Select a Category & Class</h3>
+                <p>Use the dropdowns above to view and manage students.</p>
             </div>
         </div>
     `;
 
-    const teamSel = document.getElementById('stuTeamSelect');
     const catSel = document.getElementById('stuCatSelect');
+    const classSel = document.getElementById('stuClassSelect');
+    const teamSel = document.getElementById('stuTeamSelect');
 
+    // 1. Load Global Categories
     try {
-        const snap = await getDocs(collection(db, "institutes", window.currentInstituteId, "teams"));
-        snap.forEach(tDoc => {
+        const catSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "categories"));
+        allCategories = [];
+        catSnap.forEach(d => {
+            const data = d.data();
+            allCategories.push({ id: d.id, ...data, classes: normalizeClasses(data.classes) });
             const opt = document.createElement('option');
-            opt.value = tDoc.id;
-            opt.textContent = tDoc.data().name;
+            opt.value = d.id;
+            opt.textContent = data.name;
+            catSel.appendChild(opt);
+        });
+    } catch (e) { console.error("Error loading categories", e); }
+
+    // 2. Load Teams
+    try {
+        const teamSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "teams"));
+        teamSnap.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.id;
+            opt.textContent = d.data().name;
             teamSel.appendChild(opt);
         });
     } catch (e) { console.error("Error loading teams", e); }
 
-    teamSel.addEventListener('change', async (e) => {
-        currentTeamStu = e.target.value;
-        currentCatStu = null;
-        catSel.innerHTML = '<option value="">Select Category...</option>';
-        catSel.disabled = true;
+    catSel.addEventListener('change', (e) => {
+        currentCategoryId = e.target.value;
+        currentClassId = null;
+        classSel.innerHTML = '<option value="">Select Class...</option>';
+        classSel.disabled = true;
         document.getElementById('btnAddStudents').disabled = true;
         resetStudentGrid();
 
-        if (currentTeamStu) {
-            try {
-                const cSnap = await getDocs(
-                    collection(db, "institutes", window.currentInstituteId, "teams", currentTeamStu, "categories")
-                );
-                cSnap.forEach(cDoc => {
+        if (currentCategoryId) {
+            const cat = allCategories.find(c => c.id === currentCategoryId);
+            if (cat && cat.classes) {
+                cat.classes.forEach(cls => {
                     const opt = document.createElement('option');
-                    opt.value = cDoc.id;
-                    opt.textContent = cDoc.data().name;
-                    catSel.appendChild(opt);
+                    opt.value = cls.id;
+                    opt.textContent = cls.name;
+                    classSel.appendChild(opt);
                 });
-                catSel.disabled = false;
-            } catch (err) { console.error(err); }
+                classSel.disabled = false;
+            }
         }
     });
 
-    catSel.addEventListener('change', (e) => {
-        currentCatStu = e.target.value;
+    classSel.addEventListener('change', (e) => {
+        currentClassId = e.target.value;
+        updateView();
+    });
+
+    teamSel.addEventListener('change', (e) => {
+        currentTeamId = e.target.value;
+        updateView();
+    });
+
+    function updateView() {
         const btn = document.getElementById('btnAddStudents');
-        if (currentCatStu && currentTeamStu) {
+        if (currentCategoryId && currentClassId) {
             btn.disabled = false;
             loadStudentsData();
         } else {
             btn.disabled = true;
             resetStudentGrid();
         }
-    });
+    }
 
     document.getElementById('btnAddStudents').addEventListener('click', openBulkAddModal);
 }
 
 function resetStudentGrid() {
     if (unsubscribeStudents) unsubscribeStudents();
-    document.getElementById('studentsGrid').innerHTML = `
-        <div class="empty-state" style="grid-column: 1 / -1; margin-top:2rem;">
-            <div class="empty-state-icon">🎓</div>
-            <h3>Select a Team &amp; Category</h3>
-            <p>Use the dropdowns above to view students.</p>
-        </div>
-    `;
+    const grid = document.getElementById('studentsGrid');
+    if (grid) {
+        grid.innerHTML = `
+            <div class="empty-state" style="grid-column: 1 / -1; margin-top:2rem;">
+                <div class="empty-state-icon">🎓</div>
+                <h3>Select a Category & Class</h3>
+                <p>Use the dropdowns above to view and manage students.</p>
+            </div>
+        `;
+    }
 }
 
+/**
+ * PRIMARY SOURCE: All reads use the flat collection
+ */
 function loadStudentsData() {
     if (unsubscribeStudents) unsubscribeStudents();
 
-    const studentsRef = collection(
-        db,
-        "institutes", window.currentInstituteId,
-        "teams", currentTeamStu,
-        "categories", currentCatStu,
-        "students"
-    );
+    const studentsRef = collection(db, "institutes", window.currentInstituteId, "students");
+    let q = query(studentsRef, where("categoryId", "==", currentCategoryId), where("classId", "==", currentClassId));
 
-    unsubscribeStudents = onSnapshot(studentsRef, (snapshot) => {
+    if (currentTeamId) {
+        q = query(q, where("teamId", "==", currentTeamId));
+    }
+
+    unsubscribeStudents = onSnapshot(q, (snapshot) => {
         const grid = document.getElementById('studentsGrid');
+        if (!grid) return;
         grid.innerHTML = '';
 
         if (snapshot.empty) {
             grid.innerHTML = `
                 <div class="empty-state" style="grid-column:1/-1; margin-top:2rem;">
                     <div class="empty-state-icon">👤</div>
-                    <h3>No Students</h3>
-                    <p>Click "+ Add Students" to enroll students.</p>
+                    <h3>No Students Found</h3>
+                    <p>Click "+ Add Students" to enroll students in this class.</p>
+                    <div id="legacyMigrationCheck" style="margin-top:1.25rem;"></div>
                 </div>`;
+            checkLegacyStudents(); // One-time helper check
             return;
         }
 
         snapshot.forEach(docSnap => {
-            const stu = docSnap.data();
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.innerHTML = `
-                <div class="card-header">
-                    <h3 class="card-title">${window.escapeHTML(stu.name)}</h3>
-                    <span style="background:#e0e7ff; color:#4338ca; border-radius:999px; padding:0.2rem 0.75rem; font-size:0.78rem; font-weight:700;">#${window.escapeHTML(stu.chestNumber || '')}</span>
-                </div>
-                <div class="card-body">
-                    <p><strong>Gender:</strong> ${window.escapeHTML(stu.gender)}</p>
-                </div>
-                <div class="card-actions">
-                    <button class="btn btn-secondary btn-sm edit-stu-btn"
-                        data-id="${docSnap.id}"
-                        data-all='${JSON.stringify({ chestNumber: stu.chestNumber, name: stu.name, gender: stu.gender }).replace(/'/g, "&#39;")}'>Edit</button>
-                    <button class="btn btn-danger btn-sm delete-stu-btn" data-id="${docSnap.id}">Delete</button>
-                </div>
-            `;
-            grid.appendChild(card);
+            renderStudentCard(grid, docSnap.id, docSnap.data());
         });
 
-        document.querySelectorAll('.edit-stu-btn').forEach(btn => {
-            btn.onclick = (e) => openEditModal(e.target.dataset.id, JSON.parse(e.target.dataset.all));
-        });
-        document.querySelectorAll('.delete-stu-btn').forEach(btn => {
-            btn.onclick = (e) => deleteStudent(e.target.dataset.id);
-        });
+        attachCardEvents();
     });
 }
 
-// ─────────────────────────────────────────────
-// BULK ADD MODAL
-// ─────────────────────────────────────────────
+/**
+ * ONE-TIME MIGRATION HELPER
+ * Checks if data exists in legacy nested paths when flat collection is empty
+ */
+async function checkLegacyStudents() {
+    // Requires a team selection to check the legacy team-nested path
+    if (!currentTeamId || !currentCategoryId) return;
+    const container = document.getElementById('legacyMigrationCheck');
+    if (!container) return;
+
+    const legacyPath = `institutes/${window.currentInstituteId}/teams/${currentTeamId}/categories/${currentCategoryId}/students`;
+    try {
+        const legacySnap = await getDocs(collection(db, legacyPath));
+        if (!legacySnap.empty) {
+            container.innerHTML = `
+                <div style="background:#f0f9ff; border:1px solid #bae6fd; padding:1.25rem; border-radius:12px; text-align:center;">
+                    <p style="font-size:0.875rem; color:#0369a1; font-weight:600; margin-bottom:0.5rem;">Legacy Data Detected</p>
+                    <p style="font-size:0.8rem; color:#075985; margin-bottom:1rem;">We found ${legacySnap.size} students in the old nested structure for this team/category.</p>
+                    <button class="btn btn-primary btn-sm" id="btnMigrateLegacy">🚀 Move to Global Collection</button>
+                </div>
+            `;
+            document.getElementById('btnMigrateLegacy').onclick = () => migrateLegacyStudents(legacySnap.docs);
+        }
+    } catch (e) { /* legacy path doesn't exist */ }
+}
+
+async function migrateLegacyStudents(docs) {
+    if (!confirm(`Move ${docs.length} students to the new structure? This will migrate them once and use the flat collection from now on.`)) return;
+    const btn = document.getElementById('btnMigrateLegacy');
+    btn.disabled = true;
+    btn.textContent = "Moving...";
+
+    try {
+        const batch = writeBatch(db);
+        const globalRef = collection(db, "institutes", window.currentInstituteId, "students");
+        const cat = allCategories.find(c => c.id === currentCategoryId);
+        const cls = cat?.classes?.find(c => c.id === currentClassId);
+        
+        docs.forEach(d => {
+            const data = d.data();
+            const newDoc = doc(globalRef);
+            batch.set(newDoc, {
+                ...data,
+                categoryId: currentCategoryId,
+                categoryName: cat?.name || 'General',
+                classId: currentClassId,
+                className: cls?.name || 'Standard',
+                teamId: currentTeamId || '',
+                migratedAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+        });
+        
+        await batch.commit();
+        window.showToast(`Successfully moved ${docs.length} students.`);
+        // Remove migration banner and reload
+        document.getElementById('legacyMigrationCheck').innerHTML = '';
+        loadStudentsData();
+    } catch (e) {
+        console.error(e);
+        window.showToast("Migration failed. Please try again.", "error");
+        btn.disabled = false;
+        btn.textContent = "Retry Move";
+    }
+}
+
+function renderStudentCard(grid, id, stu) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+        <div class="card-header">
+            <h3 class="card-title">${window.escapeHTML(stu.name)}</h3>
+            <span style="background:#e0e7ff; color:#4338ca; border-radius:999px; padding:0.2rem 0.75rem; font-size:0.78rem; font-weight:700;">#${window.escapeHTML(stu.chestNumber || '')}</span>
+        </div>
+        <div class="card-body">
+            <p style="font-size:0.85rem; margin-bottom:0.25rem;"><strong>Gender:</strong> ${window.escapeHTML(stu.gender || '—')}</p>
+            <p style="font-size:0.85rem; color:#64748b;">${window.escapeHTML(stu.categoryName || 'General')} · ${window.escapeHTML(stu.className || 'Standard')}</p>
+        </div>
+        <div class="card-actions">
+            <button class="btn btn-secondary btn-sm edit-stu-btn"
+                data-id="${id}"
+                data-all='${JSON.stringify(stu).replace(/'/g, "&#39;")}'>Edit</button>
+            <button class="btn btn-danger btn-sm delete-stu-btn" data-id="${id}">Delete</button>
+        </div>
+    `;
+    grid.appendChild(card);
+}
+
+function attachCardEvents() {
+    document.querySelectorAll('.edit-stu-btn').forEach(btn => {
+        btn.onclick = (e) => openEditModal(e.currentTarget.dataset.id, JSON.parse(e.currentTarget.dataset.all));
+    });
+    document.querySelectorAll('.delete-stu-btn').forEach(btn => {
+        btn.onclick = (e) => deleteStudent(e.currentTarget.dataset.id);
+    });
+}
+
 function openBulkAddModal() {
     const modalTitle = document.getElementById('dynamicModalTitle');
     const modalBody = document.getElementById('dynamicModalBody');
     const modalOverlay = document.getElementById('dynamicModal');
 
-    modalTitle.textContent = '🎓 Add Students';
+    const cat = allCategories.find(c => c.id === currentCategoryId);
+    const cls = cat?.classes.find(c => c.id === currentClassId);
 
+    modalTitle.textContent = '🎓 Add Students';
     modalBody.innerHTML = `
         <div style="margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:center;">
-            <p style="font-size:0.85rem; color:#64748b; margin:0;">Fill in each row. All students will be saved at once.</p>
+            <p style="font-size:0.85rem; color:#64748b; margin:0;">Adding to: <strong>${cat?.name} / ${cls?.name}</strong></p>
             <button type="button" id="addRowBtn" class="btn btn-secondary btn-sm">+ Add Row</button>
         </div>
-
         <div style="overflow-x:auto;">
             <table style="width:100%; border-collapse:collapse; font-size:0.875rem;">
                 <thead>
@@ -175,11 +287,9 @@ function openBulkAddModal() {
                         <th style="width:32px;"></th>
                     </tr>
                 </thead>
-                <tbody id="studentRowsBody">
-                </tbody>
+                <tbody id="studentRowsBody"></tbody>
             </table>
         </div>
-
         <div class="modal-actions" style="margin-top:1.25rem;">
             <button type="button" class="btn btn-secondary" id="cancelBulkBtn">Cancel</button>
             <button type="button" class="btn btn-primary" id="saveBulkBtn">
@@ -190,75 +300,51 @@ function openBulkAddModal() {
     `;
 
     modalOverlay.classList.remove('hidden');
-    document.getElementById('closeDynamicModalBtn').onclick = () => modalOverlay.classList.add('hidden');
     document.getElementById('cancelBulkBtn').onclick = () => modalOverlay.classList.add('hidden');
+    document.getElementById('addRowBtn').onclick = () => addStudentRow();
 
-    // Seed 3 rows
     addStudentRow();
     addStudentRow();
-    addStudentRow();
 
-    document.getElementById('addRowBtn').addEventListener('click', addStudentRow);
-
-    document.getElementById('saveBulkBtn').addEventListener('click', async () => {
+    document.getElementById('saveBulkBtn').onclick = async () => {
         const rows = document.querySelectorAll('.student-entry-row');
         const students = [];
-        let hasError = false;
-
-        rows.forEach((row, idx) => {
+        rows.forEach(row => {
             const chest = row.querySelector('.s-chest').value.trim();
             const name = row.querySelector('.s-name').value.trim();
             const gender = row.querySelector('.s-gender').value;
-
-            if (!chest && !name) return; // Skip completely empty rows
-            if (!chest || !name) {
-                window.showToast(`Row ${idx + 1}: Chest number and name are required.`, 'error');
-                hasError = true;
-                return;
-            }
-            students.push({ chestNumber: chest, name, gender });
+            if (chest && name) students.push({ chestNumber: chest, name, gender });
         });
 
-        if (hasError) return;
-        if (students.length === 0) {
-            window.showToast("Please fill in at least one student row.", "error");
-            return;
-        }
+        if (students.length === 0) return window.showToast("Fill in at least one student.", "error");
 
         const btn = document.getElementById('saveBulkBtn');
-        const text = btn.querySelector('.btn-text');
-        const spinner = btn.querySelector('.btn-spinner');
         btn.disabled = true;
-        text.classList.add('hidden');
-        spinner.classList.remove('hidden');
 
         try {
             const batch = writeBatch(db);
-            const colRef = collection(
-                db,
-                "institutes", window.currentInstituteId,
-                "teams", currentTeamStu,
-                "categories", currentCatStu,
-                "students"
-            );
-
+            const colRef = collection(db, "institutes", window.currentInstituteId, "students");
             students.forEach(stu => {
-                const newDocRef = doc(colRef);
-                batch.set(newDocRef, { ...stu, createdAt: serverTimestamp() });
+                batch.set(doc(colRef), { 
+                    ...stu, 
+                    categoryId: currentCategoryId, 
+                    categoryName: cat?.name || '',
+                    classId: currentClassId, 
+                    className: cls?.name || '',
+                    teamId: currentTeamId || '', 
+                    createdAt: serverTimestamp() 
+                });
             });
-
             await batch.commit();
-            window.showToast(`✅ ${students.length} student${students.length > 1 ? 's' : ''} added successfully!`);
+            window.showToast(`${students.length} students added!`);
             modalOverlay.classList.add('hidden');
-        } catch (err) {
-            console.error(err);
-            window.showToast("Error saving students. Please try again.", "error");
+        } catch (e) {
+            console.error(e);
+            window.showToast("Save failed", "error");
         } finally {
             btn.disabled = false;
-            text.classList.remove('hidden');
-            spinner.classList.add('hidden');
         }
-    });
+    };
 }
 
 function addStudentRow() {
@@ -267,39 +353,27 @@ function addStudentRow() {
     tr.className = 'student-entry-row';
     tr.style.cssText = 'border-bottom:1px solid #f1f5f9;';
     tr.innerHTML = `
+        <td style="padding:0.4rem 0.4rem;"><input type="text" class="form-input s-chest" placeholder="e.g. A101"></td>
+        <td style="padding:0.4rem 0.4rem;"><input type="text" class="form-input s-name" placeholder="Full name"></td>
         <td style="padding:0.4rem 0.4rem;">
-            <input type="text" class="form-input s-chest" placeholder="e.g. A101" style="padding:0.4rem 0.6rem; font-size:0.85rem;">
-        </td>
-        <td style="padding:0.4rem 0.4rem;">
-            <input type="text" class="form-input s-name" placeholder="Full name" style="padding:0.4rem 0.6rem; font-size:0.85rem;">
-        </td>
-        <td style="padding:0.4rem 0.4rem;">
-            <select class="form-input s-gender" style="padding:0.4rem 0.5rem; font-size:0.85rem;">
+            <select class="form-input s-gender">
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
                 <option value="Other">Other</option>
             </select>
         </td>
-        <td style="padding:0.4rem 0.2rem; text-align:center;">
-            <button type="button" class="remove-row-btn" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:1.1rem; line-height:1; padding:0.2rem;">✕</button>
-        </td>
+        <td style="padding:0.4rem 0.2rem;"><button type="button" class="remove-row-btn" style="background:none; border:none; color:#ef4444; cursor:pointer;">✕</button></td>
     `;
-    tr.querySelector('.remove-row-btn').addEventListener('click', () => tr.remove());
+    tr.querySelector('.remove-row-btn').onclick = () => tr.remove();
     tbody.appendChild(tr);
-    // Focus the chest number input of the new row
-    tr.querySelector('.s-chest').focus();
 }
 
-// ─────────────────────────────────────────────
-// EDIT MODAL (single student)
-// ─────────────────────────────────────────────
 function openEditModal(stuId, data) {
     const modalTitle = document.getElementById('dynamicModalTitle');
     const modalBody = document.getElementById('dynamicModalBody');
     const modalOverlay = document.getElementById('dynamicModal');
 
     modalTitle.textContent = 'Edit Student';
-
     modalBody.innerHTML = `
         <form id="editStudentForm">
             <div class="form-group">
@@ -310,7 +384,7 @@ function openEditModal(stuId, data) {
                 <label class="form-label">Student Name</label>
                 <input type="text" id="eName" class="form-input" required value="${window.escapeHTML(data.name || '')}">
             </div>
-            <div class="form-group mb-6">
+            <div class="form-group">
                 <label class="form-label">Gender</label>
                 <select id="eGender" class="form-input">
                     <option value="Male" ${data.gender === 'Male' ? 'selected' : ''}>Male</option>
@@ -319,58 +393,41 @@ function openEditModal(stuId, data) {
                 </select>
             </div>
             <div class="modal-actions">
-                <button type="submit" class="btn btn-primary w-full" id="saveEditStuBtn">
-                    <span class="btn-text">Save Changes</span>
-                    <span class="btn-spinner hidden"></span>
-                </button>
+                <button type="submit" class="btn btn-primary w-full" id="saveEditStuBtn">Save Changes</button>
             </div>
         </form>
     `;
 
     modalOverlay.classList.remove('hidden');
-    document.getElementById('closeDynamicModalBtn').onclick = () => modalOverlay.classList.add('hidden');
-
-    document.getElementById('editStudentForm').addEventListener('submit', async (e) => {
+    document.getElementById('editStudentForm').onsubmit = async (e) => {
         e.preventDefault();
         const btn = document.getElementById('saveEditStuBtn');
         btn.disabled = true;
-        btn.querySelector('.btn-text').classList.add('hidden');
-        btn.querySelector('.btn-spinner').classList.remove('hidden');
 
         try {
-            await updateDoc(
-                doc(db, "institutes", window.currentInstituteId, "teams", currentTeamStu, "categories", currentCatStu, "students", stuId),
-                {
-                    chestNumber: document.getElementById('eChest').value.trim(),
-                    name: document.getElementById('eName').value.trim(),
-                    gender: document.getElementById('eGender').value
-                }
-            );
+            await updateDoc(doc(db, "institutes", window.currentInstituteId, "students", stuId), {
+                chestNumber: document.getElementById('eChest').value.trim(),
+                name: document.getElementById('eName').value.trim(),
+                gender: document.getElementById('eGender').value,
+                updatedAt: serverTimestamp()
+            });
             window.showToast("Student updated");
             modalOverlay.classList.add('hidden');
-        } catch (err) {
-            console.error(err);
-            window.showToast("Error updating student", "error");
-        } finally {
+        } catch (e) {
+            console.error(e);
+            window.showToast("Update failed", "error");
             btn.disabled = false;
-            btn.querySelector('.btn-text').classList.remove('hidden');
-            btn.querySelector('.btn-spinner').classList.add('hidden');
         }
-    });
+    };
 }
 
-// ─────────────────────────────────────────────
-// DELETE
-// ─────────────────────────────────────────────
 async function deleteStudent(id) {
     if (!confirm("Delete this student?")) return;
     try {
-        await deleteDoc(
-            doc(db, "institutes", window.currentInstituteId, "teams", currentTeamStu, "categories", currentCatStu, "students", id)
-        );
+        await deleteDoc(doc(db, "institutes", window.currentInstituteId, "students", id));
         window.showToast("Student deleted");
     } catch (e) {
         console.error(e);
-        window.showToast("Error", "error");
+        window.showToast("Delete failed", "error");
     }
 }

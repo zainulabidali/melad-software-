@@ -71,7 +71,19 @@ service cloud.firestore {
       // Only super admin manages institutes
       allow create, update, delete: if isSuperAdmin();
 
-      // ── Nested: Results (publicly readable) ──
+      // ── NEW: Institute-level Categories (flattened) ──
+      match /categories/{categoryId} {
+        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
+        allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
+      }
+
+      // ── NEW: Institute-level Students (flattened with categoryId, classId) ──
+      match /students/{studentId} {
+        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
+        allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
+      }
+
+      // ── Results (publicly readable) ──
       match /results/{resultId} {
         // Results are public
         allow read: if true;
@@ -79,10 +91,40 @@ service cloud.firestore {
         allow write: if isInstituteAdmin(instituteId) || isSuperAdmin();
       }
 
-      // ── Nested: All other institute data (teams, categories, students, programs) ──
-      match /{document=**} {
-        // Only the institute's own admin or super admin
-        allow read, write: if isInstituteAdmin(instituteId) || isSuperAdmin();
+      // ── Programs (admin-only management, public read if published flag exists) ──
+      match /programs/{programId} {
+        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
+        allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
+
+        // Program participants (nested under programs)
+        match /participants/{participantId} {
+          allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
+          allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
+        }
+      }
+
+      // ── Teams (kept for backward compatibility and group program management) ──
+      match /teams/{teamId} {
+        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
+        allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
+
+        // Nested categories under teams (OLD STRUCTURE - kept for migration)
+        match /categories/{categoryId} {
+          allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
+          allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
+
+          // Nested students under team categories (OLD STRUCTURE - kept for migration)
+          match /students/{studentId} {
+            allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
+            allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
+          }
+        }
+      }
+
+      // ── Migration metadata ──
+      match /migrationStatus/{doc} {
+        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
+        allow write: if isSuperAdmin();
       }
     }
 

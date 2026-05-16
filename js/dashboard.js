@@ -183,8 +183,13 @@ window.escapeHTML = function (str) {
 
 // Dashboard Overview Logic
 async function initDashboardOverview(container, topActions) {
+    const instId = window.currentInstituteId;
+    const instName = window.currentInstituteDetails?.name || 'Institute';
+    const publicUrl = `${window.location.origin}/pages/public-results.html?instId=${instId}`;
+    const waMessage = encodeURIComponent(`📢 *${instName}* പരീക്ഷാഫലം പ്രസിദ്ധീകരിച്ചിരിക്കുന്നു.\n\nതാഴെയുള്ള ലിങ്ക് ഉപയോഗിച്ച് റിസൾട്ട് പരിശോധിക്കാം:\n${publicUrl}\n\nبارك الله فيكم`);
+
     container.innerHTML = `
-        <div class="grid" id="analyticsGrid">
+        <div class="grid" id="analyticsGrid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
             <!-- Stats -->
             <div class="card">
                 <div class="card-header">
@@ -193,14 +198,36 @@ async function initDashboardOverview(container, topActions) {
                 </div>
                 <h2 style="font-size:2.5rem; margin-top:0.5rem;" id="statTeams">-</h2>
             </div>
+            
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title text-muted">Total Classes/Categories</h3>
-                    <span class="icon" style="font-size:1.5rem;">🏷️</span>
+                    <h3 class="card-title text-muted">Total Students</h3>
+                    <span class="icon" style="font-size:1.5rem;">🎓</span>
                 </div>
-                <h2 style="font-size:2.5rem; margin-top:0.5rem;" id="statCategories">-</h2>
+                <h2 style="font-size:2.5rem; margin-top:0.5rem;" id="statStudents">-</h2>
             </div>
-            <!-- Aggregation requires collectionGroup across subcollections or specific pathing -->
+
+            <!-- Public Portal Card -->
+            <div class="card" style="border: 1px solid var(--primary-color); background: #f0f7ff;">
+                <div class="card-header">
+                    <h3 class="card-title" style="color:var(--primary-color); font-weight:700;">🔗 Public Result Portal</h3>
+                </div>
+                <div class="card-body" style="padding: 0.5rem 0;">
+                    <p style="font-size:0.85rem; color:#64748b; margin-bottom:1rem;">Share published results instantly with parents and students.</p>
+                    <div id="portalStatus" style="font-size:0.75rem; font-weight:700; margin-bottom:1rem;">
+                        <span class="spinner-sm"></span> Checking status...
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem; margin-bottom:0.5rem;">
+                        <button class="btn btn-secondary btn-sm" id="dashCopyLink" disabled>📋 Copy Link</button>
+                        <a href="https://wa.me/?text=${waMessage}" target="_blank" class="btn btn-primary btn-sm" id="dashWhatsApp" 
+                            style="background:#25D366; border-color:#25D366; text-decoration:none; display:flex; align-items:center; justify-content:center; ${'pointer-events:none; opacity:0.5;'}">
+                            📲 WhatsApp
+                        </a>
+                    </div>
+                    <button class="btn btn-outline btn-sm w-full" id="dashOpenPortal">🌐 Open Portal</button>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">
                     <h3 class="card-title text-muted">Institute Status</h3>
@@ -211,15 +238,47 @@ async function initDashboardOverview(container, topActions) {
         </div>
     `;
 
+    // Bind Portal Actions
+    document.getElementById('dashCopyLink').onclick = () => {
+        navigator.clipboard.writeText(publicUrl).then(() => {
+            window.showToast("Link copied successfully!");
+        });
+    };
+    document.getElementById('dashOpenPortal').onclick = () => window.open(publicUrl, '_blank');
+
     try {
         // Teams Count
-        const teamsColl = collection(db, "institutes", window.currentInstituteId, "teams");
+        const teamsColl = collection(db, "institutes", instId, "teams");
         const snapTeams = await getCountFromServer(teamsColl);
         document.getElementById('statTeams').textContent = snapTeams.data().count;
 
-        // Note: Counting nested subcollections across all teams realistically needs a cloud function
-        // or a `collectionGroup` query filtered by instituteId. We can demonstrate a simple collectionGroup query if security rules allow, or just skip global counting of students for now to keep it efficient.
-        document.getElementById('statCategories').textContent = "View Modules";
+        // Students Count (Flat Collection)
+        const stuColl = collection(db, "institutes", instId, "students");
+        const snapStu = await getCountFromServer(stuColl);
+        document.getElementById('statStudents').textContent = snapStu.data().count;
+
+        // Portal Status Check
+        const resultsColl = collection(db, "institutes", instId, "results");
+        const qPublished = query(resultsColl, where("status", "==", "published"));
+        const snapPublished = await getCountFromServer(qPublished);
+        const hasPublished = snapPublished.data().count > 0;
+
+        const statusEl = document.getElementById('portalStatus');
+        const copyBtn = document.getElementById('dashCopyLink');
+        const waBtn = document.getElementById('dashWhatsApp');
+
+        if (hasPublished) {
+            statusEl.innerHTML = `<span style="color:#15803d;">✓ Public Portal Active (${snapPublished.data().count} results)</span>`;
+            copyBtn.disabled = false;
+            waBtn.style.pointerEvents = 'auto';
+            waBtn.style.opacity = '1';
+        } else {
+            statusEl.innerHTML = `<span style="color:#d97706;">⚠ No Published Results</span>`;
+            copyBtn.disabled = true;
+            waBtn.style.pointerEvents = 'none';
+            waBtn.style.opacity = '0.5';
+        }
+
     } catch (err) {
         console.error("Dashboard Analytics Error:", err);
     }

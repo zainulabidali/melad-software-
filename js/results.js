@@ -18,20 +18,58 @@ function calcMarks(position, grade) {
 // ─────────────────────────────────────────────
 // Module-level state
 // ─────────────────────────────────────────────
+let currentResultsFilter = {
+    categoryId: '',
+    classId: '',
+    gender: '',
+    stage: ''
+};
+
 let unsubscribeResults = null;
-let allPrograms = [];   // { id, programName, type, genderCategory, programLocation, teamId, teamName, categoryId, categoryName }
+let allPrograms = [];
 let programsLoaded = false;
 
-// ─────────────────────────────────────────────
-// Init
-// ─────────────────────────────────────────────
-export function initResultsView(container, topActions) {
-    if (unsubscribeResults) unsubscribeResults();
+export async function initResultsView(container, topActions) {
+    if (!window.currentInstituteId) {
+        container.innerHTML = '<div class="empty-state"><h3>Access Denied</h3><p>Please log in again.</p></div>';
+        return;
+    }
+
+    if (unsubscribeResults) {
+        unsubscribeResults();
+        unsubscribeResults = null;
+    }
     programsLoaded = false;
     allPrograms = [];
 
+    // Load Categories for filter
+    let catOptions = '<option value="">All Categories</option>';
+    try {
+        const catSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "categories"));
+        catSnap.forEach(d => {
+            catOptions += `<option value="${d.id}">${window.escapeHTML(d.data().name)}</option>`;
+        });
+    } catch (e) { console.error(e); }
+
     topActions.innerHTML = `
-        <button class="btn btn-primary" id="btnPublishResult">🏆 Enter Result</button>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+            <select id="resCatFilter" class="form-input" style="width:150px;">${catOptions}</select>
+            <select id="resClassFilter" class="form-input" style="width:150px;" disabled>
+                <option value="">All Classes</option>
+            </select>
+            <select id="resGenderFilter" class="form-input" style="width:120px;">
+                <option value="">All Genders</option>
+                <option value="Boys">Boys</option>
+                <option value="Girls">Girls</option>
+            </select>
+            <select id="resStageFilter" class="form-input" style="width:120px;">
+                <option value="">All Stages</option>
+                <option value="Stage">Stage</option>
+                <option value="Off Stage">Off Stage</option>
+            </select>
+            <button class="btn btn-primary" id="btnPublishResult">🏆 Enter Result</button>
+            <button class="btn btn-secondary" id="btnShareLink">🔗 Share Results</button>
+        </div>
     `;
 
     container.innerHTML = `
@@ -40,14 +78,110 @@ export function initResultsView(container, topActions) {
         </div>
     `;
 
-    document.getElementById('btnPublishResult').addEventListener('click', openJudgingModal);
+    const catFilter = document.getElementById('resCatFilter');
+    const classFilter = document.getElementById('resClassFilter');
+
+    catFilter.onchange = async (e) => {
+        currentResultsFilter.categoryId = e.target.value;
+        currentResultsFilter.classId = '';
+        classFilter.innerHTML = '<option value="">All Classes</option>';
+        classFilter.disabled = true;
+
+        if (currentResultsFilter.categoryId) {
+            const catDoc = await getDocs(doc(db, "institutes", window.currentInstituteId, "categories", currentResultsFilter.categoryId));
+            if (catDoc.exists()) {
+                const classes = window.normalizeClasses ? window.normalizeClasses(catDoc.data().classes) : [];
+                classes.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = c.name;
+                    classFilter.appendChild(opt);
+                });
+                classFilter.disabled = false;
+            }
+        }
+        loadResultsData();
+    };
+
+    classFilter.onchange = (e) => {
+        currentResultsFilter.classId = e.target.value;
+        loadResultsData();
+    };
+
+    document.getElementById('resGenderFilter').onchange = (e) => {
+        currentResultsFilter.gender = e.target.value;
+        loadResultsData();
+    };
+
+    document.getElementById('resStageFilter').onchange = (e) => {
+        currentResultsFilter.stage = e.target.value;
+        loadResultsData();
+    };
+
+    document.getElementById('btnPublishResult').addEventListener('click', () => openJudgingModal());
+    document.getElementById('btnShareLink').addEventListener('click', openShareLinkModal);
     loadResultsData();
+}
+
+async function openShareLinkModal() {
+    const modal = document.getElementById('dynamicModal');
+    const modalTitle = document.getElementById('dynamicModalTitle');
+    const modalBody = document.getElementById('dynamicModalBody');
+
+    modalTitle.textContent = '🔗 Share Results';
+    
+    // Get Institute Name
+    let instName = 'Our Institute';
+    try {
+        const instDoc = await getDocs(doc(db, "institutes", window.currentInstituteId));
+        if (instDoc.exists()) instName = instDoc.data().name || instName;
+    } catch(e) {}
+
+    const publicUrl = `${window.location.origin}/pages/public-results.html?instId=${window.currentInstituteId}`;
+    const waMessage = encodeURIComponent(`📢 *${instName}* പരീക്ഷാഫലം പ്രസിദ്ധീകരിച്ചിരിക്കുന്നു.\n\nതാഴെയുള്ള ലിങ്ക് ഉപയോഗിച്ച് റിസൾട്ട് പരിശോധിക്കാം:\n${publicUrl}\n\nبارك الله فيكم`);
+
+    modalBody.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:1.25rem;padding:0.5rem;">
+            <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:1rem;text-align:center;">
+                <p style="font-size:0.875rem;color:#0369a1;margin-bottom:0.75rem;">Public Result Link:</p>
+                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0.75rem;font-family:monospace;font-size:0.85rem;word-break:break-all;margin-bottom:1rem;">
+                    ${publicUrl}
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                    <button class="btn btn-secondary w-full" id="btnCopyLink">📋 Copy Link</button>
+                    <a href="https://wa.me/?text=${waMessage}" target="_blank" class="btn btn-primary w-full" style="background:#25D366;border-color:#25D366;text-decoration:none;display:flex;align-items:center;justify-content:center;">
+                        WhatsApp Share
+                    </a>
+                </div>
+            </div>
+            
+            <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:12px;padding:1rem;">
+                <p style="font-size:0.8rem;color:#be123c;line-height:1.4;">
+                    <strong>Security Note:</strong> Anyone with this link can view the results. Only results marked as <strong>"Published"</strong> will be visible.
+                </p>
+            </div>
+        </div>
+    `;
+
+    modal.classList.remove('hidden');
+    document.getElementById('closeDynamicModalBtn').onclick = () => modal.classList.add('hidden');
+
+    document.getElementById('btnCopyLink').onclick = () => {
+        navigator.clipboard.writeText(publicUrl).then(() => {
+            window.showToast("Link copied to clipboard!");
+        });
+    };
 }
 
 // ─────────────────────────────────────────────
 // Published Results — List View
 // ─────────────────────────────────────────────
 function loadResultsData() {
+    if (unsubscribeResults) {
+        unsubscribeResults();
+        unsubscribeResults = null;
+    }
+
     const q = query(
         collection(db, "institutes", window.currentInstituteId, "results"),
         orderBy('publishedAt', 'desc')
@@ -68,8 +202,17 @@ function loadResultsData() {
             return;
         }
 
+        let resultsFound = 0;
         snapshot.forEach(docSnap => {
             const r = docSnap.data();
+
+            // Client-side filtering
+            if (currentResultsFilter.categoryId && r.categoryId !== currentResultsFilter.categoryId) return;
+            if (currentResultsFilter.classId && r.classId !== currentResultsFilter.classId) return;
+            if (currentResultsFilter.gender && r.genderCategory !== currentResultsFilter.gender) return;
+            if (currentResultsFilter.stage && r.programLocation !== currentResultsFilter.stage) return;
+
+            resultsFound++;
             const winners = r.winners || [];
             const date = r.publishedAt?.toDate?.()
                 ? r.publishedAt.toDate().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -94,26 +237,81 @@ function loadResultsData() {
 
             const card = document.createElement('div');
             card.className = 'card';
+            
+            // Link sharing helpers
+            const publicUrl = `${window.location.origin}/pages/public-results.html?instId=${window.currentInstituteId}`;
+            const instName = window.currentInstituteName || 'Institute';
+            const waMessage = encodeURIComponent(`📢 *${instName}* പരീക്ഷാഫലം പ്രസിദ്ധീകരിച്ചിരിക്കുന്നു.\n\nതാഴെയുള്ള ലിങ്ക് ഉപയോഗിച്ച് റിസൾട്ട് പരിശോധിക്കാം:\n${publicUrl}\n\nبارك الله فيكم`);
+
             card.innerHTML = `
                 <div class="card-header">
-                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
                         <h3 class="card-title" style="font-size:1rem; margin:0;">${window.escapeHTML(r.programName)}</h3>
                         ${statusBadge}
                     </div>
-                    <span class="badge badge-active" style="font-size:0.72rem;">${window.escapeHTML(r.categoryName || '—')}</span>
+                    <div style="display:flex; gap:0.3rem;">
+                        <span class="badge" style="font-size:0.7rem; background:#f1f5f9;">${window.escapeHTML(r.categoryName || '—')}</span>
+                        ${r.className ? `<span class="badge" style="font-size:0.7rem; background:#f1f5f9;">${window.escapeHTML(r.className)}</span>` : ''}
+                    </div>
                 </div>
                 <div class="card-body" style="padding-top:0.25rem;">
                     <p style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.6rem;">
-                        ${window.escapeHTML(r.teamName || '—')} · ${isDraft ? 'Not Published' : date}
+                        ${window.escapeHTML(r.genderCategory || '')} · ${window.escapeHTML(r.programLocation || '')} · ${isDraft ? 'Not Published' : date}
                     </p>
                     ${winnersHTML || '<p class="text-muted" style="font-size:0.8rem;">No winners.</p>'}
                 </div>
-                <div class="card-actions">
+                
+                <div style="padding:0 1rem; margin-bottom:0.75rem; display:flex; gap:0.4rem; flex-wrap:wrap;">
+                    <button class="btn btn-secondary btn-sm btn-copy-link" title="Copy public result link" data-url="${publicUrl}">🔗 Link</button>
+                    <a href="https://wa.me/?text=${waMessage}" target="_blank" class="btn btn-sm ${isDraft ? 'btn-disabled' : ''}" 
+                        style="background:#25D366; color:white; text-decoration:none; display:flex; align-items:center; gap:0.3rem; border-radius:6px; padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:600; ${isDraft ? 'pointer-events:none; opacity:0.5;' : ''}">
+                        📲 WhatsApp
+                    </a>
+                    <button class="btn btn-secondary btn-sm btn-open-public" data-url="${publicUrl}">🌐 Open</button>
+                </div>
+
+                <div class="card-actions" style="border-top:1px solid #f1f5f9; padding-top:0.75rem;">
+                    <button class="btn btn-secondary btn-sm btn-edit-result" data-id="${docSnap.id}" data-all='${JSON.stringify(r).replace(/'/g, "&#39;")}'>✏️ Edit</button>
                     ${isDraft ? `<button class="btn btn-primary btn-sm btn-publish-draft" data-id="${docSnap.id}">🏆 Publish</button>` : ''}
                     <button class="btn btn-danger btn-sm btn-revoke" data-id="${docSnap.id}">🗑 Revoke</button>
                 </div>
             `;
             grid.appendChild(card);
+        });
+
+        // Event Listeners
+        document.querySelectorAll('.btn-copy-link').forEach(btn => {
+            btn.onclick = (e) => {
+                navigator.clipboard.writeText(e.target.dataset.url).then(() => {
+                    const originalText = e.target.textContent;
+                    e.target.textContent = "✓ Copied";
+                    e.target.style.background = "#dcfce7";
+                    e.target.style.color = "#15803d";
+                    setTimeout(() => {
+                        e.target.textContent = originalText;
+                        e.target.style.background = "";
+                        e.target.style.color = "";
+                    }, 2000);
+                    window.showToast("Link copied to clipboard!");
+                });
+            };
+        });
+
+        document.querySelectorAll('.btn-open-public').forEach(btn => {
+            btn.onclick = (e) => window.open(e.target.dataset.url, '_blank');
+        });
+
+        if (resultsFound === 0) {
+            grid.innerHTML = `
+                <div class="empty-state" style="grid-column:1/-1; margin-top:2rem;">
+                    <div class="empty-state-icon">🔍</div>
+                    <h3>No Matching Results</h3>
+                    <p>Try adjusting your filters to find what you're looking for.</p>
+                </div>`;
+        }
+
+        document.querySelectorAll('.btn-edit-result').forEach(btn => {
+            btn.onclick = (e) => openJudgingModal(e.currentTarget.dataset.id, JSON.parse(e.currentTarget.dataset.all));
         });
 
         document.querySelectorAll('.btn-publish-draft').forEach(btn => {
@@ -135,9 +333,14 @@ function loadResultsData() {
         document.querySelectorAll('.btn-revoke').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const id = e.target.getAttribute('data-id');
-                if (!confirm("Revoke this result? It will be removed from the public view.")) return;
+                if (!confirm("Revoke this public link and remove result from public view?")) return;
                 try {
-                    await deleteDoc(doc(db, "institutes", window.currentInstituteId, "results", id));
+                    // Soft delete for safety
+                    await updateDoc(doc(db, "institutes", window.currentInstituteId, "results", id), {
+                        status: 'revoked',
+                        publicDisabled: true,
+                        revokedAt: serverTimestamp()
+                    });
                     window.showToast("Result revoked.");
                 } catch (err) {
                     window.showToast("Failed to revoke.", "error");
@@ -147,6 +350,15 @@ function loadResultsData() {
 
     }, (err) => {
         console.error("Results listener error:", err);
+        const grid = document.getElementById('resultsGrid');
+        if (grid) {
+            grid.innerHTML = `
+                <div class="empty-state" style="grid-column:1/-1;">
+                    <div class="empty-state-icon">⚠️</div>
+                    <h3>Failed to load results</h3>
+                    <p>${err.message.includes('index') ? 'A Firestore index is required. Please check the console.' : 'Please try again later.'}</p>
+                </div>`;
+        }
         window.showToast("Error loading results.", "error");
     });
 }
@@ -154,8 +366,8 @@ function loadResultsData() {
 // ─────────────────────────────────────────────
 // Load All Programs (global programs)
 // ─────────────────────────────────────────────
-async function loadAllPrograms() {
-    if (programsLoaded) return;
+async function loadAllPrograms(force = false) {
+    if (programsLoaded && !force) return;
 
     allPrograms = [];
     
@@ -164,27 +376,29 @@ async function loadAllPrograms() {
             collection(db, "institutes", window.currentInstituteId, "programs")
         );
 
+        // Batch category name lookups if needed, but for now we have categoryName in doc
         progsSnap.forEach(progDoc => {
             const p = progDoc.data();
             const pType = (p.programType || p.type || 'individual').toLowerCase();
             allPrograms.push({
                 id: progDoc.id,
-                programName: p.programName || '',
+                programName: p.programName || 'Unnamed Program',
                 programType: pType,
-                type: pType === 'group' ? 'Group' : 'Individual', // For backward compatibility
+                type: pType === 'group' ? 'Group' : 'Individual',
                 genderCategory: p.genderCategory || 'Mixed',
                 programLocation: p.programLocation || 'Stage',
                 groupSize: p.maxParticipants || p.groupSize || 1,
-                teamId: '',
-                teamName: '', 
                 categoryId: p.categoryId || '',
-                categoryName: p.categoryId || '' 
+                categoryName: p.categoryName || p.categoryId || 'General',
+                classId: p.classId || '',
+                className: p.className || ''
             });
         });
 
         programsLoaded = true;
     } catch (err) {
         console.error("Error loading programs:", err);
+        window.showToast("Failed to load programs list.", "error");
         throw err;
     }
 }
@@ -230,12 +444,12 @@ async function loadStudentsForProgram(prog) {
 // ─────────────────────────────────────────────
 // Main Judging Modal
 // ─────────────────────────────────────────────
-async function openJudgingModal() {
+async function openJudgingModal(resultId = null, existingData = null) {
     const modal = document.getElementById('dynamicModal');
     const modalTitle = document.getElementById('dynamicModalTitle');
     const modalBody = document.getElementById('dynamicModalBody');
 
-    modalTitle.textContent = '🏆 Enter Result';
+    modalTitle.textContent = resultId ? '✏️ Edit Result' : '🏆 Enter Result';
     modalBody.innerHTML = `<div style="text-align:center;padding:2rem;"><div class="spinner"></div><p style="margin-top:0.75rem;color:#64748b;font-size:0.875rem;">Loading programs…</p></div>`;
     modal.classList.remove('hidden');
     document.getElementById('closeDynamicModalBtn').onclick = () => modal.classList.add('hidden');
@@ -243,14 +457,18 @@ async function openJudgingModal() {
     try {
         await loadAllPrograms();
     } catch (err) {
-        modalBody.innerHTML = `<p style="color:#ef4444;text-align:center;padding:2rem;">Failed to load programs. Please try again.</p>`;
+        modalBody.innerHTML = `
+            <div style="text-align:center;padding:2rem;">
+                <p style="color:#ef4444;font-weight:600;">Failed to load programs.</p>
+                <button class="btn btn-secondary btn-sm" onclick="location.reload()" style="margin-top:1rem;">Retry Page Load</button>
+            </div>`;
         return;
     }
 
-    renderJudgingUI(modalBody, modal);
+    renderJudgingUI(modalBody, modal, resultId, existingData);
 }
 
-function renderJudgingUI(modalBody, modal) {
+function renderJudgingUI(modalBody, modal, resultId, existingData) {
     // ── Active filter state ────────────────────
     let filterGender = '';
     let filterLocation = '';
@@ -300,7 +518,7 @@ function renderJudgingUI(modalBody, modal) {
             <!-- Program Select -->
             <div class="form-group" style="margin:0;">
                 <label class="form-label">Select Program *</label>
-                <select id="jProgramSelect" class="form-input">
+                <select id="jProgramSelect" class="form-input" ${resultId ? 'disabled' : ''}>
                     <option value="">— Choose a Program —</option>
                 </select>
                 <div id="jProgInfo" style="display:none; margin-top:0.5rem; font-size:0.78rem; color:#64748b; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:0.45rem 0.75rem;"></div>
@@ -342,6 +560,13 @@ function renderJudgingUI(modalBody, modal) {
     // ── Populate program dropdown ────────────────
     function populateProgramDropdown() {
         const sel = document.getElementById('jProgramSelect');
+        if (resultId && existingData) {
+            sel.innerHTML = `<option value="${existingData.programId}">${window.escapeHTML(existingData.programName)}</option>`;
+            sel.value = existingData.programId;
+            loadParticipantsForSelectedProgram(existingData.programId);
+            return;
+        }
+
         const filtered = allPrograms.filter(p => {
             if (filterGender && p.genderCategory !== filterGender) return false;
             if (filterLocation && p.programLocation !== filterLocation) return false;
@@ -351,16 +576,42 @@ function renderJudgingUI(modalBody, modal) {
 
         let opts = `<option value="">— Choose a Program (${filtered.length} found) —</option>`;
         filtered.forEach(p => {
-            opts += `<option value="${p.id}-|-${p.teamId}-|-${p.categoryId}">${window.escapeHTML(p.programName)} [${window.escapeHTML(p.categoryName)}]</option>`;
+            opts += `<option value="${p.id}">${window.escapeHTML(p.programName)} [${window.escapeHTML(p.categoryName || '')}]</option>`;
         });
         sel.innerHTML = opts;
+    }
 
-        // Reset program state
-        selectedProg = null;
-        participants = [];
-        document.getElementById('jProgInfo').style.display = 'none';
-        document.getElementById('jWinnersSection').style.display = 'none';
-        document.getElementById('jWinnersContainer').innerHTML = '';
+    async function loadParticipantsForSelectedProgram(progId) {
+        selectedProg = allPrograms.find(p => p.id === progId);
+        if (!selectedProg) return;
+
+        const infoBox = document.getElementById('jProgInfo');
+        const winnersSection = document.getElementById('jWinnersSection');
+        const winnersCont = document.getElementById('jWinnersContainer');
+
+        try {
+            participants = await loadStudentsForProgram(selectedProg);
+            winnersSection.style.display = 'flex';
+            if (existingData && existingData.winners) {
+                existingData.winners.forEach(w => addWinnerRow(w));
+            } else {
+                addWinnerRow({ position: 'First' });
+                addWinnerRow({ position: 'Second' });
+                addWinnerRow({ position: 'Third' });
+            }
+            updateProgramInfo();
+        } catch (e) { console.error(e); }
+    }
+
+    function updateProgramInfo() {
+        const infoBox = document.getElementById('jProgInfo');
+        if (!selectedProg) return;
+        infoBox.innerHTML = `
+            📋 <strong>${window.escapeHTML(selectedProg.categoryName || '')}</strong>
+            &nbsp;${selectedProg.genderCategory} · ${selectedProg.programLocation}
+            &nbsp;· <strong>${participants.length}</strong> participants loaded
+        `;
+        infoBox.style.display = 'block';
     }
 
     populateProgramDropdown();
@@ -664,29 +915,36 @@ function renderJudgingUI(modalBody, modal) {
         spinner.classList.remove('hidden');
 
         try {
-            await addDoc(
-                collection(db, "institutes", window.currentInstituteId, "results"),
-                {
-                    programId: selectedProg.id,
-                    programName: selectedProg.programName,
-                    categoryId: selectedProg.categoryId,
-                    categoryName: selectedProg.categoryName,
-                    teamId: selectedProg.teamId,
-                    teamName: selectedProg.teamName,
-                    winners,
-                    status: isDraft ? 'draft' : 'published',
-                    publishedAt: isDraft ? null : serverTimestamp()
-                }
-            );
-            window.showToast(isDraft ? "📝 Result saved as draft." : "✅ Result published successfully!");
+            const payload = {
+                programId: selectedProg.id,
+                programName: selectedProg.programName,
+                categoryId: selectedProg.categoryId || '',
+                categoryName: selectedProg.categoryName || '',
+                classId: selectedProg.classId || '',
+                className: selectedProg.className || '',
+                genderCategory: selectedProg.genderCategory || '',
+                programLocation: selectedProg.programLocation || '',
+                winners,
+                status: isDraft ? 'draft' : 'published',
+                publishedAt: isDraft ? (existingData?.publishedAt || null) : serverTimestamp(),
+                updatedAt: serverTimestamp()
+            };
+
+            const ref = collection(db, "institutes", window.currentInstituteId, "results");
+            if (resultId) {
+                await updateDoc(doc(ref, resultId), payload);
+                window.showToast("Result updated successfully!");
+            } else {
+                payload.createdAt = serverTimestamp();
+                await addDoc(ref, payload);
+                window.showToast(isDraft ? "📝 Result saved as draft." : "✅ Result published successfully!");
+            }
             modal.classList.add('hidden');
         } catch (err) {
-            console.error("Publish error:", err);
-            window.showToast("Failed to save result. Please try again.", "error");
+            console.error("Save error:", err);
+            window.showToast("Failed to save result.", "error");
         } finally {
             btn.disabled = false;
-            text.classList.remove('hidden');
-            spinner.classList.add('hidden');
         }
     }
 }
