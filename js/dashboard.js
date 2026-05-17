@@ -9,6 +9,7 @@ import { initCategoriesView } from './categories.js';
 import { initStudentsView } from './students.js';
 import { initProgramsView } from './programs.js';
 import { initResultsView } from './results.js';
+import { initParticipantsWorkflowView } from './participants-workflow.js';
 
 // Global state
 window.currentInstituteId = null;
@@ -21,7 +22,11 @@ const views = {
     'categories': initCategoriesView,
     'students': initStudentsView,
     'programs': initProgramsView,
-    'results': initResultsView
+    'results': initResultsView,
+    'participants-workflow': (container, topActions) => {
+        const payload = window.__participantsWorkflowPayload || {};
+        return initParticipantsWorkflowView(container, topActions, payload);
+    }
 };
 
 // Auth Guard
@@ -64,15 +69,15 @@ function setupNavigation() {
     navItems.forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
-            
+
             // Remove active from all
             navItems.forEach(nav => nav.classList.remove('active'));
-            
+
             const targetView = item.getAttribute('data-view');
-            
+
             // Add active to all matching links
             document.querySelectorAll(`[data-view="${targetView}"]`).forEach(el => el.classList.add('active'));
-            
+
             // Close drawer if it's open
             closeMoreDrawer();
 
@@ -85,7 +90,7 @@ function setupNavigation() {
         await signOut(auth);
         window.location.href = '../pages/login.html';
     };
-    
+
     document.getElementById('logoutBtn')?.addEventListener('click', logoutHandler);
     document.getElementById('logoutDrawerBtn')?.addEventListener('click', logoutHandler);
 
@@ -96,23 +101,23 @@ function setupNavigation() {
     const closeBtn = document.getElementById('closeDrawerBtn');
 
     function openMoreDrawer() {
-        if(overlay) overlay.classList.add('visible');
-        if(drawer) drawer.classList.add('open');
+        if (overlay) overlay.classList.add('visible');
+        if (drawer) drawer.classList.add('open');
     }
 
     function closeMoreDrawer() {
-        if(overlay) overlay.classList.remove('visible');
-        if(drawer) drawer.classList.remove('open');
+        if (overlay) overlay.classList.remove('visible');
+        if (drawer) drawer.classList.remove('open');
     }
 
-    if(openBtn) {
+    if (openBtn) {
         openBtn.addEventListener('click', (e) => {
             e.preventDefault();
             openMoreDrawer();
         });
     }
-    if(closeBtn) closeBtn.addEventListener('click', closeMoreDrawer);
-    if(overlay) overlay.addEventListener('click', closeMoreDrawer);
+    if (closeBtn) closeBtn.addEventListener('click', closeMoreDrawer);
+    if (overlay) overlay.addEventListener('click', closeMoreDrawer);
 }
 
 function navigateTo(viewName) {
@@ -138,10 +143,19 @@ function navigateTo(viewName) {
     // Call View Initializer
     if (views[viewName]) {
         setTimeout(() => {
-            views[viewName](mainContent, topActions);
+            if (viewName === 'participants-workflow') {
+                views[viewName](mainContent, topActions);
+            } else {
+                views[viewName](mainContent, topActions);
+            }
         }, 100);
     }
 }
+
+window.navigateToParticipantsWorkflow = function(progId, progData) {
+    window.__participantsWorkflowPayload = { progId, progData };
+    navigateTo('participants-workflow');
+};
 
 // Global UI Tools
 window.showToast = function (message, type = 'success') {

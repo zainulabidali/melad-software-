@@ -154,7 +154,10 @@ function loadProgramsData() {
             btn.onclick = (e) => openProgramModal(e.target.dataset.id, JSON.parse(e.target.dataset.all));
         });
         document.querySelectorAll('.participants-btn').forEach(btn => {
-            btn.onclick = (e) => openParticipantsModal(e.target.dataset.id, JSON.parse(e.target.dataset.all));
+            btn.onclick = (e) => {
+                e.preventDefault();
+                window.navigateToParticipantsWorkflow?.(e.target.dataset.id, JSON.parse(e.target.dataset.all));
+            };
         });
         document.querySelectorAll('.delete-prog-btn').forEach(btn => {
             btn.onclick = (e) => deleteProgram(e.target.dataset.id);
@@ -291,253 +294,12 @@ function openProgramModal(progId = null, data = {}) {
 }
 
 // ─────────────────────────────────────────────
-// Participants Modal
+// Participants Modal (deprecated)
 // ─────────────────────────────────────────────
-async function openParticipantsModal(progId, progData) {
-    const modalTitle = document.getElementById('dynamicModalTitle');
-    const modalBody = document.getElementById('dynamicModalBody');
-    const modalOverlay = document.getElementById('dynamicModal');
+// NOTE: This file was accidentally corrupted with a half-pasted/deprecated Participants modal.
+// Participants management is implemented in `js/participants-workflow.js` instead.
+// Keeping this section intentionally empty to ensure programs.js stays valid JS.
 
-    const pType = (progData.programType || progData.type || 'individual').toLowerCase();
-    const isGroup = pType === 'group';
-    const maxCount = isGroup ? (progData.maxParticipants || progData.groupSize || 999) : 999;
-    const genderFilter = progData.genderCategory;
-    const typeName = isGroup ? `Group Event (max ${maxCount} per team)` : 'Individual Event (Unlimited participants per team)';
-
-    modalTitle.textContent = `👥 ${progData.programName} — Participants`;
-    modalBody.innerHTML = `<div style="text-align:center;padding:2rem;"><div class="spinner"></div></div>`;
-    modalOverlay.classList.remove('hidden');
-    document.getElementById('closeDynamicModalBtn').onclick = () => modalOverlay.classList.add('hidden');
-
-    // ── Load Teams for Participants Dropdown ──
-    const teams = [];
-    try {
-        const tSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "teams"));
-        tSnap.forEach(t => teams.push({ id: t.id, name: t.data().name }));
-    } catch (err) { console.error(err); }
-
-    const teamOptions = teams.map(t => `<option value="${t.id}">${window.escapeHTML(t.name)}</option>`).join('');
-
-    modalBody.innerHTML = `
-        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:0.65rem 0.85rem;font-size:0.8rem;color:#166534;margin-bottom:1rem;">
-            📋 <strong>${typeName}</strong> &nbsp;·&nbsp; Gender: <strong>${genderFilter}</strong>
-        </div>
-        <div style="margin-bottom:1rem;">
-            <label class="form-label">Select Team to manage participants:</label>
-            <select id="partTeamSelect" class="form-input">
-                <option value="">-- Choose Team --</option>
-                ${teamOptions}
-            </select>
-        </div>
-        <div id="partContentArea" style="display:none; grid-template-columns:${isGroup ? '1fr' : '1fr 1fr'}; gap:1rem;">
-            <!-- Current Participants -->
-            <div>
-                <p style="font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">
-                    ${isGroup ? 'Registered Team Entry' : `Current Participants (<span id="partCount">0</span> assigned)`}
-                </p>
-                <div id="currentPartList" style="display:flex;flex-direction:column;gap:0.35rem;min-height:60px;"></div>
-                
-                ${isGroup ? `
-                    <div style="margin-top:1rem;">
-                        <button id="btnRegisterTeam" class="btn btn-primary w-full" style="display:none;">+ Register This Team</button>
-                    </div>
-                ` : ''}
-            </div>
-
-            <!-- Available Students (Only for Individual) -->
-            ${!isGroup ? `
-            <div>
-                <p style="font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">Available Students</p>
-                <input type="text" id="stuSearch" class="form-input" placeholder="🔍 Search by name or chest no."
-                    style="font-size:0.82rem;padding:0.4rem 0.65rem;margin-bottom:0.4rem;">
-                <div id="availableStuList" style="display:flex;flex-direction:column;gap:0.35rem;max-height:280px;overflow-y:auto;"></div>
-            </div>
-            ` : ''}
-        </div>
-    `;
-
-    document.getElementById('partTeamSelect').addEventListener('change', async (e) => {
-        const teamId = e.target.value;
-        const contentArea = document.getElementById('partContentArea');
-        if (!teamId) {
-            contentArea.style.display = 'none';
-            return;
-        }
-        contentArea.style.display = 'grid';
-        loadParticipantsForTeam(teamId);
-    });
-
-    let currentParticipants = [];
-    let availableStudents = [];
-
-    async function loadParticipantsForTeam(teamId) {
-        currentParticipants = [];
-        availableStudents = [];
-        
-        try {
-            // 1. Get current registrations
-            const partSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants"));
-            partSnap.forEach(d => {
-                if (d.data().teamId === teamId) {
-                    currentParticipants.push({ docId: d.id, ...d.data() });
-                }
-            });
-
-            // 2. Get students from FLAT collection for this team/category
-            if (!isGroup) {
-                const sSnap = await getDocs(query(
-                    collection(db, "institutes", window.currentInstituteId, "students"),
-                    where("teamId", "==", teamId),
-                    where("categoryId", "==", currentCategoryId)
-                ));
-                sSnap.forEach(d => {
-                    const s = d.data();
-                    if (genderFilter === 'Boys' && s.gender !== 'Male') return;
-                    if (genderFilter === 'Girls' && s.gender !== 'Female') return;
-                    availableStudents.push({ id: d.id, name: s.name, chestNumber: s.chestNumber, gender: s.gender });
-                });
-            }
-            renderInner(teamId);
-        } catch (err) {
-            console.error(err);
-        }
-    }
-
-    function renderInner(teamId) {
-        const teamName = teams.find(t => t.id === teamId)?.name || 'Team';
-
-        if (isGroup) {
-            const isRegistered = currentParticipants.length > 0;
-            const regBtn = document.getElementById('btnRegisterTeam');
-            
-            if (isRegistered) {
-                const p = currentParticipants[0];
-                document.getElementById('currentPartList').innerHTML = `
-                    <div style="display:flex;align-items:center;justify-content:space-between;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:0.4rem 0.65rem;">
-                        <div>
-                            <span style="font-size:0.83rem;color:#1e293b;">✅ Registered as a Group</span>
-                        </div>
-                        <button class="remove-part-btn" data-doc="${p.docId}"
-                            style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:0.9rem;padding:0 0.2rem;line-height:1;">✕ Unregister</button>
-                    </div>
-                `;
-                if (regBtn) regBtn.style.display = 'none';
-            } else {
-                document.getElementById('currentPartList').innerHTML = `<p style="font-size:0.8rem;color:#94a3b8;font-style:italic;">Team not registered yet.</p>`;
-                if (regBtn) {
-                    regBtn.style.display = 'block';
-                    regBtn.onclick = async () => {
-                        regBtn.disabled = true;
-                        try {
-                            const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
-                            const newDocRef = doc(partRef);
-                            await setDoc(newDocRef, { teamId, teamName, isGroupEntry: true, categoryId: currentCategoryId });
-                            currentParticipants.push({ docId: newDocRef.id, teamId, isGroupEntry: true });
-                            renderInner(teamId);
-                        } catch (err) { window.showToast("Error", "error"); regBtn.disabled = false; }
-                    };
-                }
-            }
-        } else {
-            const assignedIds = new Set(currentParticipants.map(p => p.studentId));
-            const canAdd = true; // No limit for individuals
-
-            const countEl = document.getElementById('partCount');
-            if (countEl) countEl.textContent = currentParticipants.length;
-
-            document.getElementById('currentPartList').innerHTML = currentParticipants.length === 0
-                ? `<p style="font-size:0.8rem;color:#94a3b8;font-style:italic;">None assigned yet.</p>`
-                : currentParticipants.map(p => `
-                        <div style="display:flex;align-items:center;justify-content:space-between;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:0.4rem 0.65rem;">
-                            <div>
-                                <span style="font-weight:600;font-size:0.83rem;color:#166534;">#${window.escapeHTML(p.chestNumber || '?')}</span>
-                                <span style="font-size:0.83rem;color:#1e293b;margin-left:0.4rem;">${window.escapeHTML(p.studentName)}</span>
-                            </div>
-                            <button class="remove-part-btn" data-doc="${p.docId}"
-                                style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:0.9rem;padding:0 0.2rem;line-height:1;">✕</button>
-                        </div>
-                    `).join('');
-
-            document.getElementById('availableStuList').innerHTML = buildAvailableHTML(availableStudents, assignedIds, canAdd);
-            
-            // Bind add
-            document.querySelectorAll('.add-part-btn').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    btn.disabled = true;
-                    const stu = availableStudents.find(s => s.id === btn.dataset.id);
-                    if (!stu) return;
-
-                    try {
-                        const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
-                        const newDocRef = doc(partRef);
-                        await setDoc(newDocRef, {
-                            studentId: stu.id, studentName: stu.name, chestNumber: stu.chestNumber, teamId, teamName, categoryId: currentCategoryId
-                        });
-                        currentParticipants.push({ docId: newDocRef.id, studentId: stu.id, studentName: stu.name, chestNumber: stu.chestNumber, teamId });
-                        renderInner(teamId);
-                    } catch (err) { window.showToast("Error", "error"); btn.disabled = false; }
-                });
-            });
-        }
-
-        // Bind remove for both group and individual
-        document.querySelectorAll('.remove-part-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                btn.disabled = true;
-                try {
-                    await deleteDoc(doc(db, "institutes", window.currentInstituteId, "programs", progId, "participants", btn.dataset.doc));
-                    currentParticipants = currentParticipants.filter(p => p.docId !== btn.dataset.doc);
-                    renderInner(teamId);
-                } catch (err) { window.showToast("Error", "error"); btn.disabled = false; }
-            });
-        });
-    }
-
-    // Only bind search if individual (search box exists)
-    const searchBox = document.getElementById('stuSearch');
-    if (searchBox) {
-        searchBox.addEventListener('input', (e) => {
-            const q = e.target.value.toLowerCase();
-            const assignedIds2 = new Set(currentParticipants.map(p => p.studentId));
-            const canAdd2 = true; // Unlimited for individuals
-            const filtered = availableStudents.filter(s =>
-                s.name.toLowerCase().includes(q) || (s.chestNumber || '').toLowerCase().includes(q)
-            );
-            document.getElementById('availableStuList').innerHTML = buildAvailableHTML(filtered, assignedIds2, canAdd2);
-        });
-    }
-
-    function buildAvailableHTML(students, assignedIds, canAdd) {
-        if (students.length === 0) {
-            return `<p style="font-size:0.8rem;color:#94a3b8;font-style:italic;padding:0.4rem;">No eligible students found.</p>`;
-        }
-        return students.map(s => {
-            const already = assignedIds.has(s.id);
-            if (already) {
-                return `
-                    <div style="display:flex;align-items:center;justify-content:space-between;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:0.4rem 0.65rem;opacity:0.5;">
-                        <div>
-                            <span style="font-weight:600;font-size:0.82rem;">#${window.escapeHTML(s.chestNumber || '?')}</span>
-                            <span style="font-size:0.82rem;margin-left:0.4rem;">${window.escapeHTML(s.name)}</span>
-                        </div>
-                        <span style="font-size:0.72rem;color:#94a3b8;">Added</span>
-                    </div>`;
-            }
-            return `
-                <div style="display:flex;align-items:center;justify-content:space-between;background:${canAdd ? '#fff' : '#f8fafc'};border:1px solid #e2e8f0;border-radius:8px;padding:0.4rem 0.65rem;">
-                    <div>
-                        <span style="font-weight:600;font-size:0.82rem;color:#334155;">#${window.escapeHTML(s.chestNumber || '?')}</span>
-                        <span style="font-size:0.82rem;color:#1e293b;margin-left:0.4rem;">${window.escapeHTML(s.name)}</span>
-                    </div>
-                    <button class="add-part-btn btn btn-primary btn-sm" data-id="${s.id}"
-                        style="padding:0.2rem 0.6rem;font-size:0.75rem;${!canAdd ? 'opacity:0.4;cursor:not-allowed;' : ''}"
-                        ${!canAdd ? 'disabled' : ''}>+ Add</button>
-                </div>`;
-        }).join('');
-    }
-
-    render();
-}
 
 // ─────────────────────────────────────────────
 // Delete Program
@@ -549,7 +311,7 @@ async function deleteProgram(id) {
         // Find all participants to delete
         const pSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs", id, "participants"));
         pSnap.forEach(d => batch.delete(d.ref));
-        
+
         batch.delete(doc(db, "institutes", window.currentInstituteId, "programs", id));
         await batch.commit();
         window.showToast("Program deleted.");

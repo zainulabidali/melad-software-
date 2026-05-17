@@ -1,7 +1,7 @@
 import { db } from './firebase.js';
 import {
     collection, addDoc, doc, deleteDoc, onSnapshot,
-    serverTimestamp, getDocs, query, orderBy
+    serverTimestamp, getDocs, getDoc, updateDoc, query, orderBy
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 // ─────────────────────────────────────────────
@@ -88,7 +88,7 @@ export async function initResultsView(container, topActions) {
         classFilter.disabled = true;
 
         if (currentResultsFilter.categoryId) {
-            const catDoc = await getDocs(doc(db, "institutes", window.currentInstituteId, "categories", currentResultsFilter.categoryId));
+            const catDoc = await getDoc(doc(db, "institutes", window.currentInstituteId, "categories", currentResultsFilter.categoryId));
             if (catDoc.exists()) {
                 const classes = window.normalizeClasses ? window.normalizeClasses(catDoc.data().classes) : [];
                 classes.forEach(c => {
@@ -127,13 +127,14 @@ async function openShareLinkModal() {
     const modal = document.getElementById('dynamicModal');
     const modalTitle = document.getElementById('dynamicModalTitle');
     const modalBody = document.getElementById('dynamicModalBody');
+    modal.classList.remove('result-fullscreen-modal');
 
     modalTitle.textContent = '🔗 Share Results';
     
     // Get Institute Name
     let instName = 'Our Institute';
     try {
-        const instDoc = await getDocs(doc(db, "institutes", window.currentInstituteId));
+        const instDoc = await getDoc(doc(db, "institutes", window.currentInstituteId));
         if (instDoc.exists()) instName = instDoc.data().name || instName;
     } catch(e) {}
 
@@ -164,7 +165,10 @@ async function openShareLinkModal() {
     `;
 
     modal.classList.remove('hidden');
-    document.getElementById('closeDynamicModalBtn').onclick = () => modal.classList.add('hidden');
+    document.getElementById('closeDynamicModalBtn').onclick = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('result-fullscreen-modal');
+    };
 
     document.getElementById('btnCopyLink').onclick = () => {
         navigator.clipboard.writeText(publicUrl).then(() => {
@@ -417,42 +421,66 @@ async function loadStudentsForProgram(prog) {
     );
 
     const isGroup = prog.programType === 'group';
+    const participants = [];
 
-    return snap.docs.map(d => {
+    snap.docs.forEach(d => {
         const p = d.data();
         if (isGroup) {
-            return {
-                id: p.teamId || d.id, // ID is the teamId for groups
-                name: p.teamName || 'Team',
-                chestNumber: 'GROUP',
-                isGroupEntry: true,
-                teamId: p.teamId,
-                teamName: p.teamName
-            };
+            const groups = Array.isArray(p.groups) ? p.groups : [];
+            if (groups.length > 0) {
+                groups.forEach(g => {
+                    participants.push({
+                        id: g.id || `${p.teamId || d.id}_${g.name || 'group'}`,
+                        name: g.name || p.teamName || 'Group',
+                        chestNumber: `${(g.members || []).length} members`,
+                        isGroupEntry: true,
+                        teamId: p.teamId || '',
+                        teamName: g.name || p.teamName || 'Group'
+                    });
+                });
+            } else {
+                participants.push({
+                    id: p.teamId || d.id,
+                    name: p.teamName || 'Team',
+                    chestNumber: 'GROUP',
+                    isGroupEntry: true,
+                    teamId: p.teamId || '',
+                    teamName: p.teamName || 'Team'
+                });
+            }
         } else {
-            return {
+            participants.push({
                 id: p.studentId || d.id,
-                name: p.studentName || '—',
+                name: p.studentName || '-',
                 chestNumber: p.chestNumber || '',
-                teamId: p.teamId,
-                teamName: p.teamName
-            };
+                teamId: p.teamId || '',
+                teamName: p.teamName || '',
+                categoryName: p.categoryName || '',
+                className: p.className || ''
+            });
         }
     });
+
+    return participants;
 }
 
-// ─────────────────────────────────────────────
 // Main Judging Modal
-// ─────────────────────────────────────────────
+// -------------------
 async function openJudgingModal(resultId = null, existingData = null) {
     const modal = document.getElementById('dynamicModal');
     const modalTitle = document.getElementById('dynamicModalTitle');
     const modalBody = document.getElementById('dynamicModalBody');
 
+    modal.classList.add('result-fullscreen-modal');
+
+
     modalTitle.textContent = resultId ? '✏️ Edit Result' : '🏆 Enter Result';
     modalBody.innerHTML = `<div style="text-align:center;padding:2rem;"><div class="spinner"></div><p style="margin-top:0.75rem;color:#64748b;font-size:0.875rem;">Loading programs…</p></div>`;
     modal.classList.remove('hidden');
-    document.getElementById('closeDynamicModalBtn').onclick = () => modal.classList.add('hidden');
+    document.getElementById('closeDynamicModalBtn').onclick = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('result-fullscreen-modal');
+    };
 
     try {
         await loadAllPrograms();
@@ -475,6 +503,8 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
     let filterType = '';
     let selectedProg = null;   // full program object
     let participants = [];     // loaded students
+    let participantSearch = '';
+    let participantTeamFilter = '';
 
     const chipStyle = (active) =>
         active
@@ -537,6 +567,15 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
                     <button type="button" class="btn btn-secondary btn-sm" id="jAddWinnerBtn">+ Add Winner</button>
                 </div>
 
+                <div id="jParticipantToolbar" style="display:grid;grid-template-columns:minmax(180px,1fr) minmax(160px,240px);gap:0.65rem;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:0.75rem;">
+                    <input id="jParticipantSearch" class="form-input" placeholder="Search registered participants..." style="font-size:0.85rem;">
+                    <select id="jTeamFilter" class="form-input" style="font-size:0.85rem;">
+                        <option value="">All teams</option>
+                    </select>
+                </div>
+
+                <div id="jParticipantsPanel" class="result-participants-panel"></div>
+
                 <div id="jWinnersContainer" style="display:flex;flex-direction:column;gap:0.65rem;"></div>
 
                 <div class="modal-actions" style="margin-top:0.25rem; flex-wrap:wrap;">
@@ -591,6 +630,10 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
 
         try {
             participants = await loadStudentsForProgram(selectedProg);
+            participantSearch = '';
+            participantTeamFilter = '';
+            renderParticipantToolbar();
+            renderParticipantsPanel();
             winnersSection.style.display = 'flex';
             if (existingData && existingData.winners) {
                 existingData.winners.forEach(w => addWinnerRow(w));
@@ -650,9 +693,7 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
 
         if (!val) return;
 
-        // Parse compound key: id-|-teamId-|-categoryId
-        const [progId, teamId, categoryId] = val.split('-|-');
-        selectedProg = allPrograms.find(p => p.id === progId && p.teamId === teamId && p.categoryId === categoryId);
+        selectedProg = allPrograms.find(p => p.id === val);
         if (!selectedProg) return;
 
         // Show program info badge bar
@@ -679,6 +720,10 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
         try {
             infoBox.innerHTML += ' &nbsp;<em style="color:#94a3b8;">Loading participants…</em>';
             participants = await loadStudentsForProgram(selectedProg);
+            participantSearch = '';
+            participantTeamFilter = '';
+            renderParticipantToolbar();
+            renderParticipantsPanel();
             infoBox.innerHTML = infoBox.innerHTML.replace(/ &nbsp;<em.*<\/em>/, '');
 
             if (participants.length === 0) {
@@ -716,19 +761,110 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
     // ── Winner row builder ──────────────────────
     let winnerCount = 0;
 
+    function getVisibleParticipants() {
+        const q = (participantSearch || '').trim().toLowerCase();
+        return participants.filter(p => {
+            if (participantTeamFilter && p.teamId !== participantTeamFilter) return false;
+            if (!q) return true;
+            return `${p.name || ''} ${p.chestNumber || ''} ${p.teamName || ''}`.toLowerCase().includes(q);
+        });
+    }
+
+    function renderParticipantToolbar() {
+        const searchInput = document.getElementById('jParticipantSearch');
+        const teamSel = document.getElementById('jTeamFilter');
+        if (!searchInput || !teamSel) return;
+
+        const teams = new Map();
+        participants.forEach(p => {
+            if (p.teamId) teams.set(p.teamId, p.teamName || p.teamId);
+        });
+
+        searchInput.value = participantSearch;
+        teamSel.innerHTML = '<option value="">All teams</option>' +
+            [...teams.entries()]
+                .sort((a, b) => a[1].localeCompare(b[1]))
+                .map(([id, name]) => `<option value="${id}" ${id === participantTeamFilter ? 'selected' : ''}>${window.escapeHTML(name)}</option>`)
+                .join('');
+
+        searchInput.oninput = () => {
+            participantSearch = searchInput.value;
+            refreshWinnerParticipantOptions();
+            renderParticipantsPanel();
+        };
+        teamSel.onchange = () => {
+            participantTeamFilter = teamSel.value;
+            refreshWinnerParticipantOptions();
+            renderParticipantsPanel();
+        };
+    }
+
+    function renderParticipantsPanel() {
+        const panel = document.getElementById('jParticipantsPanel');
+        if (!panel) return;
+
+        const visible = getVisibleParticipants();
+        const isGroup = selectedProg && selectedProg.programType === 'group';
+        const totalTeams = new Set(participants.map(p => p.teamId).filter(Boolean)).size;
+
+        panel.innerHTML = `
+            <div class="result-participant-summary">
+                <div>
+                    <span class="summary-label">Registered</span>
+                    <strong>${participants.length}</strong>
+                </div>
+                <div>
+                    <span class="summary-label">Showing</span>
+                    <strong>${visible.length}</strong>
+                </div>
+                <div>
+                    <span class="summary-label">Teams</span>
+                    <strong>${totalTeams}</strong>
+                </div>
+            </div>
+            <div class="result-participant-list">
+                ${visible.length === 0 ? `<div class="result-participant-empty">No participants match the current filter.</div>` : visible.map(p => `
+                    <div class="result-participant-card">
+                        <div class="result-participant-avatar">${window.escapeHTML((p.name || '?').slice(0, 1).toUpperCase())}</div>
+                        <div class="result-participant-main">
+                            <strong>${window.escapeHTML(p.name || '-')}</strong>
+                            <span>${window.escapeHTML(p.teamName || 'No team')} ${isGroup ? '' : `· #${window.escapeHTML(p.chestNumber || '-')}`} ${p.className ? `· ${window.escapeHTML(p.className)}` : ''}</span>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    function refreshWinnerParticipantOptions() {
+        document.querySelectorAll('.winner-builder-row').forEach(row => {
+            const select = row.querySelector('.jr-student-select');
+            if (!select) return;
+            const selected = select.value;
+            select.innerHTML = buildParticipantOptions(selected);
+            if ([...select.options].some(opt => opt.value === selected)) {
+                select.value = selected;
+            }
+        });
+    }
+
     function buildParticipantOptions(selectedId = '') {
         const isGroup = selectedProg && selectedProg.programType === 'group';
-        const label = isGroup ? "— Select Team —" : "— Select Participant —";
+        const label = isGroup ? "Select Team" : "Select Participant";
+        const visibleParticipants = getVisibleParticipants();
         
         if (participants.length === 0) {
-            return `<option value="">Type name manually</option>`;
+            return '<option value="">Type name manually</option>';
         }
         let opts = `<option value="">${label}</option>`;
-        participants.forEach(s => {
+        visibleParticipants.forEach(s => {
             const display = isGroup ? s.name : `${s.name} (#${s.chestNumber || ''})`;
             opts += `<option value="${s.id}" data-name="${window.escapeHTML(s.name)}" ${s.id === selectedId ? 'selected' : ''}>${window.escapeHTML(display)}</option>`;
         });
-        opts += `<option value="__manual__">✏️ Enter manually…</option>`;
+        if (visibleParticipants.length === 0) {
+            opts += '<option value="" disabled>No matching participants</option>';
+        }
+        opts += '<option value="__manual__">Enter manually...</option>';
         return opts;
     }
 
@@ -744,6 +880,9 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
         const initPos = prefill.position || '';
         const initGrade = prefill.grade || '';
         const initMarks = prefill.marks != null ? prefill.marks : calcMarks(initPos, initGrade);
+        const selectedParticipantId = selectedProg?.programType === 'group'
+            ? (prefill.groupId || prefill.teamId || '')
+            : (prefill.studentId || '');
 
         row.innerHTML = `
             <button type="button" class="remove-winner-btn"
@@ -777,11 +916,18 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
             <div style="margin-bottom:0.5rem;">
                 <label style="font-size:0.72rem;font-weight:600;color:#64748b;display:block;margin-bottom:0.25rem;">${selectedProg && selectedProg.programType === 'group' ? 'Team *' : 'Participant *'}</label>
                 <select class="form-input jr-student-select" style="font-size:0.85rem;padding:0.4rem 0.5rem;">
-                    ${buildParticipantOptions()}
+                    ${buildParticipantOptions(selectedParticipantId)}
                 </select>
                 <input type="text" class="form-input jr-student-name" placeholder="${selectedProg && selectedProg.programType === 'group' ? 'Team name' : 'Student name'}"
                     style="font-size:0.85rem;padding:0.4rem 0.5rem;margin-top:0.35rem;display:${participants.length === 0 ? 'block' : 'none'};"
                     value="${window.escapeHTML(prefill.studentName || '')}">
+            </div>
+
+            <div style="margin-bottom:0.5rem;">
+                <label style="font-size:0.72rem;font-weight:600;color:#64748b;display:block;margin-bottom:0.25rem;">Remarks</label>
+                <input type="text" class="form-input jr-remarks" placeholder="Optional remarks"
+                    style="font-size:0.85rem;padding:0.4rem 0.5rem;"
+                    value="${window.escapeHTML(prefill.remarks || '')}">
             </div>
 
             <!-- Auto marks display -->
@@ -812,6 +958,11 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
         // Participant select → show/hide manual name input
         const stuSel = row.querySelector('.jr-student-select');
         const stuName = row.querySelector('.jr-student-name');
+        if (selectedParticipantId) {
+            stuSel.value = selectedParticipantId;
+            const opt = stuSel.options[stuSel.selectedIndex];
+            if (opt) stuName.value = opt.dataset.name || prefill.studentName || '';
+        }
         stuSel.addEventListener('change', () => {
             if (stuSel.value === '__manual__') {
                 stuName.style.display = 'block';
@@ -831,7 +982,10 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
     }
 
     document.getElementById('jAddWinnerBtn').addEventListener('click', () => addWinnerRow());
-    document.getElementById('jCancelBtn').addEventListener('click', () => modal.classList.add('hidden'));
+    document.getElementById('jCancelBtn').addEventListener('click', () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('result-fullscreen-modal');
+    });
 
     // ── Publish ─────────────────────────────────
     document.getElementById('jPublishBtn').addEventListener('click', () => saveResult(false));
@@ -845,6 +999,8 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
 
         const rows = document.querySelectorAll('.winner-builder-row');
         const winners = [];
+        const usedPositions = new Set();
+        const usedParticipantKeys = new Set();
         let hasError = false;
 
         rows.forEach((row, idx) => {
@@ -852,11 +1008,13 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
             const grade = row.querySelector('.jr-grade').value || null;
             const stuSel = row.querySelector('.jr-student-select');
             const stuName = row.querySelector('.jr-student-name');
+            const remarks = row.querySelector('.jr-remarks')?.value.trim() || '';
 
             let studentId = '';
             let studentName = '';
             let teamId = '';
             let teamName = '';
+            let groupId = '';
 
             const isGroup = selectedProg.programType === 'group';
 
@@ -864,6 +1022,7 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
                 const pInfo = participants.find(p => p.id === stuSel.value);
                 if (pInfo) {
                     if (isGroup) {
+                        groupId = pInfo.id;
                         teamId = pInfo.teamId;
                         teamName = pInfo.teamName;
                         // Map team name to studentName for UI compatibility in public view
@@ -893,11 +1052,31 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
 
             const overrideInput = row.querySelector('.jr-marks-override').value.trim();
             const marks = overrideInput !== '' ? parseFloat(overrideInput) : calcMarks(position, grade);
+            if (!Number.isFinite(marks) || marks < 0) {
+                window.showToast(`Row ${idx + 1}: Marks must be a valid positive number.`, "error");
+                hasError = true;
+                return;
+            }
+
+            if (position !== 'Participation' && usedPositions.has(position)) {
+                window.showToast(`${position} is already assigned. Each prize rank can be used once.`, "error");
+                hasError = true;
+                return;
+            }
+            if (position !== 'Participation') usedPositions.add(position);
+
+            const participantKey = isGroup ? (groupId || teamName || studentName) : (studentId || studentName);
+            if (usedParticipantKeys.has(participantKey)) {
+                window.showToast(`${studentName} is already selected in another result row.`, "error");
+                hasError = true;
+                return;
+            }
+            usedParticipantKeys.add(participantKey);
 
             if (isGroup) {
-                winners.push({ teamId, teamName, studentName, position, grade, marks }); // studentName kept for backward compatibility in public portal UI
+                winners.push({ groupId, teamId, teamName, studentName, position, grade, marks, remarks }); // studentName kept for backward compatibility in public portal UI
             } else {
-                winners.push({ studentId, studentName, teamId, teamName, position, grade, marks });
+                winners.push({ studentId, studentName, teamId, teamName, position, grade, marks, remarks });
             }
         });
 
@@ -924,6 +1103,7 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
                 className: selectedProg.className || '',
                 genderCategory: selectedProg.genderCategory || '',
                 programLocation: selectedProg.programLocation || '',
+                participantCount: participants.length,
                 winners,
                 status: isDraft ? 'draft' : 'published',
                 publishedAt: isDraft ? (existingData?.publishedAt || null) : serverTimestamp(),
@@ -940,11 +1120,14 @@ function renderJudgingUI(modalBody, modal, resultId, existingData) {
                 window.showToast(isDraft ? "📝 Result saved as draft." : "✅ Result published successfully!");
             }
             modal.classList.add('hidden');
+            modal.classList.remove('result-fullscreen-modal');
         } catch (err) {
             console.error("Save error:", err);
             window.showToast("Failed to save result.", "error");
         } finally {
             btn.disabled = false;
+            text.classList.remove('hidden');
+            spinner.classList.add('hidden');
         }
     }
 }
