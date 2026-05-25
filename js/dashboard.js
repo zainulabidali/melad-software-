@@ -589,8 +589,15 @@ function recalculateDashboard() {
 async function initDashboardOverview(container, topActions) {
     const instId = window.currentInstituteId;
     const instName = window.currentInstituteDetails?.name || 'Institute';
-    const publicUrl = `${window.location.origin}/pages/public-results.html?instId=${instId}`;
-    const waMessage = encodeURIComponent(`📢 *${instName}* പരീക്ഷാഫലം പ്രസിദ്ധീകരിച്ചിരിക്കുന്നു.\n\nതാഴെയുള്ള ലിങ്ക് ഉപയോഗിച്ച് റിസൾട്ട് പരിശോധിക്കാം:\n${publicUrl}\n\nبارك الله فيكم`);
+    
+    // Automatically detect any subfolder repository prefix (e.g. /melad_software) for GitHub Pages
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    const pagesIndex = pathname.indexOf('/pages/');
+    const repoPrefix = pagesIndex !== -1 ? pathname.substring(0, pagesIndex) : '';
+    const publicUrl = `${origin}${repoPrefix}/pages/public-results.html?id=${instId}`;
+    
+    const waMessage = encodeURIComponent(`📢 *${instName}*\nതാഴെയുള്ള ലിങ്ക് ഉപയോഗിച്ച് റിസൾട്ട് പരിശോധിക്കാം:\n${publicUrl}`);
 
     // Reset old listeners first
     clearDashboardListeners();
@@ -751,7 +758,7 @@ async function initDashboardOverview(container, topActions) {
     // Bind Portal Actions
     document.getElementById('dashCopyLink').onclick = () => {
         navigator.clipboard.writeText(publicUrl).then(() => {
-            window.showToast("Link copied successfully!");
+            window.showToast("Public result link copied!");
         });
     };
     document.getElementById('dashOpenPortal').onclick = () => window.open(publicUrl, '_blank');

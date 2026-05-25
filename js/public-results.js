@@ -7,14 +7,25 @@ import {
 // State & Helpers
 // ─────────────────────────────────────────────
 let allResults = [];
-let filteredResults = [];
-let instId = new URLSearchParams(window.location.search).get('instId');
+let instId = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('instId');
 let instituteDetails = null;
 
-// Tracks the selected template layout style (1, 2, or 3) per card result ID
-const cardStylesMap = {}; 
+// Tracks the selected background style (1, 2, 3, or 4) per card result ID
+const cardBgMap = {};
 
-const MEDALS = { First: '🥇', Second: '🥈', Third: '🥉', Participation: '🏅' };
+// Preloaded background images cache
+const preloadedBgs = {};
+
+function preloadAllBackgrounds() {
+    for (let i = 1; i <= 4; i++) {
+        const img = new Image();
+        img.src = `../assets/poster-backgrounds/bg${i}.jpg`;
+        preloadedBgs[i] = img;
+    }
+}
+
+// Start preloading assets immediately on script load
+preloadAllBackgrounds();
 
 function escapeHTML(str) {
     if (!str) return '';
@@ -47,47 +58,35 @@ async function init() {
             renderError("Madrasa Not Found", "The requested Madrasa results portal does not exist.");
             return;
         }
-        
+
         instituteDetails = { id: instSnap.id, ...instSnap.data() };
         document.getElementById('madrasaName').textContent = instituteDetails.name || "Results Portal";
-        document.getElementById('festivalName').textContent = instituteDetails.festivalName || "Annual Islamic Cultural Meet";
 
         // 2. Setup Real-time Firestore Listeners on Results (Strictly Published results only)
         const resultsRef = collection(db, "institutes", instId, "results");
-        
+
         onSnapshot(resultsRef, (snapshot) => {
             const published = snapshot.docs
                 .map(d => ({ id: d.id, ...d.data() }))
                 .filter(r => r.status === 'published' && r.publicDisabled !== true);
-            
-            // Sort by published timestamp descending
+
+            // Sort by published timestamp descending for base listing
             allResults = published.sort((a, b) => {
                 const timeA = a.publishedAt?.seconds || 0;
                 const timeB = b.publishedAt?.seconds || 0;
                 return timeB - timeA;
             });
 
-            // Initialize default style 1 for any new cards
+            // Initialize default style 1 for all cards
             allResults.forEach(r => {
-                if (!cardStylesMap[r.id]) {
-                    cardStylesMap[r.id] = 1;
+                if (!cardBgMap[r.id]) {
+                    cardBgMap[r.id] = 1;
                 }
             });
 
-            filteredResults = [...allResults];
+            // Populate category filter select dropdown dynamically (Initial state)
+            setupFilters();
 
-            if (allResults.length === 0) {
-                renderEmpty("No results published yet.", "Check back later for cultural events standings.");
-                hideOverlay();
-                return;
-            }
-
-            // Populate filter select dropdown options dynamically
-            setupFilterDropdowns();
-            
-            // Execute filter and rendering
-            applyFilters();
-            
             document.getElementById('filterBar').style.display = 'flex';
             hideOverlay();
         }, (err) => {
@@ -112,132 +111,244 @@ function hideOverlay() {
 }
 
 // ─────────────────────────────────────────────
-// Rendering Standings Posters
+// Setup Dynamic Category / Program Filters
 // ─────────────────────────────────────────────
-function renderResults() {
+function setupFilters() {
+    const catSel = document.getElementById('catFilter');
+    const progSel = document.getElementById('progFilter');
+
+    // Retain select category placeholder option
+    catSel.innerHTML = '<option value="">Select Category</option>';
+    progSel.innerHTML = '<option value="">Select Program</option>';
+    progSel.disabled = true;
+
+    // Load categories dynamically
+    const categories = [...new Set(allResults.map(r => r.categoryName))].sort();
+    categories.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        catSel.appendChild(opt);
+    });
+
+    // Handle Category change event
+    catSel.onchange = () => {
+        const selectedCat = catSel.value;
+        if (!selectedCat) {
+            progSel.innerHTML = '<option value="">Select Program</option>';
+            progSel.disabled = true;
+            return;
+        }
+
+        // Load only programs under that category
+        const programs = [...new Set(
+            allResults
+                .filter(r => r.categoryName === selectedCat)
+                .map(r => r.programName)
+        )].sort();
+
+        progSel.innerHTML = '<option value="">Select Program</option>';
+        programs.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p;
+            opt.textContent = p;
+            progSel.appendChild(opt);
+        });
+
+        // Enable program dropdown
+        progSel.disabled = false;
+    };
+
+    // Handle Search click workflow
+    document.getElementById('btnFilterSearch').onclick = () => {
+        const catVal = catSel.value;
+        const progVal = progSel.value;
+
+        if (!catVal || !progVal) {
+            showToast("⚠️ Please select both Category and Program!");
+            return;
+        }
+
+        // Query the single matching result
+        const currentResult = allResults.find(r => r.categoryName === catVal && r.programName === progVal);
+        if (!currentResult) {
+            renderEmpty("Result Not Found", "The requested program standings have not been published yet.");
+            return;
+        }
+
+        // Generate Result Poster
+        renderSingleResult(currentResult);
+    };
+}
+
+// ─────────────────────────────────────────────
+// Rendering Standings Poster Card
+// ─────────────────────────────────────────────
+function renderSingleResult(r) {
     const list = document.getElementById('resultsList');
     if (!list) return;
 
-    if (filteredResults.length === 0) {
-        list.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-icon">🔍</div>
-                <h3>No matching results</h3>
-                <p>Try refining your search terms or filters.</p>
-            </div>
-        `;
-        return;
-    }
+    const bgId = cardBgMap[r.id] || 1;
 
-    list.innerHTML = filteredResults.map(r => {
-        const styleId = cardStylesMap[r.id] || 1;
-        const currentStyleClass = `poster-style-${styleId}`;
+    // Sort all published results chronologically by publication time ascending to get index order number
+    const sortedPublished = [...allResults].sort((a, b) => {
+        const timeA = a.publishedAt?.seconds || 0;
+        const timeB = b.publishedAt?.seconds || 0;
+        return timeA - timeB; // oldest published standing is RESULT 1
+    });
 
-        // Dynamic Festival title or falls back
-        const festTitle = instituteDetails?.festivalName || "Annual Islamic Cultural Meet";
-        
-        // Extract top 3 winners sorted strictly by finalMark descending
-        const sortedWinners = [...(r.marksData || [])]
-            .filter(w => w.finalMark && w.finalMark > 0)
-            .sort((a, b) => (b.finalMark || 0) - (a.finalMark || 0))
-            .slice(0, 3);
+    // Calculate published order number
+    const resultNumber = sortedPublished.findIndex(x => x.id === r.id) + 1;
 
-        const winnersHTML = sortedWinners.map((w, idx) => {
-            const medal = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : '🥉');
-            const medalClass = `p-rank-${idx + 1}`;
-            const gradeText = w.grade ? `<span class="p-grade">${escapeHTML(w.grade)}</span>` : '';
-            const pointsText = w.totalPoints ? `<span class="p-points">${w.totalPoints} pts</span>` : '';
+    // Fetch Madrasa name branding
+    const madrasaName = instituteDetails?.name || "Madrasa Results Portal";
 
-            return `
-                <div class="p-winner-row">
-                    <div class="p-rank-badge ${medalClass}">${medal}</div>
-                    <div class="p-winner-info">
-                        <div class="p-winner-name">${escapeHTML(r.programType === 'group' ? w.teamName : w.studentName)}</div>
-                        <div class="p-winner-team">${escapeHTML(r.programType === 'group' ? 'Group Program' : (w.teamName || '—'))}</div>
-                    </div>
-                    <div class="p-score-badge">
-                        ${gradeText}
-                        ${pointsText}
-                    </div>
-                </div>
+    // Extract top 3 winners sorted strictly by finalMark descending
+    const sortedWinners = [...(r.marksData || [])]
+        .filter(w => w.finalMark && w.finalMark > 0)
+        .sort((a, b) => (b.finalMark || 0) - (a.finalMark || 0))
+        .slice(0, 3);
+
+    const winnersHTML = sortedWinners.map((w, idx) => {
+        const rank = idx + 1;
+        const rankClass = `rank-circle-${rank}`;
+
+        let detailsHTML = '';
+        if (r.programType === 'group') {
+    // Group Program: Large subgroup heading + gold subtitle
+    const teamNameText = w.teamName || '—';
+    const subgroupName = w.studentName || 'TEAM A';
+
+    detailsHTML = `
+        <div class="team-main">
+            ${escapeHTML(subgroupName.toUpperCase())}
+        </div>
+
+        <div class="team-subtitle">
+            ${escapeHTML(teamNameText.toUpperCase())}
+        </div>
+    `;
+} else {
+            // Individual Program: standard white bold student name + team subtitle
+            const studentNameText = w.studentName || '—';
+            const teamNameText = w.teamName || '—';
+            detailsHTML = `
+                <h3>${escapeHTML(studentNameText.toUpperCase())}</h3>
+                <p>${escapeHTML(teamNameText.toUpperCase())}</p>
             `;
-        }).join('');
-
-        const finalWinnersHTML = winnersHTML || `<div style="text-align:center;padding:1.5rem;color:rgba(0,0,0,0.5);font-style:italic;">No standings recorded for this event.</div>`;
+        }
 
         return `
-            <div class="poster-container" id="container-${r.id}">
-                
-                <!-- Poster Card Component -->
-                <div class="${currentStyleClass}" id="poster-${r.id}">
-                    <div class="poster-header">
-                        <span class="p-meta-badge">${escapeHTML(r.categoryName)} ${r.className ? `(${escapeHTML(r.className)})` : ''}</span>
-                        <div class="p-prog-name">${escapeHTML(r.programName)}</div>
-                        <span class="p-sub-details">🏆 ${escapeHTML(festTitle)} Standings</span>
-                    </div>
-                    <div class="p-winners-list" style="display:flex; flex-direction:column; gap:0.75rem;">
-                        ${finalWinnersHTML}
-                    </div>
+            <div class="winner-card">
+                <div class="rank-circle ${rankClass}">
+                    ${rank}
                 </div>
-
-                <!-- Template Selector Card -->
-                <div class="design-picker-card">
-                    <span>🎨 POSTER STYLE</span>
-                    <div class="design-buttons">
-                        <button class="design-btn ${styleId === 1 ? 'active' : ''}" data-id="${r.id}" data-style="1">Soft Elegant</button>
-                        <button class="design-btn ${styleId === 2 ? 'active' : ''}" data-id="${r.id}" data-style="2">Editorial</button>
-                        <button class="design-btn ${styleId === 3 ? 'active' : ''}" data-id="${r.id}" data-style="3">Artistic</button>
-                    </div>
+                <div style="display:flex; flex-direction:column;">
+                    ${detailsHTML}
                 </div>
-
-                <!-- Action Button Trigger Row -->
-                <div class="poster-actions-row">
-                    <button class="action-btn action-btn-primary btn-download" data-id="${r.id}">📥 Download</button>
-                    <button class="action-btn btn-print" data-id="${r.id}">🖨️ Print</button>
-                    <button class="action-btn btn-share" data-id="${r.id}">📤 Share</button>
-                </div>
-
             </div>
         `;
     }).join('');
 
-    // Wire Card Style change events
-    document.querySelectorAll('.design-btn').forEach(btn => {
-        btn.onclick = (e) => {
-            const cardId = e.target.dataset.id;
-            const styleNum = parseInt(e.target.dataset.style, 10);
-            cardStylesMap[cardId] = styleNum;
+    const finalWinnersHTML = winnersHTML || `<div style="text-align:center;padding:2.5rem 1.5rem;color:rgba(255,255,255,0.4);font-style:italic;">No standings recorded for this event.</div>`;
+
+    list.innerHTML = `
+        <div class="poster-container" id="container-${r.id}">
             
-            // Re-render immediately
-            renderResults();
+            <!-- Unified Poster Card Component in exact 4:5 aspect ratio -->
+            <div class="result-poster" id="poster-${r.id}" style="background-image: url('../assets/poster-backgrounds/bg${bgId}.jpg')">
+                
+                <!-- Category, Program and Stacked Result Number (No Overlapping) -->
+                <div class="poster-header" style="position: absolute; top: 60px; left: 40px; right: 40px; display: flex; flex-direction: column; gap: 6px; z-index: 10;">
+                    <span class="category">${escapeHTML(r.categoryName)}</span>
+                    <div class="program">${escapeHTML(r.programName)}</div>
+                    <div class="result-number">RESULT ${resultNumber}</div>
+                </div>
+
+                <!-- Middle-to-Bottom Winners standings list -->
+                <div class="p-winners-list" style="position: absolute; bottom: 85px; left: 40px; right: 40px; z-index: 10;">
+                    ${finalWinnersHTML}
+                </div>
+
+                <!-- Dedicated Footer Madrasa Name (Premium branding) -->
+                <div class="poster-footer">
+                    ${escapeHTML(madrasaName)}
+                </div>
+
+            </div>
+
+            <!-- Background Image Selection Thumbnail Strip (□ □ □ □) -->
+            <div class="bg-picker-card">
+                <span class="bg-picker-title">🎨 CHOOSE BACKGROUND DESIGN</span>
+                <div class="thumbnail-list">
+                    <div class="thumb ${bgId === 1 ? 'active' : ''}" data-id="${r.id}" data-bg="1">
+                        <img src="../assets/poster-backgrounds/bg1.jpg" alt="Bg 1">
+                    </div>
+                    <div class="thumb ${bgId === 2 ? 'active' : ''}" data-id="${r.id}" data-bg="2">
+                        <img src="../assets/poster-backgrounds/bg2.jpg" alt="Bg 2">
+                    </div>
+                    <div class="thumb ${bgId === 3 ? 'active' : ''}" data-id="${r.id}" data-bg="3">
+                        <img src="../assets/poster-backgrounds/bg3.jpg" alt="Bg 3">
+                    </div>
+                    <div class="thumb ${bgId === 4 ? 'active' : ''}" data-id="${r.id}" data-bg="4">
+                        <img src="../assets/poster-backgrounds/bg4.jpg" alt="Bg 4">
+                    </div>
+                    <div class="thumb ${bgId === 4 ? 'active' : ''}" data-id="${r.id}" data-bg="4">
+                        <img src="../assets/poster-backgrounds/bg4.jpg" alt="Bg 4">
+                    </div>
+                    <div class="thumb ${bgId === 4 ? 'active' : ''}" data-id="${r.id}" data-bg="4">
+                        <img src="../assets/poster-backgrounds/bg4.jpg" alt="Bg 4">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Balanced Actions Buttons Row -->
+            <div class="poster-actions">
+                <button class="btn-action-primary btn-download" data-id="${r.id}">📥 Download Image</button>
+                <button class="btn-action-secondary btn-share" data-id="${r.id}">📤 Share Image</button>
+            </div>
+
+        </div>
+    `;
+
+    // Wire thumbnail selector click triggers
+    document.querySelectorAll('.thumb').forEach(box => {
+        box.onclick = (e) => {
+            const cardId = e.currentTarget.dataset.id;
+            const bgNum = parseInt(e.currentTarget.dataset.bg, 10);
+
+            // Update local state map
+            cardBgMap[cardId] = bgNum;
+
+            // Change background of target poster instantly (with smooth CSS fade transition)
+            const posterEl = document.getElementById(`poster-${cardId}`);
+            if (posterEl) {
+                posterEl.style.backgroundImage = `url('../assets/poster-backgrounds/bg${bgNum}.jpg')`;
+            }
+
+            // Cycle active highlights in picker grid locally without full re-render
+            const containerEl = document.getElementById(`container-${cardId}`);
+            if (containerEl) {
+                containerEl.querySelectorAll('.thumb').forEach(b => {
+                    b.classList.remove('active');
+                });
+                e.currentTarget.classList.add('active');
+            }
         };
     });
 
     // Wire Card Actions
-    document.querySelectorAll('.btn-download').forEach(btn => {
-        btn.onclick = (e) => {
-            const cardId = e.target.dataset.id;
-            downloadPosterAsImage(cardId);
-        };
-    });
+    document.querySelector('.btn-download').onclick = () => {
+        downloadPosterAsImage(r.id);
+    };
 
-    document.querySelectorAll('.btn-print').forEach(btn => {
-        btn.onclick = (e) => {
-            const cardId = e.target.dataset.id;
-            printTargetPoster(cardId);
-        };
-    });
-
-    document.querySelectorAll('.btn-share').forEach(btn => {
-        btn.onclick = (e) => {
-            const cardId = e.target.dataset.id;
-            sharePosterContent(cardId);
-        };
-    });
+    document.querySelector('.btn-share').onclick = () => {
+        sharePosterContent(r.id);
+    };
 }
 
 function renderError(title, msg) {
-    document.getElementById('headerSection').innerHTML = `
+    document.getElementById('resultsList').innerHTML = `
         <div class="empty-state">
             <div class="empty-icon">❌</div>
             <h2 style="color:#dc2626; margin-bottom:0.5rem; font-family:'Playfair Display', serif;">${escapeHTML(title)}</h2>
@@ -249,7 +360,7 @@ function renderError(title, msg) {
 function renderEmpty(title, msg) {
     document.getElementById('resultsList').innerHTML = `
         <div class="empty-state">
-            <div class="empty-icon">🕌</div>
+            <div class="empty-icon">🔍</div>
             <h3 style="font-family:'Playfair Display', serif;">${escapeHTML(title)}</h3>
             <p>${escapeHTML(msg)}</p>
         </div>
@@ -257,97 +368,185 @@ function renderEmpty(title, msg) {
 }
 
 // ─────────────────────────────────────────────
-// Dynamic Filters Loading & Binding
+// Unified Off-screen 4:5 Aspect Ratio Canvas Drawer
 // ─────────────────────────────────────────────
-function setupFilterDropdowns() {
-    const catSel = document.getElementById('catFilter');
-    const progSel = document.getElementById('progFilter');
+function generatePosterCanvas(r) {
+    const bgId = cardBgMap[r.id] || 1;
+    const madrasaName = (instituteDetails?.name || "Madrasa Results Portal").toUpperCase();
+    const programName = (r.programName || "Program Standing").toUpperCase();
+    const categoryName = (r.categoryName || "General Category").toUpperCase();
 
-    // Retain initial placeholder options
-    catSel.innerHTML = '<option value="">All Categories</option>';
-    progSel.innerHTML = '<option value="">All Programs</option>';
-
-    // Build unique categories set
-    const categories = [...new Set(allResults.map(r => r.categoryName))].sort();
-    categories.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c;
-        opt.textContent = c;
-        catSel.appendChild(opt);
+    // Sort all published results chronologically by publication time ascending to get index order number
+    const sortedPublished = [...allResults].sort((a, b) => {
+        const timeA = a.publishedAt?.seconds || 0;
+        const timeB = b.publishedAt?.seconds || 0;
+        return timeA - timeB;
     });
 
-    // Build unique programs set
-    const programs = [...new Set(allResults.map(r => r.programName))].sort();
-    programs.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p;
-        opt.textContent = p;
-        progSel.appendChild(opt);
-    });
+    const resultNumber = sortedPublished.findIndex(x => x.id === r.id) + 1;
 
-    // Hook listeners
-    catSel.onchange = applyFilters;
-    progSel.onchange = applyFilters;
-    document.getElementById('searchInput').oninput = applyFilters;
-    document.getElementById('btnFilterSearch').onclick = applyFilters;
-}
+    // Fetch top 3 winners
+    const sorted = [...(r.marksData || [])]
+        .filter(w => w.finalMark && w.finalMark > 0)
+        .sort((a, b) => (b.finalMark || 0) - (a.finalMark || 0))
+        .slice(0, 3);
 
-function applyFilters() {
-    const queryStr = document.getElementById('searchInput').value.trim().toLowerCase();
-    const cat = document.getElementById('catFilter').value;
-    const prog = document.getElementById('progFilter').value;
+    // Create high-res off-screen canvas (1200x1500 for exact 4:5 aspect ratio)
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 1500;
+    const ctx = canvas.getContext('2d');
 
-    filteredResults = allResults.filter(r => {
-        if (cat && r.categoryName !== cat) return false;
-        if (prog && r.programName !== prog) return false;
-        
-        if (queryStr) {
-            const name = (r.programName || '').toLowerCase();
-            const category = (r.categoryName || '').toLowerCase();
-            if (!name.includes(queryStr) && !category.includes(queryStr)) return false;
+    // Draw preloaded background
+    const bgImg = preloadedBgs[bgId];
+    if (bgImg && bgImg.complete) {
+        ctx.drawImage(bgImg, 0, 0, 1200, 1500);
+    } else {
+        // Fallback emerald-pine gradient if image load lags
+        const grad = ctx.createLinearGradient(0, 0, 1200, 1500);
+        grad.addColorStop(0, '#022c22');
+        grad.addColorStop(1, '#064e3b');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 1200, 1500);
+    }
+
+    // Overlay dark subtle gradient for readability
+    const gradient = ctx.createLinearGradient(0, 0, 0, 1500);
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.1)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1200, 1500);
+
+    // Category (top-left)
+    ctx.textAlign = 'left';
+    ctx.font = '600 52px "Inter", sans-serif';
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillText(categoryName, 100, 180);
+
+    // Program Name (top-left)
+    ctx.font = 'bold 128px "Cinzel", Georgia, serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(programName, 100, 300);
+
+    // RESULT Number (stacked below program name to completely avoid overlays)
+    ctx.font = '600 52px "Inter", sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.fillText(`RESULT ${resultNumber}`, 100, 380);
+
+    // Render Winners (giving stacked headers clean breathing room)
+    const startY = 480;
+    const rowHeight = 230;
+
+    for (let i = 0; i < sorted.length; i++) {
+        const w = sorted[i];
+        const y = startY + (i * rowHeight);
+
+        // Glassmorphic translucent white backdrop card
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.beginPath();
+        ctx.roundRect(100, y, 1000, 170, 45); // border-radius matches screen scales
+        ctx.fill();
+
+        // White card soft borders
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Rank Circle Gradient
+        // 1st: Gold gradient, 2nd: Silver gradient, 3rd: Bronze gradient
+        if (i === 0) {
+            // Gold gradient
+            const goldGrad = ctx.createLinearGradient(135, y + 35, 235, y + 135);
+            goldGrad.addColorStop(0, '#FFE082');
+            goldGrad.addColorStop(1, '#FFB300');
+            ctx.fillStyle = goldGrad;
+        } else if (i === 1) {
+            // Silver gradient
+            const silverGrad = ctx.createLinearGradient(135, y + 35, 235, y + 135);
+            silverGrad.addColorStop(0, '#F1F5F9');
+            silverGrad.addColorStop(1, '#94A3B8');
+            ctx.fillStyle = silverGrad;
+        } else {
+            // Bronze gradient
+            const bronzeGrad = ctx.createLinearGradient(135, y + 35, 235, y + 135);
+            bronzeGrad.addColorStop(0, '#FFEDD5');
+            bronzeGrad.addColorStop(1, '#D97706');
+            ctx.fillStyle = bronzeGrad;
         }
-        return true;
-    });
+        ctx.beginPath();
+        ctx.arc(185, y + 85, 50, 0, Math.PI * 2);
+        ctx.fill();
 
-    renderResults();
+        // Rank Text inside Circle
+        ctx.font = 'bold 42px "Inter", sans-serif';
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${i + 1}`, 185, y + 99);
+
+        // Winner name & Subtitle (depending on programType)
+        ctx.textAlign = 'left';
+        if (r.programType === 'group') {
+            // Group program: Large subgroup heading + gold subtitle
+            const teamNameText = w ? w.teamName : '—';
+            const subgroupName = w ? (w.studentName || 'TEAM A') : '—';
+
+            ctx.font = 'bold 38px "Inter", sans-serif';
+            ctx.fillStyle = '#ffffff'; // main heading color (white for glass contrast)
+            ctx.fillText(subgroupName.toUpperCase(), 270, y + 72);
+
+            ctx.font = '600 24px "Inter", sans-serif';
+            ctx.fillStyle = '#D4A017'; // gold subtitle color
+            ctx.fillText(teamNameText.toUpperCase(), 270, y + 122);
+        } else {
+            // Individual program: standard white large student heading + smaller team name subtitle
+            const studentNameText = w ? w.studentName : '—';
+            const teamNameText = w ? (w.teamName || '—') : '—';
+
+            ctx.font = 'bold 38px "Inter", sans-serif';
+            ctx.fillStyle = '#ffffff'; // white color heading
+            ctx.fillText(studentNameText.toUpperCase(), 270, y + 72);
+
+            ctx.font = '600 24px "Inter", sans-serif';
+            ctx.fillStyle = '#cbd5e1'; // subtitle color
+            ctx.fillText(teamNameText.toUpperCase(), 270, y + 122);
+        }
+    }
+
+    // Centered Madrasa Footer Branding
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 44px "Inter", sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.fillText(madrasaName, 600, 1430);
+
+    return canvas;
 }
 
 // ─────────────────────────────────────────────
-// Printable Poster Isolated Trigger
+// Poster Image Direct Download
 // ─────────────────────────────────────────────
-function printTargetPoster(cardId) {
-    const wrapper = document.getElementById(`container-${cardId}`);
-    if (!wrapper) return;
+function downloadPosterAsImage(cardId) {
+    const r = allResults.find(x => x.id === cardId);
+    if (!r) return;
 
-    // Add specific CSS classes for printing
-    document.body.classList.add('print-active');
-    wrapper.classList.add('print-target');
+    const canvas = generatePosterCanvas(r);
 
-    // Trigger printing dialog
-    window.print();
-
-    // Safely remove classes after print box closes
-    const clearPrintStyles = () => {
-        document.body.classList.remove('print-active');
-        wrapper.classList.remove('print-target');
-        window.removeEventListener('afterprint', clearPrintStyles);
-    };
-
-    window.addEventListener('afterprint', clearPrintStyles);
-    // Fallback timer for browsers that don't trigger afterprint correctly
-    setTimeout(clearPrintStyles, 2000);
+    // Trigger standard browser download handler
+    const link = document.createElement('a');
+    link.download = `result_${r.programName.toLowerCase().replace(/\s+/g, '_')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast(`✓ Image downloaded: result_${r.programName.toLowerCase().replace(/\s+/g, '_')}.png`);
 }
 
 // ─────────────────────────────────────────────
-// Clipboard & WhatsApp Content Sharing Action
+// Native Web Share API or Clipboard Fallsharing
 // ─────────────────────────────────────────────
 function sharePosterContent(cardId) {
     const r = allResults.find(x => x.id === cardId);
     if (!r) return;
 
-    const festTitle = instituteDetails?.festivalName || "Annual Islamic Cultural Meet";
     const madrasaName = instituteDetails?.name || "Madrasa Results";
-    
+
     // Fetch top 3 winners
     const sorted = [...(r.marksData || [])]
         .filter(w => w.finalMark && w.finalMark > 0)
@@ -359,370 +558,58 @@ function sharePosterContent(cardId) {
     const w3 = sorted[2] ? `${r.programType === 'group' ? sorted[2].teamName : sorted[2].studentName} (${r.programType === 'group' ? 'Group' : sorted[2].teamName})` : '—';
 
     const portalUrl = window.location.href;
-    const shareText = `🏆 *${r.programName.toUpperCase()}* Result Published!\n\n🕌 *${madrasaName}*\n🌟 Festival: *${festTitle}*\n🏷️ Category: *${r.categoryName}*\n\n🥇 *1st:* ${w1}\n🥈 *2nd:* ${w2}\n🥉 *3rd:* ${w3}\n\n👉 Check all official published standings on the results portal:\n${portalUrl}`;
+    const shareText = `🏆 *${r.programName.toUpperCase()}* Result Published!\n\n🕌 *${madrasaName}*\n🏷️ Category: *${r.categoryName}*\n\n🥇 *1st:* ${w1}\n🥈 *2nd:* ${w2}\n🥉 *3rd:* ${w3}\n\n👉 Check official standings on the portal:\n${portalUrl}`;
 
-    navigator.clipboard.writeText(shareText).then(() => {
-        showToast("✓ Copied sharing summary & portal link to clipboard!");
-        
-        // Open WhatsApp Web/Mobile with prefilled text
-        const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
-        window.open(waUrl, '_blank');
-    }).catch(err => {
-        console.error("Clipboard copy failure:", err);
-        showToast("Sharing failed.");
-    });
-}
+    // Helper function for clipboard text copy fallback
+    const copyToClipboardFallback = () => {
+        navigator.clipboard.writeText(shareText).then(() => {
+            showToast("✓ Copied standings summary & portal link to clipboard!");
 
-// ─────────────────────────────────────────────
-// Off-screen Canvas Image Downloader Helper
-// ─────────────────────────────────────────────
-function downloadPosterAsImage(cardId) {
-    const r = allResults.find(x => x.id === cardId);
-    if (!r) return;
+            // Open WhatsApp Web/Mobile with prefilled text
+            const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+            window.open(waUrl, '_blank');
+        }).catch(err => {
+            console.error("Clipboard copy failure:", err);
+            showToast("Sharing copy failed.");
+        });
+    };
 
-    const styleId = cardStylesMap[r.id] || 1;
-    const madrasaName = (instituteDetails?.name || "Madrasa Results Portal").toUpperCase();
-    const festTitle = (instituteDetails?.festivalName || "Annual Cultural Festival").toUpperCase();
-    const programName = (r.programName || "Program Standing").toUpperCase();
-    const categoryName = (r.categoryName || "General Category").toUpperCase();
+    // Generate image canvas
+    const canvas = generatePosterCanvas(r);
 
-    // Fetch top 3 winners
-    const sorted = [...(r.marksData || [])]
-        .filter(w => w.finalMark && w.finalMark > 0)
-        .sort((a, b) => (b.finalMark || 0) - (a.finalMark || 0))
-        .slice(0, 3);
-
-    // Create high-res off-screen canvas (1200x800 for optimal social aspect-ratio)
-    const canvas = document.createElement('canvas');
-    canvas.width = 1200;
-    canvas.height = 800;
-    const ctx = canvas.getContext('2d');
-
-    // ─────────────────────────────────────────────
-    // Styles rendering mapping
-    // ─────────────────────────────────────────────
-    if (styleId === 1) {
-        // Theme 1: Soft Elegant pastel gradient
-        const grad = ctx.createLinearGradient(0, 0, 1200, 800);
-        grad.addColorStop(0, '#f8fafc');
-        grad.addColorStop(0.5, '#eff6ff');
-        grad.addColorStop(1, '#f5f3ff');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 1200, 800);
-
-        // Double soft borders
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 16;
-        ctx.strokeRect(8, 8, 1184, 784);
-
-        ctx.strokeStyle = 'rgba(99, 102, 241, 0.08)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(20, 20, 1160, 760);
-
-        // Header Metadata Badge
-        ctx.fillStyle = '#e0e7ff';
-        ctx.beginPath();
-        ctx.roundRect(475, 45, 250, 42, 21);
-        ctx.fill();
-
-        ctx.font = 'bold 16px "Inter", sans-serif';
-        ctx.fillStyle = '#4338ca';
-        ctx.textAlign = 'center';
-        ctx.fillText(categoryName, 600, 71);
-
-        // Title and Event Name
-        ctx.font = 'italic bold 52px "Playfair Display", Georgia, serif';
-        ctx.fillStyle = '#1e1b4b';
-        ctx.fillText(programName, 600, 155);
-
-        ctx.font = 'bold 16px "Inter", sans-serif';
-        ctx.fillStyle = '#475569';
-        ctx.fillText(`🏆 ${festTitle} STANDINGS`, 600, 205);
-
-        // Draw Divider
-        ctx.strokeStyle = 'rgba(99, 102, 241, 0.15)';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([8, 8]);
-        ctx.beginPath();
-        ctx.moveTo(100, 235);
-        ctx.lineTo(1100, 235);
-        ctx.stroke();
-        ctx.setLineDash([]); // Reset dash
-
-        // Render Winners rows
-        const startY = 275;
-        const rowHeight = 145;
-
-        for (let i = 0; i < 3; i++) {
-            const w = sorted[i];
-            const y = startY + (i * rowHeight);
-
-            // Row Card Backdrop
-            ctx.fillStyle = '#ffffff';
-            ctx.shadowColor = 'rgba(99, 102, 241, 0.04)';
-            ctx.shadowBlur = 10;
-            ctx.shadowOffsetY = 4;
-            ctx.beginPath();
-            ctx.roundRect(100, y, 1000, 120, 16);
-            ctx.fill();
-            ctx.shadowColor = 'transparent'; // Reset shadow
-
-            // Medal Emojis & Rank
-            let medalStr = '🥉';
-            let medalColor = '#fde8e8'; // Fallback
-            if (i === 0) { medalStr = '🥇'; medalColor = '#fef3c7'; }
-            else if (i === 1) { medalStr = '🥈'; medalColor = '#f1f5f9'; }
-
-            // Medal container circular background
-            ctx.fillStyle = medalColor;
-            ctx.beginPath();
-            ctx.arc(175, y + 60, 36, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.font = '36px "Inter"';
-            ctx.fillText(medalStr, 175, y + 72);
-
-            // Student/Winner Profile Text Info
-            const wName = w ? (r.programType === 'group' ? w.teamName : w.studentName) : '—';
-            const wTeam = w ? (r.programType === 'group' ? 'GROUP PROGRAM' : (w.teamName || '—')) : '—';
-            const wGrade = w ? (w.grade || '') : '';
-            const wPoints = w ? `${w.totalPoints || 0} pts` : '';
-
-            ctx.textAlign = 'left';
-            ctx.font = 'bold 30px "Inter", sans-serif';
-            ctx.fillStyle = '#1e1b4b';
-            ctx.fillText(wName, 245, y + 54);
-
-            ctx.font = '700 16px "Inter", sans-serif';
-            ctx.fillStyle = '#475569';
-            ctx.fillText(wTeam.toUpperCase(), 245, y + 88);
-
-            // Grade / Points badges
-            ctx.textAlign = 'right';
-            if (wGrade) {
-                ctx.fillStyle = '#eff6ff';
-                ctx.beginPath();
-                ctx.roundRect(930, y + 42, 100, 32, 6);
-                ctx.fill();
-
-                ctx.font = 'bold 16px "Inter", sans-serif';
-                ctx.fillStyle = '#1d4ed8';
-                ctx.fillText(`GRADE ${wGrade}`, 980, y + 63);
+    // Attempt direct image file sharing through Web Share API if supported
+    if (navigator.canShare && navigator.share) {
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                console.error("Failed to generate blob from canvas");
+                copyToClipboardFallback();
+                return;
             }
 
-            if (wPoints) {
-                ctx.font = '800 24px "Inter", sans-serif';
-                ctx.fillStyle = '#4338ca';
-                ctx.fillText(wPoints, 800, y + 68);
+            const fileName = `result_${r.programName.toLowerCase().replace(/\s+/g, '_')}.png`;
+            const file = new File([blob], fileName, { type: 'image/png' });
+
+            // Double check if sharing this specific file is allowed by the browser
+            if (navigator.canShare({ files: [file] })) {
+                navigator.share({
+                    files: [file],
+                    title: `${r.programName} Standings`,
+                    text: shareText
+                }).then(() => {
+                    showToast("✓ Shared standings image successfully!");
+                }).catch(err => {
+                    console.warn("Native sharing cancelled or failed:", err);
+                    copyToClipboardFallback();
+                });
+            } else {
+                console.warn("Direct image sharing not supported by this browser");
+                copyToClipboardFallback();
             }
-        }
-
-        // Footer Branding
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 15px "Inter", sans-serif';
-        ctx.fillStyle = '#94a3b8';
-        ctx.fillText(`🏫 OFFICIALLY PUBLISHED BY ${madrasaName}`, 600, 755);
-
-    } else if (styleId === 2) {
-        // Theme 2: Modern Editorial black & white
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, 1200, 800);
-
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 8;
-        ctx.strokeRect(30, 30, 1140, 740);
-
-        // Header lines
-        ctx.fillStyle = '#000000';
-        ctx.textAlign = 'left';
-        ctx.font = '900 16px "Inter", sans-serif';
-        ctx.fillText(categoryName, 80, 100);
-
-        ctx.font = '900 56px "Playfair Display", Georgia, serif';
-        ctx.fillText(programName, 80, 165);
-
-        ctx.font = 'bold 15px "Inter", sans-serif';
-        ctx.fillText(`🏆 ${festTitle} STANDINGS`, 80, 205);
-
-        // Solid Divider Line
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(80, 230);
-        ctx.lineTo(1120, 230);
-        ctx.stroke();
-
-        // Render Winners row
-        const startY = 270;
-        const rowHeight = 135;
-
-        for (let i = 0; i < 3; i++) {
-            const w = sorted[i];
-            const y = startY + (i * rowHeight);
-
-            ctx.strokeStyle = '#e2e8f0';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(80, y + 110);
-            ctx.lineTo(1120, y + 110);
-            ctx.stroke();
-
-            // Rank Number
-            ctx.textAlign = 'left';
-            ctx.fillStyle = '#000000';
-            ctx.font = '900 42px "Cinzel", serif';
-            ctx.fillText(`#0${i + 1}`, 90, y + 70);
-
-            const wName = w ? (r.programType === 'group' ? w.teamName : w.studentName) : '—';
-            const wTeam = w ? (r.programType === 'group' ? 'GROUP PROGRAM' : (w.teamName || '—')) : '—';
-            const wGrade = w ? (w.grade || '') : '';
-            const wPoints = w ? `${w.totalPoints || 0} pts` : '';
-
-            ctx.font = '900 28px "Inter", sans-serif';
-            ctx.fillText(wName, 260, y + 54);
-
-            ctx.font = '500 16px "Inter", sans-serif';
-            ctx.fillStyle = '#64748b';
-            ctx.fillText(wTeam.toUpperCase(), 260, y + 84);
-
-            ctx.textAlign = 'right';
-            ctx.fillStyle = '#000000';
-            if (wGrade) {
-                ctx.font = 'bold 18px "Inter", sans-serif';
-                ctx.fillText(`GRADE ${wGrade}`, 1080, y + 46);
-            }
-            if (wPoints) {
-                ctx.font = '900 22px "Inter", sans-serif';
-                ctx.fillText(wPoints, 1080, y + 80);
-            }
-        }
-
-        ctx.textAlign = 'center';
-        ctx.font = '900 14px "Inter", sans-serif';
-        ctx.fillStyle = '#000000';
-        ctx.fillText(`OFFICIALLY PUBLISHED BY ${madrasaName}`, 600, 735);
-
+        }, 'image/png');
     } else {
-        // Theme 3: Deep Emerald Artistic Islamic
-        const grad = ctx.createLinearGradient(0, 0, 1200, 800);
-        grad.addColorStop(0, '#022c22');
-        grad.addColorStop(1, '#064e3b');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 1200, 800);
-
-        // Thin Gold double borders
-        ctx.strokeStyle = '#d97706';
-        ctx.lineWidth = 6;
-        ctx.strokeRect(20, 20, 1160, 760);
-
-        ctx.strokeStyle = 'rgba(217, 119, 6, 0.4)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(30, 30, 1140, 740);
-
-        // Metadata Badge
-        ctx.fillStyle = 'rgba(217, 119, 6, 0.18)';
-        ctx.strokeStyle = 'rgba(217, 119, 6, 0.3)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.roundRect(475, 45, 250, 42, 4);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.font = 'bold 16px "Inter", sans-serif';
-        ctx.fillStyle = '#fef08a';
-        ctx.textAlign = 'center';
-        ctx.fillText(categoryName, 600, 71);
-
-        // Title and Event Name
-        ctx.font = 'bold 44px "Cinzel", serif';
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(programName, 600, 155);
-
-        ctx.font = 'bold 16px "Inter", sans-serif';
-        ctx.fillStyle = '#fbbf24';
-        ctx.fillText(`🏆 ${festTitle} STANDINGS`, 600, 205);
-
-        // Thin Gold Divider Line
-        ctx.strokeStyle = 'rgba(217, 119, 6, 0.3)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(100, 235);
-        ctx.lineTo(1100, 235);
-        ctx.stroke();
-
-        // Render Winners row
-        const startY = 275;
-        const rowHeight = 145;
-
-        for (let i = 0; i < 3; i++) {
-            const w = sorted[i];
-            const y = startY + (i * rowHeight);
-
-            // Row Card Backdrop
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
-            ctx.strokeStyle = 'rgba(217, 119, 6, 0.15)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(100, y, 1000, 120, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            // Rank Badge Number
-            let rankMedal = '🥉';
-            if (i === 0) rankMedal = '🥇';
-            else if (i === 1) rankMedal = '🥈';
-
-            ctx.font = '36px "Inter"';
-            ctx.fillText(rankMedal, 175, y + 74);
-
-            const wName = w ? (r.programType === 'group' ? w.teamName : w.studentName) : '—';
-            const wTeam = w ? (r.programType === 'group' ? 'GROUP PROGRAM' : (w.teamName || '—')) : '—';
-            const wGrade = w ? (w.grade || '') : '';
-            const wPoints = w ? `${w.totalPoints || 0} pts` : '';
-
-            ctx.textAlign = 'left';
-            ctx.font = 'bold 28px "Inter", sans-serif';
-            ctx.fillStyle = '#ffffff';
-            ctx.fillText(wName, 245, y + 54);
-
-            ctx.font = 'bold 16px "Inter", sans-serif';
-            ctx.fillStyle = '#a7f3d0';
-            ctx.fillText(wTeam.toUpperCase(), 245, y + 88);
-
-            ctx.textAlign = 'right';
-            if (wGrade) {
-                ctx.fillStyle = 'rgba(217, 119, 6, 0.2)';
-                ctx.strokeStyle = 'rgba(217, 119, 6, 0.3)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.roundRect(930, y + 42, 100, 32, 4);
-                ctx.fill();
-                ctx.stroke();
-
-                ctx.font = 'bold 14px "Inter", sans-serif';
-                ctx.fillStyle = '#fef08a';
-                ctx.fillText(`GRADE ${wGrade}`, 980, y + 62);
-            }
-
-            if (wPoints) {
-                ctx.font = '900 24px "Inter", sans-serif';
-                ctx.fillStyle = '#fbbf24';
-                ctx.fillText(wPoints, 800, y + 68);
-            }
-        }
-
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 15px "Inter", sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.fillText(`OFFICIALLY PUBLISHED BY ${madrasaName}`, 600, 755);
+        // Fallback for browsers that do not support Web Share API (desktop)
+        copyToClipboardFallback();
     }
-
-    // Trigger dynamic browser down file click download
-    const link = document.createElement('a');
-    link.download = `results_${r.programName.toLowerCase().replace(/\s+/g, '_')}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    showToast(`✓ Downloader finished: results_${r.programName.toLowerCase().replace(/\s+/g, '_')}.png`);
 }
 
 // Start Portal Load
