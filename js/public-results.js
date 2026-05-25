@@ -17,7 +17,7 @@ const cardBgMap = {};
 const preloadedBgs = {};
 
 function preloadAllBackgrounds() {
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= 10; i++) {
         const img = new Image();
         img.src = `../assets/poster-backgrounds/bg${i}.jpg`;
         preloadedBgs[i] = img;
@@ -113,64 +113,151 @@ function hideOverlay() {
 // ─────────────────────────────────────────────
 // Setup Dynamic Category / Program Filters
 // ─────────────────────────────────────────────
-function setupFilters() {
-    const catSel = document.getElementById('catFilter');
-    const progSel = document.getElementById('progFilter');
+// State variables for selected filter options
+let selectedCategory = "";
+let selectedProgram = "";
 
-    // Retain select category placeholder option
-    catSel.innerHTML = '<option value="">Select Category</option>';
-    progSel.innerHTML = '<option value="">Select Program</option>';
-    progSel.disabled = true;
+function setupFilters() {
+    const catContainer = document.getElementById('catFilterContainer');
+    const catTrigger = document.getElementById('catSelectTrigger');
+    const catText = document.getElementById('catSelectedVal');
+    const catPanel = document.getElementById('catSelectPanel');
+
+    const progContainer = document.getElementById('progFilterContainer');
+    const progTrigger = document.getElementById('progSelectTrigger');
+    const progText = document.getElementById('progSelectedVal');
+    const progPanel = document.getElementById('progSelectPanel');
+
+    // Reset options
+    selectedCategory = "";
+    selectedProgram = "";
+    catText.textContent = "Select Category";
+    catText.classList.add('placeholder');
+    progText.textContent = "Select Program";
+    progText.classList.add('placeholder');
+    progContainer.classList.add('disabled');
+
+    // Helper to toggle panel open/close
+    const togglePanel = (container) => {
+        const isOpen = container.classList.contains('open');
+        // Close all other panels first
+        document.querySelectorAll('.glass-select-container').forEach(c => c.classList.remove('open'));
+        if (!isOpen) {
+            container.classList.add('open');
+        }
+    };
+
+    // Global click listener to close panels when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.glass-select-container')) {
+            document.querySelectorAll('.glass-select-container').forEach(c => c.classList.remove('open'));
+        }
+    });
+
+    catTrigger.onclick = (e) => {
+        e.stopPropagation();
+        togglePanel(catContainer);
+    };
+
+    progTrigger.onclick = (e) => {
+        e.stopPropagation();
+        if (progContainer.classList.contains('disabled')) return;
+        togglePanel(progContainer);
+    };
 
     // Load categories dynamically
     const categories = [...new Set(allResults.map(r => r.categoryName))].sort();
-    categories.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c;
-        opt.textContent = c;
-        catSel.appendChild(opt);
-    });
+    
+    const populateCategories = () => {
+        catPanel.innerHTML = '';
+        categories.forEach(c => {
+            const isSelected = c === selectedCategory;
+            const item = document.createElement('div');
+            item.className = `glass-select-item ${isSelected ? 'selected' : ''}`;
+            
+            let checkHTML = '';
+            if (isSelected) {
+                checkHTML = `<span class="glass-select-check">✓</span>`;
+            }
+            
+            item.innerHTML = `
+                <span>${escapeHTML(c)}</span>
+                ${checkHTML}
+            `;
+            
+            item.onclick = (e) => {
+                e.stopPropagation();
+                selectedCategory = c;
+                catText.textContent = c;
+                catText.classList.remove('placeholder');
+                catContainer.classList.remove('open');
+                
+                // Reset program
+                selectedProgram = "";
+                progText.textContent = "Select Program";
+                progText.classList.add('placeholder');
+                progContainer.classList.remove('disabled');
+                
+                // Re-populate categories & populate programs
+                populateCategories();
+                populatePrograms();
+            };
+            catPanel.appendChild(item);
+        });
+    };
 
-    // Handle Category change event
-    catSel.onchange = () => {
-        const selectedCat = catSel.value;
-        if (!selectedCat) {
-            progSel.innerHTML = '<option value="">Select Program</option>';
-            progSel.disabled = true;
-            return;
-        }
+    const populatePrograms = () => {
+        progPanel.innerHTML = '';
+        if (!selectedCategory) return;
 
         // Load only programs under that category
         const programs = [...new Set(
             allResults
-                .filter(r => r.categoryName === selectedCat)
+                .filter(r => r.categoryName === selectedCategory)
                 .map(r => r.programName)
         )].sort();
 
-        progSel.innerHTML = '<option value="">Select Program</option>';
         programs.forEach(p => {
-            const opt = document.createElement('option');
-            opt.value = p;
-            opt.textContent = p;
-            progSel.appendChild(opt);
-        });
+            const isSelected = p === selectedProgram;
+            const item = document.createElement('div');
+            item.className = `glass-select-item ${isSelected ? 'selected' : ''}`;
+            
+            let checkHTML = '';
+            if (isSelected) {
+                checkHTML = `<span class="glass-select-check">✓</span>`;
+            }
 
-        // Enable program dropdown
-        progSel.disabled = false;
+            item.innerHTML = `
+                <span>${escapeHTML(p)}</span>
+                ${checkHTML}
+            `;
+
+            item.onclick = (e) => {
+                e.stopPropagation();
+                selectedProgram = p;
+                progText.textContent = p;
+                progText.classList.remove('placeholder');
+                progContainer.classList.remove('open');
+                
+                // Re-populate programs
+                populatePrograms();
+            };
+            progPanel.appendChild(item);
+        });
     };
+
+    // Populate category dropdown initially
+    populateCategories();
 
     // Handle Search click workflow
     document.getElementById('btnFilterSearch').onclick = () => {
-        const catVal = catSel.value;
-        const progVal = progSel.value;
-
-        if (!catVal || !progVal) {
+        if (!selectedCategory || !selectedProgram) {
             showToast("⚠️ Please select both Category and Program!");
             return;
         }
 
         // Query the single matching result
-        const currentResult = allResults.find(r => r.categoryName === catVal && r.programName === progVal);
+        const currentResult = allResults.find(r => r.categoryName === selectedCategory && r.programName === selectedProgram);
         if (!currentResult) {
             renderEmpty("Result Not Found", "The requested program standings have not been published yet.");
             return;
@@ -278,6 +365,9 @@ function renderSingleResult(r) {
             </div>
 
             <!-- Background Image Selection Thumbnail Strip (□ □ □ □) -->
+
+
+
             <div class="bg-picker-card">
                 <span class="bg-picker-title">🎨 CHOOSE BACKGROUND DESIGN</span>
                 <div class="thumbnail-list">
@@ -293,11 +383,23 @@ function renderSingleResult(r) {
                     <div class="thumb ${bgId === 4 ? 'active' : ''}" data-id="${r.id}" data-bg="4">
                         <img src="../assets/poster-backgrounds/bg4.jpg" alt="Bg 4">
                     </div>
-                    <div class="thumb ${bgId === 4 ? 'active' : ''}" data-id="${r.id}" data-bg="4">
-                        <img src="../assets/poster-backgrounds/bg4.jpg" alt="Bg 4">
+                    <div class="thumb ${bgId === 5 ? 'active' : ''}" data-id="${r.id}" data-bg="5">
+                        <img src="../assets/poster-backgrounds/bg5.jpg" alt="Bg 5">
                     </div>
-                    <div class="thumb ${bgId === 4 ? 'active' : ''}" data-id="${r.id}" data-bg="4">
-                        <img src="../assets/poster-backgrounds/bg4.jpg" alt="Bg 4">
+                    <div class="thumb ${bgId === 6 ? 'active' : ''}" data-id="${r.id}" data-bg="6">
+                        <img src="../assets/poster-backgrounds/bg6.jpg" alt="Bg 6">
+                    </div>
+                    <div class="thumb ${bgId === 7 ? 'active' : ''}" data-id="${r.id}" data-bg="7">
+                        <img src="../assets/poster-backgrounds/bg7.jpg" alt="Bg 7">
+                    </div>
+                    <div class="thumb ${bgId === 8 ? 'active' : ''}" data-id="${r.id}" data-bg="8">
+                        <img src="../assets/poster-backgrounds/bg8.jpg" alt="Bg 8">
+                    </div>
+                    <div class="thumb ${bgId === 9 ? 'active' : ''}" data-id="${r.id}" data-bg="9">
+                        <img src="../assets/poster-backgrounds/bg9.jpg" alt="Bg 9">
+                    </div>
+                    <div class="thumb ${bgId === 10 ? 'active' : ''}" data-id="${r.id}" data-bg="10">
+                        <img src="../assets/poster-backgrounds/bg10.jpg" alt="Bg 10">
                     </div>
                 </div>
             </div>
