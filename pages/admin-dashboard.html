@@ -9,14 +9,15 @@
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/dashboard.css">
     <link rel="stylesheet" href="../css/participants-workflow.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body class="dashboard-body hidden" style="display: none;"> <!-- Revealed by JS after auth check -->
 
-    <!-- Sidebar Navigation -->
     <aside class="sidebar">
         <div class="sidebar-brand">
             <h2 id="instituteNameHeader">Admin Portal</h2>
+            <button class="close-sidebar-btn" id="closeSidebarBtn" aria-label="Close Menu">&times;</button>
         </div>
         <nav class="sidebar-nav">
             <a href="#" class="nav-item active" data-view="dashboard">
@@ -34,8 +35,20 @@
             <a href="#" class="nav-item" data-view="programs">
                 <span class="icon">📝</span> Programs
             </a>
+            <a href="#" class="nav-item" data-view="judges">
+                <span class="icon">🧑‍⚖️</span> Judges
+            </a>
+            <a href="#" class="nav-item" data-view="mark-entry">
+                <span class="icon">🖋️</span> Mark Entry
+            </a>
             <a href="#" class="nav-item" data-view="results">
-                <span class="icon">🏆</span> Publish Results
+                <span class="icon">🏆</span> Results
+            </a>
+            <a href="#" class="nav-item" data-view="exports">
+                <span class="icon">📤</span> Exports
+            </a>
+            <a href="#" class="nav-item" data-view="top-scorers">
+                <span class="icon">🏆</span> Top Scorers
             </a>
             <br>
             <hr style="border:0; border-top:1px solid var(--border-color); margin:1rem 0;"><br>
@@ -45,10 +58,12 @@
         </nav>
     </aside>
 
-    <!-- Main Application Area -->
     <main class="main-content">
         <header class="topbar">
-            <h1 class="page-title" id="pageTitle">Dashboard Overview</h1>
+            <div class="topbar-left">
+                <button class="menu-btn" id="mobileMenuBtn" aria-label="Open Menu">☰</button>
+                <h1 class="page-title" id="pageTitle">Dashboard Overview</h1>
+            </div>
             <div class="topbar-actions" id="topbarActions">
                 <!-- Action buttons injected dynamically per view -->
             </div>
@@ -71,6 +86,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Sidebar Drawer Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <!-- Toast Container -->
     <div id="toastContainer" class="toast-container"></div>
@@ -105,8 +123,20 @@
             <a href="#" class="drawer-item" data-view="categories">
                 <span class="icon">🏷️</span> Categories/Classes
             </a>
+            <a href="#" class="drawer-item" data-view="judges">
+                <span class="icon">🧑‍⚖️</span> Judges
+            </a>
+            <a href="#" class="drawer-item" data-view="mark-entry">
+                <span class="icon">🖋️</span> Mark Entry
+            </a>
             <a href="#" class="drawer-item" data-view="results">
-                <span class="icon">🏆</span> Publish Results
+                <span class="icon">🏆</span> Results
+            </a>
+            <a href="#" class="drawer-item" data-view="exports">
+                <span class="icon">📤</span> Exports
+            </a>
+            <a href="#" class="drawer-item" data-view="top-scorers">
+                <span class="icon">🏆</span> Top Scorers
             </a>
             <hr>
             <a href="#" class="drawer-item text-danger" id="logoutDrawerBtn">

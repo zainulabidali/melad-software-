@@ -955,3 +955,283 @@
         min-width: 0;
     }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Responsive Sidebar & Left-Side Sliding Drawer Implementation
+   ───────────────────────────────────────────────────────────── */
+
+/* Desktop view defaults (> 1024px) */
+.menu-btn {
+    display: none;
+}
+
+.close-sidebar-btn {
+    display: none;
+}
+
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 990;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 300ms ease, visibility 300ms ease;
+    backdrop-filter: blur(1px);
+}
+
+.sidebar-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+@media (min-width: 1025px) {
+    #analyticsGrid {
+        grid-template-columns: repeat(4, 1fr) !important;
+    }
+}
+
+/* Tablet & Mobile Screens (<= 1024px) */
+@media (max-width: 1024px) {
+    /* Transform sidebar into a left-side drawer sliding menu */
+    .sidebar {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        height: 100vh !important;
+        z-index: 1000 !important;
+        width: 80vw !important; /* Mobile fallback width */
+        max-width: 320px !important; /* Tablet max width limit */
+        transform: translateX(-100%) !important;
+        transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+        display: flex !important;
+        box-shadow: 5px 0 25px rgba(0, 0, 0, 0.25) !important;
+    }
+
+    .sidebar.open {
+        transform: translateX(0) !important;
+    }
+
+    /* Shift main content to occupy full remaining area without permanent sidebar space */
+    .main-content {
+        margin-left: 0 !important;
+        padding-bottom: 0 !important; /* Remove legacy bottom nav padding spacing */
+    }
+
+    /* Hide the legacy bottom nav menu entirely */
+    .bottom-nav,
+    .more-drawer,
+    .more-drawer-overlay {
+        display: none !important;
+    }
+
+    /* Topbar adjustments for flexible wrapping and styling */
+    .topbar {
+        padding: 0.85rem 1.25rem !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 0.75rem !important;
+    }
+
+    .topbar-actions {
+        margin-top: 0 !important;
+        width: auto !important;
+    }
+
+    /* Rounded, theme-matching modern header Menu button (☰) */
+    .menu-btn {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 50% !important;
+        background-color: #312e81 !important; /* matching dark indigo */
+        color: white !important;
+        border: none !important;
+        font-size: 1.25rem !important;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(49, 46, 129, 0.2) !important;
+        transition: background-color 0.2s ease, transform 0.2s ease !important;
+        flex-shrink: 0;
+        z-index: 90 !important;
+    }
+
+    .menu-btn:hover {
+        background-color: #4338ca !important;
+    }
+
+    .menu-btn:active {
+        transform: scale(0.92) !important;
+    }
+
+    /* Drawer interior close button (x) inside sidebar brand header */
+    .close-sidebar-btn {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 50% !important;
+        background: rgba(255, 255, 255, 0.12) !important;
+        color: rgba(255, 255, 255, 0.9) !important;
+        border: none !important;
+        font-size: 1.4rem !important;
+        cursor: pointer;
+        line-height: 1 !important;
+        margin-left: auto !important;
+        transition: background-color 0.2s ease, color 0.2s ease !important;
+    }
+
+    .close-sidebar-btn:hover {
+        background: rgba(255, 255, 255, 0.24) !important;
+        color: white !important;
+    }
+
+    .close-sidebar-btn:active {
+        transform: scale(0.9) !important;
+    }
+
+    /* Dashboard Analytics grid resizing */
+    #analyticsGrid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 1.25rem !important;
+    }
+}
+
+/* Mobile Screens (< 768px) */
+@media (max-width: 767px) {
+    /* Topbar stacks header buttons neatly on extra narrow viewports */
+    .topbar {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.5rem !important;
+    }
+
+    .topbar-actions {
+        width: 100% !important;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .topbar-actions .btn,
+    .topbar-actions select,
+    .topbar-actions .form-input {
+        width: 100% !important;
+        flex: 1 1 100%;
+    }
+
+    .topbar-left {
+        width: 100%;
+    }
+
+    /* Dashboard Analytics grid collapses to single column */
+    #analyticsGrid {
+        grid-template-columns: repeat(1, 1fr) !important;
+        gap: 1rem !important;
+    }
+}
+
+/* Global Table responsive horizontal scrolling wrapper fallback */
+div:has(> table) {
+    overflow-x: auto !important;
+    max-width: 100% !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Dashboard Analytics Layout Upgrades
+   ───────────────────────────────────────────────────────────── */
+.dashboard-overview-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    width: 100%;
+}
+
+.dashboard-summary-cards {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(6, 1fr);
+    width: 100%;
+}
+
+.dashboard-main-grid {
+    display: grid;
+    grid-template-columns: 2.2fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+    width: 100%;
+}
+
+.charts-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    min-width: 0;
+}
+
+.leaderboard-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-width: 0;
+}
+
+.chart-card {
+    position: relative;
+    height: 380px; /* Fixed height for consistent layout rendering */
+}
+
+.chart-container {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+
+/* Specific Summary Card Custom Palette Colors */
+.stat-card-participants { border-color: #cbd5e1 !important; background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%) !important; }
+.stat-card-competitions { border-color: #c7d2fe !important; background: linear-gradient(135deg, #f5f3ff 0%, #ffffff 100%) !important; }
+.stat-card-teams { border-color: #fed7aa !important; background: linear-gradient(135deg, #fff7ed 0%, #ffffff 100%) !important; }
+.stat-card-categories { border-color: #bbf7d0 !important; background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%) !important; }
+.stat-card-stages { border-color: #fef08a !important; background: linear-gradient(135deg, #fefce8 0%, #ffffff 100%) !important; }
+.stat-card-judges { border-color: #cbd5e1 !important; background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%) !important; }
+
+/* Responsive adjustments for grids and columns */
+@media (max-width: 1300px) {
+    .dashboard-summary-cards {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+}
+
+@media (max-width: 1024px) {
+    .dashboard-summary-cards {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .dashboard-main-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .charts-section {
+        grid-template-columns: 1fr !important; /* Stack vertically (2 rows) */
+    }
+}
+
+@media (max-width: 480px) {
+    .dashboard-summary-cards {
+        grid-template-columns: repeat(1, 1fr) !important;
+    }
+}

@@ -7,6 +7,7 @@ import {
     doc,
     getDoc,
     setDoc,
+    deleteDoc,
     writeBatch,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -75,9 +76,12 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     let studentsAll = []; // Full list fetched from Firestore for selected Team + Category
     let studentsFiltered = []; // Filtered list based on inline class/search inputs
     let savedIndividualStudentIds = new Set();
+    let assignedParticipantsAll = []; // Stores detailed objects of assigned participants
+    let editingParticipantId = null; // Scoped variable for inline editing
     const selectedStudentIds = new Set(); // Holds selected checkboxes
     let groups = []; // For group event: list of created groups
     let groupContainerRef = null; // Reference to the program group container doc
+    const participantDocIds = new Map(); // studentId -> firestoreDocId
 
     // 2. Set Up Main Page UI structure
     container.innerHTML = `
@@ -189,9 +193,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                   <button class="btn btn-primary" id="pwSaveParticipantsBtn" disabled>Save Participants</button>
                 </div>
                 <div class="pw-save-status" id="pwSaveStatus" aria-live="polite"></div>
-                <div class="pw-selected-preview">
-                  <div class="pw-selected-title">Selected Students Preview</div>
-                  <div id="pwSelectedStudentsPreview" class="pw-preview-list"></div>
+                <!-- Assigned Participants Management Panel -->
+                <div id="pwAssignedManagementPanel" style="margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; display: none;">
                 </div>
               </section>
             `}
@@ -237,36 +240,38 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
     function refreshSelectedPreviews() {
         const preview = document.getElementById('pwSelectedStudentsPreview');
-        if (!preview) return;
+        if (preview) {
+            const selected = studentsAll.filter(s => selectedStudentIds.has(s.id));
+            const listHTML = selected
+                .slice(0, 250)
+                .map(s => `
+            <div class="pw-preview-item" data-preview-stu="${s.id}">
+              <div class="pw-preview-main">
+                <span class="pw-preview-name">${window.escapeHTML(s.name)}</span>
+                <span class="pw-preview-chip">#${window.escapeHTML(s.chestNumber || '—')}</span>
+              </div>
+              <button class="pw-preview-remove" data-preview-remove="${s.id}" title="Remove">✕</button>
+            </div>
+          `)
+                .join('');
 
-        const selected = studentsAll.filter(s => selectedStudentIds.has(s.id));
-        const listHTML = selected
-            .slice(0, 250)
-            .map(s => `
-        <div class="pw-preview-item" data-preview-stu="${s.id}">
-          <div class="pw-preview-main">
-            <span class="pw-preview-name">${window.escapeHTML(s.name)}</span>
-            <span class="pw-preview-chip">#${window.escapeHTML(s.chestNumber || '—')}</span>
-          </div>
-          <button class="pw-preview-remove" data-preview-remove="${s.id}" title="Remove">✕</button>
-        </div>
-      `)
-            .join('');
+            preview.innerHTML = listHTML || `<div class="pw-empty">No students selected.</div>`;
 
-        preview.innerHTML = listHTML || `<div class="pw-empty">No students selected.</div>`;
-
-        // Wire up individual remove buttons in preview list
-        preview.querySelectorAll('[data-preview-remove]').forEach(btn => {
-            btn.onclick = () => {
-                const id = btn.getAttribute('data-preview-remove');
-                selectedStudentIds.delete(id);
-                refreshSelectedPreviews();
-                renderStudentList();
-            };
-        });
+            // Wire up individual remove buttons in preview list
+            preview.querySelectorAll('[data-preview-remove]').forEach(btn => {
+                btn.onclick = () => {
+                    const id = btn.getAttribute('data-preview-remove');
+                    selectedStudentIds.delete(id);
+                    refreshSelectedPreviews();
+                    renderStudentList();
+                };
+            });
+        }
 
         // Update counts
-        document.getElementById('pwSelectedCount').textContent = selectedStudentIds.size;
+        const countEl = document.getElementById('pwSelectedCount');
+        if (countEl) countEl.textContent = selectedStudentIds.size;
+        
         const groupCount = document.getElementById('pwNewGroupMembersCount');
         if (groupCount) groupCount.textContent = `${selectedStudentIds.size} selected`;
 
@@ -405,6 +410,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
         selectedStudentIds.clear();
         savedIndividualStudentIds = new Set();
+        assignedParticipantsAll = [];
+        participantDocIds.clear();
         refreshSelectedPreviews();
 
         try {
@@ -424,6 +431,13 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     const data = d.data();
                     if (data.type === 'individual' && data.teamId === selectedTeamId && (data.categoryId || '') === inheritedCategoryId && data.studentId) {
                         savedIndividualStudentIds.add(data.studentId);
+                        participantDocIds.set(data.studentId, d.id);
+                        assignedParticipantsAll.push({
+                            studentId: data.studentId,
+                            studentName: data.studentName || '',
+                            chestNumber: data.chestNumber || '',
+                            className: data.className || data.class || '—'
+                        });
                     }
                 });
             }
@@ -442,10 +456,10 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             let snap;
             try {
                 snap = await getDocs(q);
-                } catch (err) {
-                    let qFallback = query(
-                        collection(db, "institutes", window.currentInstituteId, "students"),
-                        where('categoryId', '==', inheritedCategoryId)
+            } catch (err) {
+                let qFallback = query(
+                    collection(db, "institutes", window.currentInstituteId, "students"),
+                    where('categoryId', '==', inheritedCategoryId)
                 );
                 snap = await getDocs(qFallback);
             }
@@ -476,6 +490,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             studentsAll = uniqById(studentsAll);
             studentsFiltered = studentsAll;
             applyStudentSearchFilter();
+            renderAssignedManagement();
 
         } catch (e) {
             console.error("Error loading students:", e);
@@ -554,6 +569,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             groups = [];
             if (listEl) listEl.innerHTML = `<div class="pw-empty">No groups created yet.</div>`;
             refreshSelectedPreviews();
+            renderAssignedManagement();
             return;
         }
 
@@ -567,6 +583,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         }));
 
         renderGroupsList();
+        renderAssignedManagement();
     }
 
     async function persistGroups() {
@@ -939,8 +956,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 window.showToast(`${toAdd.length} participant${toAdd.length === 1 ? '' : 's'} saved successfully!`, 'success');
                 if (statusEl) statusEl.textContent = `${toAdd.length} participant${toAdd.length === 1 ? '' : 's'} saved.`;
                 selectedStudentIds.clear();
-                refreshSelectedPreviews();
-                renderStudentList();
+                await loadStudentsForSelection();
             } catch (e) {
                 console.error(e);
                 window.showToast('Failed to save participants.', 'error');
@@ -979,9 +995,9 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 const groupId = uid('group');
                 const members = studentsAll
                     .filter(s => selectedStudentIds.has(s.id))
-                    .map(s => ({ 
-                        studentId: s.id || '', 
-                        studentName: s.name || '' 
+                    .map(s => ({
+                        studentId: s.id || '',
+                        studentName: s.name || ''
                     }));
 
                 if (members.length === 0) {
@@ -1031,6 +1047,191 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         });
     }
 
+    function renderAssignedManagement() {
+        const panel = document.getElementById('pwAssignedManagementPanel');
+        if (!panel) return;
+
+        if (!selectedTeamId || isGroupEvent) {
+            panel.style.display = 'none';
+            return;
+        }
+
+        panel.style.display = 'block';
+
+        let listHTML = '';
+        if (assignedParticipantsAll.length === 0) {
+            listHTML = `<div class="pw-empty" style="padding:1rem; text-align:center; color:#64748b; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; font-size:0.85rem;">No participants currently assigned to this program for this team.</div>`;
+        } else {
+            listHTML = assignedParticipantsAll.map(p => {
+                const isEditing = editingParticipantId === p.studentId;
+
+                if (isEditing) {
+                    return `
+                        <div class="pw-assigned-card editing" style="background:#f8fafc; border:1px solid #3b82f6; border-radius:8px; padding:1rem; margin-bottom:1rem; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                            <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                                <div>
+                                    <label class="form-label" style="font-size:0.75rem; font-weight:700; color:#475569;">STUDENT NAME</label>
+                                    <input type="text" id="pwEditName_${p.studentId}" class="form-input" value="${window.escapeHTML(p.studentName)}" style="font-size:0.85rem;" />
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                                    <div>
+                                        <label class="form-label" style="font-size:0.75rem; font-weight:700; color:#475569;">ID / CHEST NUMBER</label>
+                                        <input type="text" id="pwEditChest_${p.studentId}" class="form-input" value="${window.escapeHTML(p.chestNumber)}" style="font-size:0.85rem;" />
+                                    </div>
+                                    <div>
+                                        <label class="form-label" style="font-size:0.75rem; font-weight:700; color:#475569;">CLASS</label>
+                                        <input type="text" id="pwEditClass_${p.studentId}" class="form-input" value="${window.escapeHTML(p.className)}" style="font-size:0.85rem;" />
+                                    </div>
+                                </div>
+                                <div style="display:flex; gap:0.5rem; justify-content:flex-end; margin-top:0.25rem;">
+                                    <button class="btn btn-secondary btn-sm pw-cancel-edit-btn" data-id="${p.studentId}" style="padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:600;">Cancel</button>
+                                    <button class="btn btn-primary btn-sm pw-save-edit-btn" data-id="${p.studentId}" style="padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:600;">Save Changes</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div class="pw-assigned-card" style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:0.85rem 1rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:all 0.2s;">
+                        <div style="flex:1; min-width:0; padding-right:1rem;">
+                            <div style="font-size:0.95rem; font-weight:700; color:#1e293b; text-transform:uppercase; margin-bottom:0.35rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                [ ${window.escapeHTML(p.studentName)} ]
+                            </div>
+                            <div style="display:flex; gap:1rem; font-size:0.8rem; color:#64748b;">
+                                <span><strong>ID:</strong> #${window.escapeHTML(p.chestNumber)}</span>
+                                <span><strong>Class:</strong> ${window.escapeHTML(p.className)}</span>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:0.4rem; flex-shrink:0;">
+                            <button class="btn btn-secondary btn-sm pw-edit-assigned-btn" data-id="${p.studentId}" style="padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:600; border-color:#cbd5e1; color:#475569; background:#fff;">Edit</button>
+                            <button class="btn btn-danger btn-sm pw-delete-assigned-btn" data-id="${p.studentId}" style="padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:600; background:#fef2f2; border-color:#fca5a5; color:#dc2626;">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        panel.innerHTML = `
+            <div class="pw-section-head" style="margin-bottom:1rem; display:flex; flex-direction:column; gap:0.15rem;">
+                <h3 style="font-size:1.05rem; font-weight:700; color:#0f172a; display:flex; align-items:center; gap:0.5rem; margin:0;">
+                    📋 Assigned Participants Management
+                    <span style="font-size:0.8rem; font-weight:normal; color:#64748b; background:#f1f5f9; padding:0.15rem 0.45rem; border-radius:4px; margin-left:auto;">${assignedParticipantsAll.length} assigned</span>
+                </h3>
+                <div class="pw-muted" style="font-size:0.78rem; color:#64748b;">Manage already assigned individual participants.</div>
+            </div>
+            <div class="pw-assigned-list" style="display:flex; flex-direction:column; max-height:450px; overflow-y:auto; padding-right:0.25rem;">
+                ${listHTML}
+            </div>
+        `;
+
+        // Wire Event Listeners
+
+        // 1. Edit Button click
+        panel.querySelectorAll('.pw-edit-assigned-btn').forEach(btn => {
+            btn.onclick = () => {
+                const id = btn.getAttribute('data-id');
+                editingParticipantId = id;
+                renderAssignedManagement();
+            };
+        });
+
+        // 2. Cancel Edit Button click
+        panel.querySelectorAll('.pw-cancel-edit-btn').forEach(btn => {
+            btn.onclick = () => {
+                editingParticipantId = null;
+                renderAssignedManagement();
+            };
+        });
+
+        // 3. Save Edit Button click
+        panel.querySelectorAll('.pw-save-edit-btn').forEach(btn => {
+            btn.onclick = async () => {
+                const id = btn.getAttribute('data-id');
+                const nameInput = document.getElementById(`pwEditName_${id}`);
+                const chestInput = document.getElementById(`pwEditChest_${id}`);
+                const classInput = document.getElementById(`pwEditClass_${id}`);
+
+                const newName = (nameInput.value || '').trim();
+                const newChest = (chestInput.value || '').trim();
+                const newClass = (classInput.value || '').trim();
+
+                if (!newName) {
+                    window.showToast("Student Name is required.", "error");
+                    return;
+                }
+
+                const spinner = document.getElementById('pwStudentsSkeleton');
+                if (spinner) spinner.style.display = 'block';
+
+                try {
+                    const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
+                    let docId = participantDocIds.get(id);
+                    if (!docId) {
+                        docId = `individual_${safeDocId(selectedTeamId)}_${safeDocId(id)}`;
+                    }
+                    const docRef = doc(partRef, docId);
+
+                    await setDoc(docRef, {
+                        studentName: newName,
+                        chestNumber: newChest,
+                        className: newClass,
+                        updatedAt: serverTimestamp()
+                    }, { merge: true });
+
+                    window.showToast("Participant updated successfully!", "success");
+
+                    editingParticipantId = null;
+
+                    await loadStudentsForSelection();
+
+                } catch (e) {
+                    console.error("Edit failure:", e);
+                    window.showToast("Failed to save changes.", "error");
+                } finally {
+                    if (spinner) spinner.style.display = 'none';
+                }
+            };
+        });
+
+        // 4. Delete Button click
+        panel.querySelectorAll('.pw-delete-assigned-btn').forEach(btn => {
+            btn.onclick = async () => {
+                const id = btn.getAttribute('data-id');
+                if (!confirm("Are you sure you want to delete this participant?")) return;
+
+                const spinner = document.getElementById('pwStudentsSkeleton');
+                if (spinner) spinner.style.display = 'block';
+
+                try {
+                    const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
+                    let docId = participantDocIds.get(id);
+                    if (!docId) {
+                        docId = `individual_${safeDocId(selectedTeamId)}_${safeDocId(id)}`;
+                    }
+                    const docRef = doc(partRef, docId);
+
+                    await deleteDoc(docRef);
+
+                    // Fully update local state to avoid cached/ghost entries
+                    savedIndividualStudentIds.delete(id);
+                    selectedStudentIds.delete(id);
+
+                    window.showToast("Participant deleted successfully!", "success");
+
+                    await loadStudentsForSelection();
+
+                } catch (e) {
+                    console.error("Delete failure:", e);
+                    window.showToast("Failed to delete participant.", "error");
+                } finally {
+                    if (spinner) spinner.style.display = 'none';
+                }
+            };
+        });
+            }
+
     // Start running the initialization
     await initialize();
 }
+        

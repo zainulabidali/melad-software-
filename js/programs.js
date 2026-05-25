@@ -142,7 +142,7 @@ function loadProgramsData() {
                         data-all='${JSON.stringify(prog).replace(/'/g, "&#39;")}'>✏️ Edit</button>
                     <button class="btn btn-primary btn-sm participants-btn"
                         data-id="${progId}"
-                        data-all='${JSON.stringify(prog).replace(/'/g, "&#39;")}'>👥 Participants</button>
+                        data-all='${JSON.stringify(prog).replace(/'/g, "&#39;")}'>👥 Reg Participants</button>
                     <button class="btn btn-danger btn-sm delete-prog-btn"
                         data-id="${progId}">🗑 Delete</button>
                 </div>

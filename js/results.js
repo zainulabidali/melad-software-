@@ -1,34 +1,33 @@
 import { db } from './firebase.js';
 import {
-    collection, addDoc, doc, deleteDoc, onSnapshot,
-    serverTimestamp, getDocs, getDoc, updateDoc, query, orderBy
+    collection, doc, getDocs, onSnapshot, serverTimestamp, updateDoc, deleteDoc, writeBatch
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+import { normalizeClasses } from './categories.js';
+import { openMarkEntryModal } from './mark-entry.js';
 
 // ─────────────────────────────────────────────
-// Marks System
+// Point Systems & Badge Helpers
 // ─────────────────────────────────────────────
-const POSITION_MARKS = { First: 10, Second: 6, Third: 3, Participation: 0 };
-const GRADE_BONUS = { A: 5, B: 3, C: 1 };
-const MEDALS = { First: '🥇', Second: '🥈', Third: '🥉', Participation: '🎖' };
-
-function calcMarks(position, grade) {
-    return (POSITION_MARKS[position] ?? 0) + (GRADE_BONUS[grade] ?? 0);
-}
+const MEDALS = { 'First': '🥇', 'Second': '🥈', 'Third': '🥉', 'Participation': '🏅' };
 
 // ─────────────────────────────────────────────
-// Module-level state
+// Module State
 // ─────────────────────────────────────────────
-let currentResultsFilter = {
+let resultsFilter = {
     categoryId: '',
     classId: '',
     gender: '',
-    stage: ''
+    stage: '',
+    onlyPublished: false
 };
 
-let unsubscribeResults = null;
 let allPrograms = [];
-let programsLoaded = false;
+let allResults = [];
+let unsubscribeResults = null;
 
+// ─────────────────────────────────────────────
+// Init View
+// ─────────────────────────────────────────────
 export async function initResultsView(container, topActions) {
     if (!window.currentInstituteId) {
         container.innerHTML = '<div class="empty-state"><h3>Access Denied</h3><p>Please log in again.</p></div>';
@@ -39,8 +38,9 @@ export async function initResultsView(container, topActions) {
         unsubscribeResults();
         unsubscribeResults = null;
     }
-    programsLoaded = false;
+
     allPrograms = [];
+    allResults = [];
 
     // Load Categories for filter
     let catOptions = '<option value="">All Categories</option>';
@@ -53,44 +53,99 @@ export async function initResultsView(container, topActions) {
 
     topActions.innerHTML = `
         <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
-            <select id="resCatFilter" class="form-input" style="width:150px;">${catOptions}</select>
-            <select id="resClassFilter" class="form-input" style="width:150px;" disabled>
+            <select id="resCatFilter" class="form-input" style="width:140px;">${catOptions}</select>
+            <select id="resClassFilter" class="form-input" style="width:140px;" disabled>
                 <option value="">All Classes</option>
             </select>
             <select id="resGenderFilter" class="form-input" style="width:120px;">
                 <option value="">All Genders</option>
                 <option value="Boys">Boys</option>
                 <option value="Girls">Girls</option>
+                <option value="Mixed">Mixed</option>
             </select>
             <select id="resStageFilter" class="form-input" style="width:120px;">
                 <option value="">All Stages</option>
                 <option value="Stage">Stage</option>
                 <option value="Off Stage">Off Stage</option>
             </select>
-            <button class="btn btn-primary" id="btnPublishResult">🏆 Enter Result</button>
-            <button class="btn btn-secondary" id="btnShareLink">🔗 Share Results</button>
+            <label style="display:flex; align-items:center; gap:0.35rem; font-size:0.8rem; font-weight:700; color:#475569; cursor:pointer; user-select:none;">
+                <input type="checkbox" id="resOnlyPublished" style="cursor:pointer;" /> Only Published
+            </label>
+            <button class="btn btn-primary btn-sm" id="btnPublishAll" style="font-weight:700;">🚀 Publish All</button>
         </div>
     `;
 
+    // Main layout with side leaderboard
     container.innerHTML = `
-        <div class="grid" id="resultsGrid">
-            <div class="loader-container"><div class="spinner"></div></div>
+        <div style="display:flex; gap:1.5rem; flex-wrap:wrap; align-items:flex-start; width:100%;">
+            <!-- Left Results Panel -->
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:1.25rem; width:100%;">
+                <!-- Stats Grid -->
+                <div class="grid" id="resultsStatsGrid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:0.75rem; margin:0;">
+                    <div class="card" style="padding:0.75rem 1rem; border-color:#cbd5e1;">
+                        <div style="font-size:0.72rem; font-weight:700; color:#64748b; text-transform:uppercase;">Pending</div>
+                        <h2 style="font-size:1.8rem; font-weight:800; margin-top:0.25rem; color:#475569;" id="statPending">-</h2>
+                    </div>
+                    <div class="card" style="padding:0.75rem 1rem; border-color:#93c5fd; background:#f0f7ff;">
+                        <div style="font-size:0.72rem; font-weight:700; color:#1d4ed8; text-transform:uppercase;">In Progress</div>
+                        <h2 style="font-size:1.8rem; font-weight:800; margin-top:0.25rem; color:#1e40af;" id="statInProgress">-</h2>
+                    </div>
+                    <div class="card" style="padding:0.75rem 1rem; border-color:#ffedd5; background:#fff7ed;">
+                        <div style="font-size:0.72rem; font-weight:700; color:#ea580c; text-transform:uppercase;">Submitted</div>
+                        <h2 style="font-size:1.8rem; font-weight:800; margin-top:0.25rem; color:#c2410c;" id="statSubmitted">-</h2>
+                    </div>
+                    <div class="card" style="padding:0.75rem 1rem; border-color:#bbf7d0; background:#f0fdf4;">
+                        <div style="font-size:0.72rem; font-weight:700; color:#16a34a; text-transform:uppercase;">Published</div>
+                        <h2 style="font-size:1.8rem; font-weight:800; margin-top:0.25rem; color:#15803d;" id="statPublished">-</h2>
+                    </div>
+                </div>
+ 
+                <div id="resultsGrid" style="width:100%; min-height:0;">
+                    <div class="loader-container"><div class="spinner"></div></div>
+                </div>
+            </div>
+ 
+            <!-- Right Leaderboard Panel -->
+            <div class="card" style="width:340px; flex-shrink:0; padding:1.25rem; border-color:#cbd5e1; position:sticky; top:1rem;">
+                <h3 style="font-size:1.05rem; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:0.4rem; margin-top:0; margin-bottom:0.15rem;">
+                    🏆 Live Team Points
+                </h3>
+                <p style="font-size:0.75rem; color:#64748b; margin-bottom:1rem;">Live leaderboard aggregated from published results.</p>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                        <thead>
+                            <tr style="border-bottom:2px solid #cbd5e1; text-align:left; background:#f8fafc;">
+                                <th style="padding:0.5rem; color:#475569; font-weight:700;">TEAM NAME</th>
+                                <th style="padding:0.5rem; color:#475569; font-weight:700; text-align:right; width:90px;">POINTS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resLeaderboardBody">
+                            <tr><td colspan="2" style="text-align:center; padding:1rem; color:#64748b;">Loading leaderboard...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     `;
 
+    // Wire filters
     const catFilter = document.getElementById('resCatFilter');
     const classFilter = document.getElementById('resClassFilter');
+    const genderFilter = document.getElementById('resGenderFilter');
+    const stageFilter = document.getElementById('resStageFilter');
+    const onlyPublishedCheck = document.getElementById('resOnlyPublished');
+    const publishAllBtn = document.getElementById('btnPublishAll');
 
     catFilter.onchange = async (e) => {
-        currentResultsFilter.categoryId = e.target.value;
-        currentResultsFilter.classId = '';
+        resultsFilter.categoryId = e.target.value;
+        resultsFilter.classId = '';
         classFilter.innerHTML = '<option value="">All Classes</option>';
         classFilter.disabled = true;
 
-        if (currentResultsFilter.categoryId) {
-            const catDoc = await getDoc(doc(db, "institutes", window.currentInstituteId, "categories", currentResultsFilter.categoryId));
+        if (resultsFilter.categoryId) {
+            const catDoc = await getDoc(doc(db, "institutes", window.currentInstituteId, "categories", resultsFilter.categoryId));
             if (catDoc.exists()) {
-                const classes = window.normalizeClasses ? window.normalizeClasses(catDoc.data().classes) : [];
+                const classes = normalizeClasses(catDoc.data().classes || []);
                 classes.forEach(c => {
                     const opt = document.createElement('option');
                     opt.value = c.id;
@@ -100,1034 +155,557 @@ export async function initResultsView(container, topActions) {
                 classFilter.disabled = false;
             }
         }
-        loadResultsData();
+        renderResultsView();
     };
 
     classFilter.onchange = (e) => {
-        currentResultsFilter.classId = e.target.value;
-        loadResultsData();
+        resultsFilter.classId = e.target.value;
+        renderResultsView();
     };
 
-    document.getElementById('resGenderFilter').onchange = (e) => {
-        currentResultsFilter.gender = e.target.value;
-        loadResultsData();
+    genderFilter.onchange = (e) => {
+        resultsFilter.gender = e.target.value;
+        renderResultsView();
     };
 
-    document.getElementById('resStageFilter').onchange = (e) => {
-        currentResultsFilter.stage = e.target.value;
-        loadResultsData();
+    stageFilter.onchange = (e) => {
+        resultsFilter.stage = e.target.value;
+        renderResultsView();
     };
 
-    document.getElementById('btnPublishResult').addEventListener('click', () => openJudgingModal());
-    document.getElementById('btnShareLink').addEventListener('click', openShareLinkModal);
-    loadResultsData();
+    onlyPublishedCheck.onchange = (e) => {
+        resultsFilter.onlyPublished = e.target.checked;
+        renderResultsView();
+    };
+
+    publishAllBtn.onclick = () => triggerPublishAll();
+
+    await loadResultsViewData();
 }
 
-async function openShareLinkModal() {
-    const modal = document.getElementById('dynamicModal');
-    const modalTitle = document.getElementById('dynamicModalTitle');
-    const modalBody = document.getElementById('dynamicModalBody');
-    modal.classList.remove('result-fullscreen-modal');
-
-    modalTitle.textContent = '🔗 Share Results';
-    
-    // Get Institute Name
-    let instName = 'Our Institute';
+// ─────────────────────────────────────────────
+// Real-time Listeners & Sync
+// ─────────────────────────────────────────────
+async function loadResultsViewData() {
     try {
-        const instDoc = await getDoc(doc(db, "institutes", window.currentInstituteId));
-        if (instDoc.exists()) instName = instDoc.data().name || instName;
-    } catch(e) {}
-
-    const publicUrl = `${window.location.origin}/pages/public-results.html?instId=${window.currentInstituteId}`;
-    const waMessage = encodeURIComponent(`📢 *${instName}* പരീക്ഷാഫലം പ്രസിദ്ധീകരിച്ചിരിക്കുന്നു.\n\nതാഴെയുള്ള ലിങ്ക് ഉപയോഗിച്ച് റിസൾട്ട് പരിശോധിക്കാം:\n${publicUrl}\n\nبارك الله فيكم`);
-
-    modalBody.innerHTML = `
-        <div style="display:flex;flex-direction:column;gap:1.25rem;padding:0.5rem;">
-            <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:1rem;text-align:center;">
-                <p style="font-size:0.875rem;color:#0369a1;margin-bottom:0.75rem;">Public Result Link:</p>
-                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0.75rem;font-family:monospace;font-size:0.85rem;word-break:break-all;margin-bottom:1rem;">
-                    ${publicUrl}
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-                    <button class="btn btn-secondary w-full" id="btnCopyLink">📋 Copy Link</button>
-                    <a href="https://wa.me/?text=${waMessage}" target="_blank" class="btn btn-primary w-full" style="background:#25D366;border-color:#25D366;text-decoration:none;display:flex;align-items:center;justify-content:center;">
-                        WhatsApp Share
-                    </a>
-                </div>
-            </div>
-            
-            <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:12px;padding:1rem;">
-                <p style="font-size:0.8rem;color:#be123c;line-height:1.4;">
-                    <strong>Security Note:</strong> Anyone with this link can view the results. Only results marked as <strong>"Published"</strong> will be visible.
-                </p>
-            </div>
-        </div>
-    `;
-
-    modal.classList.remove('hidden');
-    document.getElementById('closeDynamicModalBtn').onclick = () => {
-        modal.classList.add('hidden');
-        modal.classList.remove('result-fullscreen-modal');
-    };
-
-    document.getElementById('btnCopyLink').onclick = () => {
-        navigator.clipboard.writeText(publicUrl).then(() => {
-            window.showToast("Link copied to clipboard!");
-        });
-    };
-}
-
-// ─────────────────────────────────────────────
-// Published Results — List View
-// ─────────────────────────────────────────────
-function loadResultsData() {
-    if (unsubscribeResults) {
-        unsubscribeResults();
-        unsubscribeResults = null;
-    }
-
-    const q = query(
-        collection(db, "institutes", window.currentInstituteId, "results"),
-        orderBy('publishedAt', 'desc')
-    );
-
-    unsubscribeResults = onSnapshot(q, (snapshot) => {
-        const grid = document.getElementById('resultsGrid');
-        if (!grid) return;
-        grid.innerHTML = '';
-
-        if (snapshot.empty) {
-            grid.innerHTML = `
-                <div class="empty-state" style="grid-column:1/-1; margin-top:2rem;">
-                    <div class="empty-state-icon">🏆</div>
-                    <h3>No Results Yet</h3>
-                    <p>Click "Enter Result" to publish the first result.</p>
-                </div>`;
-            return;
-        }
-
-        let resultsFound = 0;
-        snapshot.forEach(docSnap => {
-            const r = docSnap.data();
-
-            // Client-side filtering
-            if (currentResultsFilter.categoryId && r.categoryId !== currentResultsFilter.categoryId) return;
-            if (currentResultsFilter.classId && r.classId !== currentResultsFilter.classId) return;
-            if (currentResultsFilter.gender && r.genderCategory !== currentResultsFilter.gender) return;
-            if (currentResultsFilter.stage && r.programLocation !== currentResultsFilter.stage) return;
-
-            resultsFound++;
-            const winners = r.winners || [];
-            const date = r.publishedAt?.toDate?.()
-                ? r.publishedAt.toDate().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
-                : '—';
-
-            const winnersHTML = winners.map(w => {
-                const medal = MEDALS[w.position] || '🏅';
-                const gradeTag = w.grade ? `<span style="background:#e0e7ff;color:#4338ca;border-radius:4px;padding:0 5px;font-size:0.7rem;font-weight:700;margin-left:4px;">${w.grade}</span>` : '';
-                const marksTag = (w.marks != null) ? `<span style="font-size:0.7rem;color:#64748b;margin-left:4px;">${w.marks}pts</span>` : '';
-                return `
-                    <div style="display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0.6rem;border-radius:8px;margin-bottom:0.3rem;background:#f8fafc;border:1px solid #e2e8f0;">
-                        <span style="font-size:1.1rem;">${medal}</span>
-                        <span style="font-weight:600;color:#1e293b;font-size:0.875rem;">${window.escapeHTML(w.studentName)}</span>
-                        ${gradeTag}${marksTag}
-                    </div>`;
-            }).join('');
-
-            const isDraft = r.status === 'draft';
-            const statusBadge = isDraft 
-                ? '<span class="badge" style="font-size:0.72rem; background:#fef3c7; color:#d97706;">Draft</span>' 
-                : '<span class="badge" style="font-size:0.72rem; background:#dcfce7; color:#15803d;">Published</span>';
-
-            const card = document.createElement('div');
-            card.className = 'card';
-            
-            // Link sharing helpers
-            const publicUrl = `${window.location.origin}/pages/public-results.html?instId=${window.currentInstituteId}`;
-            const instName = window.currentInstituteName || 'Institute';
-            const waMessage = encodeURIComponent(`📢 *${instName}* പരീക്ഷാഫലം പ്രസിദ്ധീകരിച്ചിരിക്കുന്നു.\n\nതാഴെയുള്ള ലിങ്ക് ഉപയോഗിച്ച് റിസൾട്ട് പരിശോധിക്കാം:\n${publicUrl}\n\nبارك الله فيكم`);
-
-            card.innerHTML = `
-                <div class="card-header">
-                    <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-                        <h3 class="card-title" style="font-size:1rem; margin:0;">${window.escapeHTML(r.programName)}</h3>
-                        ${statusBadge}
-                    </div>
-                    <div style="display:flex; gap:0.3rem;">
-                        <span class="badge" style="font-size:0.7rem; background:#f1f5f9;">${window.escapeHTML(r.categoryName || '—')}</span>
-                        ${r.className ? `<span class="badge" style="font-size:0.7rem; background:#f1f5f9;">${window.escapeHTML(r.className)}</span>` : ''}
-                    </div>
-                </div>
-                <div class="card-body" style="padding-top:0.25rem;">
-                    <p style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.6rem;">
-                        ${window.escapeHTML(r.genderCategory || '')} · ${window.escapeHTML(r.programLocation || '')} · ${isDraft ? 'Not Published' : date}
-                    </p>
-                    ${winnersHTML || '<p class="text-muted" style="font-size:0.8rem;">No winners.</p>'}
-                </div>
-                
-                <div style="padding:0 1rem; margin-bottom:0.75rem; display:flex; gap:0.4rem; flex-wrap:wrap;">
-                    <button class="btn btn-secondary btn-sm btn-copy-link" title="Copy public result link" data-url="${publicUrl}">🔗 Link</button>
-                    <a href="https://wa.me/?text=${waMessage}" target="_blank" class="btn btn-sm ${isDraft ? 'btn-disabled' : ''}" 
-                        style="background:#25D366; color:white; text-decoration:none; display:flex; align-items:center; gap:0.3rem; border-radius:6px; padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:600; ${isDraft ? 'pointer-events:none; opacity:0.5;' : ''}">
-                        📲 WhatsApp
-                    </a>
-                    <button class="btn btn-secondary btn-sm btn-open-public" data-url="${publicUrl}">🌐 Open</button>
-                </div>
-
-                <div class="card-actions" style="border-top:1px solid #f1f5f9; padding-top:0.75rem;">
-                    <button class="btn btn-secondary btn-sm btn-edit-result" data-id="${docSnap.id}" data-all='${JSON.stringify(r).replace(/'/g, "&#39;")}'>✏️ Edit</button>
-                    ${isDraft ? `<button class="btn btn-primary btn-sm btn-publish-draft" data-id="${docSnap.id}">🏆 Publish</button>` : ''}
-                    <button class="btn btn-danger btn-sm btn-revoke" data-id="${docSnap.id}">🗑 Revoke</button>
-                </div>
-            `;
-            grid.appendChild(card);
-        });
-
-        // Event Listeners
-        document.querySelectorAll('.btn-copy-link').forEach(btn => {
-            btn.onclick = (e) => {
-                navigator.clipboard.writeText(e.target.dataset.url).then(() => {
-                    const originalText = e.target.textContent;
-                    e.target.textContent = "✓ Copied";
-                    e.target.style.background = "#dcfce7";
-                    e.target.style.color = "#15803d";
-                    setTimeout(() => {
-                        e.target.textContent = originalText;
-                        e.target.style.background = "";
-                        e.target.style.color = "";
-                    }, 2000);
-                    window.showToast("Link copied to clipboard!");
-                });
-            };
-        });
-
-        document.querySelectorAll('.btn-open-public').forEach(btn => {
-            btn.onclick = (e) => window.open(e.target.dataset.url, '_blank');
-        });
-
-        if (resultsFound === 0) {
-            grid.innerHTML = `
-                <div class="empty-state" style="grid-column:1/-1; margin-top:2rem;">
-                    <div class="empty-state-icon">🔍</div>
-                    <h3>No Matching Results</h3>
-                    <p>Try adjusting your filters to find what you're looking for.</p>
-                </div>`;
-        }
-
-        document.querySelectorAll('.btn-edit-result').forEach(btn => {
-            btn.onclick = (e) => openJudgingModal(e.currentTarget.dataset.id, JSON.parse(e.currentTarget.dataset.all));
-        });
-
-        document.querySelectorAll('.btn-publish-draft').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const id = e.target.getAttribute('data-id');
-                if (!confirm("Publish this result to the public portal?")) return;
-                try {
-                    await updateDoc(doc(db, "institutes", window.currentInstituteId, "results", id), {
-                        status: 'published',
-                        publishedAt: serverTimestamp()
-                    });
-                    window.showToast("Result published successfully!");
-                } catch (err) {
-                    window.showToast("Failed to publish.", "error");
-                }
-            });
-        });
-
-        document.querySelectorAll('.btn-revoke').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const id = e.target.getAttribute('data-id');
-                if (!confirm("Revoke this public link and remove result from public view?")) return;
-                try {
-                    // Soft delete for safety
-                    await updateDoc(doc(db, "institutes", window.currentInstituteId, "results", id), {
-                        status: 'revoked',
-                        publicDisabled: true,
-                        revokedAt: serverTimestamp()
-                    });
-                    window.showToast("Result revoked.");
-                } catch (err) {
-                    window.showToast("Failed to revoke.", "error");
-                }
-            });
-        });
-
-    }, (err) => {
-        console.error("Results listener error:", err);
-        const grid = document.getElementById('resultsGrid');
-        if (grid) {
-            grid.innerHTML = `
-                <div class="empty-state" style="grid-column:1/-1;">
-                    <div class="empty-state-icon">⚠️</div>
-                    <h3>Failed to load results</h3>
-                    <p>${err.message.includes('index') ? 'A Firestore index is required. Please check the console.' : 'Please try again later.'}</p>
-                </div>`;
-        }
-        window.showToast("Error loading results.", "error");
-    });
-}
-
-// ─────────────────────────────────────────────
-// Load All Programs (global programs)
-// ─────────────────────────────────────────────
-async function loadAllPrograms(force = false) {
-    if (programsLoaded && !force) return;
-
-    allPrograms = [];
-    
-    try {
-        const progsSnap = await getDocs(
-            collection(db, "institutes", window.currentInstituteId, "programs")
-        );
-
-        // Batch category name lookups if needed, but for now we have categoryName in doc
-        progsSnap.forEach(progDoc => {
+        // Load Programs
+        const progsSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs"));
+        allPrograms = progsSnap.docs.map(progDoc => {
             const p = progDoc.data();
             const pType = (p.programType || p.type || 'individual').toLowerCase();
-            allPrograms.push({
+            return {
                 id: progDoc.id,
                 programName: p.programName || 'Unnamed Program',
                 programType: pType,
                 type: pType === 'group' ? 'Group' : 'Individual',
                 genderCategory: p.genderCategory || 'Mixed',
                 programLocation: p.programLocation || 'Stage',
-                groupSize: p.maxParticipants || p.groupSize || 1,
                 categoryId: p.categoryId || '',
                 categoryName: p.categoryName || p.categoryId || 'General',
                 classId: p.classId || '',
                 className: p.className || ''
-            });
+            };
         });
 
-        programsLoaded = true;
+        // Listen to Results real-time
+        const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
+        unsubscribeResults = onSnapshot(resultsRef, (snapshot) => {
+            allResults = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+            renderResultsView();
+        });
+
     } catch (err) {
-        console.error("Error loading programs:", err);
-        window.showToast("Failed to load programs list.", "error");
-        throw err;
+        console.error("Error loading Results view:", err);
+        const grid = document.getElementById('resultsGrid');
+        if (grid) grid.innerHTML = '<div class="empty-state"><h3>Error</h3><p>Failed to load results.</p></div>';
     }
 }
 
 // ─────────────────────────────────────────────
-// Load Participants from programs/{progId}/participants
+// Render Results Grid & Stats & Leaderboard
 // ─────────────────────────────────────────────
-async function loadStudentsForProgram(prog) {
-    const snap = await getDocs(
-        collection(
-            db,
-            "institutes", window.currentInstituteId,
-            "programs", prog.id,
-            "participants"
-        )
-    );
+function renderResultsView() {
+    // 1. Calculate Stats
+    let countPending = 0;
+    let countInProgress = 0;
+    let countSubmitted = 0;
+    let countPublished = 0;
 
-    const isGroup = prog.programType === 'group';
-    const participants = [];
+    const resultsMap = new Map();
+    allResults.forEach(r => {
+        if (r.programId) resultsMap.set(r.programId, r);
+    });
 
-    snap.docs.forEach(d => {
-        const p = d.data();
-        if (isGroup) {
-            const groups = Array.isArray(p.groups) ? p.groups : [];
-            if (groups.length > 0) {
-                groups.forEach(g => {
-                    participants.push({
-                        id: g.id || `${p.teamId || d.id}_${g.name || 'group'}`,
-                        name: g.name || p.teamName || 'Group',
-                        chestNumber: `${(g.members || []).length} members`,
-                        isGroupEntry: true,
-                        teamId: p.teamId || '',
-                        teamName: g.name || p.teamName || 'Group'
-                    });
-                });
-            } else {
-                participants.push({
-                    id: p.teamId || d.id,
-                    name: p.teamName || 'Team',
-                    chestNumber: 'GROUP',
-                    isGroupEntry: true,
-                    teamId: p.teamId || '',
-                    teamName: p.teamName || 'Team'
-                });
-            }
+    allPrograms.forEach(p => {
+        const res = resultsMap.get(p.id);
+        if (!res) {
+            countPending++;
+        } else if (res.status === 'published') {
+            countPublished++;
+        } else if (res.markEntryStatus === 'submitted') {
+            countSubmitted++;
         } else {
-            participants.push({
-                id: p.studentId || d.id,
-                name: p.studentName || '-',
-                chestNumber: p.chestNumber || '',
-                teamId: p.teamId || '',
-                teamName: p.teamName || '',
-                categoryName: p.categoryName || '',
-                className: p.className || ''
-            });
+            countInProgress++;
         }
     });
 
-    return participants;
-}
+    const pendingEl = document.getElementById('statPending');
+    const inProgEl = document.getElementById('statInProgress');
+    const subEl = document.getElementById('statSubmitted');
+    const pubEl = document.getElementById('statPublished');
 
-// Main Judging Modal
-// -------------------
-async function openJudgingModal(resultId = null, existingData = null) {
-    const modal = document.getElementById('dynamicModal');
-    const modalTitle = document.getElementById('dynamicModalTitle');
-    const modalBody = document.getElementById('dynamicModalBody');
+    if (pendingEl) pendingEl.textContent = countPending;
+    if (inProgEl) inProgEl.textContent = countInProgress;
+    if (subEl) subEl.textContent = countSubmitted;
+    if (pubEl) pubEl.textContent = countPublished;
 
-    modal.classList.add('result-fullscreen-modal');
+    // Enable/Disable Publish All button depending on Submitted count
+    const publishAllBtn = document.getElementById('btnPublishAll');
+    if (publishAllBtn) publishAllBtn.disabled = countSubmitted === 0;
 
+    // 2. Dynamic Team Points Live Leaderboard
+    const teamPoints = new Map();
+    allResults.forEach(r => {
+        if (r.status === 'published') {
+            if (Array.isArray(r.marksData) && r.marksData.length > 0) {
+                r.marksData.forEach(w => {
+                    if (w.teamName && w.totalPoints > 0) {
+                        const current = teamPoints.get(w.teamName) || 0;
+                        teamPoints.set(w.teamName, current + (w.totalPoints || 0));
+                    }
+                });
+            } else if (Array.isArray(r.winners)) {
+                // Fallback for backward compatibility
+                r.winners.forEach(w => {
+                    if (w.teamName) {
+                        const current = teamPoints.get(w.teamName) || 0;
+                        teamPoints.set(w.teamName, current + (w.marks || 0));
+                    }
+                });
+            }
+        }
+    });
 
-    modalTitle.textContent = resultId ? '✏️ Edit Result' : '🏆 Enter Result';
-    modalBody.innerHTML = `<div style="text-align:center;padding:2rem;"><div class="spinner"></div><p style="margin-top:0.75rem;color:#64748b;font-size:0.875rem;">Loading programs…</p></div>`;
-    modal.classList.remove('hidden');
-    document.getElementById('closeDynamicModalBtn').onclick = () => {
-        modal.classList.add('hidden');
-        modal.classList.remove('result-fullscreen-modal');
-    };
+    const sortedTeams = [...teamPoints.entries()].sort((a, b) => b[1] - a[1]);
+    const leaderboardBody = document.getElementById('resLeaderboardBody');
+    
+    if (leaderboardBody) {
+        if (sortedTeams.length === 0) {
+            leaderboardBody.innerHTML = `<tr><td colspan="2" style="text-align:center; padding:1.25rem; color:#94a3b8;">No published points yet.</td></tr>`;
+        } else {
+            leaderboardBody.innerHTML = sortedTeams.map(([name, points], idx) => {
+                const medalStyle = idx === 0 ? '🏆 ' : (idx === 1 ? '🥈 ' : (idx === 2 ? '🥉 ' : ''));
+                return `
+                    <tr style="border-bottom:1px solid #f1f5f9; hover:background:#f8fafc;">
+                        <td style="padding:0.6rem 0.5rem; font-weight:700; color:#1e293b; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                            ${medalStyle}${window.escapeHTML(name)}
+                        </td>
+                        <td style="padding:0.6rem 0.5rem; text-align:right; font-weight:800; color:#4338ca;">
+                            ${points} pts
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+    }
 
-    try {
-        await loadAllPrograms();
-    } catch (err) {
-        modalBody.innerHTML = `
-            <div style="text-align:center;padding:2rem;">
-                <p style="color:#ef4444;font-weight:600;">Failed to load programs.</p>
-                <button class="btn btn-secondary btn-sm" onclick="location.reload()" style="margin-top:1rem;">Retry Page Load</button>
+    // 3. Render Results Table
+    const grid = document.getElementById('resultsGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    // Filter results
+    const filteredResults = allResults.filter(r => {
+        if (resultsFilter.onlyPublished && r.status !== 'published') return false;
+        if (resultsFilter.categoryId && r.categoryId !== resultsFilter.categoryId) return false;
+        if (resultsFilter.classId && r.classId !== resultsFilter.classId) return false;
+        if (resultsFilter.gender && r.genderCategory !== resultsFilter.gender) return false;
+        if (resultsFilter.stage && r.programLocation !== resultsFilter.stage) return false;
+        return true;
+    });
+
+    if (filteredResults.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state" style="margin-top:2rem; width:100%;">
+                <div class="empty-state-icon">🏆</div>
+                <h3>No Matching Results</h3>
+                <p>Try adjusting your category or published filters.</p>
             </div>`;
         return;
     }
 
-    renderJudgingUI(modalBody, modal, resultId, existingData);
-}
-
-function renderJudgingUI(modalBody, modal, resultId, existingData) {
-    // ── Active filter state ────────────────────
-    let filterGender = '';
-    let filterLocation = '';
-    let filterType = '';
-    let selectedProg = null;   // full program object
-    let participants = [];     // loaded students
-    let participantSearch = '';
-    let participantTeamFilter = '';
-
-    const chipStyle = (active) =>
-        active
-            ? 'display:inline-flex;align-items:center;gap:0.25rem;padding:0.3rem 0.8rem;border-radius:999px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;background:#4338ca;color:#fff;transition:all 0.15s;'
-            : 'display:inline-flex;align-items:center;gap:0.25rem;padding:0.3rem 0.8rem;border-radius:999px;font-size:0.78rem;font-weight:600;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;transition:all 0.15s;';
-
-    // ── Full modal layout ──────────────────────
-    modalBody.innerHTML = `
-        <div style="display:flex;flex-direction:column;gap:1rem;">
-
-            <!-- Filters -->
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:0.85rem;">
-                <p style="font-size:0.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.6rem;">FILTER PROGRAMS</p>
-                <div style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center;">
-
-                    <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
-                        <span style="font-size:0.72rem;color:#64748b;align-self:center;margin-right:0.15rem;">Gender:</span>
-                        <button class="chip-filter" data-group="gender" data-val="" style="${chipStyle(!filterGender)}">All</button>
-                        <button class="chip-filter" data-group="gender" data-val="Boys" style="${chipStyle(false)}">👦 Boys</button>
-                        <button class="chip-filter" data-group="gender" data-val="Girls" style="${chipStyle(false)}">👧 Girls</button>
-                        <button class="chip-filter" data-group="gender" data-val="Mixed" style="${chipStyle(false)}">👫 Mixed</button>
-                    </div>
-
-                    <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
-                        <span style="font-size:0.72rem;color:#64748b;align-self:center;margin-right:0.15rem;">Location:</span>
-                        <button class="chip-filter" data-group="location" data-val="" style="${chipStyle(!filterLocation)}">All</button>
-                        <button class="chip-filter" data-group="location" data-val="Stage" style="${chipStyle(false)}">🎭 Stage</button>
-                        <button class="chip-filter" data-group="location" data-val="Off Stage" style="${chipStyle(false)}">📴 Off Stage</button>
-                    </div>
-
-                    <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
-                        <span style="font-size:0.72rem;color:#64748b;align-self:center;margin-right:0.15rem;">Type:</span>
-                        <button class="chip-filter" data-group="type" data-val="" style="${chipStyle(!filterType)}">All</button>
-                        <button class="chip-filter" data-group="type" data-val="Individual" style="${chipStyle(false)}">👤 Individual</button>
-                        <button class="chip-filter" data-group="type" data-val="Group" style="${chipStyle(false)}">👥 Group</button>
-                    </div>
-
-                </div>
-            </div>
-
-            <!-- Program Select -->
-            <div class="form-group" style="margin:0;">
-                <label class="form-label">Select Program *</label>
-                <select id="jProgramSelect" class="form-input" ${resultId ? 'disabled' : ''}>
-                    <option value="">— Choose a Program —</option>
-                </select>
-                <div id="jProgInfo" style="display:none; margin-top:0.5rem; font-size:0.78rem; color:#64748b; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:0.45rem 0.75rem;"></div>
-            </div>
-
-            <!-- Winners Section (hidden until program is selected) -->
-            <div id="jWinnersSection" style="display:none; flex-direction:column; gap:0.75rem;">
-
-                <div style="background:#fffbea;border:1px solid #fef08a;border-radius:10px;padding:0.65rem 0.85rem;font-size:0.78rem;color:#854d0e;">
-                    📊 <strong>Auto Marks:</strong> 🥇 First = 10 &bull; 🥈 Second = 6 &bull; 🥉 Third = 3
-                    &nbsp;&nbsp;|&nbsp;&nbsp; A Grade +5 &bull; B Grade +3 &bull; C Grade +1
-                </div>
-
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <h4 style="font-size:0.9375rem;font-weight:700;color:#1e293b;margin:0;">🏅 Winners</h4>
-                    <button type="button" class="btn btn-secondary btn-sm" id="jAddWinnerBtn">+ Add Winner</button>
-                </div>
-
-                <div id="jParticipantToolbar" style="display:grid;grid-template-columns:minmax(180px,1fr) minmax(160px,240px);gap:0.65rem;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:0.75rem;">
-                    <input id="jParticipantSearch" class="form-input" placeholder="Search registered participants..." style="font-size:0.85rem;">
-                    <select id="jTeamFilter" class="form-input" style="font-size:0.85rem;">
-                        <option value="">All teams</option>
-                    </select>
-                </div>
-
-                <div id="jParticipantsPanel" class="result-participants-panel"></div>
-
-                <div id="jWinnersContainer" style="display:flex;flex-direction:column;gap:0.65rem;"></div>
-
-                <div class="modal-actions" style="margin-top:0.25rem; flex-wrap:wrap;">
-                    <button type="button" class="btn btn-secondary" id="jCancelBtn">Cancel</button>
-                    <div style="display:flex; gap:0.5rem; margin-left:auto;">
-                        <button type="button" class="btn btn-secondary" id="jDraftBtn">
-                            <span class="btn-text">📝 Save as Draft</span>
-                            <span class="btn-spinner hidden"></span>
-                        </button>
-                        <button type="button" class="btn btn-primary" id="jPublishBtn">
-                            <span class="btn-text">🏆 Publish Result</span>
-                            <span class="btn-spinner hidden"></span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
+    grid.innerHTML = `
+        <div style="overflow-x:auto; background:#fff; border:1px solid #cbd5e1; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); width:100%;">
+            <table style="width:100%; border-collapse:collapse; min-width:600px; font-size:0.875rem; color:#1e293b;">
+                <thead>
+                    <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; text-align:left;">
+                        <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:60px; text-align:center;">#</th>
+                        <th style="padding:0.75rem 1rem; color:#475569; font-weight:700;">Program Name</th>
+                        <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:150px;">Category</th>
+                        <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:160px; text-align:center;">Participants</th>
+                        <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:140px;">Status</th>
+                        <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:100px; text-align:center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsTableBody">
+                </tbody>
+            </table>
         </div>
     `;
 
-    // ── Populate program dropdown ────────────────
-    function populateProgramDropdown() {
-        const sel = document.getElementById('jProgramSelect');
-        if (resultId && existingData) {
-            sel.innerHTML = `<option value="${existingData.programId}">${window.escapeHTML(existingData.programName)}</option>`;
-            sel.value = existingData.programId;
-            loadParticipantsForSelectedProgram(existingData.programId);
-            return;
-        }
+    const tbody = document.getElementById('resultsTableBody');
 
-        const filtered = allPrograms.filter(p => {
-            if (filterGender && p.genderCategory !== filterGender) return false;
-            if (filterLocation && p.programLocation !== filterLocation) return false;
-            if (filterType && p.type !== filterType) return false;
-            return true;
-        });
+    filteredResults.forEach((r, idx) => {
+        const isDraft = r.status === 'draft';
+        const statusBadge = isDraft 
+            ? (r.markEntryStatus === 'submitted' 
+                ? '<span class="badge" style="font-size:0.72rem; background:#fff7ed; color:#ea580c; border:1px solid #ffedd5;">Submitted (Draft)</span>' 
+                : '<span class="badge" style="font-size:0.72rem; background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd;">In Progress (Draft)</span>')
+            : '<span class="badge" style="font-size:0.72rem; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0;">Published</span>';
 
-        let opts = `<option value="">— Choose a Program (${filtered.length} found) —</option>`;
-        filtered.forEach(p => {
-            opts += `<option value="${p.id}">${window.escapeHTML(p.programName)} [${window.escapeHTML(p.categoryName || '')}]</option>`;
-        });
-        sel.innerHTML = opts;
-    }
+        const partCount = r.participantCount || (Array.isArray(r.marksData) ? r.marksData.length : 0) || 0;
+        const catText = r.className ? `${r.categoryName} (${r.className})` : r.categoryName;
 
-    async function loadParticipantsForSelectedProgram(progId) {
-        selectedProg = allPrograms.find(p => p.id === progId);
-        if (!selectedProg) return;
-
-        const infoBox = document.getElementById('jProgInfo');
-        const winnersSection = document.getElementById('jWinnersSection');
-        const winnersCont = document.getElementById('jWinnersContainer');
-
-        try {
-            participants = await loadStudentsForProgram(selectedProg);
-            participantSearch = '';
-            participantTeamFilter = '';
-            renderParticipantToolbar();
-            renderParticipantsPanel();
-            winnersSection.style.display = 'flex';
-            if (existingData && existingData.winners) {
-                existingData.winners.forEach(w => addWinnerRow(w));
-            } else {
-                addWinnerRow({ position: 'First' });
-                addWinnerRow({ position: 'Second' });
-                addWinnerRow({ position: 'Third' });
-            }
-            updateProgramInfo();
-        } catch (e) { console.error(e); }
-    }
-
-    function updateProgramInfo() {
-        const infoBox = document.getElementById('jProgInfo');
-        if (!selectedProg) return;
-        infoBox.innerHTML = `
-            📋 <strong>${window.escapeHTML(selectedProg.categoryName || '')}</strong>
-            &nbsp;${selectedProg.genderCategory} · ${selectedProg.programLocation}
-            &nbsp;· <strong>${participants.length}</strong> participants loaded
-        `;
-        infoBox.style.display = 'block';
-    }
-
-    populateProgramDropdown();
-
-    // ── Filter chip clicks ──────────────────────
-    document.querySelectorAll('.chip-filter').forEach(chip => {
-        chip.addEventListener('click', () => {
-            const group = chip.dataset.group;
-            const val = chip.dataset.val;
-
-            if (group === 'gender') filterGender = val;
-            if (group === 'location') filterLocation = val;
-            if (group === 'type') filterType = val;
-
-            // Restyle all chips in that group
-            document.querySelectorAll(`.chip-filter[data-group="${group}"]`).forEach(c => {
-                c.style.cssText = chipStyle(c.dataset.val === val);
-            });
-
-            populateProgramDropdown();
-        });
-    });
-
-    // ── Program selected ────────────────────────
-    document.getElementById('jProgramSelect').addEventListener('change', async (e) => {
-        const val = e.target.value;
-        const infoBox = document.getElementById('jProgInfo');
-        const winnersSection = document.getElementById('jWinnersSection');
-        const winnersCont = document.getElementById('jWinnersContainer');
-
-        infoBox.style.display = 'none';
-        winnersSection.style.display = 'none';
-        winnersCont.innerHTML = '';
-        selectedProg = null;
-        participants = [];
-
-        if (!val) return;
-
-        selectedProg = allPrograms.find(p => p.id === val);
-        if (!selectedProg) return;
-
-        // Show program info badge bar
-        const genderColors = { Boys: '#dbeafe|#1d4ed8', Girls: '#fce7f3|#be185d', Mixed: '#dcfce7|#15803d' };
-        const locColors = { Stage: '#dbeafe|#1d4ed8', 'Off Stage': '#fce7f3|#be185d' };
-        const badge = (txt, map) => {
-            const [bg, col] = (map[txt] || '#f1f5f9|#475569').split('|');
-            return `<span style="background:${bg};color:${col};border-radius:999px;padding:0.15rem 0.6rem;font-size:0.72rem;font-weight:700;">${txt}</span>`;
-        };
-        const sizeInfo = selectedProg.type === 'Group'
-            ? `&nbsp;· max <strong>${selectedProg.groupSize}</strong> participants`
-            : '';
-
-        infoBox.innerHTML = `
-            📋 <strong>${window.escapeHTML(selectedProg.categoryName)}</strong>
-            &nbsp;${badge(selectedProg.genderCategory, genderColors)}
-            ${badge(selectedProg.programLocation, locColors)}
-            ${badge(selectedProg.type, {})}
-            ${sizeInfo}
-        `;
-        infoBox.style.display = 'block';
-
-        // Load participants from subcollection
-        try {
-            infoBox.innerHTML += ' &nbsp;<em style="color:#94a3b8;">Loading participants…</em>';
-            participants = await loadStudentsForProgram(selectedProg);
-            participantSearch = '';
-            participantTeamFilter = '';
-            renderParticipantToolbar();
-            renderParticipantsPanel();
-            infoBox.innerHTML = infoBox.innerHTML.replace(/ &nbsp;<em.*<\/em>/, '');
-
-            if (participants.length === 0) {
-                infoBox.innerHTML += `
-                    &nbsp;
-                    <span style="background:#fef3c7;color:#92400e;border-radius:6px;padding:0.15rem 0.6rem;font-size:0.72rem;font-weight:700;">
-                        ⚠️ No participants assigned
-                    </span>`;
-                // Show a helper notice instead of the winner section
-                const notice = document.createElement('div');
-                notice.style.cssText = 'background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:0.85rem;font-size:0.82rem;color:#9a3412;text-align:center;';
-                notice.innerHTML = `
-                    <strong>⚠️ No participants assigned to this program.</strong><br>
-                    <span style="font-size:0.78rem;color:#c2410c;">
-                        Go to <strong>Programs</strong> → click <strong>👥 Participants</strong> on this program to assign students first.
-                    </span>`;
-                winnersSection.style.display = 'none';
-                infoBox.parentNode.insertBefore(notice, winnersSection);
-                return;
-            }
-
-            infoBox.innerHTML += `&nbsp;· <strong>${participants.length}</strong> participant${participants.length !== 1 ? 's' : ''} loaded`;
-        } catch (err) {
-            console.error("Error loading participants:", err);
-            participants = [];
-        }
-
-        // Show winners section & seed 3 rows
-        winnersSection.style.display = 'flex';
-        addWinnerRow({ position: 'First' });
-        addWinnerRow({ position: 'Second' });
-        addWinnerRow({ position: 'Third' });
-    });
-
-    // ── Winner row builder ──────────────────────
-    let winnerCount = 0;
-
-    function getVisibleParticipants() {
-        const q = (participantSearch || '').trim().toLowerCase();
-        return participants.filter(p => {
-            if (participantTeamFilter && p.teamId !== participantTeamFilter) return false;
-            if (!q) return true;
-            return `${p.name || ''} ${p.chestNumber || ''} ${p.teamName || ''}`.toLowerCase().includes(q);
-        });
-    }
-
-    function renderParticipantToolbar() {
-        const searchInput = document.getElementById('jParticipantSearch');
-        const teamSel = document.getElementById('jTeamFilter');
-        if (!searchInput || !teamSel) return;
-
-        const teams = new Map();
-        participants.forEach(p => {
-            if (p.teamId) teams.set(p.teamId, p.teamName || p.teamId);
-        });
-
-        searchInput.value = participantSearch;
-        teamSel.innerHTML = '<option value="">All teams</option>' +
-            [...teams.entries()]
-                .sort((a, b) => a[1].localeCompare(b[1]))
-                .map(([id, name]) => `<option value="${id}" ${id === participantTeamFilter ? 'selected' : ''}>${window.escapeHTML(name)}</option>`)
-                .join('');
-
-        searchInput.oninput = () => {
-            participantSearch = searchInput.value;
-            refreshWinnerParticipantOptions();
-            renderParticipantsPanel();
-        };
-        teamSel.onchange = () => {
-            participantTeamFilter = teamSel.value;
-            refreshWinnerParticipantOptions();
-            renderParticipantsPanel();
-        };
-    }
-
-    function renderParticipantsPanel() {
-        const panel = document.getElementById('jParticipantsPanel');
-        if (!panel) return;
-
-        const visible = getVisibleParticipants();
-        const isGroup = selectedProg && selectedProg.programType === 'group';
-        const totalTeams = new Set(participants.map(p => p.teamId).filter(Boolean)).size;
-
-        panel.innerHTML = `
-            <div class="result-participant-summary">
-                <div>
-                    <span class="summary-label">Registered</span>
-                    <strong>${participants.length}</strong>
-                </div>
-                <div>
-                    <span class="summary-label">Showing</span>
-                    <strong>${visible.length}</strong>
-                </div>
-                <div>
-                    <span class="summary-label">Teams</span>
-                    <strong>${totalTeams}</strong>
-                </div>
-            </div>
-            <div class="result-participant-list">
-                ${visible.length === 0 ? `<div class="result-participant-empty">No participants match the current filter.</div>` : visible.map(p => `
-                    <div class="result-participant-card">
-                        <div class="result-participant-avatar">${window.escapeHTML((p.name || '?').slice(0, 1).toUpperCase())}</div>
-                        <div class="result-participant-main">
-                            <strong>${window.escapeHTML(p.name || '-')}</strong>
-                            <span>${window.escapeHTML(p.teamName || 'No team')} ${isGroup ? '' : `· #${window.escapeHTML(p.chestNumber || '-')}`} ${p.className ? `· ${window.escapeHTML(p.className)}` : ''}</span>
-                        </div>
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #e2e8f0';
+        tr.className = 'results-table-row';
+        tr.innerHTML = `
+            <td style="padding:0.75rem 1rem; text-align:center; font-weight:700; color:#64748b;">#${idx + 1}</td>
+            <td style="padding:0.75rem 1rem; font-weight:700; color:#0f172a;">${window.escapeHTML(r.programName)}</td>
+            <td style="padding:0.75rem 1rem; color:#475569;">${window.escapeHTML(catText)}</td>
+            <td style="padding:0.75rem 1rem; text-align:center; font-weight:600; color:#475569;">${partCount} Participants</td>
+            <td style="padding:0.75rem 1rem;">${statusBadge}</td>
+            <td style="padding:0.75rem 1rem; text-align:center; position:relative;">
+                <div style="position:relative; display:inline-block;" class="action-dropdown-container">
+                    <button class="btn btn-secondary btn-sm btn-dropdown-toggle" style="padding:0.25rem 0.5rem; font-size:1.1rem; font-weight:bold; cursor:pointer; background:transparent; border:none; color:#475569; display:inline-block; line-height:1;">⋮</button>
+                    <div class="action-dropdown-menu" style="position:absolute; right:0; top:100%; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); z-index:999; min-width:140px; display:none; flex-direction:column; padding:0.25rem 0;">
+                        <button class="dropdown-item btn-open-result" style="text-align:left; padding:0.5rem 0.75rem; border:none; background:transparent; font-size:0.82rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#1e293b;">👁️ Open Result</button>
+                        ${isDraft && r.markEntryStatus === 'submitted' ? `<button class="dropdown-item btn-publish-result" style="text-align:left; padding:0.5rem 0.75rem; border:none; background:transparent; font-size:0.82rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#1e293b;">🏆 Publish</button>` : ''}
+                        ${!isDraft ? `<button class="dropdown-item btn-revoke-result" style="text-align:left; padding:0.5rem 0.75rem; border:none; background:transparent; font-size:0.82rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#1e293b;">↩ Revoke</button>` : ''}
                     </div>
-                `).join('')}
-            </div>
-        `;
-    }
-
-    function refreshWinnerParticipantOptions() {
-        document.querySelectorAll('.winner-builder-row').forEach(row => {
-            const select = row.querySelector('.jr-student-select');
-            if (!select) return;
-            const selected = select.value;
-            select.innerHTML = buildParticipantOptions(selected);
-            if ([...select.options].some(opt => opt.value === selected)) {
-                select.value = selected;
-            }
-        });
-    }
-
-    function buildParticipantOptions(selectedId = '') {
-        const isGroup = selectedProg && selectedProg.programType === 'group';
-        const label = isGroup ? "Select Team" : "Select Participant";
-        const visibleParticipants = getVisibleParticipants();
-        
-        if (participants.length === 0) {
-            return '<option value="">Type name manually</option>';
-        }
-        let opts = `<option value="">${label}</option>`;
-        visibleParticipants.forEach(s => {
-            const display = isGroup ? s.name : `${s.name} (#${s.chestNumber || ''})`;
-            opts += `<option value="${s.id}" data-name="${window.escapeHTML(s.name)}" ${s.id === selectedId ? 'selected' : ''}>${window.escapeHTML(display)}</option>`;
-        });
-        if (visibleParticipants.length === 0) {
-            opts += '<option value="" disabled>No matching participants</option>';
-        }
-        opts += '<option value="__manual__">Enter manually...</option>';
-        return opts;
-    }
-
-    function addWinnerRow(prefill = {}) {
-        winnerCount++;
-        const rowId = `wrow_${winnerCount}`;
-        const cont = document.getElementById('jWinnersContainer');
-        const row = document.createElement('div');
-        row.id = rowId;
-        row.className = 'winner-builder-row';
-        row.style.cssText = 'background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:0.85rem;position:relative;';
-
-        const initPos = prefill.position || '';
-        const initGrade = prefill.grade || '';
-        const initMarks = prefill.marks != null ? prefill.marks : calcMarks(initPos, initGrade);
-        const selectedParticipantId = selectedProg?.programType === 'group'
-            ? (prefill.groupId || prefill.teamId || '')
-            : (prefill.studentId || '');
-
-        row.innerHTML = `
-            <button type="button" class="remove-winner-btn"
-                style="position:absolute;top:0.5rem;right:0.5rem;background:none;border:none;color:#ef4444;cursor:pointer;font-size:1rem;line-height:1;">✕</button>
-
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;">
-                <!-- Position -->
-                <div>
-                    <label style="font-size:0.72rem;font-weight:600;color:#64748b;display:block;margin-bottom:0.25rem;">Position *</label>
-                    <select class="form-input jr-position" style="font-size:0.85rem;padding:0.4rem 0.5rem;">
-                        <option value="">— Select —</option>
-                        <option value="First"         ${initPos === 'First' ? 'selected' : ''}>🥇 First</option>
-                        <option value="Second"        ${initPos === 'Second' ? 'selected' : ''}>🥈 Second</option>
-                        <option value="Third"         ${initPos === 'Third' ? 'selected' : ''}>🥉 Third</option>
-                        <option value="Participation" ${initPos === 'Participation' ? 'selected' : ''}>🎖 Participation</option>
-                    </select>
                 </div>
-                <!-- Grade -->
-                <div>
-                    <label style="font-size:0.72rem;font-weight:600;color:#64748b;display:block;margin-bottom:0.25rem;">Grade (Optional)</label>
-                    <select class="form-input jr-grade" style="font-size:0.85rem;padding:0.4rem 0.5rem;">
-                        <option value="">— None —</option>
-                        <option value="A" ${initGrade === 'A' ? 'selected' : ''}>A Grade (+5)</option>
-                        <option value="B" ${initGrade === 'B' ? 'selected' : ''}>B Grade (+3)</option>
-                        <option value="C" ${initGrade === 'C' ? 'selected' : ''}>C Grade (+1)</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Participant / Team selector -->
-            <div style="margin-bottom:0.5rem;">
-                <label style="font-size:0.72rem;font-weight:600;color:#64748b;display:block;margin-bottom:0.25rem;">${selectedProg && selectedProg.programType === 'group' ? 'Team *' : 'Participant *'}</label>
-                <select class="form-input jr-student-select" style="font-size:0.85rem;padding:0.4rem 0.5rem;">
-                    ${buildParticipantOptions(selectedParticipantId)}
-                </select>
-                <input type="text" class="form-input jr-student-name" placeholder="${selectedProg && selectedProg.programType === 'group' ? 'Team name' : 'Student name'}"
-                    style="font-size:0.85rem;padding:0.4rem 0.5rem;margin-top:0.35rem;display:${participants.length === 0 ? 'block' : 'none'};"
-                    value="${window.escapeHTML(prefill.studentName || '')}">
-            </div>
-
-            <div style="margin-bottom:0.5rem;">
-                <label style="font-size:0.72rem;font-weight:600;color:#64748b;display:block;margin-bottom:0.25rem;">Remarks</label>
-                <input type="text" class="form-input jr-remarks" placeholder="Optional remarks"
-                    style="font-size:0.85rem;padding:0.4rem 0.5rem;"
-                    value="${window.escapeHTML(prefill.remarks || '')}">
-            </div>
-
-            <!-- Auto marks display -->
-            <div style="display:flex;align-items:center;justify-content:space-between;">
-                <div class="marks-display" style="font-size:0.78rem;color:#4338ca;font-weight:700;background:#e0e7ff;border-radius:6px;padding:0.25rem 0.65rem;">
-                    📊 ${initMarks > 0 ? initMarks + ' pts' : '0 pts'}
-                </div>
-                <div>
-                    <label style="font-size:0.72rem;font-weight:600;color:#64748b;margin-right:0.3rem;">Override marks:</label>
-                    <input type="number" class="form-input jr-marks-override"
-                        min="0" max="1000" placeholder="auto"
-                        style="width:80px;font-size:0.82rem;padding:0.3rem 0.5rem;display:inline-block;"
-                        value="">
-                </div>
-            </div>
+            </td>
         `;
 
-        // Auto-calc marks when position/grade changes
-        function updateMarksDisplay() {
-            const pos = row.querySelector('.jr-position').value;
-            const grade = row.querySelector('.jr-grade').value;
-            const m = calcMarks(pos, grade);
-            row.querySelector('.marks-display').textContent = `📊 ${m} pts`;
+        // Wire Action toggle
+        const toggleBtn = tr.querySelector('.btn-dropdown-toggle');
+        const menu = tr.querySelector('.action-dropdown-menu');
+        toggleBtn.onclick = (e) => {
+            e.stopPropagation();
+            // Close other menus first
+            document.querySelectorAll('.action-dropdown-menu').forEach(m => {
+                if (m !== menu) m.style.display = 'none';
+            });
+            const isVisible = menu.style.display === 'flex';
+            menu.style.display = isVisible ? 'none' : 'flex';
+        };
+
+        // Wire Open Result
+        tr.querySelector('.btn-open-result').onclick = (e) => {
+            e.stopPropagation();
+            menu.style.display = 'none';
+            openResultDetailPopup(r);
+        };
+
+        // Wire Publish
+        const pubBtn = tr.querySelector('.btn-publish-result');
+        if (pubBtn) {
+            pubBtn.onclick = async (e) => {
+                e.stopPropagation();
+                menu.style.display = 'none';
+                if (!confirm("Publish this result to the public portal?")) return;
+                try {
+                    await updateDoc(doc(db, "institutes", window.currentInstituteId, "results", r.id), {
+                        status: 'published',
+                        publishedAt: serverTimestamp()
+                    });
+                    window.showToast("Result published successfully!", "success");
+                } catch (err) {
+                    console.error(err);
+                    window.showToast("Failed to publish result.", "error");
+                }
+            };
         }
-        row.querySelector('.jr-position').addEventListener('change', updateMarksDisplay);
-        row.querySelector('.jr-grade').addEventListener('change', updateMarksDisplay);
 
-        // Participant select → show/hide manual name input
-        const stuSel = row.querySelector('.jr-student-select');
-        const stuName = row.querySelector('.jr-student-name');
-        if (selectedParticipantId) {
-            stuSel.value = selectedParticipantId;
-            const opt = stuSel.options[stuSel.selectedIndex];
-            if (opt) stuName.value = opt.dataset.name || prefill.studentName || '';
+        // Wire Revoke
+        const revBtn = tr.querySelector('.btn-revoke-result');
+        if (revBtn) {
+            revBtn.onclick = async (e) => {
+                e.stopPropagation();
+                menu.style.display = 'none';
+                if (!confirm("Revoke this result from the public view?")) return;
+                try {
+                    await updateDoc(doc(db, "institutes", window.currentInstituteId, "results", r.id), {
+                        status: 'draft',
+                        markEntryStatus: 'submitted'
+                    });
+                    window.showToast("Result revoked successfully!", "success");
+                } catch (err) {
+                    console.error(err);
+                    window.showToast("Failed to revoke result.", "error");
+                }
+            };
         }
-        stuSel.addEventListener('change', () => {
-            if (stuSel.value === '__manual__') {
-                stuName.style.display = 'block';
-                stuName.focus();
-            } else if (stuSel.value) {
-                const opt = stuSel.options[stuSel.selectedIndex];
-                stuName.value = opt.dataset.name || '';
-                stuName.style.display = 'none';
-            } else {
-                stuName.style.display = participants.length === 0 ? 'block' : 'none';
-                stuName.value = '';
-            }
-        });
 
-        row.querySelector('.remove-winner-btn').addEventListener('click', () => row.remove());
-        cont.appendChild(row);
-    }
-
-    document.getElementById('jAddWinnerBtn').addEventListener('click', () => addWinnerRow());
-    document.getElementById('jCancelBtn').addEventListener('click', () => {
-        modal.classList.add('hidden');
-        modal.classList.remove('result-fullscreen-modal');
+        tbody.appendChild(tr);
     });
 
-    // ── Publish ─────────────────────────────────
-    document.getElementById('jPublishBtn').addEventListener('click', () => saveResult(false));
-    document.getElementById('jDraftBtn').addEventListener('click', () => saveResult(true));
+    // Global click outside to close dropdown
+    if (!window.__resultsDropdownListenerAdded) {
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.action-dropdown-menu').forEach(m => {
+                m.style.display = 'none';
+            });
+        });
+        window.__resultsDropdownListenerAdded = true;
+    }
+}
 
-    async function saveResult(isDraft) {
-        if (!selectedProg) {
-            window.showToast("Please select a program first.", "error");
-            return;
+// ─────────────────────────────────────────────
+// Open Result Detailed View Drawer/Popup
+// ─────────────────────────────────────────────
+function openResultDetailPopup(r) {
+    const modal = document.getElementById('dynamicModal');
+    const modalTitle = document.getElementById('dynamicModalTitle');
+    const modalBody = document.getElementById('dynamicModalBody');
+
+    modalTitle.textContent = "🏆 Result Details";
+
+    const modalEl = modal.querySelector('.modal');
+    // Set custom large dimensions for results details popup to prevent compression and nested scrollbars
+    modalEl.style.width = '90%';
+    modalEl.style.maxWidth = '1250px';
+    modalEl.style.height = '88vh';
+    modalEl.style.maxHeight = '90vh';
+
+    const handleClose = () => {
+        // Restore default small modal styles to prevent style leakages
+        modalEl.style.width = '';
+        modalEl.style.maxWidth = '';
+        modalEl.style.height = '';
+        modalEl.style.maxHeight = '';
+        modal.classList.add('hidden');
+    };
+
+    const isDraft = r.status === 'draft';
+    const statusBadge = isDraft 
+        ? (r.markEntryStatus === 'submitted' 
+            ? '<span class="badge" style="font-size:0.75rem; background:#fff7ed; color:#ea580c; border:1px solid #ffedd5;">Submitted (Draft)</span>' 
+            : '<span class="badge" style="font-size:0.75rem; background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd;">In Progress (Draft)</span>')
+        : '<span class="badge" style="font-size:0.75rem; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0;">Published</span>';
+
+    const partCount = r.participantCount || (Array.isArray(r.marksData) ? r.marksData.length : 0) || 0;
+    const isGroup = r.programType === 'group';
+
+    // Sort marksData descending strictly by finalMark for correct standings
+    const sortedData = [...(r.marksData || [])].sort((a, b) => {
+        const markA = a.finalMark || 0;
+        const markB = b.finalMark || 0;
+        return markB - markA;
+    });
+
+    // Compute rendered ranks dynamically (handling standard competition ties)
+    for (let i = 0; i < sortedData.length; i++) {
+        const item = sortedData[i];
+        const hasScore = item.finalMark !== undefined && item.finalMark > 0;
+        if (hasScore) {
+            if (i > 0 && item.finalMark === sortedData[i - 1].finalMark) {
+                item.renderedRank = sortedData[i - 1].renderedRank;
+            } else {
+                item.renderedRank = i + 1;
+            }
+        } else {
+            item.renderedRank = null;
         }
+    }
 
-        const rows = document.querySelectorAll('.winner-builder-row');
-        const winners = [];
-        const usedPositions = new Set();
-        const usedParticipantKeys = new Set();
-        let hasError = false;
+    let tableRowsHTML = '';
+    if (sortedData.length === 0) {
+        tableRowsHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:#64748b;">No standings recorded for this program yet.</td></tr>`;
+    } else {
+        tableRowsHTML = sortedData.map(item => {
+            const hasScore = item.finalMark !== undefined && item.finalMark > 0;
+            
+            // Format Position/Rank
+            let positionHTML = '—';
+            if (item.renderedRank !== null) {
+                if (item.renderedRank === 1) positionHTML = '<span style="font-size:1.2rem;">🥇</span> 1st';
+                else if (item.renderedRank === 2) positionHTML = '<span style="font-size:1.2rem;">🥈</span> 2nd';
+                else if (item.renderedRank === 3) positionHTML = '<span style="font-size:1.2rem;">🥉</span> 3rd';
+                else positionHTML = `${item.renderedRank}th`;
+            }
 
-        rows.forEach((row, idx) => {
-            const position = row.querySelector('.jr-position').value;
-            const grade = row.querySelector('.jr-grade').value || null;
-            const stuSel = row.querySelector('.jr-student-select');
-            const stuName = row.querySelector('.jr-student-name');
-            const remarks = row.querySelector('.jr-remarks')?.value.trim() || '';
+            const displayName = isGroup ? item.teamName : item.studentName;
+            const teamDisplay = isGroup ? 'Group Entry' : (item.teamName || '—');
+            const finalMark = hasScore ? item.finalMark : '—';
+            const grade = hasScore ? (item.grade || '—') : '—';
+            const points = hasScore ? `${item.totalPoints || 0}pts` : '—';
 
-            let studentId = '';
-            let studentName = '';
-            let teamId = '';
-            let teamName = '';
-            let groupId = '';
+            return `
+                <tr style="border-bottom:1px solid #e2e8f0; hover:background:#f8fafc;">
+                    <td style="padding:0.75rem 1rem; text-align:center; font-weight:700; color:#475569;">${positionHTML}</td>
+                    <td style="padding:0.75rem 1rem; font-weight:700; color:#1e293b;">${window.escapeHTML(displayName)}</td>
+                    <td style="padding:0.75rem 1rem; color:#475569; font-weight:600;">${window.escapeHTML(teamDisplay)}</td>
+                    <td style="padding:0.75rem 1rem; text-align:center; font-weight:800; color:#0f172a;">${finalMark}</td>
+                    <td style="padding:0.75rem 1rem; text-align:center;">
+                        ${grade !== '—' ? `<span class="badge" style="background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe; font-size:0.75rem; font-weight:700;">${grade}</span>` : '—'}
+                    </td>
+                    <td style="padding:0.75rem 1rem; text-align:center;">
+                        ${points !== '—' ? `<span class="badge" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; font-size:0.75rem; font-weight:700;">${points}</span>` : '—'}
+                    </td>
+                    <td style="padding:0.75rem 1rem; text-align:center;">
+                        <div style="display:inline-flex; gap:0.4rem; justify-content:center;">
+                            <button type="button" class="btn btn-popup-edit" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-weight:700; padding:0.3rem 0.6rem; border-radius:6px; font-size:0.78rem; cursor:pointer; display:flex; align-items:center; gap:0.25rem;">
+                                ✏️ Edit
+                            </button>
+                            <button type="button" class="btn btn-popup-delete" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; font-weight:700; padding:0.3rem 0.6rem; border-radius:6px; font-size:0.78rem; cursor:pointer; display:flex; align-items:center; gap:0.25rem;">
+                                🗑️ Delete
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
 
-            const isGroup = selectedProg.programType === 'group';
+    modalBody.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:1rem; height:100%; width:100%;">
+            <!-- Header Summary Row -->
+            <div style="background:#linear-gradient(135deg, #f5f3ff, #ede9fe); border:1px solid #cbd5e1; border-radius:12px; padding:1rem 1.25rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; box-shadow:0 1px 2px rgba(0,0,0,0.02);">
+                <div style="display:flex; flex-direction:column; gap:0.2rem;">
+                    <h4 style="margin:0; font-size:1.15rem; font-weight:800; color:#1e1b4b; line-height:1.2;">${window.escapeHTML(r.programName)}</h4>
+                    <div style="font-size:0.75rem; font-weight:700; color:#4338ca; display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center;">
+                        <span>Category: <strong style="color:#1e1b4b;">${window.escapeHTML(r.categoryName || 'General')}</strong></span>
+                        ${r.className ? `<span>Class: <strong style="color:#1e1b4b;">${window.escapeHTML(r.className)}</strong></span>` : ''}
+                        <span>Type: <strong style="color:#1e1b4b;">${r.programType === 'group' ? 'Group' : 'Individual'}</strong></span>
+                        <span>Gender: <strong style="color:#1e1b4b;">${window.escapeHTML(r.genderCategory || 'Mixed')}</strong></span>
+                        <span>Stage: <strong style="color:#1e1b4b;">${window.escapeHTML(r.programLocation || 'Stage')}</strong></span>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                    <div style="text-align:right;">
+                        <span style="font-size:0.7rem; font-weight:700; color:#64748b; text-transform:uppercase; display:block; margin-bottom:0.1rem;">Status</span>
+                        ${statusBadge}
+                    </div>
+                    <div style="text-align:right;">
+                        <span style="font-size:0.7rem; font-weight:700; color:#64748b; text-transform:uppercase; display:block; margin-bottom:0.1rem;">Participants</span>
+                        <span style="font-weight:800; color:#1e293b; font-size:0.9rem;">${partCount} Entries</span>
+                    </div>
+                </div>
+            </div>
 
-            if (stuSel.value && stuSel.value !== '__manual__') {
-                const pInfo = participants.find(p => p.id === stuSel.value);
-                if (pInfo) {
-                    if (isGroup) {
-                        groupId = pInfo.id;
-                        teamId = pInfo.teamId;
-                        teamName = pInfo.teamName;
-                        // Map team name to studentName for UI compatibility in public view
-                        studentName = pInfo.teamName;
-                    } else {
-                        studentId = pInfo.id;
-                        studentName = pInfo.name;
-                        teamId = pInfo.teamId;
-                        teamName = pInfo.teamName;
+            <!-- Standings Table Container (Only this scrolls) -->
+            <div style="flex:1; overflow-y:auto; min-height:0; width:100%; border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                <table style="width:100%; border-collapse:collapse; text-align:left; font-size:0.85rem; min-width:800px; color:#1e293b;">
+                    <thead>
+                        <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; position:sticky; top:0; z-index:10;">
+                            <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; text-align:center; width:100px;">Position</th>
+                            <th style="padding:0.75rem 1rem; color:#475569; font-weight:700;">Name</th>
+                            <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:220px;">Team</th>
+                            <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:130px; text-align:center;">Average Mark</th>
+                            <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:100px; text-align:center;">Grade</th>
+                            <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:100px; text-align:center;">Points</th>
+                            <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:180px; text-align:center;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRowsHTML}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footer Action Row -->
+            <div class="modal-actions" style="margin-top:0.25rem; border-top:1px solid #e2e8f0; padding-top:0.75rem; display:flex; justify-content:flex-end;">
+                <button type="button" class="btn btn-secondary" id="btnOpenResClose" style="min-width:120px; font-weight:700;">Close Details</button>
+            </div>
+        </div>
+    `;
+
+    modal.classList.remove('hidden');
+
+    // Bind Close actions
+    document.getElementById('closeDynamicModalBtn').onclick = handleClose;
+    document.getElementById('btnOpenResClose').onclick = handleClose;
+
+    // Bind Row actions dynamically
+    modalBody.querySelectorAll('.btn-popup-edit').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const prog = allPrograms.find(p => p.id === r.programId);
+            if (prog) {
+                handleClose();
+                openMarkEntryModal(prog);
+            } else {
+                window.showToast("Could not find the original program for this result.", "error");
+            }
+        };
+    });
+
+    modalBody.querySelectorAll('.btn-popup-delete').forEach(btn => {
+        btn.onclick = async (e) => {
+            e.stopPropagation();
+            if (!confirm("Delete this result permanently?")) return;
+
+            try {
+                handleClose();
+                const batch = writeBatch(db);
+
+                // 1. Purge competitions program name from assigned judges
+                const judgesSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "judges"));
+                judgesSnap.forEach(d => {
+                    const j = d.data();
+                    const jName = j.name;
+                    const comps = Array.isArray(j.competitions) ? j.competitions : [];
+                    
+                    const wasAssigned = Array.isArray(r.judges) && r.judges.includes(jName);
+                    if (wasAssigned && comps.includes(r.programName)) {
+                        const newComps = comps.filter(c => c !== r.programName);
+                        batch.update(d.ref, { competitions: newComps, updatedAt: serverTimestamp() });
                     }
-                }
-            } else {
-                studentName = stuName.value.trim();
-                if (isGroup) teamName = studentName;
-            }
+                });
 
-            if (!position) {
-                window.showToast(`Row ${idx + 1}: Please select a position.`, "error");
-                hasError = true;
-                return;
-            }
-            if (!studentName) {
-                window.showToast(`Row ${idx + 1}: Please enter or select a ${isGroup ? 'team' : 'student'}.`, "error");
-                hasError = true;
-                return;
-            }
+                // 2. Delete the result document itself
+                const resRef = doc(db, "institutes", window.currentInstituteId, "results", r.id);
+                batch.delete(resRef);
 
-            const overrideInput = row.querySelector('.jr-marks-override').value.trim();
-            const marks = overrideInput !== '' ? parseFloat(overrideInput) : calcMarks(position, grade);
-            if (!Number.isFinite(marks) || marks < 0) {
-                window.showToast(`Row ${idx + 1}: Marks must be a valid positive number.`, "error");
-                hasError = true;
-                return;
+                await batch.commit();
+                window.showToast("Result deleted permanently!", "success");
+            } catch (err) {
+                console.error("Error deleting result:", err);
+                window.showToast(`Unable to delete: ${err.message || err}`, "error");
             }
+        };
+    });
+}
 
-            if (position !== 'Participation' && usedPositions.has(position)) {
-                window.showToast(`${position} is already assigned. Each prize rank can be used once.`, "error");
-                hasError = true;
-                return;
-            }
-            if (position !== 'Participation') usedPositions.add(position);
+// ─────────────────────────────────────────────
+// Batch Publish All Action
+// ─────────────────────────────────────────────
+async function triggerPublishAll() {
+    const submittedDrafts = allResults.filter(r => r.status === 'draft' && r.markEntryStatus === 'submitted');
+    if (submittedDrafts.length === 0) {
+        window.showToast("No submitted drafts available to publish.", "warning");
+        return;
+    }
 
-            const participantKey = isGroup ? (groupId || teamName || studentName) : (studentId || studentName);
-            if (usedParticipantKeys.has(participantKey)) {
-                window.showToast(`${studentName} is already selected in another result row.`, "error");
-                hasError = true;
-                return;
-            }
-            usedParticipantKeys.add(participantKey);
+    if (!confirm(`Are you sure you want to publish all ${submittedDrafts.length} submitted program results at once?`)) return;
 
-            if (isGroup) {
-                winners.push({ groupId, teamId, teamName, studentName, position, grade, marks, remarks }); // studentName kept for backward compatibility in public portal UI
-            } else {
-                winners.push({ studentId, studentName, teamId, teamName, position, grade, marks, remarks });
-            }
+    const spinner = document.getElementById('resultsStatsGrid');
+    const batch = writeBatch(db);
+
+    try {
+        submittedDrafts.forEach(r => {
+            const docRef = doc(db, "institutes", window.currentInstituteId, "results", r.id);
+            batch.update(docRef, {
+                status: 'published',
+                publishedAt: serverTimestamp()
+            });
         });
 
-        if (hasError) return;
-        if (winners.length === 0) {
-            window.showToast("Add at least one winner before saving.", "error");
-            return;
-        }
-
-        const btn = isDraft ? document.getElementById('jDraftBtn') : document.getElementById('jPublishBtn');
-        const text = btn.querySelector('.btn-text');
-        const spinner = btn.querySelector('.btn-spinner');
-        btn.disabled = true;
-        text.classList.add('hidden');
-        spinner.classList.remove('hidden');
-
-        try {
-            const payload = {
-                programId: selectedProg.id,
-                programName: selectedProg.programName,
-                categoryId: selectedProg.categoryId || '',
-                categoryName: selectedProg.categoryName || '',
-                classId: selectedProg.classId || '',
-                className: selectedProg.className || '',
-                genderCategory: selectedProg.genderCategory || '',
-                programLocation: selectedProg.programLocation || '',
-                participantCount: participants.length,
-                winners,
-                status: isDraft ? 'draft' : 'published',
-                publishedAt: isDraft ? (existingData?.publishedAt || null) : serverTimestamp(),
-                updatedAt: serverTimestamp()
-            };
-
-            const ref = collection(db, "institutes", window.currentInstituteId, "results");
-            if (resultId) {
-                await updateDoc(doc(ref, resultId), payload);
-                window.showToast("Result updated successfully!");
-            } else {
-                payload.createdAt = serverTimestamp();
-                await addDoc(ref, payload);
-                window.showToast(isDraft ? "📝 Result saved as draft." : "✅ Result published successfully!");
-            }
-            modal.classList.add('hidden');
-            modal.classList.remove('result-fullscreen-modal');
-        } catch (err) {
-            console.error("Save error:", err);
-            window.showToast("Failed to save result.", "error");
-        } finally {
-            btn.disabled = false;
-            text.classList.remove('hidden');
-            spinner.classList.add('hidden');
-        }
+        await batch.commit();
+        window.showToast(`Successfully published all ${submittedDrafts.length} program results!`, "success");
+    } catch (err) {
+        console.error("Batch publish error:", err);
+        window.showToast("Failed to batch publish results.", "error");
     }
 }
