@@ -60,7 +60,7 @@ function buildStudentRow({ student, checked, disabled }) {
 export async function initParticipantsWorkflowView(container, topActions, { progId, progData }) {
     // 1. Initial State Variables
     const pType = (progData.programType || progData.type || 'individual').toLowerCase();
-    const isGroupEvent = pType === 'group';
+    const isGroupEvent = pType === 'group' || (pType === 'general' && progData.registrationType === 'group');
     const progName = progData.programName || 'Program';
     const genderFilter = progData.genderCategory || 'Mixed';
     let inheritedCategoryId = progData.categoryId || '';
