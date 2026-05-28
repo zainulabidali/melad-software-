@@ -208,10 +208,24 @@ function loadInstitutes() {
 
             const card = document.createElement('div');
             card.className = 'glass-card';
-            const badgeClass = inst.status === 'active' ? 'badge-active' : 'badge-inactive';
-            const statusLabel = inst.status === 'active' ? 'Active' : 'Inactive';
-
+            const status = inst.status || 'active';
             const expiryDateObj = inst.expiryDate?.toDate?.();
+            const isExpired = expiryDateObj && (new Date().getTime() > expiryDateObj.getTime());
+
+            // Auto-deactivate status in database to self-heal
+            if (isExpired && status === 'active') {
+                updateDoc(doc(db, "institutes", instId), { status: "deactivated" }).catch(err => {
+                    console.error("Auto-deactivation error for expired institute:", err);
+                });
+            }
+
+            let badgeClass = status === 'active' ? 'badge-active' : 'badge-inactive';
+            let statusLabel = status === 'active' ? 'Active' : (status === 'deactivated' ? 'Deactivated' : 'Inactive');
+
+            if (isExpired) {
+                badgeClass = 'badge-inactive'; // Red badge highlight
+                statusLabel = 'Expired';
+            }
             const expiryStr = expiryDateObj ? expiryDateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No Expiry';
             const expiryRawStr = expiryDateObj ? expiryDateObj.toISOString().split('T')[0] : '';
 
@@ -270,8 +284,8 @@ function loadInstitutes() {
                 </div>
                 <div class="card-actions" style="flex-wrap: wrap; gap: 0.5rem;">
                     <button class="btn btn-secondary btn-sm edit-inst-btn" data-id="${instId}" data-all='${JSON.stringify({ name: instName, type: instType, expiryDate: expiryRawStr }).replace(/'/g, "&#39;")}'>✏️ Edit</button>
-                    <button class="btn btn-secondary btn-sm toggle-status-btn" data-id="${instId}" data-status="${inst.status}">
-                        ${inst.status === 'active' ? '⏸ Deactivate' : '▶ Activate'}
+                    <button class="btn btn-secondary btn-sm toggle-status-btn" data-id="${instId}" data-status="${status}">
+                        ${status === 'active' ? '⏸ Deactivate' : '▶ Activate'}
                     </button>
                     <button class="btn btn-danger btn-sm delete-inst-btn" data-id="${instId}">🗑 Delete</button>
                 </div>
@@ -296,14 +310,27 @@ function loadInstitutes() {
 }
 
 async function toggleStatus(e) {
-    const instId = e.target.getAttribute('data-id');
-    const currentStatus = e.target.getAttribute('data-status');
-    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    const btn = e.target.closest('.toggle-status-btn');
+    if (!btn || btn.disabled) return;
+
+    const instId = btn.getAttribute('data-id');
+    const currentStatus = btn.getAttribute('data-status') || 'active';
+    const newStatus = currentStatus === 'active' ? 'deactivated' : 'active';
+
+    // Disable button to prevent double-click race conditions
+    btn.disabled = true;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳ Updating...';
+
     try {
         await updateDoc(doc(db, "institutes", instId), { status: newStatus });
-        showToast(`Institute marked as ${newStatus}.`);
+        showToast(`✅ Institute successfully ${newStatus === 'active' ? 'activated' : 'deactivated'}!`);
     } catch (err) {
+        console.error("Status toggle error:", err);
         showToast(`Failed to update status: ${err.message}`, 'error');
+        // Restore button state on error
+        btn.disabled = false;
+        btn.innerHTML = originalText;
     }
 }
 
@@ -636,3 +663,65 @@ async function rejectAdmin(e) {
         showToast("Failed to reject: " + error.message, "error");
     }
 }
+
+// ─────────────────────────────────────────────
+// Responsive Mobile Drawer Navigation
+// ─────────────────────────────────────────────
+const sidebar = document.querySelector('.sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+const closeSidebarBtn = document.getElementById('closeSidebarBtn');
+
+function openSidebarDrawer() {
+    if (sidebar) sidebar.classList.add('open');
+    if (sidebarOverlay) sidebarOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeSidebarDrawer() {
+    if (sidebar) sidebar.classList.remove('open');
+    if (sidebarOverlay) sidebarOverlay.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+// Attach open and close triggers
+if (mobileMenuBtn) {
+    mobileMenuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openSidebarDrawer();
+    });
+}
+
+if (closeSidebarBtn) {
+    closeSidebarBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeSidebarDrawer();
+    });
+}
+
+if (sidebarOverlay) {
+    sidebarOverlay.addEventListener('click', () => {
+        closeSidebarDrawer();
+    });
+}
+
+// Close drawer when clicking sidebar navigation links
+document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+        closeSidebarDrawer();
+    });
+});
+
+// Close drawer on Escape key press
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && sidebar && sidebar.classList.contains('open')) {
+        closeSidebarDrawer();
+    }
+});
+
+// Automatically restore body scrolling and close drawer if screen size expands past desktop breakpoint
+window.addEventListener('resize', () => {
+    if (window.innerWidth > 1024) {
+        closeSidebarDrawer();
+    }
+});

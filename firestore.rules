@@ -26,7 +26,14 @@ service cloud.firestore {
       return isAuthenticated() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.instituteId == instituteId;
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.instituteId == instituteId &&
+        exists(/databases/$(database)/documents/institutes/$(instituteId)) &&
+        get(/databases/$(database)/documents/institutes/$(instituteId)).data.status == 'active' &&
+        (
+          !('expiryDate' in get(/databases/$(database)/documents/institutes/$(instituteId)).data) ||
+          get(/databases/$(database)/documents/institutes/$(instituteId)).data.expiryDate == null ||
+          get(/databases/$(database)/documents/institutes/$(instituteId)).data.expiryDate > request.time
+        );
     }
 
     // ─────────────────────────────────────────────

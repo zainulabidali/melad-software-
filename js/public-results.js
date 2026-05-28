@@ -60,6 +60,17 @@ async function init() {
         }
 
         instituteDetails = { id: instSnap.id, ...instSnap.data() };
+        
+        // Timezone-safe UTC absolute timestamp comparison (Option B)
+        const expiryDateObj = instituteDetails.expiryDate?.toDate?.() || (instituteDetails.expiryDate ? new Date(instituteDetails.expiryDate) : null);
+        const isExpired = expiryDateObj && (new Date().getTime() > expiryDateObj.getTime());
+        
+        if (isExpired || instituteDetails.status === 'deactivated' || instituteDetails.status === 'inactive') {
+            renderError("Subscription Expired", "This results portal has been suspended because the institute's subscription has expired or is deactivated.");
+            hideOverlay();
+            return;
+        }
+
         document.getElementById('madrasaName').textContent = instituteDetails.name || "Results Portal";
 
         // 2. Setup Real-time Firestore Listeners on Results (Strictly Published results only)

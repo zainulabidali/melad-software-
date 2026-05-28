@@ -214,6 +214,130 @@
                 transform: translateY(0) scale(1);
             }
         }
+
+        /* ── Global Viewport & Responsiveness Overrides ── */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow-x: hidden;
+        }
+
+        /* Make institutes-grid fit all mobile and tablet widths perfectly without overflow */
+        .institutes-grid {
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)) !important;
+            gap: 1.5rem !important;
+        }
+
+        /* Sticky topbar with soft lighting */
+        .topbar {
+            position: sticky;
+            top: 0;
+            background: rgba(255, 255, 255, 0.72) !important;
+            backdrop-filter: blur(20px) saturate(180%) !important;
+            -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+            z-index: 100 !important;
+        }
+
+        /* Responsive Table cells, ensuring wrap & prevent clipping */
+        .premium-table th,
+        .premium-table td {
+            white-space: normal !important;
+            word-break: break-word !important;
+        }
+
+        .table-teacher-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 180px;
+        }
+
+        .table-responsive {
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* ── Mobile Menu Button Glassmorphism ── */
+        @media (max-width: 1024px) {
+            .menu-btn {
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                width: 44px;
+                height: 44px;
+                border-radius: 50% !important;
+                background: rgba(255, 255, 255, 0.7) !important;
+                backdrop-filter: blur(20px) saturate(180%) !important;
+                -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+                border: 1px solid rgba(255, 255, 255, 0.5) !important;
+                color: #1e1b4b !important;
+                font-size: 1.3rem !important;
+                cursor: pointer;
+                box-shadow: 0 4px 15px rgba(15, 23, 42, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.8) !important;
+                transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+                z-index: 90 !important;
+                flex-shrink: 0;
+            }
+
+            .menu-btn:hover {
+                background: rgba(255, 255, 255, 0.85) !important;
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px rgba(15, 23, 42, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.9) !important;
+            }
+
+            .menu-btn:active {
+                transform: translateY(0) scale(0.95);
+            }
+        }
+
+        /* ── Dark Glassmorphism Drawer panel styling & dimensions ── */
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 340px !important;
+                max-width: 80vw !important;
+                background: rgba(30, 27, 75, 0.85) !important;
+                backdrop-filter: blur(25px) saturate(190%) !important;
+                -webkit-backdrop-filter: blur(25px) saturate(190%) !important;
+                border-right: 1px solid rgba(255, 255, 255, 0.12) !important;
+                box-shadow: 10px 0 40px rgba(15, 23, 42, 0.25) !important;
+                transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 80vw !important;
+                max-width: 320px !important;
+            }
+
+            .glass-card {
+                padding: 1.25rem !important;
+                border-radius: 16px !important;
+            }
+        }
+
+        /* ── Drawer Backdrop Overlay styling ── */
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 990;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .sidebar-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
     </style>
 </head>
 
@@ -224,6 +348,7 @@
         <div class="sidebar-brand">
             <span style="font-size:1.5rem;">🏫</span>
             <h2>Super Admin</h2>
+            <button class="close-sidebar-btn" id="closeSidebarBtn" aria-label="Close Menu">&times;</button>
         </div>
         <nav class="sidebar-nav">
             <a href="#" class="nav-item active" id="navInstitutes" data-section="institutes">
@@ -244,7 +369,10 @@
     <!-- Main Content -->
     <main class="main-content">
         <header class="topbar">
-            <h1 class="page-title" id="pageTitle">Manage Institutes</h1>
+            <div class="topbar-left">
+                <button class="menu-btn" id="mobileMenuBtn" aria-label="Open Menu">☰</button>
+                <h1 class="page-title" id="pageTitle">Manage Institutes</h1>
+            </div>
             <div class="topbar-actions" id="topbarActions">
                 <button class="btn btn-primary" id="openAddModalBtn">+ Add Institute</button>
             </div>
@@ -404,6 +532,9 @@
 
     <!-- Toast Container -->
     <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Sidebar Overlay backdrop -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <!-- Scripts -->
     <script type="module" src="../js/firebase.js"></script>

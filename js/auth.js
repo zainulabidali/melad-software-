@@ -6,7 +6,7 @@ import {
     onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 import {
-    doc, getDoc, setDoc, serverTimestamp
+    doc, getDoc, setDoc, serverTimestamp, updateDoc
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 // ─────────────────────────────────────────────
@@ -64,6 +64,85 @@ export async function getUserProfile(uid) {
 }
 
 // ─────────────────────────────────────────────
+// Centralized Access Validation Helper
+// ─────────────────────────────────────────────
+export async function validateInstituteAccess(user) {
+    if (!user) return false;
+    
+    try {
+        const profile = await getUserProfile(user.uid);
+        if (!profile) {
+            await signOut(auth);
+            return false;
+        }
+
+        // Super admins have global bypass
+        if (profile.role === 'super_admin') {
+            return true;
+        }
+
+        if (profile.role === 'admin') {
+            const instId = profile.instituteId;
+            if (!instId) {
+                await signOut(auth);
+                return false;
+            }
+
+            const instRef = doc(db, "institutes", instId);
+            const instSnap = await getDoc(instRef);
+            if (!instSnap.exists()) {
+                await signOut(auth);
+                return false;
+            }
+
+            const instData = instSnap.data();
+            const status = instData.status || 'active';
+            
+            // Timezone-safe UTC absolute timestamp comparison
+            const expiryDateObj = instData.expiryDate?.toDate?.() || (instData.expiryDate ? new Date(instData.expiryDate) : null);
+            const isExpired = expiryDateObj && (new Date().getTime() >= expiryDateObj.getTime());
+
+            if (isExpired) {
+                // Auto-deactivate status in database to self-heal
+                if (status !== 'deactivated') {
+                    await updateDoc(instRef, { status: "deactivated" }).catch(e => {});
+                }
+                await signOut(auth);
+                
+                // Show alert directly if on login/auth page, otherwise fall back to redirect
+                if (typeof showAlert === 'function' && document.getElementById('alertMessage')) {
+                    showAlert('Your institute subscription has expired. Please contact Super Admin.', 'error');
+                } else {
+                    window.location.href = `${pathPrefix}pages/login.html?error=expired`;
+                }
+                return false;
+            }
+
+            if (status !== 'active') {
+                await signOut(auth);
+                
+                // Show alert directly if on login/auth page, otherwise fall back to redirect
+                if (typeof showAlert === 'function' && document.getElementById('alertMessage')) {
+                    showAlert('Your institute account has been deactivated. Please contact the administrator.', 'error');
+                } else {
+                    window.location.href = `${pathPrefix}pages/login.html?error=deactivated`;
+                }
+                return false;
+            }
+
+            return true;
+        }
+
+        await signOut(auth);
+        return false;
+    } catch (e) {
+        console.error("Centralized Access Validation Error:", e);
+        await signOut(auth);
+        return false;
+    }
+}
+
+// ─────────────────────────────────────────────
 // Tab Switching Logic (login.html only)
 // ─────────────────────────────────────────────
 const tabLogin = document.getElementById('tabLogin');
@@ -111,16 +190,12 @@ if (loginForm) {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            // Check Firestore for approved profile
+            // 1. Run centralized validation
+            const isValid = await validateInstituteAccess(user);
+            if (!isValid) return;
+
+            // 2. Redirect if valid
             const profile = await getUserProfile(user.uid);
-
-            if (!profile) {
-                // No approved profile → check pending status
-                await signOut(auth);
-                showAlert('⏳ Your account is pending Super Admin approval. Please wait for activation.', 'info');
-                return;
-            }
-
             if (profile.role === 'super_admin') {
                 window.location.href = `${pathPrefix}pages/super-admin.html`;
             } else if (profile.role === 'admin') {
@@ -313,8 +388,9 @@ const isAuthPage = window.location.pathname.includes('login.html') ||
 if (isAuthPage) {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            const profile = await getUserProfile(user.uid);
-            if (profile) {
+            const isValid = await validateInstituteAccess(user);
+            if (isValid) {
+                const profile = await getUserProfile(user.uid);
                 if (profile.role === 'super_admin') {
                     window.location.href = `${pathPrefix}pages/super-admin.html`;
                 } else if (profile.role === 'admin') {
@@ -324,3 +400,15 @@ if (isAuthPage) {
         }
     });
 }
+
+// ─────────────────────────────────────────────
+// Show Deactivation or Expiry Notice dynamically
+// ─────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('error') === 'deactivated') {
+        showAlert('Your institute account has been deactivated. Please contact the administrator.', 'error');
+    } else if (urlParams.get('error') === 'expired') {
+        showAlert('Your institute subscription has expired. Please contact Super Admin.', 'error');
+    }
+});

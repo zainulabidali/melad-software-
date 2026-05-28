@@ -1,7 +1,7 @@
 import { auth, db } from './firebase.js';
-import { getUserProfile } from './auth.js';
+import { getUserProfile, validateInstituteAccess } from './auth.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
-import { doc, getDoc, collection, query, where, getCountFromServer, onSnapshot } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+import { doc, getDoc, collection, query, where, getCountFromServer, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 // Import modules
 import { initTeamsView } from './teams.js';
@@ -58,23 +58,97 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     try {
+        // Run centralized validation immediately upon auth state change or page refresh
+        const isValid = await validateInstituteAccess(user);
+        if (!isValid) return;
+
         const userProfile = await getUserProfile(user.uid);
         if (userProfile && userProfile.role === 'admin') {
             window.currentInstituteId = userProfile.instituteId;
+            let isInitialized = false;
 
-            // Fetch Institute Name securely
-            const instDoc = await getDoc(doc(db, "institutes", window.currentInstituteId));
-            if (instDoc.exists()) {
-                window.currentInstituteDetails = instDoc.data();
-                document.getElementById('instituteNameHeader').textContent = instDoc.data().name;
-            }
+            // Listen to Institute status and check expiry real-time to detect instant deactivation
+            const instRef = doc(db, "institutes", window.currentInstituteId);
+            const unsubInstitute = onSnapshot(instRef, async (instSnap) => {
+                if (instSnap.exists()) {
+                    const instData = instSnap.data();
+                    window.currentInstituteDetails = instData;
+                    
+                    // Timezone-safe UTC absolute timestamp comparison
+                    const expiryDateObj = instData.expiryDate?.toDate?.() || (instData.expiryDate ? new Date(instData.expiryDate) : null);
+                    const isExpired = expiryDateObj && (new Date().getTime() > expiryDateObj.getTime());
+                    
+                    if (isExpired) {
+                        // Self-healing: trigger deactivation update in database
+                        if (instData.status !== 'deactivated') {
+                            await updateDoc(instRef, { status: "deactivated" }).catch(e => {});
+                        }
+                        
+                        // Clean up all snapshot listeners
+                        dbUnsubscribes.forEach(unsub => {
+                            try { unsub(); } catch (e) {}
+                        });
+                        dbUnsubscribes = [];
+                        try { unsubInstitute(); } catch (e) {}
 
-            document.body.style.display = 'flex';
-            document.body.classList.remove('hidden');
+                        // Force logout instantly due to expiry
+                        await signOut(auth);
+                        window.location.href = '../pages/login.html?error=expired';
+                        return;
+                    }
+                    
+                    if (instData.status === 'deactivated' || instData.status === 'inactive') {
+                        // Clean up all snapshot listeners
+                        dbUnsubscribes.forEach(unsub => {
+                            try { unsub(); } catch (e) {}
+                        });
+                        dbUnsubscribes = [];
+                        try { unsubInstitute(); } catch (e) {}
 
-            setupNavigation();
-            // Default View
-            navigateTo('dashboard');
+                        // Force logout instantly
+                        await signOut(auth);
+                        window.location.href = '../pages/login.html?error=deactivated';
+                        return;
+                    }
+
+                    const instName = instData.name || instData.instituteName || 'Admin Portal';
+                    const headerEl = document.getElementById('instituteNameHeader');
+                    if (headerEl) {
+                        headerEl.textContent = instName;
+                    }
+
+                    if (!isInitialized) {
+                        isInitialized = true;
+                        document.body.style.display = 'flex';
+                        document.body.classList.remove('hidden');
+
+                        setupNavigation();
+                        // Default View
+                        navigateTo('dashboard');
+                    }
+                } else {
+                    // Institute was deleted
+                    dbUnsubscribes.forEach(unsub => {
+                        try { unsub(); } catch (e) {}
+                    });
+                    dbUnsubscribes = [];
+                    try { unsubInstitute(); } catch (e) {}
+                    await signOut(auth);
+                    window.location.href = '../pages/login.html';
+                }
+            }, async (error) => {
+                console.error("Institute realtime listener error:", error);
+                // Fail-safe: if rules block us (due to active expiry in rule), sign out
+                dbUnsubscribes.forEach(unsub => {
+                    try { unsub(); } catch (e) {}
+                });
+                dbUnsubscribes = [];
+                try { unsubInstitute(); } catch (e) {}
+                await signOut(auth);
+                window.location.href = '../pages/login.html?error=expired';
+            });
+            dbUnsubscribes.push(unsubInstitute);
+
         } else {
             await signOut(auth);
             window.location.href = '../pages/login.html';
@@ -272,12 +346,58 @@ function navigateTo(viewName) {
     // Call View Initializer
     if (views[viewName]) {
         setTimeout(() => {
-            if (viewName === 'participants-workflow') {
-                views[viewName](mainContent, topActions);
-            } else {
-                views[viewName](mainContent, topActions);
-            }
+            views[viewName](mainContent, topActions);
+            // Append the expiry proximity banner if ≤ 7 days remain
+            checkAndShowExpiryWarning();
         }, 100);
+    }
+}
+
+// ─────────────────────────────────────────────
+// Centralized Proximity Expiry Banner Helper (7 days check)
+// ─────────────────────────────────────────────
+function checkAndShowExpiryWarning() {
+    if (!window.currentInstituteDetails || !window.currentInstituteDetails.expiryDate) return;
+    
+    const expiryDateObj = window.currentInstituteDetails.expiryDate.toDate?.() || new Date(window.currentInstituteDetails.expiryDate);
+    const msDiff = expiryDateObj.getTime() - new Date().getTime();
+    const daysRemaining = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
+    
+    // If subscription expires in 7 days or less (but is not yet expired)
+    if (daysRemaining > 0 && daysRemaining <= 7) {
+        // Prevent duplicate banner rendering
+        if (document.getElementById('expiryWarningBanner')) return;
+        
+        const banner = document.createElement('div');
+        banner.id = 'expiryWarningBanner';
+        banner.style.cssText = `
+            background: linear-gradient(135deg, #fff7ed, #ffedd5) !important;
+            border: 1px solid #fed7aa !important;
+            color: #c2410c !important;
+            padding: 1rem 1.5rem !important;
+            border-radius: 12px !important;
+            margin-bottom: 1.5rem !important;
+            font-size: 0.875rem !important;
+            font-weight: 600 !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 0.75rem !important;
+            box-shadow: 0 4px 15px rgba(249, 115, 22, 0.05) !important;
+            animation: modalSlideUp 0.4s ease !important;
+        `;
+        
+        banner.innerHTML = `
+            <span style="font-size: 1.25rem;">⚠️</span>
+            <div style="flex: 1;">
+                Subscription Warning: Your institute's subscription will expire in <strong style="color: #ea580c;">${daysRemaining} day${daysRemaining > 1 ? 's' : ''}</strong>. 
+                Please contact the Super Admin to renew.
+            </div>
+        `;
+        
+        const mainContent = document.getElementById('mainContentArea');
+        if (mainContent) {
+            mainContent.insertBefore(banner, mainContent.firstChild);
+        }
     }
 }
 
