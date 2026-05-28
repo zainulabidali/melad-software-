@@ -4,26 +4,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Institute Event Portal — Public Results</title>
+    <title>Institute Event Portal — Authentication</title>
     <meta name="description"
-        content="View live published event results and podium winners across all participating institutes.">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+        content="Access the Cultural & Arts Festival Management System. Secure portal for Admins and Teachers.">
+    <!-- Premium Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
     <style>
         :root {
-            --primary: #4338ca;
-            --primary-light: #6366f1;
-            --gold: #f59e0b;
-            --silver: #94a3b8;
-            --bronze: #b45309;
-            --bg: #f8fafc;
-            --surface: #ffffff;
-            --border: #e2e8f0;
-            --text: #1e293b;
-            --muted: #64748b;
-            --radius: 16px;
-            --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
-            --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.14);
+            --bg-color: #0b0720;
+            --accent-primary: #6366f1;
+            --accent-secondary: #7c3aed;
+            --text-main: #ffffff;
+            --text-muted: rgba(255, 255, 255, 0.65);
+            --card-glass: rgba(255, 255, 255, 0.07);
+            --card-border: rgba(255, 255, 255, 0.12);
+            --radius-lg: 24px;
+            --radius-md: 12px;
+            --shadow-premium: 0 30px 70px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+            --font-headings: 'Outfit', sans-serif;
+            --font-body: 'Inter', sans-serif;
         }
 
         * {
@@ -33,473 +34,389 @@
         }
 
         body {
-            font-family: 'Inter', sans-serif;
-            background: var(--bg);
-            color: var(--text);
+            font-family: var(--font-body);
+            background-color: var(--bg-color);
+            color: var(--text-main);
             min-height: 100vh;
-        }
-
-        /* ── Header ── */
-        .site-header {
-            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%);
-            padding: 1rem 5%;
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.25);
-        }
-
-        .header-brand {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            color: white;
-            text-decoration: none;
-        }
-
-        .header-brand .logo {
-            font-size: 2rem;
-            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-        }
-
-        .header-brand h1 {
-            font-size: 1.125rem;
-            font-weight: 800;
-            letter-spacing: -0.02em;
-        }
-
-        .header-brand p {
-            font-size: 0.7rem;
-            opacity: 0.75;
-            font-weight: 400;
-        }
-
-        .header-nav {
-            display: flex;
-            gap: 0.75rem;
-            align-items: center;
-        }
-
-        .btn-header {
-            padding: 0.5rem 1.25rem;
-            border-radius: 50px;
-            font-size: 0.8125rem;
-            font-weight: 600;
-            cursor: pointer;
-            text-decoration: none;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .btn-header-outline {
-            border: 1.5px solid rgba(255, 255, 255, 0.5);
-            background: transparent;
-            color: white;
-        }
-
-        .btn-header-outline:hover {
-            background: rgba(255, 255, 255, 0.15);
-            border-color: white;
-        }
-
-        .btn-header-solid {
-            background: white;
-            color: var(--primary);
-            border: none;
-        }
-
-        .btn-header-solid:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        }
-
-        /* ── Hero ── */
-        .hero {
-            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%);
-            padding: 5rem 5% 7rem;
-            text-align: center;
-            color: white;
+            justify-content: center;
+            padding: 2rem 1rem;
+            overflow-x: hidden;
             position: relative;
-            overflow: hidden;
         }
 
-        .hero::before {
-            content: '';
+        /* ── Beautiful Animated Background Glows ── */
+        .bg-glow-container {
             position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .bg-glow {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(130px);
+            opacity: 0.45;
+            transition: all 1s ease-in-out;
+        }
+
+        .bg-glow-1 {
+            width: 550px;
+            height: 550px;
+            background: radial-gradient(circle, var(--accent-primary) 0%, rgba(99, 102, 241, 0) 70%);
+            top: -10%;
+            left: -5%;
+            animation: floatGlow1 22s infinite alternate ease-in-out;
+        }
+
+        .bg-glow-2 {
             width: 600px;
             height: 600px;
-            background: rgba(255, 255, 255, 0.04);
-            border-radius: 50%;
-            top: -200px;
-            right: -100px;
+            background: radial-gradient(circle, var(--accent-secondary) 0%, rgba(124, 58, 237, 0) 70%);
+            bottom: -15%;
+            right: -5%;
+            animation: floatGlow2 26s infinite alternate ease-in-out;
         }
 
-        .hero::after {
-            content: '';
+        .bg-glow-3 {
+            width: 450px;
+            height: 450px;
+            background: radial-gradient(circle, #ec4899 0%, rgba(236, 72, 153, 0) 70%);
+            top: 40%;
+            left: 60%;
+            animation: floatGlow3 20s infinite alternate ease-in-out;
+        }
+
+        .bg-vignette {
             position: absolute;
-            width: 400px;
-            height: 400px;
-            background: rgba(255, 255, 255, 0.04);
-            border-radius: 50%;
-            bottom: -150px;
-            left: -100px;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at center, transparent 30%, rgba(5, 2, 18, 0.85) 100%);
+            z-index: 2;
+            pointer-events: none;
         }
 
-        .hero-content {
+        @keyframes floatGlow1 {
+            0% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            100% {
+                transform: translate(140px, 90px) scale(1.15);
+            }
+        }
+
+        @keyframes floatGlow2 {
+            0% {
+                transform: translate(0, 0) scale(1.1);
+            }
+
+            100% {
+                transform: translate(-120px, -140px) scale(0.9);
+            }
+        }
+
+        @keyframes floatGlow3 {
+            0% {
+                transform: translate(0, 0) scale(0.95);
+            }
+
+            100% {
+                transform: translate(90px, -80px) scale(1.12);
+            }
+        }
+
+        /* ── Centered Auth Container ── */
+        .auth-wrapper {
             position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 490px;
+            padding: 10px 0;
+            animation: fadeInPage 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* ── White Translucent Glass Card ── */
+        .auth-card {
+            background: var(--card-glass);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            padding: 3rem 2.5rem;
+            box-shadow: var(--shadow-premium);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .auth-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 38px 85px rgba(0, 0, 0, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.22);
+        }
+
+        /* ── Brand / Header ── */
+        .brand-container {
+            text-align: center;
+            margin-bottom: 2.25rem;
+        }
+
+        .logo-badge {
+            width: 72px;
+            height: 72px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.25rem;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo-icon {
+            font-size: 2.25rem;
+            z-index: 2;
+            animation: logoFloat 3.5s ease-in-out infinite;
+        }
+
+        .logo-glow {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: var(--accent-primary);
+            border-radius: 50%;
+            filter: blur(15px);
+            opacity: 0.55;
             z-index: 1;
         }
 
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            background: rgba(255, 255, 255, 0.15);
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(10px);
-            padding: 0.35rem 0.875rem;
-            border-radius: 50px;
-            font-size: 0.8125rem;
-            font-weight: 600;
-            margin-bottom: 1.25rem;
-        }
-
-        .hero h2 {
-            font-size: clamp(2rem, 5vw, 3.5rem);
-            font-weight: 800;
-            letter-spacing: -0.03em;
-            margin-bottom: 0.75rem;
-            line-height: 1.15;
-        }
-
-        .hero p {
-            font-size: 1.1rem;
-            opacity: 0.8;
-            max-width: 560px;
-            margin: 0 auto;
-            line-height: 1.6;
-        }
-
-        /* ── Search Panel ── */
-        .search-panel {
-            max-width: 900px;
-            margin: -3.5rem auto 0;
-            padding: 0 5%;
-            position: relative;
-            z-index: 10;
-        }
-
-        .search-card {
-            background: white;
-            border-radius: 20px;
-            padding: 2rem;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-        }
-
-        .search-card h3 {
-            font-size: 0.875rem;
+        .brand-container h2 {
+            font-family: var(--font-headings);
+            font-size: 1.75rem;
             font-weight: 700;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-bottom: 1.25rem;
+            letter-spacing: -0.02em;
+            color: #ffffff;
+            margin-bottom: 0.35rem;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
         }
 
-        .steps-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 1rem;
-            align-items: end;
+        .brand-container p {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            font-weight: 400;
         }
 
-        .step-item label {
+        /* ── Authentic Custom Tabs ── */
+        .auth-tabs {
+            display: flex;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 5px;
+            margin-bottom: 2.25rem;
+            gap: 6px;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 0.8rem 1rem;
+            border: none;
+            background: transparent;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+            font-family: var(--font-body);
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            justify-content: center;
+        }
+
+        /* Active State: Premium Purple Gradient, White Bold Text, Soft Glow Shadow */
+        .auth-tab.active {
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            color: #ffffff !important;
+            box-shadow: 0 6px 18px rgba(99, 102, 241, 0.4);
+        }
+
+        /* Inactive State: Light Glass Background, Dark Text */
+        .auth-tab:not(.active) {
+            background: rgba(255, 255, 255, 0.72);
+            color: #110e29;
+        }
+
+        .auth-tab:not(.active):hover {
+            background: rgba(255, 255, 255, 0.9);
+            color: #0c0820;
+            transform: translateY(-1px);
+        }
+
+        /* ── Input styling ── */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
             font-size: 0.8125rem;
             font-weight: 600;
-            color: var(--muted);
-            margin-bottom: 0.4rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.01em;
         }
 
-        .step-badge {
-            display: inline-flex;
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 14px;
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.45);
+            pointer-events: none;
+            transition: color 0.3s;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.8rem 1rem 0.8rem 2.8rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1.5px solid rgba(255, 255, 255, 0.12);
+            border-radius: var(--radius-md);
+            font-size: 0.875rem;
+            color: #ffffff;
+            outline: none;
+            font-family: var(--font-body);
+            transition: all 0.3s ease;
+        }
+
+        .form-input::placeholder {
+            color: rgba(255, 255, 255, 0.35);
+        }
+
+        .form-input:focus {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #818cf8;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.25);
+        }
+
+        .form-input:focus+.input-icon {
+            color: #818cf8;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        /* ── Register Note Box ── */
+        .register-note {
+            background: rgba(99, 102, 241, 0.14);
+            border: 1px solid rgba(99, 102, 241, 0.28);
+            border-radius: var(--radius-md);
+            padding: 1rem 1.15rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            gap: 0.75rem;
+            font-size: 0.8125rem;
+            color: #cbd5e1;
+            line-height: 1.55;
+            animation: slideDown 0.4s ease;
+        }
+
+        .note-icon {
+            font-size: 1.25rem;
+            line-height: 1;
+        }
+
+        .register-note strong {
+            display: block;
+            color: #a5b4fc;
+            font-weight: 700;
+            margin-bottom: 0.2rem;
+        }
+
+        /* ── Alerts ── */
+        .alert {
+            padding: 0.875rem 1.15rem;
+            border-radius: var(--radius-md);
+            font-size: 0.875rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.45;
+            font-weight: 500;
+            animation: slideDown 0.35s ease;
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.16);
+            border: 1px solid rgba(239, 68, 68, 0.32);
+            color: #fca5a5;
+        }
+
+        .alert-info {
+            background: rgba(59, 130, 246, 0.16);
+            border: 1px solid rgba(59, 130, 246, 0.32);
+            color: #93c5fd;
+        }
+
+        /* ── Custom Styled Buttons ── */
+        .btn-auth {
+            width: 100%;
+            padding: 0.9rem;
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 0.9375rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
             align-items: center;
             justify-content: center;
-            width: 20px;
-            height: 20px;
-            background: var(--primary);
-            color: white;
-            border-radius: 50%;
-            font-size: 0.65rem;
-            font-weight: 700;
+            gap: 0.6rem;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            margin-top: 0.75rem;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
+            font-family: var(--font-body);
         }
 
-        .step-select {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            border: 1.5px solid var(--border);
-            border-radius: 10px;
-            font-size: 0.875rem;
-            color: var(--text);
-            background: #f8fafc;
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 0.875rem center;
-            cursor: pointer;
-            font-family: 'Inter', sans-serif;
-            transition: all 0.2s;
+        .btn-auth:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.55), 0 0 35px rgba(124, 58, 237, 0.35);
         }
 
-        .step-select:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(67, 56, 202, 0.1);
-            background-color: white;
+        .btn-auth:active:not(:disabled) {
+            transform: translateY(-0.5px);
         }
 
-        .step-select:disabled {
-            opacity: 0.5;
+        .btn-auth:disabled {
+            opacity: 0.65;
             cursor: not-allowed;
         }
 
-        /* ── Results Area ── */
-        .results-area {
-            max-width: 1100px;
-            margin: 3rem auto;
-            padding: 0 5%;
-        }
-
-        .results-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-        }
-
-        .results-header h2 {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: var(--text);
-        }
-
-        .results-count {
-            font-size: 0.8125rem;
-            color: var(--muted);
-            background: var(--border);
-            padding: 0.3rem 0.75rem;
-            border-radius: 50px;
-        }
-
-        .results-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 1.5rem;
-        }
-
-        /* ── Result Card ── */
-        .result-card {
-            background: white;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            overflow: hidden;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .result-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--shadow-lg);
-        }
-
-        .result-card-header {
-            padding: 1.25rem 1.5rem;
-            background: linear-gradient(135deg, #312e81, #4338ca);
-            color: white;
-        }
-
-        .result-card-category {
-            font-size: 0.7rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            opacity: 0.8;
-            margin-bottom: 0.4rem;
-        }
-
-        .result-card-title {
-            font-size: 1.1rem;
-            font-weight: 700;
-        }
-
-        .result-card-body {
-            padding: 1.25rem 1.5rem;
-        }
-
-        .winner-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.85rem;
-            padding: 0.75rem;
-            border-radius: 10px;
-            margin-bottom: 0.5rem;
-            transition: background 0.15s;
-        }
-
-        .winner-item.pos-first {
-            background: #fffbea;
-            border: 1px solid #fef08a;
-        }
-
-        .winner-item.pos-second {
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-        }
-
-        .winner-item.pos-third {
-            background: #fef6ee;
-            border: 1px solid #fed7aa;
-        }
-
-        .winner-item.pos-participation {
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-        }
-
-        .winner-medal {
-            font-size: 1.5rem;
-            flex-shrink: 0;
-            line-height: 1;
-            margin-top: 0.1rem;
-        }
-
-        .winner-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .winner-name {
-            font-size: 0.9375rem;
-            font-weight: 700;
-            color: var(--text);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .winner-meta {
-            font-size: 0.75rem;
-            color: var(--muted);
-            margin-top: 0.2rem;
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-        }
-
-        .winner-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.15rem 0.5rem;
-            border-radius: 20px;
-            font-size: 0.65rem;
-            font-weight: 700;
-        }
-
-        .grade-badge {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .marks-badge {
-            background: #dcfce7;
-            color: #166534;
-        }
-
-        .result-card-footer {
-            padding: 1rem 1.5rem;
-            border-top: 1px solid var(--border);
-            display: flex;
-            justify-content: flex-end;
-        }
-
-        .btn-download {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            padding: 0.5rem 1rem;
-            background: linear-gradient(135deg, #4338ca, #6366f1);
-            color: white;
-            border: none;
-            border-radius: 50px;
-            font-size: 0.8125rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-family: 'Inter', sans-serif;
-        }
-
-        .btn-download:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(67, 56, 202, 0.35);
-        }
-
-        /* ── Hidden Download Target (off-screen rendered card) ── */
-        .download-target {
-            position: absolute;
-            top: -9999px;
-            left: -9999px;
-            width: 600px;
-            background: white;
-            font-family: 'Inter', sans-serif;
-        }
-
-        /* ── Empty/Loading States ── */
-        .state-box {
-            text-align: center;
-            padding: 4rem 2rem;
-            color: var(--muted);
-            grid-column: 1 / -1;
-        }
-
-        .state-box .state-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            display: block;
-        }
-
-        .state-box h3 {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: var(--text);
-            margin-bottom: 0.5rem;
-        }
-
-        .state-box p {
-            font-size: 0.875rem;
-        }
-
-        .spinner-wrap {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 4rem;
-            grid-column: 1/-1;
-        }
-
+        /* ── Spinners ── */
         .spinner {
-            width: 36px;
-            height: 36px;
-            border: 3px solid var(--border);
-            border-top-color: var(--primary);
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            border-top-color: #ffffff;
             border-radius: 50%;
-            animation: spin 0.7s linear infinite;
+            animation: spin 0.75s linear infinite;
         }
 
         @keyframes spin {
@@ -512,106 +429,257 @@
             display: none !important;
         }
 
-        /* ── Responsive ── */
+        /* ── Footer ── */
+        .auth-footer {
+            text-align: center;
+            margin-top: 2rem;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 0.02em;
+        }
+
+        /* ── Keyframe Animations ── */
+        @keyframes fadeInPage {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes logoFloat {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-5px);
+            }
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ── Responsive Styling ── */
         @media (max-width: 640px) {
-            .steps-grid {
-                grid-template-columns: 1fr 1fr;
+            body {
+                padding: 1rem 0.75rem;
             }
 
-            .hero {
-                padding: 3.5rem 5% 5rem;
+            .auth-card {
+                padding: 2.25rem 1.5rem;
+                border-radius: 20px;
             }
 
-            .hero h2 {
-                font-size: 1.75rem;
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 0;
             }
 
-            .header-brand p {
-                display: none;
+            .brand-container h2 {
+                font-size: 1.5rem;
             }
+        }
+
+        /* Premium custom inline validation styles */
+        .form-input.is-invalid {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15) !important;
+        }
+
+        .form-input.is-valid {
+            border-color: #10b981 !important;
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15) !important;
+        }
+
+        .error-message {
+            color: #fca5a5;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-top: 0.4rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            opacity: 0;
+            transform: translateY(-5px);
+            transition: all 0.3s ease;
+            height: 0;
+            overflow: hidden;
+        }
+
+        .error-message.visible {
+            opacity: 1;
+            transform: translateY(0);
+            height: auto;
+            margin-bottom: 0.5rem;
         }
     </style>
 </head>
 
 <body>
-    <!-- Header -->
-    <header class="site-header">
-        <a href="#" class="header-brand">
-            <span class="logo">🏫</span>
-            <div>
-                <h1>Institute Event Portal</h1>
-                <p>Cultural & Arts Festival Results</p>
-            </div>
-        </a>
-        <nav class="header-nav">
-            <a href="./pages/login.html" class="btn-header btn-header-outline">Admin Login</a>
-            <a href="./pages/login.html#register" class="btn-header btn-header-solid">Register as Teacher</a>
-        </nav>
-    </header>
-
-    <!-- Hero -->
-    <section class="hero">
-        <div class="hero-content">
-            <div class="hero-badge">🏆 Live Event Results</div>
-            <h2>Cultural &amp; Arts Festival<br>Results Hub</h2>
-            <p>Browse live published podium results from all participating institutes. Select your institute to get
-                started.</p>
-        </div>
-    </section>
-
-    <!-- Search Panel -->
-    <div class="search-panel">
-        <div class="search-card">
-            <h3>🔍 Find Results</h3>
-            <div class="steps-grid">
-                <div class="step-item">
-                    <label>
-                        <span class="step-badge">1</span>
-                        Institute
-                    </label>
-                    <select id="selectInstitute" class="step-select">
-                        <option value="">Loading...</option>
-                    </select>
-                </div>
-                <div class="step-item">
-                    <label>
-                        <span class="step-badge">2</span>
-                        Category
-                    </label>
-                    <select id="selectCategory" class="step-select" disabled>
-                        <option value="">Select institute first</option>
-                    </select>
-                </div>
-                <div class="step-item">
-                    <label>
-                        <span class="step-badge">3</span>
-                        Program
-                    </label>
-                    <select id="selectProgram" class="step-select" disabled>
-                        <option value="">Select category first</option>
-                    </select>
-                </div>
-            </div>
-        </div>
+    <!-- Background Elements -->
+    <div class="bg-glow-container">
+        <div class="bg-glow bg-glow-1"></div>
+        <div class="bg-glow bg-glow-2"></div>
+        <div class="bg-glow bg-glow-3"></div>
+        <div class="bg-vignette"></div>
     </div>
 
-    <!-- Results Area -->
-    <section class="results-area">
-        <div id="resultsHeader" class="results-header hidden">
-            <h2 id="resultsTitle">Results</h2>
-            <span id="resultsCount" class="results-count">0 results</span>
-        </div>
-        <div class="results-grid" id="resultsGrid">
-            <div class="state-box">
-                <span class="state-icon">🎯</span>
-                <h3>Browse Results</h3>
-                <p>Select an institute above to view published event results.</p>
+    <!-- Centered Login Card -->
+    <main class="auth-wrapper">
+        <div class="auth-card">
+            <!-- Brand Logo Header -->
+            <div class="brand-container">
+                <div class="logo-badge">
+                    <span class="logo-icon">🏫</span>
+                    <div class="logo-glow"></div>
+                </div>
+                <h2>Institute Event Portal</h2>
+                <p>Cultural & Arts Festival Management System</p>
+            </div>
+
+            <!-- Integrated Glass Tabs -->
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="tabLogin">Admin Login</button>
+                <button class="auth-tab" id="tabRegister">Teacher Registration</button>
+            </div>
+
+            <!-- Alert messages wrapper -->
+            <div id="alertMessage" class="alert hidden"></div>
+
+            <!-- Forms wrapper -->
+            <div class="forms-container">
+                <!-- ADMIN LOGIN FORM -->
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label class="form-label" for="loginEmail">Email Address</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">✉️</span>
+                            <input type="email" id="loginEmail" class="form-input" required
+                                placeholder="your@email.com">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="loginPassword">Password</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">🔑</span>
+                            <input type="password" id="loginPassword" class="form-input" required placeholder="••••••••"
+                                minlength="6">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-auth" id="loginBtn">
+                        <span class="btn-text">Sign In</span>
+                        <span class="spinner hidden" id="loginSpinner"></span>
+                    </button>
+                </form>
+
+                <!-- TEACHER REGISTRATION FORM -->
+                <form id="registerForm" class="hidden" novalidate>
+                    <div class="register-note">
+                        <span class="note-icon">👋</span>
+                        <div class="note-content">
+                            <strong>Teacher / Ustad Registration</strong>
+                            After submitting, your account will be reviewed by the Super Admin before activation.
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="regFullName">Full Name</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">👤</span>
+                            <input type="text" id="regFullName" class="form-input" required
+                                placeholder="e.g. Zainul Abid JK">
+                        </div>
+                        <div class="error-message" id="err-regFullName"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="regEmail">Email Address</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">✉️</span>
+                            <input type="email" id="regEmail" class="form-input" required placeholder="your@email.com">
+                        </div>
+                        <div class="error-message" id="err-regEmail"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="regPhone">Phone Number</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">📞</span>
+                            <input type="tel" id="regPhone" class="form-input" required
+                                placeholder="e.g. 9207846064">
+                        </div>
+                        <div class="error-message" id="err-regPhone"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="regPlace">Place / Location</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">📍</span>
+                            <input type="text" id="regPlace" class="form-input" required
+                                placeholder="e.g. Kasaragod, Kerala">
+                        </div>
+                        <div class="error-message" id="err-regPlace"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="regPassword">Password</label>
+                            <div class="input-wrapper">
+                                <span class="input-icon">🔑</span>
+                                <input type="password" id="regPassword" class="form-input" required
+                                    placeholder="Min 6 characters">
+                            </div>
+                            <div class="error-message" id="err-regPassword"></div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="regConfirmPassword">Confirm Password</label>
+                            <div class="input-wrapper">
+                                <span class="input-icon">🔒</span>
+                                <input type="password" id="regConfirmPassword" class="form-input" required
+                                    placeholder="Re-enter password">
+                            </div>
+                            <div class="error-message" id="err-regConfirmPassword"></div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-auth" id="registerBtn">
+                        <span class="btn-text">Register</span>
+                        <span class="spinner hidden" id="registerSpinner"></span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Footer -->
+            <div class="auth-footer">
+               Institute Event Portal &copy; 2026 &bull; Created by Zainul Abid JK 
             </div>
         </div>
-    </section>
+    </main>
 
+    <!-- Load Firebase and Auth Scripts -->
     <script type="module" src="./js/firebase.js"></script>
-    <script type="module" src="./js/public.js"></script>
+    <script type="module" src="./js/auth.js"></script>
+    <script>
+        // Support URL Hash focus mapping (e.g. #register for opening Teacher Registration tab automatically)
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.location.hash === '#register') {
+                const tabReg = document.getElementById('tabRegister');
+                if (tabReg) {
+                    tabReg.click();
+                }
+            }
+        });
+    </script>
 </body>
 
 </html>

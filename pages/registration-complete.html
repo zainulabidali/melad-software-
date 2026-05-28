@@ -4,9 +4,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registration Complete — Institute Event Portal</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <title>Registration Submitted — Institute Event Portal</title>
+    <!-- Premium Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-color: #090514;
+            --accent-primary: #6366f1;
+            --accent-secondary: #7c3aed;
+            --text-main: #ffffff;
+            --text-muted: rgba(255, 255, 255, 0.65);
+            --card-glass: rgba(255, 255, 255, 0.06);
+            --card-border: rgba(255, 255, 255, 0.12);
+            --radius-lg: 28px;
+            --radius-md: 16px;
+            --shadow-premium: 0 35px 80px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+            --font-headings: 'Outfit', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
@@ -14,117 +30,269 @@
         }
 
         body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%);
+            font-family: var(--font-body);
+            background-color: var(--bg-color);
+            color: var(--text-main);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 2rem 1rem;
+            padding: 2.5rem 1rem;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* ── Animated Background Glows ── */
+        .bg-glow-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .bg-glow {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(130px);
+            opacity: 0.35;
+            transition: all 1s ease-in-out;
+        }
+
+        .bg-glow-1 {
+            width: 550px;
+            height: 550px;
+            background: radial-gradient(circle, var(--accent-primary) 0%, rgba(99, 102, 241, 0) 70%);
+            top: -10%;
+            left: -5%;
+            animation: floatGlow1 22s infinite alternate ease-in-out;
+        }
+
+        .bg-glow-2 {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--accent-secondary) 0%, rgba(124, 58, 237, 0) 70%);
+            bottom: -15%;
+            right: -5%;
+            animation: floatGlow2 26s infinite alternate ease-in-out;
+        }
+
+        .bg-vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at center, transparent 30%, rgba(5, 2, 18, 0.85) 100%);
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        @keyframes floatGlow1 {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(120px, 80px) scale(1.1); }
+        }
+
+        @keyframes floatGlow2 {
+            0% { transform: translate(0, 0) scale(1.1); }
+            100% { transform: translate(-100px, -120px) scale(0.95); }
+        }
+
+        /* ── Centered Card ── */
+        .page-wrapper {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 560px; /* Wider premium layout */
+            display: flex;
+            justify-content: center;
         }
 
         .page-card {
-            background: white;
-            border-radius: 24px;
-            max-width: 500px;
+            background: var(--card-glass);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
             width: 100%;
+            box-shadow: var(--shadow-premium);
             overflow: hidden;
-            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+            animation: fadeInPage 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
+        .page-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.18);
+        }
+
+        /* ── Banner ── */
         .success-banner {
-            background: linear-gradient(135deg, #059669, #10b981);
-            padding: 2.5rem 2rem;
+            padding: 3rem 2.5rem 1.5rem;
             text-align: center;
-            color: white;
         }
 
         .success-banner .check-icon {
             font-size: 4rem;
-            display: block;
-            margin-bottom: 1rem;
-            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 88px;
+            height: 88px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1.5px solid rgba(16, 185, 129, 0.35);
+            border-radius: 50%;
+            margin-bottom: 1.5rem;
+            animation: popIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.15);
         }
 
         @keyframes popIn {
-            0% {
-                transform: scale(0);
-                opacity: 0;
-            }
-
-            100% {
-                transform: scale(1);
-                opacity: 1;
-            }
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
         }
 
         .success-banner h1 {
-            font-size: 1.5rem;
+            font-family: var(--font-headings);
+            font-size: 1.85rem;
             font-weight: 800;
-            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.75rem;
+            background: linear-gradient(135deg, #ffffff 40%, #a7f3d0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         .success-banner p {
-            font-size: 0.9rem;
-            opacity: 0.9;
+            font-size: 0.9375rem;
+            color: var(--text-muted);
             line-height: 1.6;
         }
 
         .page-body {
-            padding: 2rem;
+            padding: 0 2.5rem 3rem;
         }
 
+        /* ── Status Badge ── */
+        .status-badge-container {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(245, 158, 11, 0.12);
+            color: #fbbf24;
+            padding: 0.5rem 1.15rem;
+            border-radius: 30px;
+            font-size: 0.8125rem;
+            font-weight: 700;
+            border: 1px solid rgba(245, 158, 11, 0.28);
+            letter-spacing: 0.02em;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.05);
+        }
+
+        .pulse {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #fbbf24;
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.8); }
+        }
+
+        /* ── Payment QR Section ── */
         .payment-section {
             text-align: center;
-            margin-bottom: 1.5rem;
+            margin-bottom: 2rem;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1.5px solid rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius-md);
+            padding: 1.75rem;
         }
 
         .payment-section h2 {
-            font-size: 1.1rem;
+            font-family: var(--font-headings);
+            font-size: 1.125rem;
             font-weight: 700;
-            color: #1e293b;
-            margin-bottom: 0.5rem;
+            color: #ffffff;
+            margin-bottom: 0.4rem;
         }
 
         .payment-section p {
-            font-size: 0.8375rem;
-            color: #64748b;
-            margin-bottom: 1.25rem;
+            font-size: 0.8125rem;
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
         }
 
         .qr-wrapper {
             display: inline-block;
-            padding: 1rem;
-            border: 2px dashed #c7d2fe;
-            border-radius: 16px;
-            background: #f8f7ff;
-            margin-bottom: 1.25rem;
+            padding: 1.25rem;
+            border: 2px dashed rgba(99, 102, 241, 0.35);
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.96);
+            margin-bottom: 0.5rem;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .qr-wrapper:hover {
+            transform: scale(1.03);
+            border-color: rgba(99, 102, 241, 0.75);
+            box-shadow: 0 15px 35px rgba(99, 102, 241, 0.2);
         }
 
         .qr-wrapper img {
             width: 200px;
             height: 200px;
-            border-radius: 8px;
+            border-radius: 12px;
             display: block;
         }
 
         .qr-label {
-            font-size: 0.75rem;
+            font-size: 0.8125rem;
             color: #6366f1;
-            font-weight: 600;
-            margin-top: 0.5rem;
+            font-weight: 700;
+            margin-top: 0.75rem;
             display: block;
+            letter-spacing: 0.03em;
         }
 
+        /* ── WhatsApp Card Section ── */
         .whatsapp-card {
-            background: linear-gradient(135deg, #dcfce7, #bbf7d0);
-            border: 1px solid #86efac;
-            border-radius: 14px;
-            padding: 1.25rem 1.5rem;
-            margin-bottom: 1.5rem;
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.24);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 1.25rem;
+            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.03);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .whatsapp-card:hover {
+            transform: translateY(-2px);
+            background: rgba(16, 185, 129, 0.12);
+            border-color: rgba(16, 185, 129, 0.38);
+            box-shadow: 0 15px 30px rgba(16, 185, 129, 0.08);
         }
 
         .wa-icon {
@@ -132,165 +300,241 @@
             flex-shrink: 0;
         }
 
+        .wa-info {
+            flex: 1;
+        }
+
         .wa-info h3 {
-            font-size: 0.875rem;
+            font-size: 0.8125rem;
             font-weight: 700;
-            color: #14532d;
+            color: #a7f3d0;
             margin-bottom: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
         .wa-number {
-            font-size: 1.25rem;
+            font-family: var(--font-headings);
+            font-size: 1.375rem;
             font-weight: 800;
-            color: #166534;
+            color: #34d399;
             letter-spacing: 0.5px;
         }
 
+        /* ── Steps List Card ── */
         .instructions-box {
-            background: #fefce8;
-            border: 1px solid #fde68a;
-            border-radius: 12px;
-            padding: 1.25rem;
-            margin-bottom: 1.5rem;
+            background: rgba(245, 158, 11, 0.06);
+            border: 1px solid rgba(245, 158, 11, 0.22);
+            border-radius: var(--radius-md);
+            padding: 1.75rem;
+            margin-bottom: 2rem;
         }
 
         .instructions-box h3 {
-            font-size: 0.875rem;
+            font-family: var(--font-headings);
+            font-size: 1rem;
             font-weight: 700;
-            color: #92400e;
-            margin-bottom: 0.75rem;
+            color: #fcd34d;
+            margin-bottom: 1.25rem;
             display: flex;
             align-items: center;
             gap: 0.5rem;
         }
 
-        .instructions-box ol {
-            padding-left: 1.25rem;
+        .instructions-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
         }
 
-        .instructions-box ol li {
-            font-size: 0.8375rem;
-            color: #78350f;
+        .instructions-list li {
+            font-size: 0.875rem;
+            color: #ffedd5;
             line-height: 1.6;
-            margin-bottom: 0.35rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
         }
 
+        .step-num {
+            background: rgba(245, 158, 11, 0.18);
+            color: #f59e0b;
+            font-weight: 700;
+            font-size: 0.75rem;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-top: 0.15rem;
+            border: 1px solid rgba(245, 158, 11, 0.1);
+        }
+
+        .step-text {
+            flex: 1;
+        }
+
+        /* ── Button ── */
         .btn-back {
-            display: block;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             width: 100%;
-            padding: 0.875rem;
-            background: linear-gradient(135deg, #4338ca, #6366f1);
+            padding: 0.95rem;
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
             color: white;
             border: none;
-            border-radius: 12px;
+            border-radius: var(--radius-md);
             font-size: 0.9375rem;
             font-weight: 700;
             cursor: pointer;
             text-decoration: none;
-            text-align: center;
-            transition: all 0.2s ease;
-            font-family: 'Inter', sans-serif;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            font-family: var(--font-body);
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
         }
 
         .btn-back:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 8px 20px rgba(67, 56, 202, 0.35);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.5), 0 0 30px rgba(124, 58, 237, 0.3);
         }
 
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            background: #fef3c7;
-            color: #d97706;
-            padding: 0.4rem 0.875rem;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            border: 1px solid #fde68a;
-            margin-bottom: 1.5rem;
+        .btn-back:active {
+            transform: translateY(-0.5px);
         }
 
-        .pulse {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background: #f59e0b;
-            border-radius: 50%;
-            animation: pulse 1.5s ease-in-out infinite;
+        /* ── Keyframe Animations ── */
+        @keyframes fadeInPage {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1;
-                transform: scale(1);
+        /* ── Responsive Styling ── */
+        @media (max-width: 640px) {
+            body {
+                padding: 1.5rem 0.5rem;
             }
 
-            50% {
-                opacity: 0.5;
-                transform: scale(0.8);
+            .page-wrapper {
+                width: 92%;
+            }
+
+            .page-card {
+                border-radius: 24px;
+            }
+
+            .success-banner {
+                padding: 2.25rem 1.5rem 1.25rem;
+            }
+
+            .success-banner h1 {
+                font-size: 1.5rem;
+            }
+
+            .page-body {
+                padding: 0 1.5rem 2.25rem;
+            }
+
+            .wa-number {
+                font-size: 1.2rem;
+            }
+
+            .qr-wrapper img {
+                width: 170px;
+                height: 170px;
             }
         }
     </style>
 </head>
 
 <body>
-    <div class="page-card">
-        <div class="success-banner">
-            <span class="check-icon">✅</span>
-            <h1>Registration Submitted!</h1>
-            <p>Your registration has been submitted successfully.<br>
-                Your account will be activated after Super Admin approval.</p>
-        </div>
-
-        <div class="page-body">
-            <div style="text-align:center; margin-bottom:1.5rem;">
-                <div class="status-badge">
-                    <span class="pulse"></span>
-                    Status: Pending Approval
-                </div>
-            </div>
-
-            <div class="payment-section">
-                <h2>💳 Complete Your Payment</h2>
-                <p>To speed up approval, please make the payment and send a screenshot via WhatsApp.</p>
-
-                <div class="qr-wrapper">
-                    <img src="../images/payment-qr-placeholder.png" alt="Payment QR Code" id="paymentQR">
-                    <span class="qr-label">📱 Scan to Pay</span>
-                </div>
-            </div>
-
-            <div class="whatsapp-card">
-                <span class="wa-icon">💬</span>
-                <div class="wa-info">
-                    <h3>WhatsApp Contact (Super Admin)</h3>
-                    <div class="wa-number" id="waNumber">+92 300 0000000</div>
-                </div>
-            </div>
-
-            <div class="instructions-box">
-                <h3>📋 Steps to Get Approved</h3>
-                <ol>
-                    <li>Make the payment using the QR code above.</li>
-                    <li>Take a screenshot of the payment confirmation.</li>
-                    <li>Send the screenshot to the WhatsApp number above.</li>
-                    <li>Contact or call the same number to notify the Super Admin.</li>
-                    <li>Once verified, your account will be activated and you can log in.</li>
-                </ol>
-            </div>
-
-            <a href="../pages/login.html" class="btn-back">← Back to Login</a>
-        </div>
+    <!-- Animated Neon Backdrop -->
+    <div class="bg-glow-container">
+        <div class="bg-glow bg-glow-1"></div>
+        <div class="bg-glow bg-glow-2"></div>
+        <div class="bg-vignette"></div>
     </div>
+
+    <!-- Confirmation Card -->
+    <main class="page-wrapper">
+        <div class="page-card">
+            <!-- Header Banner -->
+            <div class="success-banner">
+                <span class="check-icon">✅</span>
+                <h1>Registration Submitted!</h1>
+                <p>Your registration has been submitted successfully.<br>
+                    Your account will be activated after Super Admin approval.</p>
+            </div>
+
+            <div class="page-body">
+                <!-- Status Badge -->
+                <div class="status-badge-container">
+                    <div class="status-badge">
+                        <span class="pulse"></span>
+                        Status: Pending Approval
+                    </div>
+                </div>
+
+                <!-- Payment QR Card -->
+                <section class="payment-section">
+                    <h2>💳 Complete Your Payment</h2>
+                    <p>To speed up approval, please make the payment and send a screenshot via WhatsApp.</p>
+
+                    <div class="qr-wrapper">
+                        <img src="../images/payment-qr-placeholder.png" alt="Payment QR Code" id="paymentQR">
+                        <span class="qr-label">📱 Scan to Pay</span>
+                    </div>
+                </section>
+
+                <!-- WhatsApp Green Glass Card -->
+                <a href="https://wa.me/919207846064" class="whatsapp-card" target="_blank">
+                    <span class="wa-icon">💬</span>
+                    <div class="wa-info">
+                        <h3>WhatsApp Contact (Super Admin)</h3>
+                        <div class="wa-number" id="waNumber">+91 92078 46064</div>
+                    </div>
+                </a>
+
+                <!-- Instructions Warning Box -->
+                <section class="instructions-box">
+                    <h3>📋 Steps to Get Approved</h3>
+                    <ul class="instructions-list">
+                        <li>
+                            <span class="step-num">1</span>
+                            <span class="step-text">Make the payment using the QR code above.</span>
+                        </li>
+                        <li>
+                            <span class="step-num">2</span>
+                            <span class="step-text">Take a screenshot of the payment confirmation.</span>
+                        </li>
+                        <li>
+                            <span class="step-num">3</span>
+                            <span class="step-text">Send the screenshot to the WhatsApp number above.</span>
+                        </li>
+                        <li>
+                            <span class="step-num">4</span>
+                            <span class="step-text">Contact or call the same number to notify the Super Admin.</span>
+                        </li>
+                        <li>
+                            <span class="step-num">5</span>
+                            <span class="step-text">Once verified, your account will be activated and you can log in.</span>
+                        </li>
+                    </ul>
+                </section>
+
+                <a href="../pages/login.html" class="btn-back">← Back to Login</a>
+            </div>
+        </div>
+    </main>
 
     <script type="module">
         import { db } from '../js/firebase.js';
         import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
-        // Optionally load WhatsApp number from Firestore config
+        // Dynamic config checking
         async function loadConfig() {
             try {
                 const configSnap = await getDoc(doc(db, "config", "super_admin"));
@@ -298,13 +542,15 @@
                     const data = configSnap.data();
                     if (data.whatsappNumber) {
                         document.getElementById('waNumber').textContent = data.whatsappNumber;
+                        const formattedNumber = data.whatsappNumber.replace(/[^0-9]/g, '');
+                        document.querySelector('.whatsapp-card').href = `https://wa.me/${formattedNumber}`;
                     }
                     if (data.paymentQRUrl) {
                         document.getElementById('paymentQR').src = data.paymentQRUrl;
                     }
                 }
             } catch (e) {
-                // Use defaults if config not found
+                // Keep pre-configured default values if loading fails
             }
         }
         loadConfig();

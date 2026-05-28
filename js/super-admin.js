@@ -1,4 +1,4 @@
-import { app, auth, db, migrateToNewSchema } from './firebase.js';
+import { app, auth, db } from './firebase.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 import {
     doc, getDoc, collection, addDoc, deleteDoc, onSnapshot,
@@ -73,19 +73,12 @@ document.getElementById('navPending').addEventListener('click', (e) => {
     showSection('pending');
 });
 
-document.getElementById('navMigration').addEventListener('click', (e) => {
-    e.preventDefault();
-    showSection('migration');
-});
-
 function showSection(section) {
     const isInstitutes = section === 'institutes';
     const isPending = section === 'pending';
-    const isMigration = section === 'migration';
 
     document.getElementById('sectionInstitutes').classList.toggle('hidden', !isInstitutes);
     document.getElementById('sectionPending').classList.toggle('hidden', !isPending);
-    document.getElementById('sectionMigration').classList.toggle('hidden', !isMigration);
 
     document.getElementById('topbarActions').innerHTML = isInstitutes
         ? `<button class="btn btn-primary" id="openAddModalBtn">+ Add Institute</button>`
@@ -95,14 +88,10 @@ function showSection(section) {
         document.getElementById('pageTitle').textContent = 'Manage Institutes';
     } else if (isPending) {
         document.getElementById('pageTitle').textContent = 'Pending Registrations';
-    } else if (isMigration) {
-        document.getElementById('pageTitle').textContent = 'Schema Migration';
-        initMigrationSection();
     }
 
     document.getElementById('navInstitutes').classList.toggle('active', isInstitutes);
     document.getElementById('navPending').classList.toggle('active', isPending);
-    document.getElementById('navMigration').classList.toggle('active', isMigration);
 
     if (isInstitutes) {
         document.getElementById('openAddModalBtn').addEventListener('click', () => {
@@ -113,66 +102,7 @@ function showSection(section) {
     }
 }
 
-function initMigrationSection() {
-    const select = document.getElementById('migrationInstituteSelect');
-    const startBtn = document.getElementById('startMigrationBtn');
-    const progressArea = document.getElementById('migrationProgressArea');
-    const progressLog = document.getElementById('migrationProgressLog');
-    const closeBtn = document.getElementById('closeMigrationBtn');
 
-    select.innerHTML = '<option value="">-- Choose an Institute --</option>';
-    progressArea.style.display = 'none';
-    progressLog.textContent = '';
-    startBtn.disabled = true;
-
-    getDocs(collection(db, 'institutes')).then((snapshot) => {
-        snapshot.forEach((docSnap) => {
-            const inst = docSnap.data();
-            const option = document.createElement('option');
-            option.value = docSnap.id;
-            option.textContent = inst.name || docSnap.id;
-            select.appendChild(option);
-        });
-    }).catch((error) => {
-        console.error('Error loading institutes for migration:', error);
-        showToast('Failed to load institutes for migration.', 'error');
-    });
-
-    select.onchange = () => {
-        startBtn.disabled = !select.value;
-    };
-
-    startBtn.onclick = async () => {
-        const instituteId = select.value;
-        if (!instituteId) return;
-
-        startBtn.disabled = true;
-        startBtn.querySelector('.btn-text').classList.add('hidden');
-        startBtn.querySelector('.btn-spinner').classList.remove('hidden');
-        progressArea.style.display = 'block';
-        progressLog.textContent = 'Initializing migration...\n';
-
-        try {
-            const result = await migrateToNewSchema(instituteId, (message) => {
-                progressLog.textContent += message + '\n';
-                progressLog.scrollTop = progressLog.scrollHeight;
-            });
-            progressLog.textContent += 'Completed: ' + result.message + '\n';
-            showToast('Migration completed successfully.');
-        } catch (error) {
-            progressLog.textContent += 'Error: ' + error.message + '\n';
-            showToast('Migration failed. Check the log.', 'error');
-        } finally {
-            startBtn.disabled = false;
-            startBtn.querySelector('.btn-text').classList.remove('hidden');
-            startBtn.querySelector('.btn-spinner').classList.add('hidden');
-        }
-    };
-
-    closeBtn.onclick = () => {
-        progressArea.style.display = 'none';
-    };
-}
 
 // ─────────────────────────────────────────────
 // Logout
@@ -274,29 +204,72 @@ function loadInstitutes() {
         snapshot.forEach((docSnap) => {
             const inst = docSnap.data();
             const instId = docSnap.id;
-            allInstitutes.push({ id: instId, name: inst.name, ...inst });
+            allInstitutes.push({ id: instId, name: inst.name || inst.instituteName, ...inst });
 
             const card = document.createElement('div');
-            card.className = 'card';
+            card.className = 'glass-card';
             const badgeClass = inst.status === 'active' ? 'badge-active' : 'badge-inactive';
             const statusLabel = inst.status === 'active' ? 'Active' : 'Inactive';
 
             const expiryDateObj = inst.expiryDate?.toDate?.();
-            const expiryStr = expiryDateObj ? expiryDateObj.toLocaleDateString() : 'No Expiry';
+            const expiryStr = expiryDateObj ? expiryDateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No Expiry';
             const expiryRawStr = expiryDateObj ? expiryDateObj.toISOString().split('T')[0] : '';
+
+            // Backward compatibility for old manual entries
+            const instName = inst.instituteName || inst.name || 'Unnamed Institute';
+            const instType = inst.instituteType || inst.type || 'General';
+            const teacherName = inst.teacherName || '—';
+            const teacherPhone = inst.teacherPhone || '—';
+            const teacherPlace = inst.teacherPlace || '—';
+            const teacherEmail = inst.teacherEmail || '—';
 
             card.innerHTML = `
                 <div class="card-header">
-                    <h3 class="card-title">${escapeHTML(inst.name)}</h3>
+                    <div>
+                        <span class="card-type-tag">${escapeHTML(instType)}</span>
+                        <h3 class="card-title">${escapeHTML(instName)}</h3>
+                    </div>
                     <span class="badge ${badgeClass}">${statusLabel}</span>
                 </div>
                 <div class="card-body">
-                    <p class="mb-2"><strong>Type:</strong> ${escapeHTML(inst.type)}</p>
-                    <p class="mb-2"><strong>Expiry:</strong> ${expiryStr}</p>
-                    <p class="text-muted" style="font-size:0.75rem;">ID: ${instId}</p>
+                    <div class="card-info-item">
+                        <span class="card-info-icon">👤</span>
+                        <div class="card-info-text">
+                            <span class="card-info-label">Registered Teacher</span>
+                            <span class="card-info-val">${escapeHTML(teacherName)}</span>
+                        </div>
+                    </div>
+                    <div class="card-info-item">
+                        <span class="card-info-icon">✉️</span>
+                        <div class="card-info-text">
+                            <span class="card-info-label">Teacher Email</span>
+                            <span class="card-info-val"><a href="mailto:${escapeHTML(teacherEmail)}" style="color: var(--primary-color); font-weight: 600;">${escapeHTML(teacherEmail)}</a></span>
+                        </div>
+                    </div>
+                    <div class="card-info-item">
+                        <span class="card-info-icon">📞</span>
+                        <div class="card-info-text">
+                            <span class="card-info-label">Teacher Phone</span>
+                            <span class="card-info-val">${escapeHTML(teacherPhone)}</span>
+                        </div>
+                    </div>
+                    <div class="card-info-item">
+                        <span class="card-info-icon">📍</span>
+                        <div class="card-info-text">
+                            <span class="card-info-label">Teacher Place</span>
+                            <span class="card-info-val">${escapeHTML(teacherPlace)}</span>
+                        </div>
+                    </div>
+                    <div class="card-info-item">
+                        <span class="card-info-icon">📅</span>
+                        <div class="card-info-text">
+                            <span class="card-info-label">Expiry Date</span>
+                            <span class="card-info-val" style="color: #4338ca;">${expiryStr}</span>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-actions" style="flex-wrap: wrap; gap: 0.5rem;">
-                    <button class="btn btn-secondary btn-sm edit-inst-btn" data-id="${instId}" data-all='${JSON.stringify({ name: inst.name, type: inst.type, expiryDate: expiryRawStr }).replace(/'/g, "&#39;")}'>✏️ Edit</button>
+                    <button class="btn btn-secondary btn-sm edit-inst-btn" data-id="${instId}" data-all='${JSON.stringify({ name: instName, type: instType, expiryDate: expiryRawStr }).replace(/'/g, "&#39;")}'>✏️ Edit</button>
                     <button class="btn btn-secondary btn-sm toggle-status-btn" data-id="${instId}" data-status="${inst.status}">
                         ${inst.status === 'active' ? '⏸ Deactivate' : '▶ Activate'}
                     </button>
@@ -380,9 +353,11 @@ document.getElementById('updateInstituteBtn').addEventListener('click', async ()
 
     try {
         await updateDoc(doc(db, "institutes", instId), {
-            name,
-            type,
-            expiryDate
+            name: name,
+            instituteName: name,
+            type: type,
+            instituteType: type,
+            expiryDate: expiryDate
         });
         showToast("Institute updated successfully!");
         hideEditModal();
@@ -416,7 +391,7 @@ function loadPendingAdmins() {
     const badge = document.getElementById('pendingBadge');
     loader.classList.remove('hidden');
 
-    const q = query(collection(db, "pending_admins"), where("status", "==", "pending"));
+    const q = query(collection(db, "teachers"), where("status", "==", "pending"));
 
     onSnapshot(q, (snapshot) => {
         grid.innerHTML = '';
@@ -441,36 +416,62 @@ function loadPendingAdmins() {
             return;
         }
 
+        let tableRows = '';
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
             const uid = docSnap.id;
             const createdAt = data.createdAt?.toDate?.() || new Date();
             const dateStr = createdAt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-            const timeStr = createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
-            const card = document.createElement('div');
-            card.className = 'pending-card';
-            card.innerHTML = `
-                <div class="pending-card-icon">👤</div>
-                <div class="pending-card-info">
-                    <div class="pending-card-email">${escapeHTML(data.email)}</div>
-                    <div class="pending-card-meta">
-                        <span>📅 ${dateStr}</span>
-                        <span>🕐 ${timeStr}</span>
+            tableRows += `
+                <tr>
+                    <td>
+                        <div class="table-teacher-name">
+                            <div class="table-avatar">${escapeHTML(data.fullName ? data.fullName[0].toUpperCase() : 'T')}</div>
+                            <span>${escapeHTML(data.fullName || '—')}</span>
+                        </div>
+                    </td>
+                    <td><a href="mailto:${escapeHTML(data.email)}" style="color: var(--primary-color); font-weight: 600;">${escapeHTML(data.email)}</a></td>
+                    <td>${escapeHTML(data.phone || '—')}</td>
+                    <td>${escapeHTML(data.place || '—')}</td>
+                    <td>${dateStr}</td>
+                    <td>
                         <span class="badge" style="background:#fef3c7; color:#d97706; border:1px solid #fde68a; font-size:0.7rem;">Pending</span>
-                    </div>
-                </div>
-                <div class="pending-card-actions">
-                    <button class="btn btn-primary btn-sm approve-btn" data-uid="${uid}" data-email="${escapeHTML(data.email)}">
-                        ✅ Approve
-                    </button>
-                    <button class="btn btn-danger btn-sm reject-btn" data-uid="${uid}">
-                        ❌ Reject
-                    </button>
-                </div>
+                    </td>
+                    <td style="text-align: right;">
+                        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                            <button class="btn btn-primary btn-sm approve-btn" data-uid="${uid}" data-email="${escapeHTML(data.email)}" style="min-height: 36px; padding: 0.25rem 0.75rem;">
+                                ✅ Approve
+                            </button>
+                            <button class="btn btn-danger btn-sm reject-btn" data-uid="${uid}" style="min-height: 36px; padding: 0.25rem 0.75rem;">
+                                ❌ Reject
+                            </button>
+                        </div>
+                    </td>
+                </tr>
             `;
-            grid.appendChild(card);
         });
+
+        grid.innerHTML = `
+            <div class="table-responsive">
+                <table class="premium-table">
+                    <thead>
+                        <tr>
+                            <th>Teacher Name</th>
+                            <th>Email Address</th>
+                            <th>Phone Number</th>
+                            <th>Place / Location</th>
+                            <th>Registration Date</th>
+                            <th>Status</th>
+                            <th style="text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRows}
+                    </tbody>
+                </table>
+            </div>
+        `;
 
         document.querySelectorAll('.approve-btn').forEach(btn => {
             btn.addEventListener('click', openApproveModal);
@@ -487,6 +488,32 @@ function loadPendingAdmins() {
 }
 
 // ─────────────────────────────────────────────
+// Approve Modal Dynamic Expiry Calculation
+// ─────────────────────────────────────────────
+function updateExpiryPreview() {
+    const durationSelect = document.getElementById('approvePlanDuration');
+    const previewEl = document.getElementById('approveExpiryPreview');
+    if (!durationSelect || !previewEl) return;
+
+    const days = parseInt(durationSelect.value) || 30;
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + days);
+
+    const formattedDate = expiry.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+
+    previewEl.textContent = `📅 Expires on: ${formattedDate}`;
+}
+
+const durationDropdown = document.getElementById('approvePlanDuration');
+if (durationDropdown) {
+    durationDropdown.addEventListener('change', updateExpiryPreview);
+}
+
+// ─────────────────────────────────────────────
 // Approve Modal
 // ─────────────────────────────────────────────
 const approveModal = document.getElementById('approveModal');
@@ -498,18 +525,16 @@ function openApproveModal(e) {
     document.getElementById('approveUid').value = uid;
     document.getElementById('approveEmail').textContent = email;
 
-    // Populate institute select
-    const select = document.getElementById('approveInstituteSelect');
-    if (allInstitutes.length === 0) {
-        select.innerHTML = '<option value="">No institutes available — create one first</option>';
-    } else {
-        let opts = '<option value="">— Select an Institute —</option>';
-        allInstitutes.forEach(inst => {
-            opts += `<option value="${inst.id}">${escapeHTML(inst.name)}</option>`;
-        });
-        select.innerHTML = opts;
-    }
+    // Reset inputs
+    const nameInput = document.getElementById('approveInstName');
+    const typeSelect = document.getElementById('approveInstType');
+    const durationSelect = document.getElementById('approvePlanDuration');
 
+    if (nameInput) nameInput.value = '';
+    if (typeSelect) typeSelect.value = '';
+    if (durationSelect) durationSelect.value = '365';
+
+    updateExpiryPreview();
     approveModal.classList.remove('hidden');
 }
 
@@ -519,10 +544,17 @@ document.getElementById('cancelApproveBtn').addEventListener('click', () => appr
 document.getElementById('confirmApproveBtn').addEventListener('click', async () => {
     const uid = document.getElementById('approveUid').value;
     const email = document.getElementById('approveEmail').textContent;
-    const instituteId = document.getElementById('approveInstituteSelect').value;
+    const instituteName = document.getElementById('approveInstName').value.trim();
+    const instituteType = document.getElementById('approveInstType').value;
+    const durationDays = parseInt(document.getElementById('approvePlanDuration').value) || 365;
 
-    if (!instituteId) {
-        showToast("Please select an institute to assign this teacher.", "error");
+    if (!instituteName) {
+        showToast("Please enter an Institute Name.", "error");
+        return;
+    }
+
+    if (!instituteType) {
+        showToast("Please select an Institute Type.", "error");
         return;
     }
 
@@ -531,11 +563,38 @@ document.getElementById('confirmApproveBtn').addEventListener('click', async () 
     const spinner = btn.querySelector('.btn-spinner');
 
     btn.disabled = true;
-    btnText.classList.add('hidden');
-    spinner.classList.remove('hidden');
+    if (btnText) btnText.classList.add('hidden');
+    if (spinner) spinner.classList.remove('hidden');
 
     try {
-        // Create approved user profile
+        // 1. Fetch teacher registration details
+        const teacherRef = doc(db, "teachers", uid);
+        const teacherSnap = await getDoc(teacherRef);
+        if (!teacherSnap.exists()) {
+            throw new Error("Teacher registration record not found in FireStore.");
+        }
+        const teacherData = teacherSnap.data();
+
+        // 2. Generate Expiry Date
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + durationDays);
+
+        // 3. Create institute
+        const instRef = await addDoc(collection(db, "institutes"), {
+            instituteName: instituteName,
+            instituteType: instituteType,
+            teacherName: teacherData.fullName || '—',
+            teacherEmail: teacherData.email || email,
+            teacherPhone: teacherData.phone || '—',
+            teacherPlace: teacherData.place || '—',
+            createdAt: teacherData.createdAt || serverTimestamp(),
+            approvedAt: serverTimestamp(),
+            expiryDate: expiryDate,
+            status: "active"
+        });
+        const instituteId = instRef.id;
+
+        // 4. Create active user profile in users
         await setDoc(doc(db, "users", uid), {
             email: email,
             role: "admin",
@@ -543,22 +602,23 @@ document.getElementById('confirmApproveBtn').addEventListener('click', async () 
             createdAt: serverTimestamp()
         });
 
-        // Update pending_admins status
-        await updateDoc(doc(db, "pending_admins", uid), {
+        // 5. Update pending teachers status (remove pending state)
+        await updateDoc(teacherRef, {
             status: "approved",
             approvedAt: serverTimestamp(),
-            instituteId: instituteId
+            instituteId: instituteId,
+            instituteName: instituteName
         });
 
         approveModal.classList.add('hidden');
-        showToast("✅ Teacher approved and assigned successfully!");
+        showToast("✅ Institute created and teacher approved successfully!");
     } catch (error) {
         console.error("Approval Error:", error);
-        showToast("Failed to approve: " + error.message, "error");
+        showToast("Failed to approve and create: " + error.message, "error");
     } finally {
         btn.disabled = false;
-        btnText.classList.remove('hidden');
-        spinner.classList.add('hidden');
+        if (btnText) btnText.classList.remove('hidden');
+        if (spinner) spinner.classList.add('hidden');
     }
 });
 
@@ -567,7 +627,7 @@ async function rejectAdmin(e) {
     if (!confirm("Are you sure you want to reject this registration? The user will NOT be able to access the system.")) return;
 
     try {
-        await updateDoc(doc(db, "pending_admins", uid), {
+        await updateDoc(doc(db, "teachers", uid), {
             status: "rejected",
             rejectedAt: serverTimestamp()
         });

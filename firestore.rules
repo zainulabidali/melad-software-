@@ -53,6 +53,17 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────
+    // teachers/{uid}
+    // Teacher registrations awaiting approval.
+    // ─────────────────────────────────────────────
+    match /teachers/{uid} {
+      // A registering user can create their own pending document
+      allow create: if isAuthenticated() && request.auth.uid == uid;
+      // Only super admin can read all pending registrations and update status
+      allow read, update, delete: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────
     // config/{doc}
     // Super Admin config (WhatsApp number, QR URL, etc.)
     // ─────────────────────────────────────────────

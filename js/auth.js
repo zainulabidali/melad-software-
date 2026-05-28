@@ -10,6 +10,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 // ─────────────────────────────────────────────
+// Dynamic Relative Path Helper
+// ─────────────────────────────────────────────
+const isSubFolder = window.location.pathname.includes('/pages/');
+const pathPrefix = isSubFolder ? '../' : './';
+
+
+// ─────────────────────────────────────────────
 // Utility: Alert display
 // ─────────────────────────────────────────────
 function showAlert(message, type = 'error') {
@@ -31,7 +38,7 @@ function hideAlert() {
 export async function logoutUser() {
     try {
         await signOut(auth);
-        window.location.href = '../pages/login.html';
+        window.location.href = `${pathPrefix}pages/login.html`;
     } catch (error) {
         console.error("Logout Error", error);
     }
@@ -115,9 +122,9 @@ if (loginForm) {
             }
 
             if (profile.role === 'super_admin') {
-                window.location.href = '../pages/super-admin.html';
+                window.location.href = `${pathPrefix}pages/super-admin.html`;
             } else if (profile.role === 'admin') {
-                window.location.href = '../pages/admin-dashboard.html';
+                window.location.href = `${pathPrefix}pages/admin-dashboard.html`;
             } else {
                 await signOut(auth);
                 showAlert('Invalid account configuration. Contact support.');
@@ -141,25 +148,115 @@ if (loginForm) {
 }
 
 // ─────────────────────────────────────────────
-// REGISTER FORM HANDLER
+// REGISTER FORM HANDLER & VALIDATION
 // ─────────────────────────────────────────────
+const validators = {
+    regFullName: (val) => {
+        if (!val) return 'Full Name is required';
+        if (val.length < 3) return 'Full Name must be at least 3 characters';
+        return '';
+    },
+    regEmail: (val) => {
+        if (!val) return 'Email is required';
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(val)) return 'Please enter a valid email address';
+        return '';
+    },
+    regPhone: (val) => {
+        if (!val) return 'Phone Number is required';
+        const phoneRegex = /^\d+$/;
+        if (!phoneRegex.test(val)) return 'Phone Number must contain numeric digits only';
+        if (val.length < 10) return 'Phone Number must be at least 10 digits';
+        return '';
+    },
+    regPlace: (val) => {
+        if (!val) return 'Place / Location is required';
+        return '';
+    },
+    regPassword: (val) => {
+        if (!val) return 'Password is required';
+        if (val.length < 6) return 'Password must be at least 6 characters';
+        return '';
+    },
+    regConfirmPassword: (val) => {
+        if (!val) return 'Confirm Password is required';
+        const pass = document.getElementById('regPassword').value;
+        if (val !== pass) return 'Passwords do not match';
+        return '';
+    }
+};
+
+function validateField(id) {
+    const input = document.getElementById(id);
+    const errBox = document.getElementById(`err-${id}`);
+    if (!input || !errBox) return true;
+
+    const val = input.value.trim();
+    const errorMsg = validators[id](val);
+
+    if (errorMsg) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        errBox.textContent = '⚠ ' + errorMsg;
+        errBox.classList.add('visible');
+        return false;
+    } else {
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        errBox.textContent = '';
+        errBox.classList.remove('visible');
+        return true;
+    }
+}
+
 if (registerForm) {
+    const fieldsToValidate = ['regFullName', 'regEmail', 'regPhone', 'regPlace', 'regPassword', 'regConfirmPassword'];
+    
+    // Attach live input and blur validation listeners
+    fieldsToValidate.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener('input', () => {
+                validateField(id);
+                if (id === 'regPassword') {
+                    const confirmInput = document.getElementById('regConfirmPassword');
+                    if (confirmInput && confirmInput.value) {
+                        validateField('regConfirmPassword');
+                    }
+                }
+            });
+            input.addEventListener('blur', () => {
+                validateField(id);
+            });
+        }
+    });
+
     registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         hideAlert();
 
+        // 1. Run all validations first
+        let formIsValid = true;
+        fieldsToValidate.forEach(id => {
+            if (!validateField(id)) {
+                formIsValid = false;
+            }
+        });
+
+        if (!formIsValid) {
+            showAlert('Please resolve all validation errors highlighted in red.');
+            return;
+        }
+
         const email = document.getElementById('regEmail').value.trim();
         const password = document.getElementById('regPassword').value;
-        const confirmPassword = document.getElementById('regConfirmPassword').value;
+        const fullName = document.getElementById('regFullName').value.trim();
+        const phone = document.getElementById('regPhone').value.trim();
+        const place = document.getElementById('regPlace').value.trim();
+
         const btn = document.getElementById('registerBtn');
         const btnText = btn.querySelector('.btn-text');
         const spinner = document.getElementById('registerSpinner');
-
-        // Validate passwords match
-        if (password !== confirmPassword) {
-            showAlert('Passwords do not match. Please try again.');
-            return;
-        }
 
         btn.disabled = true;
         btnText.classList.add('hidden');
@@ -170,9 +267,13 @@ if (registerForm) {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            // 2. Write pending_admins document
-            await setDoc(doc(db, "pending_admins", user.uid), {
+            // 2. Write teachers collection document instead of pending_admins
+            await setDoc(doc(db, "teachers", user.uid), {
+                fullName: fullName,
                 email: email,
+                phone: phone,
+                place: place,
+                instituteName: "",
                 createdAt: serverTimestamp(),
                 status: "pending"
             });
@@ -181,7 +282,7 @@ if (registerForm) {
             await signOut(auth);
 
             // 4. Redirect to the registration-complete page
-            window.location.href = '../pages/registration-complete.html';
+            window.location.href = `${pathPrefix}pages/registration-complete.html`;
 
         } catch (error) {
             console.error("Registration Error:", error);
@@ -201,17 +302,23 @@ if (registerForm) {
 }
 
 // ─────────────────────────────────────────────
-// Auto-redirect if already logged in (login page)
+// Auto-redirect if already logged in (auth pages)
 // ─────────────────────────────────────────────
-if (window.location.pathname.includes('login.html')) {
+const isAuthPage = window.location.pathname.includes('login.html') ||
+    window.location.pathname.endsWith('index.html') ||
+    window.location.pathname.endsWith('/') ||
+    window.location.pathname === '' ||
+    (!window.location.pathname.includes('.html') && !window.location.pathname.includes('/pages/'));
+
+if (isAuthPage) {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             const profile = await getUserProfile(user.uid);
             if (profile) {
                 if (profile.role === 'super_admin') {
-                    window.location.href = '../pages/super-admin.html';
+                    window.location.href = `${pathPrefix}pages/super-admin.html`;
                 } else if (profile.role === 'admin') {
-                    window.location.href = '../pages/admin-dashboard.html';
+                    window.location.href = `${pathPrefix}pages/admin-dashboard.html`;
                 }
             }
         }
