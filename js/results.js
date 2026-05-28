@@ -203,7 +203,8 @@ async function loadResultsViewData() {
                 categoryId: p.categoryId || '',
                 categoryName: p.categoryName || p.categoryId || 'General',
                 classId: p.classId || '',
-                className: p.className || ''
+                className: p.className || '',
+                leaderboardEnabled: p.leaderboardEnabled !== false
             };
         });
 
@@ -267,6 +268,9 @@ function renderResultsView() {
     const teamPoints = new Map();
     allResults.forEach(r => {
         if (r.status === 'published') {
+            const prog = allPrograms.find(p => p.id === r.programId);
+            if (prog && prog.leaderboardEnabled === false) return;
+
             if (Array.isArray(r.marksData) && r.marksData.length > 0) {
                 r.marksData.forEach(w => {
                     if (w.teamName && w.totalPoints > 0) {

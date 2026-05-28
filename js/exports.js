@@ -109,13 +109,14 @@ async function loadStaticData() {
         allPrograms = progSnap.docs.map(progDoc => {
             const p = progDoc.data();
             const pType = (p.programType || p.type || 'individual').toLowerCase();
+            const regType = (pType === 'general') ? (p.registrationType || 'individual') : pType;
             return {
                 id: progDoc.id,
                 programName: p.programName || 'Unnamed Program',
                 programType: pType,
-                type: pType === 'group' ? 'Group' : 'Individual',
+                type: regType === 'group' ? 'Group' : 'Individual',
                 genderCategory: p.genderCategory || 'Mixed',
-                programLocation: p.programLocation || 'Stage',
+                programLocation: p.programLocation || p.location || 'Stage',
                 categoryId: p.categoryId || '',
                 categoryName: p.categoryName || p.categoryId || 'General',
                 classId: p.classId || '',
@@ -1347,7 +1348,8 @@ async function compileCSV(exp, f, programs, resultsList) {
             filteredResults.forEach(r => {
                 const winnersList = Array.isArray(r.winners) ? r.winners : [];
                 winnersList.forEach(w => {
-                    if (r.programType === 'group') return; // Students only
+                    const pType = (r.programType || r.type || 'individual').toLowerCase();
+                    if (pType !== 'individual') return; // Students only
                     const stuKey = w.chestNumber || w.studentName;
                     if (!stuKey) return;
 
@@ -1388,7 +1390,7 @@ async function compileCSV(exp, f, programs, resultsList) {
 // ─────────────────────────────────────────────
 async function loadParticipants(prog, limitTeamId) {
     const snap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs", prog.id, "participants"));
-    const isGroup = prog.programType === 'group';
+    const isGroup = prog.programType === 'group' || prog.type === 'Group';
     const list = [];
 
     snap.docs.forEach(d => {

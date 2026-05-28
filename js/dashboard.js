@@ -481,6 +481,9 @@ function recalculateDashboard() {
 
     dbData.results.forEach(r => {
         if (r.status === 'published') {
+            const prog = dbData.programs.find(p => p.id === r.programId);
+            if (prog && prog.leaderboardEnabled === false) return;
+
             if (Array.isArray(r.marksData) && r.marksData.length > 0) {
                 r.marksData.forEach(w => {
                     if (w.teamName && w.totalPoints > 0) {

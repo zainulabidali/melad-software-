@@ -17,8 +17,10 @@ export async function initProgramsView(container, topActions) {
 
     topActions.innerHTML = `
         <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+            <button class="btn btn-general" id="btnCreateGeneralProgram">+ Add General Program</button>
             <select id="progCatSelect" class="form-input" style="width: 250px;">
                 <option value="">Select Category...</option>
+                <option value="general_programs">⭐ General Programs (Non-Category)</option>
             </select>
             <button class="btn btn-primary" id="btnCreateProgram" disabled>+ Add Program</button>
         </div>
@@ -53,7 +55,10 @@ export async function initProgramsView(container, topActions) {
     catSel.addEventListener('change', (e) => {
         currentCategoryId = e.target.value;
         const btn = document.getElementById('btnCreateProgram');
-        if (currentCategoryId) {
+        if (currentCategoryId === "general_programs") {
+            btn.disabled = true;
+            loadProgramsData();
+        } else if (currentCategoryId) {
             btn.disabled = false;
             loadProgramsData();
         } else {
@@ -63,6 +68,7 @@ export async function initProgramsView(container, topActions) {
     });
 
     document.getElementById('btnCreateProgram').addEventListener('click', () => openProgramModal());
+    document.getElementById('btnCreateGeneralProgram').addEventListener('click', () => openGeneralProgramModal());
 }
 
 function resetProgramGrid() {
@@ -93,9 +99,13 @@ function loadProgramsData() {
     if (unsubscribePrograms) unsubscribePrograms();
 
     const programsRef = collection(db, "institutes", window.currentInstituteId, "programs");
-    // Support both ID and Name during transition
-    const cat = allCategories.find(c => c.id === currentCategoryId);
-    const qPrograms = query(programsRef, where("categoryId", "in", [currentCategoryId, cat?.name || '']));
+    let qPrograms;
+    if (currentCategoryId === "general_programs") {
+        qPrograms = query(programsRef, where("programType", "==", "general"));
+    } else {
+        const cat = allCategories.find(c => c.id === currentCategoryId);
+        qPrograms = query(programsRef, where("categoryId", "in", [currentCategoryId, cat?.name || '']));
+    }
 
     unsubscribePrograms = onSnapshot(qPrograms, (snapshot) => {
         const grid = document.getElementById('programsGrid');
@@ -106,7 +116,7 @@ function loadProgramsData() {
                 <div class="empty-state" style="grid-column:1/-1; margin-top:2rem;">
                     <div class="empty-state-icon">📑</div>
                     <h3>No Programs</h3>
-                    <p>Click "+ Add Program" to create one.</p>
+                    <p>Click details to create one.</p>
                 </div>`;
             return;
         }
@@ -116,9 +126,15 @@ function loadProgramsData() {
             const progId = docSnap.id;
 
             const pType = (prog.programType || prog.type || 'individual').toLowerCase();
-            const typeLine = pType === 'group' && prog.maxParticipants
-                ? `Group · ${prog.maxParticipants} max per team`
-                : 'Individual';
+            let typeLine = '';
+            if (pType === 'group' && prog.maxParticipants) {
+                typeLine = `Group · ${prog.maxParticipants} max per team`;
+            } else if (pType === 'general') {
+                const regTypeLabel = prog.registrationType === 'group' ? 'Group Registration' : 'Individual Registration';
+                typeLine = `General · ${regTypeLabel}` + (prog.maxParticipants ? ` · ${prog.maxParticipants} max` : '');
+            } else {
+                typeLine = 'Individual';
+            }
 
             const card = document.createElement('div');
             card.className = 'card';
@@ -126,8 +142,9 @@ function loadProgramsData() {
                 <div class="card-header">
                     <h3 class="card-title">${window.escapeHTML(prog.programName)}</h3>
                     <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
-                        ${prog.programLocation ? coloredBadge(prog.programLocation, LOCATION_BADGE) : ''}
+                        ${(prog.programLocation || prog.location) ? coloredBadge(prog.programLocation || prog.location, LOCATION_BADGE) : ''}
                         ${prog.genderCategory ? coloredBadge(prog.genderCategory, GENDER_BADGE) : ''}
+                        ${pType === 'general' ? `<span style="background:linear-gradient(135deg, #7c3aed, #4f46e5); color:white; border-radius:999px; padding:0.15rem 0.65rem; font-size:0.73rem; font-weight:700;">GENERAL</span>` : ''}
                     </div>
                 </div>
                 <div class="card-body">
@@ -151,7 +168,16 @@ function loadProgramsData() {
         });
 
         document.querySelectorAll('.edit-prog-btn').forEach(btn => {
-            btn.onclick = (e) => openProgramModal(e.target.dataset.id, JSON.parse(e.target.dataset.all));
+            btn.onclick = (e) => {
+                const id = e.target.dataset.id;
+                const allData = JSON.parse(e.target.dataset.all);
+                const type = (allData.programType || allData.type || 'individual').toLowerCase();
+                if (type === 'general') {
+                    openGeneralProgramModal(id, allData);
+                } else {
+                    openProgramModal(id, allData);
+                }
+            };
         });
         document.querySelectorAll('.participants-btn').forEach(btn => {
             btn.onclick = (e) => {
@@ -285,6 +311,124 @@ function openProgramModal(progId = null, data = {}) {
         } catch (err) {
             console.error(err);
             window.showToast("Error saving program.", "error");
+        } finally {
+            btn.disabled = false;
+            text.classList.remove('hidden');
+            spinner.classList.add('hidden');
+        }
+    });
+}
+
+// ─────────────────────────────────────────────
+// Add / Edit General Program Modal
+// ─────────────────────────────────────────────
+function openGeneralProgramModal(progId = null, data = {}) {
+    const modalTitle = document.getElementById('dynamicModalTitle');
+    const modalBody = document.getElementById('dynamicModalBody');
+    const modalOverlay = document.getElementById('dynamicModal');
+
+    modalTitle.textContent = progId ? "Edit General Program" : "Add General Program";
+    const regType = data.registrationType || 'individual';
+    const isLeaderboardEnabled = data.leaderboardEnabled !== false;
+
+    modalBody.innerHTML = `
+        <form id="generalProgramForm" autocomplete="off">
+            <div class="form-group">
+                <label class="form-label">Program Name *</label>
+                <input type="text" id="pName" class="form-input" required
+                    value="${window.escapeHTML(data.programName || '')}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description (Optional)</label>
+                <textarea id="pDesc" class="form-input" rows="2">${window.escapeHTML(data.description || '')}</textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Program Type</label>
+                <input type="text" class="form-input" value="General" readonly disabled style="background:#f1f5f9; cursor:not-allowed;">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Program Location *</label>
+                <select id="pLocation" class="form-input" required>
+                    <option value="Stage"     ${(data.location || data.programLocation) === 'Stage' ? 'selected' : ''}>Stage</option>
+                    <option value="Off Stage" ${(data.location || data.programLocation) === 'Off Stage' ? 'selected' : ''}>Off Stage</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Gender Category *</label>
+                <select id="pGender" class="form-input" required>
+                    <option value="Boys"  ${data.genderCategory === 'Boys' ? 'selected' : ''}>Boys</option>
+                    <option value="Girls" ${data.genderCategory === 'Girls' ? 'selected' : ''}>Girls</option>
+                    <option value="Mixed" ${data.genderCategory === 'Mixed' ? 'selected' : ''}>Mixed</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Registration Type *</label>
+                <select id="pRegType" class="form-input" required>
+                    <option value="individual" ${regType === 'individual' ? 'selected' : ''}>Individual Registration</option>
+                    <option value="group"      ${regType === 'group' ? 'selected' : ''}>Group Registration</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Maximum Participants (Optional)</label>
+                <input type="number" id="pMaxParticipants" class="form-input" min="1" placeholder="e.g. 5"
+                    value="${data.maxParticipants || ''}">
+            </div>
+            <div class="form-group" style="display:flex; align-items:center; gap:0.5rem; margin-top:1rem;">
+                <input type="checkbox" id="pLeaderboard" style="width:1.2rem; height:1.2rem; cursor:pointer;" ${isLeaderboardEnabled ? 'checked' : ''}>
+                <label for="pLeaderboard" class="form-label" style="margin-bottom:0; cursor:pointer; font-weight:600;">Count In Team Leaderboard</label>
+            </div>
+            <div class="modal-actions" style="margin-top:1.25rem;">
+                <button type="submit" class="btn btn-general w-full" id="saveProgBtn">
+                    <span class="btn-text">${progId ? 'Save Changes' : 'Add General Program'}</span>
+                    <span class="btn-spinner hidden"></span>
+                </button>
+            </div>
+        </form>
+    `;
+
+    modalOverlay.classList.remove('hidden');
+    document.getElementById('closeDynamicModalBtn').onclick = () => modalOverlay.classList.add('hidden');
+
+    document.getElementById('generalProgramForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const btn = document.getElementById('saveProgBtn');
+        const text = btn.querySelector('.btn-text');
+        const spinner = btn.querySelector('.btn-spinner');
+        btn.disabled = true;
+        text.classList.add('hidden');
+        spinner.classList.remove('hidden');
+
+        try {
+            const locVal = document.getElementById('pLocation').value;
+            const maxPartVal = document.getElementById('pMaxParticipants').value.trim();
+            const payload = {
+                programName: document.getElementById('pName').value.trim(),
+                description: document.getElementById('pDesc').value.trim(),
+                location: locVal,
+                programLocation: locVal, // support both
+                genderCategory: document.getElementById('pGender').value,
+                registrationType: document.getElementById('pRegType').value,
+                maxParticipants: maxPartVal ? parseInt(maxPartVal, 10) : null,
+                leaderboardEnabled: document.getElementById('pLeaderboard').checked,
+                programType: "general",
+                categoryId: "general_programs" // standard category placeholder for listing
+            };
+
+            const progCollection = collection(db, "institutes", window.currentInstituteId, "programs");
+
+            if (progId) {
+                await updateDoc(doc(progCollection, progId), payload);
+                window.showToast("General Program updated.");
+            } else {
+                payload.createdAt = serverTimestamp();
+                await addDoc(progCollection, payload);
+                window.showToast("General Program added.");
+            }
+            modalOverlay.classList.add('hidden');
+        } catch (err) {
+            console.error(err);
+            window.showToast("Error saving general program.", "error");
         } finally {
             btn.disabled = false;
             text.classList.remove('hidden');

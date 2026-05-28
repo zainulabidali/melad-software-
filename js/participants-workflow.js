@@ -429,7 +429,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 }
                 existingSnap.forEach(d => {
                     const data = d.data();
-                    if (data.type === 'individual' && data.teamId === selectedTeamId && (data.categoryId || '') === inheritedCategoryId && data.studentId) {
+                    const matchesCategory = (pType === 'general') || ((data.categoryId || '') === inheritedCategoryId);
+                    if (data.type === 'individual' && data.teamId === selectedTeamId && matchesCategory && data.studentId) {
                         savedIndividualStudentIds.add(data.studentId);
                         participantDocIds.set(data.studentId, d.id);
                         assignedParticipantsAll.push({
@@ -443,11 +444,19 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             }
 
             // Fetch eligible students only by category and team
-            let q = query(
-                collection(db, "institutes", window.currentInstituteId, "students"),
-                where('categoryId', '==', inheritedCategoryId),
-                where('teamId', '==', selectedTeamId)
-            );
+            let q;
+            if (pType === 'general' || inheritedCategoryId === 'general_programs') {
+                q = query(
+                    collection(db, "institutes", window.currentInstituteId, "students"),
+                    where('teamId', '==', selectedTeamId)
+                );
+            } else {
+                q = query(
+                    collection(db, "institutes", window.currentInstituteId, "students"),
+                    where('categoryId', '==', inheritedCategoryId),
+                    where('teamId', '==', selectedTeamId)
+                );
+            }
 
             // Apply Firestore gender queries directly
             if (genderFilter === 'Boys') q = query(q, where('gender', '==', 'Male'));
@@ -522,12 +531,21 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     // 5. Group Persistence & Management Methods
     async function getOrCreateTeamParticipantContainer() {
         const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
-        const q = query(
-            partRef,
-            where('type', '==', 'group'),
-            where('teamId', '==', selectedTeamId),
-            where('categoryId', '==', selectedCategoryId)
-        );
+        let q;
+        if (pType === 'general' || selectedCategoryId === 'general_programs') {
+            q = query(
+                partRef,
+                where('type', '==', 'group'),
+                where('teamId', '==', selectedTeamId)
+            );
+        } else {
+            q = query(
+                partRef,
+                where('type', '==', 'group'),
+                where('teamId', '==', selectedTeamId),
+                where('categoryId', '==', selectedCategoryId)
+            );
+        }
         const snap = await getDocs(q);
         if (!snap.empty) {
             const d = snap.docs[0];
@@ -539,7 +557,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         await setDoc(newRef, {
             teamId: selectedTeamId || '',
             teamName: teamById.get(selectedTeamId)?.name || '',
-            categoryId: selectedCategoryId || inheritedCategoryId || '',
+            categoryId: selectedCategoryId || inheritedCategoryId || 'general_programs',
             classId: selectedClassId || '',
             programId: progId || '',
             type: 'group',
@@ -554,12 +572,21 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
     async function loadGroupsForTeam() {
         const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
-        const q = query(
-            partRef,
-            where('type', '==', 'group'),
-            where('teamId', '==', selectedTeamId),
-            where('categoryId', '==', selectedCategoryId)
-        );
+        let q;
+        if (pType === 'general' || selectedCategoryId === 'general_programs') {
+            q = query(
+                partRef,
+                where('type', '==', 'group'),
+                where('teamId', '==', selectedTeamId)
+            );
+        } else {
+            q = query(
+                partRef,
+                where('type', '==', 'group'),
+                where('teamId', '==', selectedTeamId),
+                where('categoryId', '==', selectedCategoryId)
+            );
+        }
 
         const listEl = document.getElementById('pwGroupsList');
         if (listEl) listEl.innerHTML = `<div class="pw-empty">Loading groups...</div>`;
@@ -798,7 +825,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         const categories = await loadCategories();
 
         // Resolve name-based inheritedCategoryId to canonical ID
-        if (inheritedCategoryId && !categoriesById.has(inheritedCategoryId)) {
+        if (inheritedCategoryId && inheritedCategoryId !== 'general_programs' && !categoriesById.has(inheritedCategoryId)) {
             for (const [id, data] of categoriesById.entries()) {
                 if (normalizeText(data.name) === normalizeText(inheritedCategoryId)) {
                     inheritedCategoryId = id;
@@ -913,7 +940,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 const existingStudentIds = new Set();
                 existingSnap.forEach(d => {
                     const data = d.data();
-                    if (data.type === 'individual' && data.teamId === selectedTeamId && (data.categoryId || '') === inheritedCategoryId && data.studentId) {
+                    const matchesCategory = (pType === 'general') || ((data.categoryId || '') === inheritedCategoryId);
+                    if (data.type === 'individual' && data.teamId === selectedTeamId && matchesCategory && data.studentId) {
                         existingStudentIds.add(data.studentId);
                     }
                 });
@@ -942,8 +970,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                         gender: s.gender || '',
                         teamId: selectedTeamId || '',
                         teamName: teamById.get(selectedTeamId)?.name || '',
-                        categoryId: inheritedCategoryId || '',
-                        categoryName: categoriesById.get(inheritedCategoryId)?.name || s.categoryName || '',
+                        categoryId: inheritedCategoryId || 'general_programs',
+                        categoryName: categoriesById.get(inheritedCategoryId)?.name || s.categoryName || 'General Programs',
                         classId: s.classId || '',
                         className: s.className || '',
                         programId: progId || '',

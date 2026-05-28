@@ -214,8 +214,9 @@ function recalculateScorers(publishedResults) {
     const scorersMap = new Map(); // studentId -> computedContenderObj
 
     publishedResults.forEach(r => {
-        // Enforce strict scoring isolation rules: ignore group programs
-        if (r.programType === 'group') return;
+        const pType = (r.programType || r.type || 'individual').toLowerCase();
+        // Enforce strict scoring isolation rules: ONLY count individual programs
+        if (pType !== 'individual') return;
 
         const isStage = r.programLocation === 'Stage';
         const marksList = Array.isArray(r.marksData) ? r.marksData : [];

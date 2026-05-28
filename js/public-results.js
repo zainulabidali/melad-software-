@@ -301,7 +301,8 @@ function renderSingleResult(r) {
         const rankClass = `rank-circle-${rank}`;
 
         let detailsHTML = '';
-        if (r.programType === 'group') {
+        const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
+        if (isGroup) {
     // Group Program: Large subgroup heading + gold subtitle
     const teamNameText = w.teamName || '—';
     const subgroupName = w.studentName || 'TEAM A';
@@ -587,7 +588,8 @@ function generatePosterCanvas(r) {
 
         // Winner name & Subtitle (depending on programType)
         ctx.textAlign = 'left';
-        if (r.programType === 'group') {
+        const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
+        if (isGroup) {
             // Group program: Large subgroup heading + gold subtitle
             const teamNameText = w ? w.teamName : '—';
             const subgroupName = w ? (w.studentName || 'TEAM A') : '—';
@@ -655,9 +657,10 @@ function sharePosterContent(cardId) {
         .sort((a, b) => (b.finalMark || 0) - (a.finalMark || 0))
         .slice(0, 3);
 
-    const w1 = sorted[0] ? `${r.programType === 'group' ? sorted[0].teamName : sorted[0].studentName} (${r.programType === 'group' ? 'Group' : sorted[0].teamName})` : '—';
-    const w2 = sorted[1] ? `${r.programType === 'group' ? sorted[1].teamName : sorted[1].studentName} (${r.programType === 'group' ? 'Group' : sorted[1].teamName})` : '—';
-    const w3 = sorted[2] ? `${r.programType === 'group' ? sorted[2].teamName : sorted[2].studentName} (${r.programType === 'group' ? 'Group' : sorted[2].teamName})` : '—';
+    const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
+    const w1 = sorted[0] ? `${isGroup ? sorted[0].teamName : sorted[0].studentName} (${isGroup ? 'Group' : sorted[0].teamName})` : '—';
+    const w2 = sorted[1] ? `${isGroup ? sorted[1].teamName : sorted[1].studentName} (${isGroup ? 'Group' : sorted[1].teamName})` : '—';
+    const w3 = sorted[2] ? `${isGroup ? sorted[2].teamName : sorted[2].studentName} (${isGroup ? 'Group' : sorted[2].teamName})` : '—';
 
     const portalUrl = window.location.href;
     const shareText = `🏆 *${r.programName.toUpperCase()}* Result Published!\n\n🕌 *${madrasaName}*\n🏷️ Category: *${r.categoryName}*\n\n🥇 *1st:* ${w1}\n🥈 *2nd:* ${w2}\n🥉 *3rd:* ${w3}\n\n👉 Check official standings on the portal:\n${portalUrl}`;
