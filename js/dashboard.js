@@ -73,37 +73,37 @@ onAuthStateChanged(auth, async (user) => {
                 if (instSnap.exists()) {
                     const instData = instSnap.data();
                     window.currentInstituteDetails = instData;
-                    
+
                     // Timezone-safe UTC absolute timestamp comparison
                     const expiryDateObj = instData.expiryDate?.toDate?.() || (instData.expiryDate ? new Date(instData.expiryDate) : null);
                     const isExpired = expiryDateObj && (new Date().getTime() > expiryDateObj.getTime());
-                    
+
                     if (isExpired) {
                         // Self-healing: trigger deactivation update in database
                         if (instData.status !== 'deactivated') {
-                            await updateDoc(instRef, { status: "deactivated" }).catch(e => {});
+                            await updateDoc(instRef, { status: "deactivated" }).catch(e => { });
                         }
-                        
+
                         // Clean up all snapshot listeners
                         dbUnsubscribes.forEach(unsub => {
-                            try { unsub(); } catch (e) {}
+                            try { unsub(); } catch (e) { }
                         });
                         dbUnsubscribes = [];
-                        try { unsubInstitute(); } catch (e) {}
+                        try { unsubInstitute(); } catch (e) { }
 
                         // Force logout instantly due to expiry
                         await signOut(auth);
                         window.location.href = '../pages/login.html?error=expired';
                         return;
                     }
-                    
+
                     if (instData.status === 'deactivated' || instData.status === 'inactive') {
                         // Clean up all snapshot listeners
                         dbUnsubscribes.forEach(unsub => {
-                            try { unsub(); } catch (e) {}
+                            try { unsub(); } catch (e) { }
                         });
                         dbUnsubscribes = [];
-                        try { unsubInstitute(); } catch (e) {}
+                        try { unsubInstitute(); } catch (e) { }
 
                         // Force logout instantly
                         await signOut(auth);
@@ -129,10 +129,10 @@ onAuthStateChanged(auth, async (user) => {
                 } else {
                     // Institute was deleted
                     dbUnsubscribes.forEach(unsub => {
-                        try { unsub(); } catch (e) {}
+                        try { unsub(); } catch (e) { }
                     });
                     dbUnsubscribes = [];
-                    try { unsubInstitute(); } catch (e) {}
+                    try { unsubInstitute(); } catch (e) { }
                     await signOut(auth);
                     window.location.href = '../pages/login.html';
                 }
@@ -140,10 +140,10 @@ onAuthStateChanged(auth, async (user) => {
                 console.error("Institute realtime listener error:", error);
                 // Fail-safe: if rules block us (due to active expiry in rule), sign out
                 dbUnsubscribes.forEach(unsub => {
-                    try { unsub(); } catch (e) {}
+                    try { unsub(); } catch (e) { }
                 });
                 dbUnsubscribes = [];
-                try { unsubInstitute(); } catch (e) {}
+                try { unsubInstitute(); } catch (e) { }
                 await signOut(auth);
                 window.location.href = '../pages/login.html?error=expired';
             });
@@ -358,16 +358,16 @@ function navigateTo(viewName) {
 // ─────────────────────────────────────────────
 function checkAndShowExpiryWarning() {
     if (!window.currentInstituteDetails || !window.currentInstituteDetails.expiryDate) return;
-    
+
     const expiryDateObj = window.currentInstituteDetails.expiryDate.toDate?.() || new Date(window.currentInstituteDetails.expiryDate);
     const msDiff = expiryDateObj.getTime() - new Date().getTime();
     const daysRemaining = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
-    
+
     // If subscription expires in 7 days or less (but is not yet expired)
     if (daysRemaining > 0 && daysRemaining <= 7) {
         // Prevent duplicate banner rendering
         if (document.getElementById('expiryWarningBanner')) return;
-        
+
         const banner = document.createElement('div');
         banner.id = 'expiryWarningBanner';
         banner.style.cssText = `
@@ -385,7 +385,7 @@ function checkAndShowExpiryWarning() {
             box-shadow: 0 4px 15px rgba(249, 115, 22, 0.05) !important;
             animation: modalSlideUp 0.4s ease !important;
         `;
-        
+
         banner.innerHTML = `
             <span style="font-size: 1.25rem;">⚠️</span>
             <div style="flex: 1;">
@@ -393,7 +393,7 @@ function checkAndShowExpiryWarning() {
                 Please contact the Super Admin to renew.
             </div>
         `;
-        
+
         const mainContent = document.getElementById('mainContentArea');
         if (mainContent) {
             mainContent.insertBefore(banner, mainContent.firstChild);
@@ -401,7 +401,7 @@ function checkAndShowExpiryWarning() {
     }
 }
 
-window.navigateToParticipantsWorkflow = function(progId, progData) {
+window.navigateToParticipantsWorkflow = function (progId, progData) {
     window.__participantsWorkflowPayload = { progId, progData };
     navigateTo('participants-workflow');
 };
@@ -457,7 +457,7 @@ function requestDashboardUpdate() {
 function toggleChartEmptyState(containerId, isEmpty) {
     const container = document.getElementById(containerId);
     if (!container) return;
-    
+
     let emptyOverlay = container.querySelector('.chart-empty-overlay');
     if (isEmpty) {
         if (!emptyOverlay) {
@@ -499,12 +499,12 @@ function updateCharts(teamLabels, teamData, catLabels, catData) {
                     datasets: [{
                         label: 'Participants Count',
                         data: teamData,
-                        backgroundColor: 'rgba(99, 102, 241, 0.2)',
-                        borderColor: 'rgb(99, 102, 241)',
-                        pointBackgroundColor: 'rgb(99, 102, 241)',
+                        backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                        borderColor: '#6366f1',
+                        pointBackgroundColor: '#4f46e5',
                         pointBorderColor: '#fff',
                         pointHoverBackgroundColor: '#fff',
-                        pointHoverBorderColor: 'rgb(99, 102, 241)',
+                        pointHoverBorderColor: '#6366f1',
                         borderWidth: 2
                     }]
                 },
@@ -516,9 +516,18 @@ function updateCharts(teamLabels, teamData, catLabels, catData) {
                     },
                     scales: {
                         r: {
-                            angleLines: { display: true },
+                            angleLines: { color: 'rgba(148, 163, 184, 0.2)' },
+                            grid: { color: 'rgba(148, 163, 184, 0.15)' },
+                            pointLabels: {
+                                font: {
+                                    family: "'Inter', sans-serif",
+                                    size: 11,
+                                    weight: '600'
+                                },
+                                color: '#475569'
+                            },
                             suggestedMin: 0,
-                            ticks: { precision: 0 }
+                            ticks: { precision: 0, display: false }
                         }
                     }
                 }
@@ -541,8 +550,8 @@ function updateCharts(teamLabels, teamData, catLabels, catData) {
                     datasets: [{
                         label: 'Participants Count',
                         data: catData,
-                        backgroundColor: 'rgba(244, 63, 94, 0.85)',
-                        borderColor: 'rgb(244, 63, 94)',
+                        backgroundColor: 'rgba(99, 102, 241, 0.85)',
+                        borderColor: '#4f46e5',
                         borderWidth: 1,
                         borderRadius: 6
                     }]
@@ -556,8 +565,20 @@ function updateCharts(teamLabels, teamData, catLabels, catData) {
                     },
                     scales: {
                         x: {
+                            grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                            ticks: {
+                                font: { family: "'Inter', sans-serif", weight: '500' },
+                                color: '#64748b'
+                            },
                             suggestedMin: 0,
                             ticks: { precision: 0 }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: {
+                                font: { family: "'Inter', sans-serif", weight: '600' },
+                                color: '#475569'
+                            }
                         }
                     }
                 }
@@ -626,22 +647,22 @@ function recalculateDashboard() {
     const leaderboardBody = document.getElementById('leaderboardBody');
     if (leaderboardBody) {
         if (sortedTeams.length === 0) {
-            leaderboardBody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:1.25rem; color:#64748b; font-style:italic;">No points recorded yet.</td></tr>`;
+            leaderboardBody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:2rem; color:#64748b; font-style:italic;">No points recorded yet.</td></tr>`;
         } else {
             leaderboardBody.innerHTML = sortedTeams.map(([name, points], idx) => {
                 let rankHTML = `${idx + 1}`;
-                if (idx === 0) rankHTML = '<span style="font-size:1.15rem;">🥇</span> 1st';
-                else if (idx === 1) rankHTML = '<span style="font-size:1.15rem;">🥈</span> 2nd';
-                else if (idx === 2) rankHTML = '<span style="font-size:1.15rem;">🥉</span> 3rd';
-                else rankHTML = `${idx + 1}th`;
+                if (idx === 0) rankHTML = '<span class="leaderboard-badge gold-medal">🥇 Gold</span>';
+                else if (idx === 1) rankHTML = '<span class="leaderboard-badge silver-medal">🥈 Silver</span>';
+                else if (idx === 2) rankHTML = '<span class="leaderboard-badge bronze-medal">🥉 Bronze</span>';
+                else rankHTML = `<span style="font-weight: 700; color: #64748b; font-size: 0.85rem;">#${idx + 1}</span>`;
 
                 return `
-                    <tr style="border-bottom:1px solid #f1f5f9; hover:background:#f8fafc;">
-                        <td style="padding:0.65rem 0.5rem; text-align:center; font-weight:800; color:#475569;">${rankHTML}</td>
-                        <td style="padding:0.65rem 0.5rem; font-weight:700; color:#1e293b; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    <tr style="border-bottom:1px solid #f1f5f9; transition: all 0.2s;">
+                        <td style="padding:0.85rem 0.5rem; text-align:center;">${rankHTML}</td>
+                        <td style="padding:0.85rem 0.5rem; font-weight:700; color:#1e293b; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                             ${window.escapeHTML(name)}
                         </td>
-                        <td style="padding:0.65rem 0.5rem; text-align:right; font-weight:850; color:#4338ca;">
+                        <td style="padding:0.85rem 0.5rem; text-align:right; font-weight:800; color:#4f46e5;">
                             ${points} pts
                         </td>
                     </tr>
@@ -659,14 +680,14 @@ function recalculateDashboard() {
 
     if (statusEl) {
         if (hasPublished) {
-            statusEl.innerHTML = `<span style="color:#15803d;">✓ Public Portal Active (${publishedCount} results)</span>`;
+            statusEl.innerHTML = `<span style="color:#10b981; font-weight:700; display:flex; align-items:center; gap:4px;">✓ Public Portal Active (${publishedCount} results)</span>`;
             if (copyBtn) copyBtn.disabled = false;
             if (waBtn) {
                 waBtn.style.pointerEvents = 'auto';
                 waBtn.style.opacity = '1';
             }
         } else {
-            statusEl.innerHTML = `<span style="color:#d97706;">⚠ No Published Results</span>`;
+            statusEl.innerHTML = `<span style="color:#f59e0b; font-weight:700; display:flex; align-items:center; gap:4px;">⚠ No Published Results</span>`;
             if (copyBtn) copyBtn.disabled = true;
             if (waBtn) {
                 waBtn.style.pointerEvents = 'none';
@@ -675,13 +696,19 @@ function recalculateDashboard() {
         }
     }
 
-    // 4. Aggregate Participants By Team (Radar Chart)
+    // 4. Aggregate Participants By Team (Radar Chart) - FIXED aggregation logic lookup
     const teamCounts = new Map();
     dbData.teams.forEach(t => {
         if (t.name) teamCounts.set(t.name, 0);
     });
     dbData.students.forEach(s => {
-        if (s.teamName) {
+        if (s.teamId) {
+            const team = dbData.teams.find(t => t.id === s.teamId);
+            if (team && team.name) {
+                const current = teamCounts.get(team.name) || 0;
+                teamCounts.set(team.name, current + 1);
+            }
+        } else if (s.teamName) {
             const current = teamCounts.get(s.teamName) || 0;
             teamCounts.set(s.teamName, current + 1);
         }
@@ -696,7 +723,13 @@ function recalculateDashboard() {
         if (c.name) catCounts.set(c.name, 0);
     });
     dbData.students.forEach(s => {
-        if (s.categoryName) {
+        if (s.categoryId) {
+            const cat = dbData.categories.find(c => c.id === s.categoryId);
+            if (cat && cat.name) {
+                const current = catCounts.get(cat.name) || 0;
+                catCounts.set(cat.name, current + 1);
+            }
+        } else if (s.categoryName) {
             const current = catCounts.get(s.categoryName) || 0;
             catCounts.set(s.categoryName, current + 1);
         }
@@ -712,14 +745,14 @@ function recalculateDashboard() {
 async function initDashboardOverview(container, topActions) {
     const instId = window.currentInstituteId;
     const instName = window.currentInstituteDetails?.name || 'Institute';
-    
+
     // Automatically detect any subfolder repository prefix (e.g. /melad_software) for GitHub Pages
     const origin = window.location.origin;
     const pathname = window.location.pathname;
     const pagesIndex = pathname.indexOf('/pages/');
     const repoPrefix = pagesIndex !== -1 ? pathname.substring(0, pagesIndex) : '';
     const publicUrl = `${origin}${repoPrefix}/pages/public-results.html?id=${instId}`;
-    
+
     const waMessage = encodeURIComponent(`📢 *${instName}*\nതാഴെയുള്ള ലിങ്ക് ഉപയോഗിച്ച് റിസൾട്ട് പരിശോധിക്കാം:\n${publicUrl}`);
 
     // Reset old listeners first
@@ -728,7 +761,7 @@ async function initDashboardOverview(container, topActions) {
     // Reset top Actions
     topActions.innerHTML = '';
 
-    // Render HTML Scaffolding containing HSL customized 6 top cards, radar/bar charts canvases, and right side leaderboard
+    // Render HTML Scaffolding containing 6 top cards with exactly ONE premium SVG icon each and NO duplicate icons
     container.innerHTML = `
         <div class="dashboard-overview-container">
             
@@ -736,63 +769,87 @@ async function initDashboardOverview(container, topActions) {
             <div class="dashboard-summary-cards">
                 
                 <!-- Card 👥 PARTICIPANTS -->
-                <div class="card stat-card-participants" style="padding:1.15rem; display:flex; flex-direction:column; gap:0.25rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:0.68rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.05em;">👥 Participants</span>
-                        <span style="font-size:1.25rem;">🎓</span>
+                <div class="card stat-card-premium" style="display:flex; flex-direction:column; gap:0.25rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.35rem;">
+                        <span style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Participants</span>
+                        <div class="stat-card-icon-container" style="background: rgba(99, 102, 241, 0.08);">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.35rem; height:1.35rem; color:#4f46e5;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                            </svg>
+                        </div>
                     </div>
-                    <h2 style="font-size:1.85rem; font-weight:850; margin:0.35rem 0 0.15rem 0; color:#0f172a;" id="statStudents">-</h2>
-                    <span style="font-size:0.7rem; color:#64748b; font-weight:600;">Registered</span>
+                    <h2 style="font-size:2rem; font-weight:800; margin:0; color:#0f172a;" id="statStudents">-</h2>
+                    <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Enrolled students</span>
                 </div>
 
                 <!-- Card 🏆 COMPETITIONS -->
-                <div class="card stat-card-competitions" style="padding:1.15rem; display:flex; flex-direction:column; gap:0.25rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:0.68rem; font-weight:700; color:#4338ca; text-transform:uppercase; letter-spacing:0.05em;">🏆 Competitions</span>
-                        <span style="font-size:1.25rem;">📝</span>
+                <div class="card stat-card-premium" style="display:flex; flex-direction:column; gap:0.25rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.35rem;">
+                        <span style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Competitions</span>
+                        <div class="stat-card-icon-container" style="background: rgba(139, 92, 246, 0.08);">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.35rem; height:1.35rem; color:#7c3aed;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.504-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 0a7.454 7.454 0 0 0 .981 3.172M8.312 14.375a6.002 6.002 0 0 1-2.813-5.326m13.002 0a6.002 6.002 0 0 1-2.813 5.326M5.499 9.049a3.75 3.75 0 0 1 2.812-4.673M18.501 9.049a3.75 3.75 0 0 0-2.812-4.673M12 2.25A2.25 2.25 0 0 0 9.75 4.5v1.25a2.25 2.25 0 0 0 4.5 0V4.5A2.25 2.25 0 0 0 12 2.25z" />
+                            </svg>
+                        </div>
                     </div>
-                    <h2 style="font-size:1.85rem; font-weight:850; margin:0.35rem 0 0.15rem 0; color:#1e1b4b;" id="statCompetitions">-</h2>
-                    <span style="font-size:0.7rem; color:#4338ca; font-weight:600;">Active / Final</span>
+                    <h2 style="font-size:2rem; font-weight:800; margin:0; color:#0f172a;" id="statCompetitions">-</h2>
+                    <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Active events</span>
                 </div>
 
                 <!-- Card 👥 TEAMS -->
-                <div class="card stat-card-teams" style="padding:1.15rem; display:flex; flex-direction:column; gap:0.25rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:0.68rem; font-weight:700; color:#c2410c; text-transform:uppercase; letter-spacing:0.05em;">👥 Teams</span>
-                        <span style="font-size:1.25rem;">👥</span>
+                <div class="card stat-card-premium" style="display:flex; flex-direction:column; gap:0.25rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.35rem;">
+                        <span style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Teams</span>
+                        <div class="stat-card-icon-container" style="background: rgba(234, 88, 12, 0.08);">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.35rem; height:1.35rem; color:#ea580c;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
+                            </svg>
+                        </div>
                     </div>
-                    <h2 style="font-size:1.85rem; font-weight:850; margin:0.35rem 0 0.15rem 0; color:#7c2d12;" id="statTeams">-</h2>
-                    <span style="font-size:0.7rem; color:#c2410c; font-weight:600;">Participating</span>
+                    <h2 style="font-size:2rem; font-weight:800; margin:0; color:#0f172a;" id="statTeams">-</h2>
+                    <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Participating divisions</span>
                 </div>
 
                 <!-- Card 📄 CATEGORIES -->
-                <div class="card stat-card-categories" style="padding:1.15rem; display:flex; flex-direction:column; gap:0.25rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:0.68rem; font-weight:700; color:#15803d; text-transform:uppercase; letter-spacing:0.05em;">📄 Categories</span>
-                        <span style="font-size:1.25rem;">🏷️</span>
+                <div class="card stat-card-premium" style="display:flex; flex-direction:column; gap:0.25rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.35rem;">
+                        <span style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Categories</span>
+                        <div class="stat-card-icon-container" style="background: rgba(16, 185, 129, 0.08);">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.35rem; height:1.35rem; color:#10b981;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581a2.25 2.25 0 0 0 3.182 0l4.318-4.318a2.25 2.25 0 0 0 0-3.182L11.16 3.659A2.25 2.25 0 0 0 9.568 3ZM6 7.5h.008v.008H6V7.5Z" />
+                            </svg>
+                        </div>
                     </div>
-                    <h2 style="font-size:1.85rem; font-weight:850; margin:0.35rem 0 0.15rem 0; color:#064e3b;" id="statCategories">-</h2>
-                    <span style="font-size:0.7rem; color:#15803d; font-weight:600;">Event groups</span>
+                    <h2 style="font-size:2rem; font-weight:800; margin:0; color:#0f172a;" id="statCategories">-</h2>
+                    <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Student groups</span>
                 </div>
 
                 <!-- Card 🚩 STAGES -->
-                <div class="card stat-card-stages" style="padding:1.15rem; display:flex; flex-direction:column; gap:0.25rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:0.68rem; font-weight:700; color:#a16207; text-transform:uppercase; letter-spacing:0.05em;">🚩 Stages</span>
-                        <span style="font-size:1.25rem;">🚩</span>
+                <div class="card stat-card-premium" style="display:flex; flex-direction:column; gap:0.25rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.35rem;">
+                        <span style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Stages</span>
+                        <div class="stat-card-icon-container" style="background: rgba(245, 158, 11, 0.08);">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.35rem; height:1.35rem; color:#f59e0b;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 21V3m0 9h18l-4-4.5 4-4.5H3v9Z" />
+                            </svg>
+                        </div>
                     </div>
-                    <h2 style="font-size:1.85rem; font-weight:850; margin:0.35rem 0 0.15rem 0; color:#713f12;" id="statStages">-</h2>
-                    <span style="font-size:0.7rem; color:#a16207; font-weight:600;">Active stages</span>
+                    <h2 style="font-size:2rem; font-weight:800; margin:0; color:#0f172a;" id="statStages">-</h2>
+                    <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Active venues</span>
                 </div>
 
                 <!-- Card 🧑‍⚖️ JUDGES -->
-                <div class="card stat-card-judges" style="padding:1.15rem; display:flex; flex-direction:column; gap:0.25rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:0.68rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.05em;">🧑‍⚖️ Judges</span>
-                        <span style="font-size:1.25rem;">🧑‍⚖️</span>
+                <div class="card stat-card-premium" style="display:flex; flex-direction:column; gap:0.25rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.35rem;">
+                        <span style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Judges</span>
+                        <div class="stat-card-icon-container" style="background: rgba(100, 116, 139, 0.08);">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.35rem; height:1.35rem; color:#64748b;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 22h8M16 17v5M5 13l3.5-3.5M3 15l3.5-3.5M6 10l8.5 8.5-3 3-8.5-8.5 3-3ZM14.5 5.5l4 4-2.5 2.5-4-4 2.5-2.5Z" />
+                            </svg>
+                        </div>
                     </div>
-                    <h2 style="font-size:1.85rem; font-weight:850; margin:0.35rem 0 0.15rem 0; color:#0f172a;" id="statJudges">-</h2>
-                    <span style="font-size:0.7rem; color:#64748b; font-weight:600;">Registered</span>
+                    <h2 style="font-size:2rem; font-weight:800; margin:0; color:#0f172a;" id="statJudges">-</h2>
+                    <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Assigned evaluators</span>
                 </div>
 
             </div>
@@ -804,9 +861,10 @@ async function initDashboardOverview(container, topActions) {
                 <div class="charts-section">
                     
                     <!-- Card: Participants by Team (Radar Chart) -->
-                    <div class="card chart-card" id="radarContainer" style="display:flex; flex-direction:column; padding:1.25rem; border-color:#cbd5e1;">
-                        <h3 style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0; margin-bottom:1rem; display:flex; align-items:center; gap:0.35rem;">
-                            📊 Participants By Team
+                    <div class="card chart-card" id="radarContainer" style="display:flex; flex-direction:column; padding:1.5rem; border-color:#e2e8f0;">
+                        <h3 style="font-size:1.05rem; font-weight:800; color:#0f172a; margin-top:0; margin-bottom:1.25rem; display:flex; align-items:center; gap:0.5rem; font-family:'Outfit',sans-serif;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:1.2rem; height:1.2rem; color:#4f46e5;"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" /></svg>
+                            Participants By Team
                         </h3>
                         <div class="chart-container">
                             <canvas id="chartTeamsRadar"></canvas>
@@ -814,9 +872,10 @@ async function initDashboardOverview(container, topActions) {
                     </div>
 
                     <!-- Card: Participants by Category (Horizontal Bar Chart) -->
-                    <div class="card chart-card" id="barContainer" style="display:flex; flex-direction:column; padding:1.25rem; border-color:#cbd5e1;">
-                        <h3 style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0; margin-bottom:1rem; display:flex; align-items:center; gap:0.35rem;">
-                            📊 Participants By Category
+                    <div class="card chart-card" id="barContainer" style="display:flex; flex-direction:column; padding:1.5rem; border-color:#e2e8f0;">
+                        <h3 style="font-size:1.05rem; font-weight:800; color:#0f172a; margin-top:0; margin-bottom:1.25rem; display:flex; align-items:center; gap:0.5rem; font-family:'Outfit',sans-serif;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:1.2rem; height:1.2rem; color:#4f46e5;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 13.875v-.75ZM3 19.125c0-.621.504-1.125 1.125-1.125h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 19.875v-.75ZM3 7.125C3 6.504 3.504 6 4.125 6h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 7.875v-.75Z" /></svg>
+                            Participants By Category
                         </h3>
                         <div class="chart-container">
                             <canvas id="chartCatsBar"></canvas>
@@ -829,45 +888,49 @@ async function initDashboardOverview(container, topActions) {
                 <div class="leaderboard-section">
                     
                     <!-- Team Leaderboard Card -->
-                    <div class="card" style="padding:1.25rem; border-color:#cbd5e1;">
-                        <h3 style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0; margin-bottom:0.15rem; display:flex; align-items:center; gap:0.4rem;">
-                            🏆 Team Leaderboard
+                    <div class="card" style="padding:1.5rem; border-color:#e2e8f0;">
+                        <h3 style="font-size:1.05rem; font-weight:800; color:#0f172a; margin-top:0; margin-bottom:0.2rem; display:flex; align-items:center; gap:0.5rem; font-family:'Outfit',sans-serif;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:1.2rem; height:1.2rem; color:#4f46e5;"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.504-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 0a7.454 7.454 0 0 0 .981 3.172M8.312 14.375a6.002 6.002 0 0 1-2.813-5.326m13.002 0a6.002 6.002 0 0 1-2.813 5.326M5.499 9.049a3.75 3.75 0 0 1 2.812-4.673M18.501 9.049a3.75 3.75 0 0 0-2.812-4.673M12 2.25A2.25 2.25 0 0 0 9.75 4.5v1.25a2.25 2.25 0 0 0 4.5 0V4.5A2.25 2.25 0 0 0 12 2.25z" /></svg>
+                            Team Leaderboard
                         </h3>
-                        <p style="font-size:0.72rem; color:#64748b; margin-bottom:0.85rem;">Standings aggregated from published results.</p>
+                        <p style="font-size:0.75rem; color:#64748b; margin-bottom:1rem; font-weight:500;">Standings aggregated from published results.</p>
                         <div style="overflow-x:auto;">
-                            <table style="width:100%; border-collapse:collapse; font-size:0.825rem;">
+                            <table style="width:100%; border-collapse:collapse; font-size:0.875rem;">
                                 <thead>
-                                    <tr style="border-bottom:2px solid #cbd5e1; text-align:left; background:#f8fafc;">
-                                        <th style="padding:0.4rem; color:#475569; font-weight:700; width:50px; text-align:center;">RANK</th>
-                                        <th style="padding:0.4rem; color:#475569; font-weight:700;">TEAM NAME</th>
-                                        <th style="padding:0.4rem; color:#475569; font-weight:700; text-align:right; width:80px;">POINTS</th>
+                                    <tr style="border-bottom:2px solid #e2e8f0; text-align:left; background:#f8fafc;">
+                                        <th style="padding:0.6rem 0.5rem; color:#475569; font-weight:700; width:70px; text-align:center; font-size:0.7rem; letter-spacing:0.04em;">RANK</th>
+                                        <th style="padding:0.6rem 0.5rem; color:#475569; font-weight:700; font-size:0.7rem; letter-spacing:0.04em;">TEAM NAME</th>
+                                        <th style="padding:0.6rem 0.5rem; color:#475569; font-weight:700; text-align:right; width:80px; font-size:0.7rem; letter-spacing:0.04em;">POINTS</th>
                                     </tr>
                                 </thead>
                                 <tbody id="leaderboardBody">
-                                    <tr><td colspan="3" style="text-align:center; padding:1rem; color:#64748b;"><span class="spinner-sm"></span> Loading standings...</td></tr>
+                                    <tr><td colspan="3" style="text-align:center; padding:1.5rem; color:#64748b;"><span class="spinner-sm"></span> Loading standings...</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
 
-                    <!-- Public Result Portal Card (original preserved card) -->
-                    <div class="card" style="border: 1px solid var(--primary-color); background: #f0f7ff; padding:1.25rem;">
-                        <div class="card-header" style="margin-bottom:0.5rem;">
-                            <h3 class="card-title" style="color:var(--primary-color); font-weight:700;">🔗 Public Result Portal</h3>
+                    <!-- Public Result Portal Card -->
+                    <div class="card" style="border: 1px solid rgba(99, 102, 241, 0.2); background: rgba(99, 102, 241, 0.04); padding:1.5rem; border-radius: var(--radius-lg);">
+                        <div class="card-header" style="margin-bottom:0.5rem; border:none; padding:0;">
+                            <h3 class="card-title" style="color:#4f46e5; font-weight:800; font-family:'Outfit',sans-serif; display:flex; align-items:center; gap:0.5rem;">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.2rem; height:1.2rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" /></svg>
+                                Public Result Portal
+                            </h3>
                         </div>
                         <div class="card-body" style="padding: 0;">
-                            <p style="font-size:0.8rem; color:#64748b; margin-bottom:0.75rem; line-height:1.4;">Share published results instantly with parents and students.</p>
-                            <div id="portalStatus" style="font-size:0.75rem; font-weight:700; margin-bottom:0.75rem;">
+                            <p style="font-size:0.8rem; color:#64748b; margin-bottom:1rem; line-height:1.5; font-weight:500;">Share published standings instantly with parents and students.</p>
+                            <div id="portalStatus" style="font-size:0.78rem; font-weight:700; margin-bottom:1rem;">
                                 <span class="spinner-sm"></span> Checking status...
                             </div>
-                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem; margin-bottom:0.5rem;">
-                                <button class="btn btn-secondary btn-sm" id="dashCopyLink" disabled>📋 Copy Link</button>
+                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.6rem; margin-bottom:0.6rem;">
+                                <button class="btn btn-secondary btn-sm" id="dashCopyLink" style="min-height:36px; border-radius:8px;" disabled>📋 Copy Link</button>
                                 <a href="https://wa.me/?text=${waMessage}" target="_blank" class="btn btn-primary btn-sm" id="dashWhatsApp" 
-                                    style="background:#25D366; border-color:#25D366; text-decoration:none; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0.5;">
+                                    style="background:#25D366; border-color:#25D366; text-decoration:none; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0.5; min-height:36px; border-radius:8px; font-weight:700;">
                                     📲 WhatsApp
                                 </a>
                             </div>
-                            <button class="btn btn-outline btn-sm w-full" id="dashOpenPortal">🌐 Open Portal</button>
+                            <button class="btn btn-outline btn-sm w-full" id="dashOpenPortal" style="min-height:36px; border-radius:8px; font-weight:700;">🌐 Open Portal</button>
                         </div>
                     </div>
 

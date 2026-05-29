@@ -346,22 +346,34 @@
     <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-brand">
-            <span style="font-size:1.5rem;">🏫</span>
+            <span style="font-size:1.35rem;">🏫</span>
             <h2>Super Admin</h2>
             <button class="close-sidebar-btn" id="closeSidebarBtn" aria-label="Close Menu">&times;</button>
         </div>
         <nav class="sidebar-nav">
             <a href="#" class="nav-item active" id="navInstitutes" data-section="institutes">
-                <span class="icon">🏢</span> Institutes
+                <span class="icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.25rem; height:1.25rem;">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.33l-7.5-5-7.5 5V21" />
+                    </svg>
+                </span> Institutes
             </a>
             <a href="#" class="nav-item" id="navPending" data-section="pending">
-                <span class="icon">⏳</span> Pending Registrations
+                <span class="icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.25rem; height:1.25rem;">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                </span> Pending Registrations
                 <span class="pending-badge hidden" id="pendingBadge">0</span>
             </a>
 
-            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:1rem 0;">
+            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.06); margin:1rem 0;">
             <a href="#" class="nav-item" id="logoutBtn">
-                <span class="icon">🚪</span> Logout
+                <span class="icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.25rem; height:1.25rem;">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+                    </svg>
+                </span> Logout
             </a>
         </nav>
     </aside>
