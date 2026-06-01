@@ -1,8 +1,9 @@
-import { db } from './firebase.js';
+import { db, updateDashboardMetadata, getCachedCategories, getCachedTeams, getCachedPrograms } from './firebase.js';
 import {
     collection,
     addDoc,
     getDocs,
+    getDoc,
     doc,
     deleteDoc,
     updateDoc,
@@ -11,7 +12,9 @@ import {
     writeBatch,
     query,
     where,
-    collectionGroup
+    collectionGroup,
+    setDoc,
+    increment
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 import { normalizeClasses } from './categories.js';
 
@@ -144,7 +147,8 @@ export async function initStudentsView(container, topActions) {
                 <select id="stuTeamSelect" class="form-input select-premium" style="width: 170px;">
                     <option value="">All Teams (Filter)</option>
                 </select>
-                <button class="btn btn-primary" id="btnAddStudents" disabled>+ Student</button>
+                <button class="btn btn-secondary" id="btnImportExcel" style="display:flex; align-items:center; gap:0.25rem;">📊 Import Excel</button>
+                <button class="btn btn-primary" id="btnAddStudents">+ Student</button>
             </div>
         </div>
 
@@ -169,46 +173,52 @@ export async function initStudentsView(container, topActions) {
         if (activeDropdown) activeDropdown.remove();
     }, true);
 
-    // Single delegated click listener on container for student-dots-btn
+    // Single delegated click listener on container
     container.addEventListener('click', (e) => {
         const dotsBtn = e.target.closest('.student-dots-btn');
         if (dotsBtn) {
             e.stopPropagation();
             openStudentDropdown(dotsBtn);
+            return;
+        }
+
+        const viewProgsBtn = e.target.closest('.btn-view-progs-direct');
+        if (viewProgsBtn) {
+            e.stopPropagation();
+            const stuData = JSON.parse(viewProgsBtn.dataset.stu);
+            openViewProgramsModal(stuData);
         }
     });
 
-    // 1. Load Global Categories
+    // 1. Load Global Categories via Caching Layer
     try {
-        const catSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "categories"));
+        const categoriesData = await getCachedCategories(window.currentInstituteId);
         allCategories = [];
-        catSnap.forEach(d => {
-            const data = d.data();
-            allCategories.push({ id: d.id, ...data, classes: normalizeClasses(data.classes) });
+        categoriesData.forEach(cat => {
+            allCategories.push({ id: cat.id, ...cat, classes: normalizeClasses(cat.classes) });
             const opt = document.createElement('option');
-            opt.value = d.id;
-            opt.textContent = data.name;
+            opt.value = cat.id;
+            opt.textContent = cat.name;
             if (catSel) catSel.appendChild(opt);
         });
     } catch (e) { console.error("Error loading categories", e); }
 
-    // 2. Load Teams & populate global teamMap
+    // 2. Load Teams & populate global teamMap via Caching Layer
     try {
         teamMap.clear();
-        const teamSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "teams"));
-        teamSnap.forEach(d => {
-            teamMap.set(d.id, d.data().name);
+        const teamsData = await getCachedTeams(window.currentInstituteId);
+        teamsData.forEach(team => {
+            teamMap.set(team.id, team.name);
             const opt = document.createElement('option');
-            opt.value = d.id;
-            opt.textContent = d.data().name;
+            opt.value = team.id;
+            opt.textContent = team.name;
             if (teamSel) teamSel.appendChild(opt);
         });
     } catch (e) { console.error("Error loading teams", e); }
 
-    // 3. Load all Programs once
+    // 3. Load all Programs once via Caching Layer
     try {
-        const progSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs"));
-        allPrograms = progSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        allPrograms = await getCachedPrograms(window.currentInstituteId);
     } catch (e) { console.error("Error loading programs", e); }
 
     if (catSel) {
@@ -219,7 +229,6 @@ export async function initStudentsView(container, topActions) {
                 classSel.innerHTML = '<option value="">Select Class...</option>';
                 classSel.disabled = true;
             }
-            if (btnAddStudents) btnAddStudents.disabled = true;
 
             if (currentCategoryId) {
                 const cat = allCategories.find(c => c.id === currentCategoryId);
@@ -240,9 +249,6 @@ export async function initStudentsView(container, topActions) {
     if (classSel) {
         classSel.addEventListener('change', (e) => {
             currentClassId = e.target.value;
-            if (btnAddStudents) {
-                btnAddStudents.disabled = !(currentCategoryId && currentClassId);
-            }
             applyStudentFiltersAndRender();
         });
     }
@@ -261,7 +267,12 @@ export async function initStudentsView(container, topActions) {
     }
 
     if (btnAddStudents) {
-        btnAddStudents.addEventListener('click', openBulkAddModal);
+        btnAddStudents.addEventListener('click', openAddStudentModal);
+    }
+
+    const btnImportExcel = document.getElementById('btnImportExcel');
+    if (btnImportExcel) {
+        btnImportExcel.addEventListener('click', openBulkImportModal);
     }
 
     // Load full student collection immediately
@@ -325,57 +336,6 @@ function loadStudentsData() {
         console.error("Students listener error:", err);
         window.showToast("Failed to load students.", "error");
     });
-
-    setupParticipantsListeners();
-}
-
-function setupParticipantsListeners() {
-    participantUnsubs.forEach(unsub => unsub());
-    participantUnsubs = [];
-
-    if (allPrograms.length === 0) {
-        localParticipants = [];
-        renderStudentsUI();
-        return;
-    }
-
-    const participantsMap = new Map();
-
-    allPrograms.forEach(prog => {
-        const progId = prog.id;
-        const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
-
-        const unsub = onSnapshot(partRef, (snapshot) => {
-            const docs = snapshot.docs.map(d => ({
-                id: d.id,
-                programId: progId,
-                ...d.data()
-            }));
-            participantsMap.set(progId, docs);
-
-            // Combine all participants from the local maps
-            const allParts = [];
-            participantsMap.forEach(parts => {
-                allParts.push(...parts);
-            });
-            localParticipants = allParts;
-
-            renderStudentsUI();
-        }, (err) => {
-            console.error(`Participants subcollection listener error for ${progId}:`, err);
-            participantsMap.set(progId, []);
-
-            const allParts = [];
-            participantsMap.forEach(parts => {
-                allParts.push(...parts);
-            });
-            localParticipants = allParts;
-
-            renderStudentsUI();
-        });
-
-        participantUnsubs.push(unsub);
-    });
 }
 
 function renderStudentsUI() {
@@ -414,11 +374,6 @@ function renderStudentsUI() {
         const chest = stu.chestNumber || '—';
         const teamName = teamMap.get(stu.teamId) || '—';
 
-        const studentProgs = getStudentPrograms(id);
-        const tooltipText = studentProgs.map(p => `• ${p.name} (${p.type})`).join('\n') || 'No programs registered';
-
-        const programsBadgeLabel = studentProgs.length === 1 ? '1 Program' : `${studentProgs.length} Programs`;
-
         tableHTML += `
             <div class="student-row">
                 <div class="student-chest-cell">
@@ -440,13 +395,13 @@ function renderStudentsUI() {
                     ${window.escapeHTML(teamName)}
                 </div>
                 <div class="student-programs-cell">
-                    <span class="student-programs-badge" title="${window.escapeHTML(tooltipText)}">
-                        👥 ${programsBadgeLabel}
+                    <span class="student-programs-badge btn-view-progs-direct" data-stu='${JSON.stringify(stu).replace(/'/g, "&#39;")}' style="cursor:pointer; background:rgba(99, 102, 241, 0.08); color:#4f46e5; border:1px solid rgba(99, 102, 241, 0.15); display:inline-flex; align-items:center; gap:0.25rem;" title="Click to view registered programs">
+                        👥 View Programs
                     </span>
                 </div>
                 <div class="student-actions-cell">
                     <div class="actions-dropdown-container">
-                        <button class="btn-action-icon btn-action-more dots-btn student-dots-btn" data-id="${id}" data-all='${JSON.stringify(stu).replace(/'/g, "&#39;")}' data-progs='${JSON.stringify(studentProgs).replace(/'/g, "&#39;")}'>
+                        <button class="btn-action-icon btn-action-more dots-btn student-dots-btn" data-id="${id}" data-all='${JSON.stringify(stu).replace(/'/g, "&#39;")}'>
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.95rem; height:0.95rem;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
                             </svg>
@@ -465,7 +420,7 @@ function renderStudentsUI() {
     tableContainer.innerHTML = tableHTML;
 }
 
-function openViewProgramsModal(stu) {
+async function openViewProgramsModal(stu) {
     const modalTitle = document.getElementById('dynamicModalTitle');
     const modalBody = document.getElementById('dynamicModalBody');
     const modalOverlay = document.getElementById('dynamicModal');
@@ -474,11 +429,123 @@ function openViewProgramsModal(stu) {
     const teamName = teamMap.get(stu.teamId) || '—';
 
     modalTitle.textContent = '👁 View Student & Programs';
+    
+    // Render initial loading spinner inside modal
+    modalBody.innerHTML = `
+        <div style="text-align:center; padding:3rem; color:#4f46e5;">
+            <div class="spinner" style="margin:0 auto 1rem; width:40px; height:40px; border:4px solid rgba(99,102,241,0.1); border-top-color:#4f46e5; border-radius:50%; animation:spin 1s linear infinite;"></div>
+            <p style="color:#64748b; font-size:0.875rem; font-weight:600;">Retrieving registered programs...</p>
+        </div>
+        <div class="modal-actions" style="margin-top:1.5rem; border-top:1px solid #e2e8f0; padding-top:1rem; display:none;">
+            <button class="btn btn-secondary w-full" id="closeViewModalBtn" style="min-height:38px; font-weight:700;">Close</button>
+        </div>
+    `;
 
-    const studentProgs = getStudentPrograms(stu.id);
+    const closeModal = () => {
+        modalOverlay.classList.add('hidden');
+        document.body.style.overflow = '';
+        document.removeEventListener('keydown', handleEsc);
+        modalOverlay.removeEventListener('click', handleOverlayClick);
+        if (closeHeaderBtn) closeHeaderBtn.onclick = null;
+    };
+
+    const handleEsc = (e) => {
+        if (e.key === 'Escape') closeModal();
+    };
+
+    const handleOverlayClick = (e) => {
+        if (e.target === modalOverlay) closeModal();
+    };
+
+    // Bind Close Toggles immediately
+    if (closeHeaderBtn) closeHeaderBtn.onclick = closeModal;
+    modalOverlay.addEventListener('click', handleOverlayClick);
+    document.addEventListener('keydown', handleEsc);
+
+    // Disable background scrolling & show modal
+    document.body.style.overflow = 'hidden';
+    modalOverlay.classList.remove('hidden');
+
+    let studentProgs = [];
+    try {
+        // Fetch all individual and group participant records for this team
+        const q = query(
+            collectionGroup(db, "participants"),
+            where("teamId", "==", stu.teamId)
+        );
+        const snap = await getDocs(q);
+        const teamParticipants = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Process student programs locally from teamParticipants
+        teamParticipants.forEach(p => {
+            const prog = allPrograms.find(pr => pr.id === p.programId);
+            if (!prog) return;
+
+            if (p.type === 'individual' && p.studentId === stu.id) {
+                const pType = (prog.programType || prog.type || 'individual').toLowerCase();
+                let typeLabel = 'Individual';
+                let regMode = 'Individual';
+                if (pType === 'general') {
+                    typeLabel = 'General';
+                    regMode = prog.registrationType === 'group' ? 'Group' : 'Individual';
+                }
+                const cat = allCategories.find(c => c.id === prog.categoryId || c.name === prog.categoryId);
+                const catName = cat?.name || (prog.categoryId === 'general_programs' ? 'General' : prog.categoryId || 'General');
+                const loc = prog.programLocation || prog.location || 'Off Stage';
+
+                studentProgs.push({
+                    id: p.programId,
+                    name: prog.programName || 'Unknown Program',
+                    type: typeLabel,
+                    location: loc,
+                    category: catName,
+                    regMode: regMode,
+                    teamName: ''
+                });
+            } else if (p.type === 'group' && Array.isArray(p.groups)) {
+                p.groups.forEach(g => {
+                    if (Array.isArray(g.members) && g.members.some(m => m.studentId === stu.id)) {
+                        const pType = (prog.programType || prog.type || 'group').toLowerCase();
+                        let typeLabel = 'Group';
+                        let regMode = 'Group';
+                        if (pType === 'general') {
+                            typeLabel = 'General';
+                            regMode = 'Group';
+                        }
+                        const cat = allCategories.find(c => c.id === prog.categoryId || c.name === prog.categoryId);
+                        const catName = cat?.name || (prog.categoryId === 'general_programs' ? 'General' : prog.categoryId || 'General');
+                        const loc = prog.programLocation || prog.location || 'Off Stage';
+                        const tName = p.teamName || teamMap.get(p.teamId) || '';
+
+                        studentProgs.push({
+                            id: p.programId,
+                            name: prog.programName || 'Unknown Program',
+                            type: typeLabel,
+                            location: loc,
+                            category: catName,
+                            regMode: regMode,
+                            teamName: tName
+                        });
+                    }
+                });
+            }
+        });
+    } catch (e) {
+        console.error("Error fetching student programs on demand:", e);
+    }
+
+    // Deduplicate
+    const seen = new Set();
+    const uniqueProgs = [];
+    for (const sp of studentProgs) {
+        if (!seen.has(sp.id)) {
+            seen.add(sp.id);
+            uniqueProgs.push(sp);
+        }
+    }
 
     let studentProgsHTML = "";
-    if (studentProgs.length === 0) {
+    if (uniqueProgs.length === 0) {
         studentProgsHTML = `
             <div style="text-align:center; padding:2rem; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; color:#64748b; font-size:0.85rem; font-style:italic;">
                 Not registered in any programs yet.
@@ -487,7 +554,7 @@ function openViewProgramsModal(stu) {
     } else {
         studentProgsHTML = `
             <div style="display:flex; flex-direction:column; gap:0.6rem; max-height:260px; overflow-y:auto; padding-right:4px;">
-                ${studentProgs.map((p) => {
+                ${uniqueProgs.map((p) => {
             return `
                         <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:0.8rem 1rem; box-shadow:0 1px 2px rgba(0,0,0,0.02); display:flex; flex-direction:column; gap:0.4rem;">
                             <div style="font-size:0.92rem; font-weight:700; color:#0f172a;">
@@ -524,7 +591,7 @@ function openViewProgramsModal(stu) {
             </div>
 
             <div style="margin-bottom:0.5rem;">
-                <div style="font-size:0.72rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.75rem;">REGISTERED PROGRAMS (${studentProgs.length})</div>
+                <div style="font-size:0.72rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.75rem;">REGISTERED PROGRAMS (${uniqueProgs.length})</div>
                 ${studentProgsHTML}
             </div>
 
@@ -534,32 +601,9 @@ function openViewProgramsModal(stu) {
         </div>
     `;
 
-    const closeModal = () => {
-        modalOverlay.classList.add('hidden');
-        document.body.style.overflow = '';
-        document.removeEventListener('keydown', handleEsc);
-        modalOverlay.removeEventListener('click', handleOverlayClick);
-        if (closeHeaderBtn) closeHeaderBtn.onclick = null;
-    };
-
-    const handleEsc = (e) => {
-        if (e.key === 'Escape') closeModal();
-    };
-
-    const handleOverlayClick = (e) => {
-        if (e.target === modalOverlay) closeModal();
-    };
-
-    // Bind Close Toggles
+    // Re-bind Close Button on newly rendered HTML
     const closeBtnEl = document.getElementById('closeViewModalBtn');
     if (closeBtnEl) closeBtnEl.onclick = closeModal;
-    if (closeHeaderBtn) closeHeaderBtn.onclick = closeModal;
-    modalOverlay.addEventListener('click', handleOverlayClick);
-    document.addEventListener('keydown', handleEsc);
-
-    // Disable background scrolling & show modal
-    document.body.style.overflow = 'hidden';
-    modalOverlay.classList.remove('hidden');
 }
 
 /**
@@ -614,7 +658,13 @@ async function migrateLegacyStudents(docs) {
             });
         });
 
+        if (currentTeamId) {
+            const teamRef = doc(db, "institutes", window.currentInstituteId, "teams", currentTeamId);
+            batch.update(teamRef, { memberCount: increment(docs.length) });
+        }
+
         await batch.commit();
+        await updateDashboardMetadata(window.currentInstituteId);
         window.showToast(`Successfully moved ${docs.length} students.`);
         document.getElementById('legacyMigrationCheck').innerHTML = '';
         loadStudentsData();
@@ -624,6 +674,287 @@ async function migrateLegacyStudents(docs) {
         btn.disabled = false;
         btn.textContent = "Retry Move";
     }
+}
+
+function openAddStudentModal() {
+    const modalTitle = document.getElementById('dynamicModalTitle');
+    const modalBody = document.getElementById('dynamicModalBody');
+    const modalOverlay = document.getElementById('dynamicModal');
+
+    modalTitle.textContent = '🎓 Add Student';
+    modalBody.innerHTML = `
+        <style>
+        .student-form-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .student-form-grid .form-row-1,
+        .student-form-grid .form-row-2,
+        .student-form-grid .form-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        @media (max-width: 600px) {
+            .student-form-grid .form-row-1,
+            .student-form-grid .form-row-2,
+            .student-form-grid .form-row-3 {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+            }
+        }
+        </style>
+        <form id="addStudentForm" style="font-family:'Inter', sans-serif; display:flex; flex-direction:column; gap:1rem;">
+            <div class="student-form-grid">
+                <!-- Row 1: Name & Gender -->
+                <div class="form-row-1">
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label">Student Name *</label>
+                        <input type="text" id="addStuName" class="form-input" required placeholder="Full Name">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label">Gender *</label>
+                        <select id="addStuGender" class="form-input" required>
+                            <option value="">Select Gender...</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Row 2: Category & Class -->
+                <div class="form-row-2">
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label">Category *</label>
+                        <select id="addStuCategory" class="form-input" required>
+                            <option value="">Select Category...</option>
+                            ${allCategories.map(cat => `<option value="${cat.id}">${window.escapeHTML(cat.name)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label">Class *</label>
+                        <select id="addStuClass" class="form-input" required disabled>
+                            <option value="">Select Class...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Row 3: Team & Chest Number Preview -->
+                <div class="form-row-3">
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label">Team *</label>
+                        <select id="addStuTeam" class="form-input" required>
+                            <option value="">Select Team...</option>
+                            ${Array.from(teamMap.entries()).map(([id, name]) => `<option value="${id}">${window.escapeHTML(name)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label">Chest Number Preview</label>
+                        <div id="addStuChestPreview" style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:0.5rem 0.75rem; font-size:0.9rem; font-weight:700; color:#475569; min-height:36px; display:flex; align-items:center;">
+                            Select category to preview...
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="font-size:0.72rem; color:#64748b; background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; padding:0.5rem 0.75rem; line-height:1.4;">
+                ℹ️ Chest Number will be generated automatically based on the selected category.
+            </div>
+
+            <div class="modal-actions" style="margin-top:0.5rem;">
+                <button type="button" class="btn btn-secondary" id="cancelAddStuBtn">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="saveAddStuBtn">
+                    <span class="btn-text">💾 Save Student</span>
+                    <span class="btn-spinner hidden"></span>
+                </button>
+            </div>
+        </form>
+    `;
+
+    modalOverlay.classList.remove('hidden');
+
+    const form = document.getElementById('addStudentForm');
+    const catSelect = document.getElementById('addStuCategory');
+    const classSelect = document.getElementById('addStuClass');
+    const previewEl = document.getElementById('addStuChestPreview');
+    const cancelBtn = document.getElementById('cancelAddStuBtn');
+    const saveBtn = document.getElementById('saveAddStuBtn');
+
+    cancelBtn.onclick = () => modalOverlay.classList.add('hidden');
+
+    function updateClassDropdownAndPreview() {
+        const catId = catSelect.value;
+        classSelect.innerHTML = '<option value="">Select Class...</option>';
+        classSelect.disabled = true;
+        previewEl.innerHTML = 'Select category to preview...';
+
+        if (!catId) return;
+
+        const cat = allCategories.find(c => c.id === catId);
+        if (cat) {
+            // Populate classes
+            if (Array.isArray(cat.classes)) {
+                cat.classes.forEach(cls => {
+                    const opt = document.createElement('option');
+                    opt.value = cls.id;
+                    opt.textContent = cls.name;
+                    classSelect.appendChild(opt);
+                });
+                classSelect.disabled = false;
+            }
+
+            // Calculate next chest preview with self-healing skip logic
+            const chestStart = parseInt(cat.chestStart, 10);
+            const chestEnd = parseInt(cat.chestEnd, 10);
+            let nextChest = parseInt(cat.nextChestNumber || chestStart, 10);
+
+            if (isNaN(chestStart) || isNaN(chestEnd)) {
+                previewEl.innerHTML = `<span style="color:#ef4444; font-size:0.8rem;">Invalid range in Category Settings</span>`;
+                return;
+            }
+
+            let assignedChest = null;
+            while (nextChest <= chestEnd) {
+                const chestStr = nextChest.toString();
+                const isTaken = localStudentsAll.some(s => s.chestNumber === chestStr);
+                if (!isTaken) {
+                    assignedChest = chestStr;
+                    break;
+                }
+                nextChest++;
+            }
+
+            if (assignedChest) {
+                previewEl.innerHTML = `Next Available: <span style="color:#4f46e5; margin-left:0.25rem;">#${assignedChest}</span>`;
+            } else {
+                previewEl.innerHTML = `<span style="color:#ef4444; font-size:0.8rem;">No available chest numbers remaining</span>`;
+            }
+        }
+    }
+
+    // Pre-populate if category/class/team are selected in main filter
+    if (currentCategoryId) {
+        catSelect.value = currentCategoryId;
+        updateClassDropdownAndPreview();
+    }
+    if (currentClassId && currentCategoryId) {
+        classSelect.value = currentClassId;
+    }
+    if (currentTeamId) {
+        document.getElementById('addStuTeam').value = currentTeamId;
+    }
+
+    catSelect.addEventListener('change', updateClassDropdownAndPreview);
+
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        
+        const name = document.getElementById('addStuName').value.trim();
+        const gender = document.getElementById('addStuGender').value;
+        const catId = catSelect.value;
+        const classId = classSelect.value;
+        const teamId = document.getElementById('addStuTeam').value;
+
+        if (!name || !gender || !catId || !classId || !teamId) {
+            window.showToast("Please fill in all required fields.", "error");
+            return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.querySelector('.btn-text').classList.add('hidden');
+        saveBtn.querySelector('.btn-spinner').classList.remove('hidden');
+
+        try {
+            // Fetch fresh category document
+            const catRef = doc(db, "institutes", window.currentInstituteId, "categories", catId);
+            const catSnap = await getDoc(catRef);
+            if (!catSnap.exists()) {
+                window.showToast("Selected Category does not exist.", "error");
+                saveBtn.disabled = false;
+                saveBtn.querySelector('.btn-text').classList.remove('hidden');
+                saveBtn.querySelector('.btn-spinner').classList.add('hidden');
+                return;
+            }
+
+            const catData = catSnap.data();
+            const chestStart = parseInt(catData.chestStart, 10);
+            const chestEnd = parseInt(catData.chestEnd, 10);
+            let nextChest = parseInt(catData.nextChestNumber || chestStart, 10);
+
+            if (isNaN(chestStart) || isNaN(chestEnd)) {
+                window.showToast("Category chest range is not configured properly in Category Settings.", "error");
+                saveBtn.disabled = false;
+                saveBtn.querySelector('.btn-text').classList.remove('hidden');
+                saveBtn.querySelector('.btn-spinner').classList.add('hidden');
+                return;
+            }
+
+            // Pre-allocate chest number with self-healing skip logic
+            let assignedChest = null;
+            while (nextChest <= chestEnd) {
+                const chestStr = nextChest.toString();
+                const isTaken = localStudentsAll.some(s => s.chestNumber === chestStr);
+                if (!isTaken) {
+                    assignedChest = chestStr;
+                    nextChest++;
+                    break;
+                }
+                nextChest++;
+            }
+
+            if (!assignedChest) {
+                window.showToast("No available chest numbers remaining for this category.", "error");
+                saveBtn.disabled = false;
+                saveBtn.querySelector('.btn-text').classList.remove('hidden');
+                saveBtn.querySelector('.btn-spinner').classList.add('hidden');
+                return;
+            }
+
+            const batch = writeBatch(db);
+            const colRef = collection(db, "institutes", window.currentInstituteId, "students");
+            const newDocRef = doc(colRef);
+
+            const catObj = allCategories.find(c => c.id === catId);
+            const clsObj = catObj?.classes.find(c => c.id === classId);
+            
+            batch.set(newDocRef, {
+                chestNumber: assignedChest,
+                name: name,
+                gender: gender,
+                categoryId: catId,
+                categoryName: catObj?.name || '',
+                classId: classId,
+                className: clsObj?.name || '',
+                teamId: teamId,
+                createdAt: serverTimestamp()
+            });
+
+            // Commit the updated nextChestNumber on the Category doc
+            batch.update(catRef, {
+                nextChestNumber: nextChest,
+                updatedAt: serverTimestamp()
+            });
+
+            if (teamId) {
+                const teamRef = doc(db, "institutes", window.currentInstituteId, "teams", teamId);
+                batch.update(teamRef, { memberCount: increment(1) });
+            }
+
+            await batch.commit();
+            await updateDashboardMetadata(window.currentInstituteId);
+            window.showToast(`Student ${name} successfully enrolled with Chest No #${assignedChest}!`, "success");
+            modalOverlay.classList.add('hidden');
+        } catch (err) {
+            console.error("Error creating student:", err);
+            window.showToast("Failed to create student.", "error");
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.querySelector('.btn-text').classList.remove('hidden');
+            saveBtn.querySelector('.btn-spinner').classList.add('hidden');
+        }
+    };
 }
 
 function openBulkAddModal() {
@@ -644,9 +975,8 @@ function openBulkAddModal() {
             <table style="width:100%; border-collapse:collapse; font-size:0.875rem;">
                 <thead>
                     <tr style="border-bottom:2px solid #e2e8f0;">
-                        <th style="text-align:left; padding:0.5rem 0.4rem; color:#64748b; font-weight:600; width:30%;">Chest No.</th>
                         <th style="text-align:left; padding:0.5rem 0.4rem; color:#64748b; font-weight:600;">Student Name</th>
-                        <th style="text-align:left; padding:0.5rem 0.4rem; color:#64748b; font-weight:600; width:130px;">Gender</th>
+                        <th style="text-align:left; padding:0.5rem 0.4rem; color:#64748b; font-weight:600; width:150px;">Gender</th>
                         <th style="width:32px;"></th>
                     </tr>
                 </thead>
@@ -673,10 +1003,9 @@ function openBulkAddModal() {
         const rows = document.querySelectorAll('.student-entry-row');
         const students = [];
         rows.forEach(row => {
-            const chest = row.querySelector('.s-chest').value.trim();
             const name = row.querySelector('.s-name').value.trim();
             const gender = row.querySelector('.s-gender').value;
-            if (chest && name) students.push({ chestNumber: chest, name, gender });
+            if (name) students.push({ name, gender });
         });
 
         if (students.length === 0) return window.showToast("Fill in at least one student.", "error");
@@ -685,9 +1014,55 @@ function openBulkAddModal() {
         btn.disabled = true;
 
         try {
+            // Fetch fresh category state
+            const catRef = doc(db, "institutes", window.currentInstituteId, "categories", currentCategoryId);
+            const catSnap = await getDoc(catRef);
+            if (!catSnap.exists()) {
+                window.showToast("Category not found.", "error");
+                btn.disabled = false;
+                return;
+            }
+            const catData = catSnap.data();
+            const chestStart = parseInt(catData.chestStart, 10);
+            const chestEnd = parseInt(catData.chestEnd, 10);
+            let nextChest = parseInt(catData.nextChestNumber || chestStart, 10);
+
+            if (isNaN(chestStart) || isNaN(chestEnd)) {
+                window.showToast("Category chest range is not configured properly in Category Settings.", "error");
+                btn.disabled = false;
+                return;
+            }
+
+            // Pre-allocate chest numbers with self-healing skip logic
+            const allocatedStudents = [];
+            for (const stu of students) {
+                let assignedChest = null;
+                while (nextChest <= chestEnd) {
+                    const chestStr = nextChest.toString();
+                    const isTaken = localStudentsAll.some(s => s.chestNumber === chestStr);
+                    if (!isTaken) {
+                        assignedChest = chestStr;
+                        nextChest++;
+                        break;
+                    }
+                    nextChest++;
+                }
+
+                if (!assignedChest) {
+                    window.showToast("Chest number limit reached for this category. Please extend the range in Category Settings.", "error");
+                    btn.disabled = false;
+                    return;
+                }
+
+                allocatedStudents.push({
+                    ...stu,
+                    chestNumber: assignedChest
+                });
+            }
+
             const batch = writeBatch(db);
             const colRef = collection(db, "institutes", window.currentInstituteId, "students");
-            students.forEach(stu => {
+            allocatedStudents.forEach(stu => {
                 batch.set(doc(colRef), {
                     ...stu,
                     categoryId: currentCategoryId,
@@ -698,7 +1073,20 @@ function openBulkAddModal() {
                     createdAt: serverTimestamp()
                 });
             });
+
+            // Commit the updated nextChestNumber on the Category doc
+            batch.update(catRef, {
+                nextChestNumber: nextChest,
+                updatedAt: serverTimestamp()
+            });
+
+            if (currentTeamId) {
+                const teamRef = doc(db, "institutes", window.currentInstituteId, "teams", currentTeamId);
+                batch.update(teamRef, { memberCount: increment(students.length) });
+            }
+
             await batch.commit();
+            await updateDashboardMetadata(window.currentInstituteId);
             window.showToast(`${students.length} students added!`);
             modalOverlay.classList.add('hidden');
         } catch (e) {
@@ -716,7 +1104,6 @@ function addStudentRow() {
     tr.className = 'student-entry-row';
     tr.style.cssText = 'border-bottom:1px solid #f1f5f9;';
     tr.innerHTML = `
-        <td style="padding:0.4rem 0.4rem;"><input type="text" class="form-input s-chest" placeholder="e.g. A101"></td>
         <td style="padding:0.4rem 0.4rem;"><input type="text" class="form-input s-name" placeholder="Full name"></td>
         <td style="padding:0.4rem 0.4rem;">
             <select class="form-input s-gender">
@@ -740,8 +1127,9 @@ function openEditModal(stuId, data) {
     modalBody.innerHTML = `
         <form id="editStudentForm">
             <div class="form-group">
-                <label class="form-label">Chest Number</label>
-                <input type="text" id="eChest" class="form-input" required value="${window.escapeHTML(data.chestNumber || '')}">
+                <label class="form-label">Chest Number (Read Only)</label>
+                <input type="text" id="eChest" class="form-input" disabled readonly style="background:#f1f5f9; cursor:not-allowed; font-weight:700; color:#334155;" value="#${window.escapeHTML(data.chestNumber || '—')}">
+                <p style="font-size:0.72rem; color:#94a3b8; margin-top:0.25rem;">Chest number is allocated automatically and cannot be changed.</p>
             </div>
             <div class="form-group">
                 <label class="form-label">Student Name</label>
@@ -769,11 +1157,11 @@ function openEditModal(stuId, data) {
 
         try {
             await updateDoc(doc(db, "institutes", window.currentInstituteId, "students", stuId), {
-                chestNumber: document.getElementById('eChest').value.trim(),
                 name: document.getElementById('eName').value.trim(),
                 gender: document.getElementById('eGender').value,
                 updatedAt: serverTimestamp()
             });
+            await updateDashboardMetadata(window.currentInstituteId);
             window.showToast("Student updated");
             modalOverlay.classList.add('hidden');
         } catch (e) {
@@ -785,13 +1173,797 @@ function openEditModal(stuId, data) {
 }
 
 async function deleteStudent(stuId) {
-    if (!confirm("Delete this student?")) return;
+    if (!confirm("Delete this student? This will also remove them from all program registrations.")) return;
     try {
-        await deleteDoc(doc(db, "institutes", window.currentInstituteId, "students", stuId));
-        window.showToast("Student deleted");
+        const instId = window.currentInstituteId;
+        const student = localStudentsAll.find(s => s.id === stuId);
+        const teamId = student?.teamId || '';
+
+        const batch = writeBatch(db);
+
+        // ── 1. Individual participant registrations ──────────────────────
+        // Use collectionGroup to find every participant doc with studentId == stuId
+        const programCountDeltas = new Map(); // programId -> count change
+
+        const indivSnap = await getDocs(query(
+            collectionGroup(db, "participants"),
+            where("studentId", "==", stuId),
+            where("type", "==", "individual")
+        ));
+        indivSnap.forEach(d => {
+            const data = d.data();
+            batch.delete(d.ref);
+            if (data.programId) {
+                programCountDeltas.set(
+                    data.programId,
+                    (programCountDeltas.get(data.programId) || 0) - 1
+                );
+            }
+        });
+
+        // ── 2. Group participant docs ─────────────────────────────────────
+        // Groups embed student data as groups[].members[] arrays.
+        // Query by teamId to scope the search, then filter programmatically.
+        if (teamId) {
+            const groupSnap = await getDocs(query(
+                collectionGroup(db, "participants"),
+                where("type", "==", "group"),
+                where("teamId", "==", teamId)
+            ));
+            groupSnap.forEach(d => {
+                const data = d.data();
+                const groups = Array.isArray(data.groups) ? data.groups : [];
+                const studentInGroup = groups.some(g =>
+                    Array.isArray(g.members) && g.members.some(m => m.studentId === stuId)
+                );
+                if (studentInGroup) {
+                    const updatedGroups = groups.map(g => ({
+                        ...g,
+                        members: (g.members || []).filter(m => m.studentId !== stuId)
+                    }));
+                    batch.update(d.ref, { groups: updatedGroups });
+                }
+            });
+        }
+
+        // ── 3. Decrement participantCount on every affected program ───────
+        for (const [programId, delta] of programCountDeltas) {
+            const progRef = doc(db, "institutes", instId, "programs", programId);
+            batch.update(progRef, { participantCount: increment(delta) });
+        }
+
+        // ── 4. Delete the student document ───────────────────────────────
+        batch.delete(doc(db, "institutes", instId, "students", stuId));
+
+        // ── 5. Decrement team memberCount ─────────────────────────────────
+        if (teamId) {
+            const teamRef = doc(db, "institutes", instId, "teams", teamId);
+            batch.update(teamRef, { memberCount: increment(-1) });
+        }
+
+        await batch.commit();
+        await updateDashboardMetadata(instId);
+        window.showToast("Student deleted and all registrations removed.");
     } catch (e) {
         console.error(e);
         window.showToast("Delete failed", "error");
+    }
+}
+
+// ─────────────────────────────────────────────
+// Excel Import System
+// ─────────────────────────────────────────────
+
+async function openBulkImportModal() {
+    if (typeof XLSX === 'undefined') {
+        window.showToast("Loading Excel importer engine...", "info");
+        try {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        } catch (err) {
+            console.error("Failed to load SheetJS:", err);
+            window.showToast("Failed to load Excel parsing engine. Please check internet connection.", "error");
+            return;
+        }
+    }
+
+    const modal = document.getElementById('dynamicModal');
+    const modalTitle = document.getElementById('dynamicModalTitle');
+    const modalBody = document.getElementById('dynamicModalBody');
+
+    modalTitle.textContent = "📊 Import Students from Excel";
+    modalBody.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:1.25rem; padding:0.25rem;">
+            <p style="font-size:0.85rem; color:#475569; margin:0; line-height:1.5;">
+                Upload student profiles directly from an Excel spreadsheet. You can import students belonging to different categories, classes, and teams simultaneously.
+            </p>
+
+            <!-- Template download and file input -->
+            <div style="display:flex; flex-direction:column; gap:0.75rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:1rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                    <span style="font-size:0.8rem; font-weight:700; color:#475569;">1. Need a template?</span>
+                    <button class="btn btn-secondary btn-sm" id="btnDownloadTemplate" style="font-size:0.75rem;">📥 Download Sample Template</button>
+                </div>
+                <div style="border-top:1px solid #e2e8f0; padding-top:0.75rem; margin-top:0.25rem; display:flex; flex-direction:column; gap:0.5rem;">
+                    <label style="font-size:0.8rem; font-weight:700; color:#475569;">2. Select Excel File (.xlsx, .xls) *</label>
+                    <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="form-input" style="padding:0.4rem;" />
+                    <span style="font-size:0.7rem; color:#64748b;">Maximum file size: 10 MB.</span>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+                <button class="btn btn-secondary" id="btnImportCancel">Cancel</button>
+                <button class="btn btn-primary" id="btnImportNext" disabled>Next: Preview ➔</button>
+            </div>
+        </div>
+    `;
+
+    modal.classList.remove('hidden');
+    document.getElementById('closeDynamicModalBtn').onclick = () => modal.classList.add('hidden');
+    document.getElementById('btnImportCancel').onclick = () => modal.classList.add('hidden');
+
+    document.getElementById('btnDownloadTemplate').onclick = () => {
+        try {
+            const headers = ["Chest No", "Student Name", "Gender", "Category", "Class", "Team"];
+            
+            const firstCategory = allCategories[0];
+            const firstClass = firstCategory?.classes[0]?.name || "10";
+            const firstTeam = Array.from(teamMap.values())[0] || "Team A";
+            const secondTeam = Array.from(teamMap.values())[1] || "Team B";
+
+            const sampleRows = [
+                ["101", "Ahmed", "Male", firstCategory?.name || "Senior Boys", firstClass, firstTeam],
+                ["102", "Afsal", "Male", firstCategory?.name || "Senior Boys", firstClass, firstTeam],
+                ["103", "Nihad", "Male", firstCategory?.name || "Senior Boys", firstClass, secondTeam]
+            ];
+
+            const ws_data = [headers, ...sampleRows];
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(ws_data);
+            XLSX.utils.book_append_sheet(wb, ws, "Students");
+            
+            XLSX.writeFile(wb, "Student_Import_Template.xlsx");
+        } catch (err) {
+            console.error("Template generation failed:", err);
+            window.showToast("Failed to generate Excel template.", "error");
+        }
+    };
+
+    const fileInput = document.getElementById('excelFileInput');
+    const btnNext = document.getElementById('btnImportNext');
+
+    fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            if (file.size > 10 * 1024 * 1024) {
+                window.showToast("File size exceeds 10 MB limit.", "error");
+                fileInput.value = '';
+                btnNext.disabled = true;
+                return;
+            }
+            btnNext.disabled = false;
+        } else {
+            btnNext.disabled = true;
+        }
+    };
+
+    btnNext.onclick = () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        btnNext.disabled = true;
+        btnNext.innerHTML = `Parsing... <div class="spinner-sm" style="display:inline-block; vertical-align:middle; width:12px; height:12px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:spin 0.6s linear infinite; margin-left:0.35rem;"></div>`;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                const jsonRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+                if (jsonRows.length === 0) {
+                    window.showToast("The selected Excel file is empty.", "error");
+                    btnNext.disabled = false;
+                    btnNext.textContent = "Next: Preview ➔";
+                    return;
+                }
+
+                const headers = jsonRows[0].map(h => (h || '').toString().trim());
+                const requiredHeaders = ["Student Name", "Gender", "Category", "Class"];
+                const headerIndices = {};
+                
+                requiredHeaders.forEach(req => {
+                    headerIndices[req] = headers.findIndex(h => h.toLowerCase() === req.toLowerCase());
+                });
+                headerIndices["Chest No"] = headers.findIndex(h => h.toLowerCase() === "chest no");
+                headerIndices["Team"] = headers.findIndex(h => h.toLowerCase() === "team");
+
+                const missingHeaders = requiredHeaders.filter(req => headerIndices[req] === -1);
+                if (missingHeaders.length > 0) {
+                    window.showToast(`Missing required columns: ${missingHeaders.join(', ')}`, "error");
+                    btnNext.disabled = false;
+                    btnNext.textContent = "Next: Preview ➔";
+                    return;
+                }
+
+                const rows = jsonRows.slice(1);
+                const validList = [];
+                const invalidList = [];
+                const duplicateList = [];
+                const sheetChestNumbers = new Set();
+
+                rows.forEach((row, idx) => {
+                    const rowNum = idx + 2; 
+                    
+                    const isEmpty = row.every(val => (val === undefined || val === null || val.toString().trim() === ''));
+                    if (isEmpty) return;
+
+                    const chestRaw = headerIndices["Chest No"] !== -1 ? row[headerIndices["Chest No"]] : '';
+                    const nameRaw = row[headerIndices["Student Name"]];
+                    const genderRaw = row[headerIndices["Gender"]];
+                    const categoryRaw = row[headerIndices["Category"]];
+                    const classRaw = row[headerIndices["Class"]];
+                    const teamRaw = headerIndices["Team"] !== -1 ? row[headerIndices["Team"]] : '';
+
+                    const chestNumber = (chestRaw || '').toString().trim().toUpperCase();
+                    const name = (nameRaw || '').toString().trim();
+                    const gender = (genderRaw || '').toString().trim();
+                    const categoryName = (categoryRaw || '').toString().trim();
+                    const className = (classRaw || '').toString().trim();
+                    const teamName = (teamRaw || '').toString().trim();
+
+                    const errors = [];
+
+                    if (!name) errors.push("Missing Student Name");
+
+                    let normalizedGender = 'Other';
+                    if (gender) {
+                        const gLower = gender.toLowerCase().trim();
+                        if (gLower === 'male' || gLower === 'm') normalizedGender = 'Male';
+                        else if (gLower === 'female' || gLower === 'f') normalizedGender = 'Female';
+                        else if (gLower === 'other' || gLower === 'o') normalizedGender = 'Other';
+                        else errors.push(`Invalid Gender "${gender}"`);
+                    } else {
+                        errors.push("Missing Gender");
+                    }
+
+                    let matchedCategory = null;
+                    if (categoryName) {
+                        matchedCategory = allCategories.find(c => c.name.toLowerCase().trim() === categoryName.toLowerCase().trim());
+                        if (!matchedCategory) {
+                            errors.push(`Category "${categoryName}" does not exist`);
+                        }
+                    } else {
+                        errors.push("Missing Category");
+                    }
+
+                    let matchedClass = null;
+                    if (className && matchedCategory) {
+                        matchedClass = matchedCategory.classes.find(cls => cls.name.toLowerCase().trim() === className.toLowerCase().trim());
+                        if (!matchedClass) {
+                            errors.push(`Class "${className}" is invalid for category "${matchedCategory.name}"`);
+                        }
+                    } else if (!className) {
+                        errors.push("Missing Class");
+                    }
+
+                    let matchedTeamId = '';
+                    if (teamName) {
+                        const matchedTeamEntry = Array.from(teamMap.entries()).find(([id, name]) => name.toLowerCase().trim() === teamName.toLowerCase().trim());
+                        if (matchedTeamEntry) {
+                            matchedTeamId = matchedTeamEntry[0];
+                        } else {
+                            errors.push(`Team "${teamName}" does not exist`);
+                        }
+                    }
+
+                    if (chestNumber && matchedCategory) {
+                        const chestInt = parseInt(chestNumber, 10);
+                        const cStart = parseInt(matchedCategory.chestStart, 10);
+                        const cEnd = parseInt(matchedCategory.chestEnd, 10);
+                        if (isNaN(chestInt)) {
+                            errors.push(`Chest No "${chestNumber}" must be a valid integer`);
+                        } else if (isNaN(cStart) || isNaN(cEnd)) {
+                            errors.push(`Category "${matchedCategory.name}" chest range bounds are not configured`);
+                        } else if (chestInt < cStart || chestInt > cEnd) {
+                            errors.push(`Chest No "${chestNumber}" is out of range (${cStart}–${cEnd}) for Category "${matchedCategory.name}"`);
+                        }
+                    }
+
+                    let isDuplicateInSheet = false;
+                    if (chestNumber) {
+                        if (sheetChestNumbers.has(chestNumber)) {
+                            errors.push(`Duplicate Chest No "${chestNumber}" in Excel`);
+                            isDuplicateInSheet = true;
+                        } else {
+                            sheetChestNumbers.add(chestNumber);
+                        }
+                    }
+
+                    const isDuplicateInDb = chestNumber && localStudentsAll.some(s => s.chestNumber === chestNumber);
+
+                    const studentObj = {
+                        rowNumber: rowNum,
+                        chestNumber,
+                        name,
+                        gender: normalizedGender,
+                        categoryId: matchedCategory ? matchedCategory.id : '',
+                        categoryName: matchedCategory ? matchedCategory.name : '',
+                        classId: matchedClass ? matchedClass.id : '',
+                        className: matchedClass ? matchedClass.name : '',
+                        teamId: matchedTeamId,
+                        teamName: teamName || '',
+                        isDuplicateInDb,
+                        isDuplicateInSheet,
+                        errors
+                    };
+
+                    if (errors.length > 0) {
+                        invalidList.push(studentObj);
+                    } else if (isDuplicateInDb) {
+                        duplicateList.push(studentObj);
+                    } else {
+                        validList.push(studentObj);
+                    }
+                });
+
+                showPreviewScreen(validList, invalidList, duplicateList);
+
+            } catch (err) {
+                console.error("Spreadsheet parse failed:", err);
+                window.showToast("Failed to parse the Excel file.", "error");
+                btnNext.disabled = false;
+                btnNext.textContent = "Next: Preview ➔";
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+}
+
+function showPreviewScreen(validList, invalidList, duplicateList) {
+    const modalTitle = document.getElementById('dynamicModalTitle');
+    const modalBody = document.getElementById('dynamicModalBody');
+
+    const totalRows = validList.length + invalidList.length + duplicateList.length;
+
+    modalTitle.textContent = "📋 Import Preview & Approval";
+
+    let errorsHTML = '';
+    if (invalidList.length > 0) {
+        errorsHTML = `
+            <div style="background:#fff1f2; border:1px solid #fecdd3; border-radius:10px; padding:0.85rem; margin-bottom:0.75rem;">
+                <h4 style="margin:0 0 0.4rem 0; color:#9f1239; font-size:0.85rem; font-weight:800; display:flex; align-items:center; gap:0.35rem;">
+                    ⚠️ Errors Found in ${invalidList.length} Rows
+                </h4>
+                <div style="max-height:100px; overflow-y:auto; font-size:0.75rem; color:#be123c; display:flex; flex-direction:column; gap:0.2rem;">
+                    ${invalidList.map(item => `
+                        <div>Row <strong>${item.rowNumber}</strong> (Name: ${window.escapeHTML(item.name || 'Unknown')}): ${item.errors.join(' · ')}</div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    let duplicatesHTML = '';
+    if (duplicateList.length > 0) {
+        duplicatesHTML = `
+            <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:0.85rem; margin-bottom:0.75rem;">
+                <h4 style="margin:0 0 0.4rem 0; color:#b45309; font-size:0.85rem; font-weight:800; display:flex; align-items:center; gap:0.35rem;">
+                    👤 Duplicate Chest Numbers (${duplicateList.length} Rows)
+                </h4>
+                <p style="font-size:0.75rem; color:#92400e; margin:0 0 0.6rem 0; line-height:1.4;">
+                    These chest numbers already exist in the database. Choose duplicate handling logic:
+                </p>
+                <div style="display:flex; flex-direction:column; gap:0.4rem; font-size:0.8rem; color:#78350f;">
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:700;">
+                        <input type="radio" name="dupAction" value="skip" checked style="width:1.1rem; height:1.1rem; cursor:pointer;" />
+                        Skip Duplicates (Safest - ignores duplicates)
+                    </label>
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:700;">
+                        <input type="radio" name="dupAction" value="overwrite" style="width:1.1rem; height:1.1rem; cursor:pointer;" />
+                        Overwrite Existing Profiles (Preserves program registrations)
+                    </label>
+                </div>
+                <div style="max-height:80px; overflow-y:auto; font-size:0.75rem; color:#92400e; display:flex; flex-direction:column; gap:0.2rem; margin-top:0.5rem; border-top:1px solid #fef3c7; padding-top:0.4rem;">
+                    ${duplicateList.map(item => `
+                        <div>Row <strong>${item.rowNumber}</strong>: Chest No <strong>${item.chestNumber}</strong> (${window.escapeHTML(item.name)})</div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    modalBody.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:1rem; padding:0.25rem;">
+            <!-- Statistics Cards -->
+            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:0.4rem; text-align:center;">
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.5rem 0.25rem;">
+                    <div style="font-size:1.1rem; font-weight:800; color:#334155;">${totalRows}</div>
+                    <div style="font-size:0.6rem; font-weight:700; color:#64748b; text-transform:uppercase; margin-top:0.15rem;">Total Rows</div>
+                </div>
+                <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:0.5rem 0.25rem;">
+                    <div style="font-size:1.1rem; font-weight:800; color:#166534;">${validList.length}</div>
+                    <div style="font-size:0.6rem; font-weight:700; color:#15803d; text-transform:uppercase; margin-top:0.15rem;">To Import</div>
+                </div>
+                <div style="background:#fff1f2; border:1px solid #fecdd3; border-radius:8px; padding:0.5rem 0.25rem;">
+                    <div style="font-size:1.1rem; font-weight:800; color:#9f1239;">${invalidList.length}</div>
+                    <div style="font-size:0.6rem; font-weight:700; color:#9e1239; text-transform:uppercase; margin-top:0.15rem;">Invalid</div>
+                </div>
+                <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:0.5rem 0.25rem;">
+                    <div style="font-size:1.1rem; font-weight:800; color:#92400e;">${duplicateList.length}</div>
+                    <div style="font-size:0.6rem; font-weight:700; color:#b45309; text-transform:uppercase; margin-top:0.15rem;">Duplicates</div>
+                </div>
+            </div>
+
+            ${errorsHTML}
+            ${duplicatesHTML}
+
+            <!-- Valid items preview list -->
+            <div>
+                <div style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:0.4rem;">Students to Enroll (${validList.length})</div>
+                <div style="max-height:160px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:8px; padding:0.25rem; background:#fff; font-size:0.8rem;">
+                    ${validList.length > 0 
+                        ? `<table style="width:100%; border-collapse:collapse;">
+                            <thead style="position:sticky; top:0; background:#f1f5f9; font-weight:700; z-index:10;">
+                                <tr style="border-bottom:1px solid #e2e8f0; text-align:left;">
+                                    <th style="padding:0.4rem;">Chest</th>
+                                    <th style="padding:0.4rem;">Name</th>
+                                    <th style="padding:0.4rem;">Category / Class</th>
+                                    <th style="padding:0.4rem;">Team</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${validList.map(item => `
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="padding:0.35rem; font-weight:700; color:#1e1b4b;">${item.chestNumber || '<span style="color:#6366f1; font-style:italic; font-size:0.75rem;">(Auto)</span>'}</td>
+                                        <td style="padding:0.35rem; color:#0f172a;">${window.escapeHTML(item.name)}</td>
+                                        <td style="padding:0.35rem; color:#475569;">${window.escapeHTML(item.categoryName)} / ${window.escapeHTML(item.className)}</td>
+                                        <td style="padding:0.35rem; color:#475569;">${window.escapeHTML(item.teamName || '—')}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                           </table>`
+                        : '<div style="font-size:0.8rem; color:#94a3b8; text-align:center; padding:1.5rem 0;">No clean rows to import</div>'
+                    }
+                </div>
+            </div>
+
+            <!-- Warning Banner -->
+            ${validList.length > 0 ? `
+            <div style="font-size:0.72rem; color:#475569; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:0.6rem 0.85rem; line-height:1.4;">
+                ℹ️ <strong>Import Notice:</strong> The import will run in background chunks to avoid performance lockup. Please do not close the browser tab until completion.
+            </div>
+            ` : ''}
+
+            <!-- Action buttons -->
+            <div style="display:flex; gap:0.5rem; justify-content:flex-end; border-top:1px solid #e2e8f0; padding-top:1rem; margin-top:0.25rem;">
+                <button class="btn btn-secondary" id="btnPreviewBack">Back</button>
+                <button class="btn btn-primary" id="btnImportCommit" ${validList.length === 0 && duplicateList.length === 0 ? 'disabled' : ''}>
+                    🚀 Commit & Import (${validList.length})
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('btnPreviewBack').onclick = () => {
+        openBulkImportModal();
+    };
+
+    const btnCommit = document.getElementById('btnImportCommit');
+    if (btnCommit) {
+        btnCommit.onclick = () => {
+            const dupRadios = document.getElementsByName('dupAction');
+            let duplicateAction = 'skip';
+            dupRadios.forEach(r => {
+                if (r.checked) duplicateAction = r.value;
+            });
+
+            executeImportProcess(validList, duplicateList, duplicateAction);
+        };
+    }
+}
+
+async function executeImportProcess(validList, duplicateList, duplicateAction) {
+    const modal = document.getElementById('dynamicModal');
+    const modalTitle = document.getElementById('dynamicModalTitle');
+    const modalBody = document.getElementById('dynamicModalBody');
+
+    const importQueue = [...validList];
+    if (duplicateAction === 'overwrite') {
+        importQueue.push(...duplicateList);
+    }
+
+    if (importQueue.length === 0) {
+        window.showToast("No students to import.", "error");
+        return;
+    }
+
+    modalTitle.textContent = "⚙️ Executing Excel Import";
+    modalBody.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:1.25rem; padding:0.5rem; text-align:center;">
+            <div style="font-size:2.5rem; margin-top:0.5rem;">⚡</div>
+            <h4 style="margin:0; font-weight:800; font-size:1.05rem; color:#0f172a;" id="importProgressTitle">Importing Students...</h4>
+            <p style="font-size:0.8rem; color:#64748b; line-height:1.4; margin:0;" id="importProgressDesc">
+                Processing records in chunked database batches. Please wait.
+            </p>
+
+            <!-- Progress bar -->
+            <div style="width:100%; height:12px; background:#e2e8f0; border-radius:99px; overflow:hidden; position:relative; margin:0.5rem 0;">
+                <div id="importProgressBar" style="width:0%; height:100%; background:#4338ca; border-radius:99px; transition:width 0.25s;"></div>
+            </div>
+            <div style="font-size:0.75rem; font-weight:700; color:#4338ca;" id="importProgressPercent">0% Complete</div>
+        </div>
+    `;
+
+    const chunkSize = 150;
+    const totalStudents = importQueue.length;
+    const totalChunks = Math.ceil(totalStudents / chunkSize);
+    const importBatchId = `xlsx_import_${Date.now()}`;
+    const importedAt = serverTimestamp();
+
+    const failedRows = [];
+
+    for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
+        const start = chunkIdx * chunkSize;
+        const end = Math.min(start + chunkSize, totalStudents);
+        const chunk = importQueue.slice(start, end);
+
+        const progress = Math.round((start / totalStudents) * 100);
+        document.getElementById('importProgressBar').style.width = `${progress}%`;
+        document.getElementById('importProgressPercent').textContent = `${progress}% Complete`;
+        document.getElementById('importProgressTitle').textContent = `Processing Batch ${chunkIdx + 1} of ${totalChunks}...`;
+        document.getElementById('importProgressDesc').textContent = `Writing rows ${start + 1} to ${end} of ${totalStudents}.`;
+
+        const batch = writeBatch(db);
+        const colRef = collection(db, "institutes", window.currentInstituteId, "students");
+        const teamDiffs = new Map();
+
+        // 1. Identify which categories are used in this chunk and have missing chest numbers
+        const referencedCategoryIds = new Set();
+        chunk.forEach(stu => {
+            if (!stu.chestNumber && stu.categoryId) {
+                referencedCategoryIds.add(stu.categoryId);
+            }
+        });
+
+        // 2. Fetch fresh category document states
+        const categoryDataMap = new Map();
+        for (const catId of referencedCategoryIds) {
+            try {
+                const catRef = doc(db, "institutes", window.currentInstituteId, "categories", catId);
+                const catSnap = await getDoc(catRef);
+                if (catSnap.exists()) {
+                    categoryDataMap.set(catId, { ref: catRef, ...catSnap.data() });
+                }
+            } catch (err) {
+                console.error("Error fetching category for import allocation:", err);
+            }
+        }
+
+        // 3. Keep track of newly allocated chest numbers in this specific batch to avoid duplicates
+        const allocatedInThisBatch = new Set();
+
+        for (const stu of chunk) {
+            let chestNumber = stu.chestNumber;
+
+            if (!chestNumber) {
+                // Auto-allocate Option A
+                const catInfo = categoryDataMap.get(stu.categoryId);
+                if (!catInfo) {
+                    stu.errors = stu.errors || [];
+                    stu.errors.push("Category configuration not found.");
+                    failedRows.push(stu);
+                    continue;
+                }
+
+                const chestStart = parseInt(catInfo.chestStart, 10);
+                const chestEnd = parseInt(catInfo.chestEnd, 10);
+                let nextChest = parseInt(catInfo.nextChestNumber || chestStart, 10);
+
+                if (isNaN(chestStart) || isNaN(chestEnd)) {
+                    stu.errors = stu.errors || [];
+                    stu.errors.push("Category chest range is invalid.");
+                    failedRows.push(stu);
+                    continue;
+                }
+
+                let assignedChest = null;
+                while (nextChest <= chestEnd) {
+                    const chestStr = nextChest.toString();
+                    const isTakenInDb = localStudentsAll.some(s => s.chestNumber === chestStr);
+                    const isTakenInBatch = allocatedInThisBatch.has(chestStr);
+                    if (!isTakenInDb && !isTakenInBatch) {
+                        assignedChest = chestStr;
+                        allocatedInThisBatch.add(chestStr);
+                        nextChest++;
+                        break;
+                    }
+                    nextChest++;
+                }
+
+                if (!assignedChest) {
+                    stu.errors = stu.errors || [];
+                    stu.errors.push("Chest range limit reached for category.");
+                    failedRows.push(stu);
+                    continue;
+                }
+
+                chestNumber = assignedChest;
+                // Update nextChestNumber in our local map object so the next student gets the next available number
+                catInfo.nextChestNumber = nextChest;
+            }
+
+            const isOverwrite = stu.isDuplicateInDb;
+            const existingStu = isOverwrite ? localStudentsAll.find(s => s.chestNumber === chestNumber) : null;
+            
+            const payload = {
+                chestNumber: chestNumber,
+                name: stu.name,
+                gender: stu.gender,
+                categoryId: stu.categoryId,
+                categoryName: stu.categoryName,
+                classId: stu.classId,
+                className: stu.className,
+                teamId: stu.teamId,
+                importBatchId,
+                updatedAt: importedAt
+            };
+
+            if (isOverwrite && existingStu) {
+                const docRef = doc(db, "institutes", window.currentInstituteId, "students", existingStu.id);
+                batch.update(docRef, payload);
+
+                const oldTeamId = existingStu.teamId || '';
+                const newTeamId = stu.teamId || '';
+                if (oldTeamId !== newTeamId) {
+                    if (oldTeamId) teamDiffs.set(oldTeamId, (teamDiffs.get(oldTeamId) || 0) - 1);
+                    if (newTeamId) teamDiffs.set(newTeamId, (teamDiffs.get(newTeamId) || 0) + 1);
+                }
+            } else {
+                payload.createdAt = importedAt;
+                const newDocRef = doc(colRef);
+                batch.set(newDocRef, payload);
+
+                if (stu.teamId) {
+                    teamDiffs.set(stu.teamId, (teamDiffs.get(stu.teamId) || 0) + 1);
+                }
+            }
+        }
+
+        // Add Category nextChestNumber updates to batch
+        for (const [catId, catInfo] of categoryDataMap.entries()) {
+            batch.update(catInfo.ref, {
+                nextChestNumber: catInfo.nextChestNumber,
+                updatedAt: importedAt
+            });
+        }
+
+        for (const [teamId, delta] of teamDiffs.entries()) {
+            if (delta !== 0) {
+                const teamRef = doc(db, "institutes", window.currentInstituteId, "teams", teamId);
+                batch.update(teamRef, { memberCount: increment(delta) });
+            }
+        }
+
+        try {
+            await batch.commit();
+        } catch (err) {
+            console.error(`Chunk ${chunkIdx + 1} failed during commit:`, err);
+            failedRows.push(...chunk);
+        }
+    }
+
+    document.getElementById('importProgressBar').style.width = `100%`;
+    document.getElementById('importProgressPercent').textContent = `100% Complete`;
+
+    try {
+        await updateDashboardMetadata(window.currentInstituteId);
+    } catch (e) {
+        console.error("Failed to aggregate dashboard metadata", e);
+    }
+
+    const successCount = totalStudents - failedRows.length;
+
+    if (failedRows.length === 0) {
+        modalBody.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:1.25rem; padding:0.5rem; text-align:center;">
+                <div style="font-size:3rem; margin-top:0.5rem;">🎉</div>
+                <h4 style="margin:0; font-weight:800; font-size:1.15rem; color:#15803d;">Import Completed Successfully!</h4>
+                <p style="font-size:0.85rem; color:#475569; line-height:1.5; margin:0;">
+                    Successfully imported/updated <strong>${successCount}</strong> student profiles in the database.<br>
+                    All team counts and dashboard stats have been re-aggregated and updated.
+                </p>
+                <div style="display:flex; gap:0.5rem; justify-content:center; margin-top:0.5rem;">
+                    <button class="btn btn-primary w-full" id="btnImportFinish">Done</button>
+                </div>
+            </div>
+        `;
+        document.getElementById('btnImportFinish').onclick = () => {
+            modal.classList.add('hidden');
+            loadStudentsData();
+        };
+        window.showToast(`Imported ${successCount} students successfully!`, "success");
+    } else {
+        const csvHeaders = "Chest No,Student Name,Gender,Category,Class,Team\n";
+        const csvRows = failedRows.map(r => `"${r.chestNumber}","${r.name}","${r.gender}","${r.categoryName}","${r.className}","${r.teamName}"`).join("\n");
+        const encodedUri = "data:text/csv;charset=utf-8," + encodeURIComponent(csvHeaders + csvRows);
+
+        modalBody.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:1.25rem; padding:0.5rem; text-align:center;">
+                <div style="font-size:3rem; margin-top:0.5rem;">⚠️</div>
+                <h4 style="margin:0; font-weight:800; font-size:1.15rem; color:#b45309;">Import Completed with Errors</h4>
+                <p style="font-size:0.85rem; color:#475569; line-height:1.5; margin:0;">
+                    Successfully imported/updated <strong>${successCount}</strong> students, but <strong>${failedRows.length}</strong> rows failed due to database writes exceptions.
+                </p>
+
+                <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:0.85rem; text-align:left; display:flex; flex-direction:column; gap:0.5rem;">
+                    <div style="font-weight:700; color:#b45309; font-size:0.8rem;">👉 Next Actions:</div>
+                    <a href="${encodedUri}" download="failed_import_rows.csv" class="btn btn-secondary w-full" style="text-decoration:none; text-align:center; padding:0.4rem; font-size:0.8rem; display:block;">
+                        📥 Download Failed Rows (.csv)
+                    </a>
+                    <button class="btn btn-danger w-full" id="btnImportRollback" style="font-size:0.8rem;">
+                        🗑️ Rollback Partial Import (${successCount} rows)
+                    </button>
+                </div>
+
+                <div style="display:flex; gap:0.5rem; justify-content:center;">
+                    <button class="btn btn-secondary w-full" id="btnImportFinish">Close Dialog</button>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('btnImportFinish').onclick = () => {
+            modal.classList.add('hidden');
+            loadStudentsData();
+        };
+        
+        document.getElementById('btnImportRollback').onclick = async () => {
+            const btn = document.getElementById('btnImportRollback');
+            btn.disabled = true;
+            btn.textContent = "Rolling back...";
+            
+            try {
+                const snap = await getDocs(query(
+                    collection(db, "institutes", window.currentInstituteId, "students"),
+                    where("importBatchId", "==", importBatchId)
+                ));
+                
+                const rollbackBatch = writeBatch(db);
+                const teamCounts = new Map();
+                
+                snap.forEach(d => {
+                    const data = d.data();
+                    rollbackBatch.delete(d.ref);
+                    if (data.teamId) {
+                        teamCounts.set(data.teamId, (teamCounts.get(data.teamId) || 0) + 1);
+                    }
+                });
+
+                for (const [teamId, count] of teamCounts.entries()) {
+                    const teamRef = doc(db, "institutes", window.currentInstituteId, "teams", teamId);
+                    rollbackBatch.update(teamRef, { memberCount: increment(-count) });
+                }
+
+                await rollbackBatch.commit();
+                await updateDashboardMetadata(window.currentInstituteId);
+                window.showToast("Rollback completed successfully. State restored.", "success");
+                modal.classList.add('hidden');
+                loadStudentsData();
+            } catch (rollbackErr) {
+                console.error("Rollback failed:", rollbackErr);
+                window.showToast("Rollback failed. Some records might remain.", "error");
+                btn.disabled = false;
+                btn.textContent = "Retry Rollback";
+            }
+        };
     }
 }
 

@@ -1,6 +1,6 @@
 import { db } from './firebase.js';
 import {
-    collection, doc, getDoc, onSnapshot
+    collection, doc, getDoc, onSnapshot, query, where
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 // ─────────────────────────────────────────────
@@ -71,15 +71,33 @@ async function init() {
             return;
         }
 
-        document.getElementById('madrasaName').textContent = instituteDetails.name || "Results Portal";
+        // Custom Event settings resolution with self-healing fallback (SECTION 2 Event Customization)
+        let displayEventName = instituteDetails.name || "Results Portal";
+        try {
+            const configSnap = await getDoc(doc(db, "institutes", instId, "metadata", "eventConfig"));
+            if (configSnap.exists()) {
+                const configData = configSnap.data();
+                if (configData.eventName) {
+                    displayEventName = configData.eventName;
+                }
+            }
+        } catch (e) {
+            console.warn("Public results custom event settings bypassed: read restricted, falling back to name.");
+        }
+
+        document.getElementById('madrasaName').textContent = displayEventName;
 
         // 2. Setup Real-time Firestore Listeners on Results (Strictly Published results only)
         const resultsRef = collection(db, "institutes", instId, "results");
+        const publishedQuery = query(
+            resultsRef,
+            where("status", "==", "published")
+        );
 
-        onSnapshot(resultsRef, (snapshot) => {
+        onSnapshot(publishedQuery, (snapshot) => {
             const published = snapshot.docs
                 .map(d => ({ id: d.id, ...d.data() }))
-                .filter(r => r.status === 'published' && r.publicDisabled !== true);
+                .filter(r => r.publicDisabled !== true);
 
             // Sort by published timestamp descending for base listing
             allResults = published.sort((a, b) => {

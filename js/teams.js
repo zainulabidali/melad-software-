@@ -1,13 +1,19 @@
 // Teams Module
-import { db } from './firebase.js';
+import { db, updateDashboardMetadata, migrateTeamMemberCounts } from './firebase.js';
 import {
     collection,
     addDoc,
+    getDocs,
     doc,
     deleteDoc,
     updateDoc,
     onSnapshot,
-    serverTimestamp
+    serverTimestamp,
+    writeBatch,
+    query,
+    where,
+    collectionGroup,
+    increment
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 let unsubscribeTeams = null;
@@ -77,35 +83,15 @@ function startRealtimeSync() {
     if (!instId) return;
 
     const teamsRef = collection(db, "institutes", instId, "teams");
-    const studentsRef = collection(db, "institutes", instId, "students");
 
-    let teamsLoaded = false;
-    let studentsLoaded = false;
-
-    const checkAndRender = () => {
-        if (teamsLoaded && studentsLoaded) {
-            renderTeamsUI();
-        }
-    };
-
-    // 1. Listen to teams
+    // Listen to teams
     unsubscribeTeams = onSnapshot(teamsRef, (snap) => {
         localTeams = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        teamsLoaded = true;
-        checkAndRender();
+        window.cachedTeams = { data: localTeams, lastFetched: Date.now() };
+        renderTeamsUI();
     }, (err) => {
         console.error("Teams listener error:", err);
         window.showToast("Failed to load teams data.", "error");
-    });
-
-    // 2. Listen to students (used to calculate team sizes in real-time)
-    unsubscribeStudents = onSnapshot(studentsRef, (snap) => {
-        localStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        studentsLoaded = true;
-        checkAndRender();
-    }, (err) => {
-        console.error("Students listener error:", err);
-        window.showToast("Failed to load students data.", "error");
     });
 }
 
@@ -115,8 +101,25 @@ function renderTeamsUI() {
     if (!tableContainer) return;
 
     const totalTeams = localTeams.length;
-    const totalStudents = localStudents.length;
-    const averageMembers = totalTeams > 0 ? (totalStudents / totalTeams).toFixed(1) : "0.0";
+    
+    let totalStudents = 0;
+    let averageMembers = "0.0";
+    let needsMigration = false;
+
+    localTeams.forEach(team => {
+        if (team.memberCount !== undefined) {
+            totalStudents += team.memberCount;
+        } else {
+            needsMigration = true;
+        }
+    });
+
+    if (!needsMigration && totalTeams > 0) {
+        averageMembers = (totalStudents / totalTeams).toFixed(1);
+    }
+
+    const totalStudentsText = needsMigration ? "Calculating..." : totalStudents;
+    const averageMembersText = needsMigration ? "Calculating..." : averageMembers;
 
     // 1. Dynamic in-memory stats collection
     if (statsContainer) {
@@ -130,12 +133,12 @@ function renderTeamsUI() {
                     <div class="teams-stat-divider"></div>
                     <div class="teams-stat-item">
                         <span class="teams-stat-label">Total Students</span>
-                        <span class="teams-stat-val">${totalStudents}</span>
+                        <span class="teams-stat-val">${totalStudentsText}</span>
                     </div>
                     <div class="teams-stat-divider"></div>
                     <div class="teams-stat-item">
                         <span class="teams-stat-label">Avg. Members / Team</span>
-                        <span class="teams-stat-val">${averageMembers}</span>
+                        <span class="teams-stat-val">${averageMembersText}</span>
                     </div>
                 </div>
             `;
@@ -180,9 +183,14 @@ function renderTeamsUI() {
     localTeams.forEach((team) => {
         const teamId = team.id;
         
-        // Calculate Members Count dynamically in-memory
-        const membersCount = localStudents.filter(s => s.teamId === teamId || s.teamName === team.name).length;
-        const membersLabel = membersCount === 1 ? "1 Member" : `${membersCount} Members`;
+        let membersLabel = "";
+        if (team.memberCount !== undefined) {
+            const count = team.memberCount;
+            membersLabel = count === 1 ? "1 Member" : `${count} Members`;
+        } else {
+            membersLabel = `<span class="spinner-small" style="display:inline-block; width:10px; height:10px; border:2px solid #ccc; border-top:2px solid #000; border-radius:50%; animation:spin 1s linear infinite; margin-right:4px; vertical-align:middle;"></span> Migrating...`;
+            migrateTeamMemberCounts(window.currentInstituteId);
+        }
 
         tableHTML += `
             <div class="team-row">
@@ -309,11 +317,14 @@ function openTeamModal(teamId = null, currentName = "", currentDesc = "") {
                     await addDoc(teamsRef, {
                         name,
                         description: desc,
+                        memberCount: 0,
                         createdAt: serverTimestamp()
                     });
                     window.showToast("Team created.");
                 }
 
+                await updateDashboardMetadata(window.currentInstituteId);
+                window.cachedTeams = null;
                 modalOverlay.classList.add("hidden");
             } catch (err) {
                 console.error(err);
@@ -327,19 +338,81 @@ function openTeamModal(teamId = null, currentName = "", currentDesc = "") {
 }
 
 async function deleteTeam(teamId) {
-    if (!confirm("Are you sure you want to delete this team?")) return;
+    if (!confirm("Delete this team? All member students and their program registrations will also be removed.")) return;
 
     try {
-        await deleteDoc(
-            doc(
-                db,
-                "institutes",
-                window.currentInstituteId,
-                "teams",
-                teamId
-            )
-        );
-        window.showToast("Team deleted successfully.");
+        const instId = window.currentInstituteId;
+        const batch = writeBatch(db);
+
+        // 1. Find all students belonging to this team
+        const studentsSnap = await getDocs(query(
+            collection(db, "institutes", instId, "students"),
+            where("teamId", "==", teamId)
+        ));
+
+        if (!studentsSnap.empty) {
+            // 2. For each student, cascade-remove their individual participant records
+            const programCountDeltas = new Map(); // programId -> cumulative delta
+
+            for (const stuDoc of studentsSnap.docs) {
+                const stuId = stuDoc.id;
+
+                // Individual participant docs (all programs)
+                const indivSnap = await getDocs(query(
+                    collectionGroup(db, "participants"),
+                    where("studentId", "==", stuId),
+                    where("type", "==", "individual")
+                ));
+                indivSnap.forEach(d => {
+                    const data = d.data();
+                    batch.delete(d.ref);
+                    if (data.programId) {
+                        programCountDeltas.set(
+                            data.programId,
+                            (programCountDeltas.get(data.programId) || 0) - 1
+                        );
+                    }
+                });
+
+                // Group participant docs for this team
+                const groupSnap = await getDocs(query(
+                    collectionGroup(db, "participants"),
+                    where("type", "==", "group"),
+                    where("teamId", "==", teamId)
+                ));
+                groupSnap.forEach(d => {
+                    const data = d.data();
+                    const groups = Array.isArray(data.groups) ? data.groups : [];
+                    const studentInGroup = groups.some(g =>
+                        Array.isArray(g.members) && g.members.some(m => m.studentId === stuId)
+                    );
+                    if (studentInGroup) {
+                        const updatedGroups = groups.map(g => ({
+                            ...g,
+                            members: (g.members || []).filter(m => m.studentId !== stuId)
+                        }));
+                        batch.update(d.ref, { groups: updatedGroups });
+                    }
+                });
+
+                // Delete the student doc
+                batch.delete(stuDoc.ref);
+            }
+
+            // 3. Apply participantCount decrements to affected programs
+            for (const [programId, delta] of programCountDeltas) {
+                const progRef = doc(db, "institutes", instId, "programs", programId);
+                batch.update(progRef, { participantCount: increment(delta) });
+            }
+        }
+
+        // 4. Delete the team document itself
+        batch.delete(doc(db, "institutes", instId, "teams", teamId));
+
+        await batch.commit();
+        await updateDashboardMetadata(instId);
+        window.cachedTeams = null;
+        window.showToast("Team and all member students deleted successfully.");
     } catch (err) {
         console.error(err);
         window.showToast("Error deleting team", "error");

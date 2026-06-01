@@ -1,4 +1,4 @@
-import { db } from './firebase.js';
+import { db, getCachedTeams, getCachedCategories } from './firebase.js';
 import {
     collection,
     getDocs,
@@ -9,7 +9,8 @@ import {
     setDoc,
     deleteDoc,
     writeBatch,
-    serverTimestamp
+    serverTimestamp,
+    increment
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 function debounce(fn, ms) {
@@ -460,24 +461,23 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
     // 4. Data Loading Methods
     async function loadTeams() {
-        const snap = await getDocs(collection(db, "institutes", window.currentInstituteId, "teams"));
+        const teamsData = await getCachedTeams(window.currentInstituteId);
         teams.length = 0;
         teamById.clear();
-        snap.forEach(d => {
-            const t = d.data();
-            const item = { id: d.id, name: t.name || d.id };
+        teamsData.forEach(t => {
+            const item = { id: t.id, name: t.name || t.id };
             teams.push(item);
             teamById.set(item.id, item);
         });
     }
 
     async function loadCategories() {
-        const snap = await getDocs(collection(db, "institutes", window.currentInstituteId, "categories"));
+        const categoriesData = await getCachedCategories(window.currentInstituteId);
         const out = [];
-        snap.forEach(d => {
-            const data = d.data();
-            out.push({ id: d.id, name: data.name || d.id, classes: data.classes || [] });
-            categoriesById.set(d.id, data);
+        categoriesById.clear();
+        categoriesData.forEach(cat => {
+            out.push({ id: cat.id, name: cat.name || cat.id, classes: cat.classes || [] });
+            categoriesById.set(cat.id, cat);
         });
         return out;
     }
@@ -840,6 +840,10 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 if (!confirm('Are you sure you want to delete this group?')) return;
                 groups = groups.filter(x => x.id !== id);
                 await persistGroups();
+
+                const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
+                await setDoc(progRef, { participantCount: increment(-1) }, { merge: true });
+
                 window.showToast('Group deleted.', 'success');
                 await loadGroupsForTeam();
             };
@@ -1122,6 +1126,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                         updatedAt: serverTimestamp()
                     });
                 }
+                const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
+                batch.update(progRef, { participantCount: increment(toAdd.length) });
                 await batch.commit();
                 toAdd.forEach(s => savedIndividualStudentIds.add(s.id));
                 window.showToast(`${toAdd.length} participant${toAdd.length === 1 ? '' : 's'} saved successfully!`, 'success');
@@ -1207,6 +1213,9 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     groups: updatedGroups,
                     updatedAt: serverTimestamp()
                 }, { merge: true });
+
+                const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
+                await setDoc(progRef, { participantCount: increment(1) }, { merge: true });
 
                 window.showToast('Group created successfully!', 'success');
                 nameInput.value = '';
@@ -1309,7 +1318,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
                                 <div>
                                     <label class="form-label" style="font-size:0.75rem; font-weight:700; color:var(--pw-slate-700);">ID / CHEST NUMBER</label>
-                                    <input type="text" id="pwEditChest_${p.studentId}" class="form-input" value="${window.escapeHTML(p.chestNumber)}" style="font-size:0.85rem; width:100%;" />
+                                    <input type="text" id="pwEditChest_${p.studentId}" class="form-input" disabled readonly style="background:var(--pw-slate-100); cursor:not-allowed; font-size:0.85rem; width:100%;" value="${window.escapeHTML(p.chestNumber)}" />
                                 </div>
                                 <div>
                                     <label class="form-label" style="font-size:0.75rem; font-weight:700; color:var(--pw-slate-700);">CLASS</label>
@@ -1473,6 +1482,9 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 const docRef = doc(partRef, docId);
 
                 await deleteDoc(docRef);
+
+                const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
+                await setDoc(progRef, { participantCount: increment(-1) }, { merge: true });
 
                 savedIndividualStudentIds.delete(id);
                 selectedStudentIds.delete(id);

@@ -1,4 +1,4 @@
-import { db } from './firebase.js';
+import { db, updateDashboardMetadata, getCachedPrograms, getCachedCategories } from './firebase.js';
 import {
     collection, doc, getDocs, setDoc, onSnapshot, deleteDoc, updateDoc, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -106,9 +106,6 @@ function renderJudgesGrid() {
             : '<span class="badge" style="font-size:0.68rem; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0;">Active</span>';
 
         const comps = Array.isArray(j.competitions) ? j.competitions : [];
-        const compsHTML = comps.length > 0 
-            ? comps.map(c => `<span class="badge" style="font-size:0.7rem; background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe; margin-bottom:0.25rem;">${window.escapeHTML(c)}</span>`).join(' ')
-            : '<span style="font-size:0.8rem; color:#94a3b8;">No competitions assigned</span>';
 
         const card = document.createElement('div');
         card.className = 'card';
@@ -121,20 +118,16 @@ function renderJudgesGrid() {
                     ${statusBadge}
                 </h3>
             </div>
-            <div class="card-body">
-                <p style="font-size:0.85rem; color:#475569; margin-bottom:0.4rem;">
-                    📱 <strong>Mobile:</strong> ${window.escapeHTML(j.mobile)}
+            <div class="card-body" style="display:flex; flex-direction:column; gap:0.4rem;">
+                <p style="font-size:0.85rem; color:#475569; margin:0;">
+                    📱 <strong>Phone Number:</strong> ${window.escapeHTML(j.mobile)}
                 </p>
-                ${j.notes ? `<p style="font-size:0.8rem; color:#64748b; margin-bottom:0.75rem;">✏️ <em>${window.escapeHTML(j.notes)}</em></p>` : ''}
-                
-                <div style="border-top:1px solid #e2e8f0; padding-top:0.75rem; margin-top:0.5rem;">
-                    <div style="font-size:0.75rem; font-weight:700; color:#64748b; margin-bottom:0.35rem; text-transform:uppercase;">Assigned Competitions</div>
-                    <div style="display:flex; flex-wrap:wrap; gap:0.25rem;">
-                        ${compsHTML}
-                    </div>
-                </div>
+                <p style="font-size:0.85rem; color:#475569; margin:0;">
+                    📚 <strong>Assigned Programs:</strong> ${comps.length}
+                </p>
+                ${j.notes ? `<p style="font-size:0.8rem; color:#64748b; margin:0; margin-top:0.2rem;">✏️ <em>${window.escapeHTML(j.notes)}</em></p>` : ''}
             </div>
-            <div class="card-actions" style="margin-top:1rem; gap:0.4rem;">
+            <div class="card-actions" style="margin-top:auto; padding-top:1rem; gap:0.4rem; display:flex;">
                 <button class="btn btn-secondary btn-sm btn-j-view" data-id="${j.id}">👁️ View</button>
                 <button class="btn btn-secondary btn-sm btn-j-edit" data-id="${j.id}">✏️ Edit</button>
                 <button class="btn btn-danger btn-sm btn-j-delete" data-id="${j.id}">🗑 Delete</button>
@@ -242,6 +235,7 @@ function openJudgeModal(judgeId = null, existing = {}) {
                 await setDoc(newDocRef, payload);
                 window.showToast("Judge registered successfully!", "success");
             }
+            await updateDashboardMetadata(window.currentInstituteId);
             modal.classList.add('hidden');
         } catch (err) {
             console.error(err);
@@ -315,6 +309,7 @@ function triggerDeleteJudge(judge) {
             await updateDoc(doc(db, "institutes", window.currentInstituteId, "judges", judge.id), {
                 status: 'disabled'
             });
+            await updateDashboardMetadata(window.currentInstituteId);
             window.showToast("Judge has been disabled and hidden from new assignments.", "success");
             modal.classList.add('hidden');
         } catch (e) {
@@ -348,7 +343,7 @@ function triggerDeleteJudge(judge) {
             // Delete judge
             batch.delete(doc(db, "institutes", window.currentInstituteId, "judges", judge.id));
             await batch.commit();
-
+            await updateDashboardMetadata(window.currentInstituteId);
             window.showToast("Removed from all sheets and deleted judge.", "success");
             modal.classList.add('hidden');
         } catch (e) {
@@ -363,6 +358,7 @@ function triggerDeleteJudge(judge) {
 async function executeDeleteJudge(id) {
     try {
         await deleteDoc(doc(db, "institutes", window.currentInstituteId, "judges", id));
+        await updateDashboardMetadata(window.currentInstituteId);
         window.showToast("Judge profile deleted successfully!", "success");
     } catch (e) {
         window.showToast("Failed to delete judge.", "error");
@@ -372,46 +368,109 @@ async function executeDeleteJudge(id) {
 // ─────────────────────────────────────────────
 // View Detailed Popup
 // ─────────────────────────────────────────────
-function showViewPopup(judge) {
+async function showViewPopup(judge) {
     const modal = document.getElementById('dynamicModal');
     const modalTitle = document.getElementById('dynamicModalTitle');
     const modalBody = document.getElementById('dynamicModalBody');
 
-    modalTitle.textContent = "🧑‍⚖️ Judge Information";
+    modalTitle.textContent = "Assigned Competitions";
     modalBody.innerHTML = `
-        <div style="display:flex; flex-direction:column; gap:1rem; padding:0.25rem;">
-            <div style="text-align:center; padding:0.5rem 0;">
-                <div style="width:64px; height:64px; background:#4338ca; color:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.75rem; font-weight:700; margin:0 auto 0.75rem auto;">
-                    ${window.escapeHTML((judge.name || '?').slice(0, 1).toUpperCase())}
-                </div>
-                <h3 style="margin:0; font-size:1.25rem; font-weight:800; color:#0f172a;">${window.escapeHTML(judge.name)}</h3>
-                <span class="badge" style="font-size:0.7rem; background:${judge.status === 'disabled' ? '#fff1f2; color:#be123c;' : '#f0fdf4; color:#15803d;'} margin-top:0.35rem; display:inline-block;">
-                    ${judge.status === 'disabled' ? 'Disabled' : 'Active'}
-                </span>
-            </div>
-
-            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:0.85rem; font-size:0.875rem; display:flex; flex-direction:column; gap:0.5rem;">
-                <div>📱 <strong>Mobile Number:</strong> ${window.escapeHTML(judge.mobile)}</div>
-                ${judge.notes ? `<div>✏️ <strong>Notes:</strong> ${window.escapeHTML(judge.notes)}</div>` : ''}
-            </div>
-
-            <div>
-                <div style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:0.4rem;">Competitions Assigned (${(judge.competitions || []).length})</div>
-                <div style="max-height:150px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:8px; padding:0.5rem; background:#fff; display:flex; flex-direction:column; gap:0.25rem;">
-                    ${(judge.competitions || []).length > 0 
-                        ? judge.competitions.map(c => `
-                            <div style="font-size:0.8rem; font-weight:700; color:#1e293b; padding:0.25rem 0.4rem; background:#f1f5f9; border-radius:4px; display:inline-block; border-left:3px solid #4338ca;">
-                                ${window.escapeHTML(c)}
-                            </div>`).join('') 
-                        : '<div style="font-size:0.8rem; color:#94a3b8; text-align:center; padding:0.5rem 0;">No active competition sheets</div>'
-                    }
-                </div>
-            </div>
-
-            <button class="btn btn-secondary w-full mt-2" id="btnViewClose">Close Dialog</button>
+        <div style="display:flex; justify-content:center; padding:2.5rem;">
+            <div class="spinner"></div>
         </div>
     `;
     modal.classList.remove('hidden');
     document.getElementById('closeDynamicModalBtn').onclick = () => modal.classList.add('hidden');
+
+    let programs = [];
+    let categories = [];
+    try {
+        programs = await getCachedPrograms(window.currentInstituteId) || [];
+        categories = await getCachedCategories(window.currentInstituteId) || [];
+    } catch (e) {
+        console.error("Failed to load cached programs or categories:", e);
+    }
+
+    const assignedComps = Array.isArray(judge.competitions) ? judge.competitions : [];
+    const assignedList = assignedComps.map((compName, index) => {
+        const prog = programs.find(p => (p.name || '').toLowerCase().trim() === compName.toLowerCase().trim());
+        
+        let typeLabel = 'Individual';
+        let categoryName = 'General';
+        
+        if (prog) {
+            const pType = (prog.programType || prog.type || 'individual').toLowerCase();
+            if (pType === 'group') {
+                typeLabel = 'Group';
+            } else if (pType === 'general') {
+                typeLabel = 'General';
+            } else {
+                typeLabel = 'Individual';
+            }
+            
+            const cat = categories.find(c => c.id === prog.categoryId || c.name === prog.categoryId);
+            categoryName = cat?.name || (prog.categoryId === 'general_programs' ? 'General' : prog.categoryId || 'General');
+        }
+        
+        return {
+            index: index + 1,
+            name: compName,
+            type: typeLabel,
+            category: categoryName
+        };
+    });
+
+    modalTitle.textContent = `Assigned Competitions (${assignedList.length})`;
+    modalBody.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:1.25rem; padding:0.25rem;">
+            <!-- Judge profile summary header -->
+            <div style="display:flex; align-items:center; gap:1rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1rem;">
+                <div style="width:48px; height:48px; background:#4338ca; color:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.35rem; font-weight:700; flex-shrink:0;">
+                    ${window.escapeHTML((judge.name || '?').slice(0, 1).toUpperCase())}
+                </div>
+                <div style="flex-grow:1; min-width:0;">
+                    <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        ${window.escapeHTML(judge.name)}
+                    </h3>
+                    <div style="font-size:0.8rem; color:#64748b; margin-top:0.15rem; display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                        <span>📱 ${window.escapeHTML(judge.mobile)}</span>
+                        <span>•</span>
+                        <span class="badge" style="padding:0.1rem 0.4rem; font-size:0.65rem; text-transform:capitalize; background:${judge.status === 'disabled' ? '#fff1f2; color:#be123c; border:1px solid #fecdd3;' : '#f0fdf4; color:#15803d; border:1px solid #bbf7d0;'}">
+                            ${judge.status === 'disabled' ? 'Disabled' : 'Active'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            ${judge.notes ? `
+            <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:0.65rem 0.85rem; font-size:0.8rem; color:#b45309;">
+                📝 <strong>Notes:</strong> <em>${window.escapeHTML(judge.notes)}</em>
+            </div>
+            ` : ''}
+
+            <!-- Competitions List -->
+            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                <div style="max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:0.6rem; padding-right:0.25rem;">
+                    ${assignedList.length > 0 
+                        ? assignedList.map(item => `
+                            <div style="font-size:0.85rem; color:#1e293b; padding:0.65rem 0.85rem; background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; border-left:4px solid #4338ca; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                <div style="font-weight:700; color:#1e293b; font-size:0.9rem;">${item.index}. ${window.escapeHTML(item.name)}</div>
+                                <div style="margin-left: 1.1rem; margin-top: 0.25rem; font-size: 0.78rem; color: #475569; display: flex; flex-direction: column; gap: 0.15rem;">
+                                    <div><strong>Type:</strong> ${item.type}</div>
+                                    ${item.category && item.category !== 'General' ? `<div><strong>Category:</strong> ${window.escapeHTML(item.category)}</div>` : ''}
+                                </div>
+                            </div>
+                        `).join('') 
+                        : '<div style="font-size:0.8rem; color:#94a3b8; text-align:center; padding:1.5rem 0;">No active competition sheets</div>'
+                    }
+                </div>
+            </div>
+
+            <div style="display:flex; gap:0.5rem; justify-content:flex-end; border-top:1px solid #e2e8f0; padding-top:1rem; margin-top:0.25rem;">
+                <button class="btn btn-secondary w-full" id="btnViewClose" style="font-weight:600;">Close</button>
+            </div>
+        </div>
+    `;
+
     document.getElementById('btnViewClose').onclick = () => modal.classList.add('hidden');
 }

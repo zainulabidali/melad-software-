@@ -1,8 +1,7 @@
-import { db } from './firebase.js';
+import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms } from './firebase.js';
 import {
     collection, getDocs, doc, getDoc, setDoc, onSnapshot, serverTimestamp, writeBatch
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
-import { normalizeClasses } from './categories.js';
 
 // ─────────────────────────────────────────────
 // Point Systems & Grading Mapping
@@ -24,7 +23,6 @@ function getGradeAndPoints(score) {
 let markEntryFilter = {
     search: '',
     categoryId: '',
-    classId: '',
     gender: '',
     stage: '',
     status: ''
@@ -51,103 +49,268 @@ export async function initMarkEntryView(container, topActions) {
     allPrograms = [];
     allResults.clear();
 
-    // Load Categories for filter
+    // Load Categories for filter using the pre-existing cache
     let catOptions = '<option value="">All Categories</option>';
     try {
-        const catSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "categories"));
-        catSnap.forEach(d => {
-            catOptions += `<option value="${d.id}">${window.escapeHTML(d.data().name)}</option>`;
+        const categories = await getCachedCategories(window.currentInstituteId);
+        categories.forEach(c => {
+            catOptions += `<option value="${c.id}">${window.escapeHTML(c.name)}</option>`;
         });
+        catOptions += `<option value="general_programs">General Programs</option>`;
     } catch (e) { console.error(e); }
 
     topActions.innerHTML = `
-        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
-            <input type="text" id="meSearchInput" class="form-input" placeholder="Search programs..." style="width:180px;" />
-            <select id="meCatFilter" class="form-input" style="width:140px;">${catOptions}</select>
-            <select id="meClassFilter" class="form-input" style="width:140px;" disabled>
-                <option value="">All Classes</option>
-            </select>
-            <select id="meGenderFilter" class="form-input" style="width:120px;">
+        <style>
+            /* Premium SaaS compact toolbar styles */
+            .me-toolbar-desktop {
+                display: flex !important;
+                gap: 8px !important;
+                align-items: center !important;
+                width: 100% !important;
+                background: #ffffff !important;
+                border: 1px solid #e2e8f0 !important;
+                border-radius: 8px !important;
+                padding: 6px 12px !important;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+                margin-bottom: 0.5rem !important;
+            }
+            .me-toolbar-desktop .form-input, .me-toolbar-desktop select {
+                height: 32px !important;
+                padding: 2px 8px !important;
+                font-size: 0.8rem !important;
+                font-weight: 600 !important;
+                border-radius: 6px !important;
+                border: 1px solid #cbd5e1 !important;
+                background-color: #ffffff !important;
+                color: #334155 !important;
+                outline: none !important;
+                transition: all 0.2s ease !important;
+            }
+            .me-toolbar-desktop input[type="text"] {
+                flex: 1.5 !important;
+                min-width: 140px !important;
+            }
+            .me-toolbar-desktop select {
+                flex: 1 !important;
+                min-width: 110px !important;
+                cursor: pointer !important;
+            }
+            .me-toolbar-desktop .form-input:focus, .me-toolbar-desktop select:focus {
+                border-color: #6366f1 !important;
+                box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1) !important;
+            }
+            
+            /* Responsive styling for Mobile */
+            @media (max-width: 768px) {
+                .me-toolbar-desktop {
+                    display: none !important;
+                }
+                .me-toolbar-mobile {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    gap: 6px !important;
+                    background: #ffffff !important;
+                    border: 1px solid #e2e8f0 !important;
+                    border-radius: 8px !important;
+                    padding: 8px !important;
+                    margin-bottom: 0.5rem !important;
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+                    width: 100% !important;
+                }
+                .me-toolbar-mobile .me-row-1 {
+                    display: flex !important;
+                    width: 100% !important;
+                }
+                .me-toolbar-mobile .me-row-2, .me-toolbar-mobile .me-row-3 {
+                    display: grid !important;
+                    grid-template-columns: 1fr 1fr !important;
+                    gap: 6px !important;
+                    width: 100% !important;
+                }
+                .me-toolbar-mobile .form-input, .me-toolbar-mobile select {
+                    height: 32px !important;
+                    padding: 2px 8px !important;
+                    font-size: 0.8rem !important;
+                    font-weight: 600 !important;
+                    border-radius: 6px !important;
+                    border: 1px solid #cbd5e1 !important;
+                    width: 100% !important;
+                }
+            }
+            @media (min-width: 769px) {
+                .me-toolbar-mobile {
+                    display: none !important;
+                }
+            }
+
+            /* Table layouts */
+            .me-table-container {
+                width: 100% !important;
+                overflow-x: auto !important;
+                background: #ffffff !important;
+                border: 1px solid #e2e8f0 !important;
+                border-radius: 12px !important;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+                margin-top: 0.5rem !important;
+            }
+            .me-table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                text-align: left !important;
+                font-size: 0.85rem !important;
+            }
+            .me-table th {
+                background: #f8fafc !important;
+                padding: 10px 12px !important;
+                font-weight: 700 !important;
+                color: #475569 !important;
+                font-size: 0.78rem !important;
+                text-transform: uppercase !important;
+                border-bottom: 2px solid #e2e8f0 !important;
+            }
+            .me-table td {
+                padding: 10px 12px !important;
+                border-bottom: 1px solid #e2e8f0 !important;
+                vertical-align: middle !important;
+                color: #334155 !important;
+            }
+            .me-table tr:hover {
+                background: #f8fafc !important;
+            }
+            .me-action-btn {
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 4px !important;
+                padding: 5px 12px !important;
+                font-size: 0.78rem !important;
+                font-weight: 700 !important;
+                border-radius: 6px !important;
+                background: #6366f1 !important;
+                color: #ffffff !important;
+                border: none !important;
+                cursor: pointer !important;
+                transition: all 0.2s ease !important;
+            }
+            .me-action-btn:hover {
+                background: #4f46e5 !important;
+            }
+            
+            /* Responsive hidden columns on mobile */
+            @media (max-width: 768px) {
+                .me-table th.me-desktop-col,
+                .me-table td.me-desktop-col {
+                    display: none !important;
+                }
+                .me-table th, .me-table td {
+                    padding: 8px 10px !important;
+                    font-size: 0.8rem !important;
+                }
+            }
+        </style>
+
+        <!-- Desktop Compact SaaS Toolbar -->
+        <div class="me-toolbar-desktop">
+            <input type="text" id="meSearchInput" class="form-input" placeholder="Search programs..." />
+            <select id="meCatFilter" class="form-input">${catOptions}</select>
+            <select id="meGenderFilter" class="form-input">
                 <option value="">All Genders</option>
                 <option value="Boys">Boys</option>
                 <option value="Girls">Girls</option>
                 <option value="Mixed">Mixed</option>
             </select>
-            <select id="meStageFilter" class="form-input" style="width:120px;">
+            <select id="meStageFilter" class="form-input">
                 <option value="">All Stages</option>
                 <option value="Stage">Stage</option>
                 <option value="Off Stage">Off Stage</option>
             </select>
-            <select id="meStatusFilter" class="form-input" style="width:120px;">
+            <select id="meStatusFilter" class="form-input">
                 <option value="">All Statuses</option>
                 <option value="Pending">Pending</option>
-                <option value="In Progress">In Progress</option>
+                <option value="Active">Active</option>
                 <option value="Submitted">Submitted</option>
                 <option value="Published">Published</option>
             </select>
         </div>
+
+        <!-- Mobile 3-Row Compact Toolbar -->
+        <div class="me-toolbar-mobile">
+            <!-- Row 1: Search -->
+            <div class="me-row-1">
+                <input type="text" id="meSearchInputMobile" class="form-input" placeholder="Search Program" />
+            </div>
+            <!-- Row 2: Category and Gender -->
+            <div class="me-row-2">
+                <select id="meCatFilterMobile" class="form-input">${catOptions}</select>
+                <select id="meGenderFilterMobile" class="form-input">
+                    <option value="">All Genders</option>
+                    <option value="Boys">Boys</option>
+                    <option value="Girls">Girls</option>
+                    <option value="Mixed">Mixed</option>
+                </select>
+            </div>
+            <!-- Row 3: Stage and Status -->
+            <div class="me-row-3">
+                <select id="meStageFilterMobile" class="form-input">
+                    <option value="">All Stages</option>
+                    <option value="Stage">Stage</option>
+                    <option value="Off Stage">Off Stage</option>
+                </select>
+                <select id="meStatusFilterMobile" class="form-input">
+                    <option value="">All Statuses</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Active">Active</option>
+                    <option value="Submitted">Submitted</option>
+                    <option value="Published">Published</option>
+                </select>
+            </div>
+        </div>
     `;
 
     container.innerHTML = `
-        <div class="grid" id="markEntryGrid">
+        <div class="me-table-container" id="markEntryGrid">
             <div class="loader-container"><div class="spinner"></div></div>
         </div>
     `;
 
-    // Wire filters
-    const searchInput = document.getElementById('meSearchInput');
-    const catFilter = document.getElementById('meCatFilter');
-    const classFilter = document.getElementById('meClassFilter');
-    const genderFilter = document.getElementById('meGenderFilter');
-    const stageFilter = document.getElementById('meStageFilter');
-    const statusFilter = document.getElementById('meStatusFilter');
+    // Wire filter listeners (Sync desktop <-> mobile)
+    const inputs = [
+        { dt: 'meSearchInput', mb: 'meSearchInputMobile', key: 'search', type: 'input' },
+        { dt: 'meCatFilter', mb: 'meCatFilterMobile', key: 'categoryId', type: 'change' },
+        { dt: 'meGenderFilter', mb: 'meGenderFilterMobile', key: 'gender', type: 'change' },
+        { dt: 'meStageFilter', mb: 'meStageFilterMobile', key: 'stage', type: 'change' },
+        { dt: 'meStatusFilter', mb: 'meStatusFilterMobile', key: 'status', type: 'change' }
+    ];
 
-    searchInput.oninput = (e) => {
-        markEntryFilter.search = e.target.value.toLowerCase().trim();
-        renderMarkEntryGrid();
-    };
-
-    catFilter.onchange = async (e) => {
-        markEntryFilter.categoryId = e.target.value;
-        markEntryFilter.classId = '';
-        classFilter.innerHTML = '<option value="">All Classes</option>';
-        classFilter.disabled = true;
-
-        if (markEntryFilter.categoryId) {
-            const catDoc = await getDoc(doc(db, "institutes", window.currentInstituteId, "categories", markEntryFilter.categoryId));
-            if (catDoc.exists()) {
-                const classes = normalizeClasses(catDoc.data().classes || []);
-                classes.forEach(c => {
-                    const opt = document.createElement('option');
-                    opt.value = c.id;
-                    opt.textContent = c.name;
-                    classFilter.appendChild(opt);
-                });
-                classFilter.disabled = false;
+    function syncFilter(key, value) {
+        markEntryFilter[key] = value;
+        inputs.forEach(item => {
+            if (item.key === key) {
+                const elDt = document.getElementById(item.dt);
+                const elMb = document.getElementById(item.mb);
+                if (elDt && elDt.value !== value) elDt.value = value;
+                if (elMb && elMb.value !== value) elMb.value = value;
             }
+        });
+        renderMarkEntryGrid();
+    }
+
+    inputs.forEach(item => {
+        const elDt = document.getElementById(item.dt);
+        const elMb = document.getElementById(item.mb);
+        
+        if (elDt) {
+            elDt.addEventListener(item.type, (e) => {
+                const val = item.key === 'search' ? e.target.value.toLowerCase().trim() : e.target.value;
+                syncFilter(item.key, val);
+            });
         }
-        renderMarkEntryGrid();
-    };
-
-    classFilter.onchange = (e) => {
-        markEntryFilter.classId = e.target.value;
-        renderMarkEntryGrid();
-    };
-
-    genderFilter.onchange = (e) => {
-        markEntryFilter.gender = e.target.value;
-        renderMarkEntryGrid();
-    };
-
-    stageFilter.onchange = (e) => {
-        markEntryFilter.stage = e.target.value;
-        renderMarkEntryGrid();
-    };
-
-    statusFilter.onchange = (e) => {
-        markEntryFilter.status = e.target.value;
-        renderMarkEntryGrid();
-    };
+        if (elMb) {
+            elMb.addEventListener(item.type, (e) => {
+                const val = item.key === 'search' ? e.target.value.toLowerCase().trim() : e.target.value;
+                syncFilter(item.key, val);
+            });
+        }
+    });
 
     await loadMarkEntryData();
 }
@@ -157,14 +320,20 @@ export async function initMarkEntryView(container, topActions) {
 // ─────────────────────────────────────────────
 async function loadMarkEntryData() {
     try {
-        // Fetch all programs
-        const progsSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs"));
-        allPrograms = progsSnap.docs.map(progDoc => {
-            const p = progDoc.data();
+        // Fetch all categories first to construct mapping
+        const categories = await getCachedCategories(window.currentInstituteId);
+        const catMap = new Map(categories.map(c => [c.id, c.name]));
+
+        // Fetch all programs from caching layer
+        const cachedPrograms = await getCachedPrograms(window.currentInstituteId);
+        
+        allPrograms = cachedPrograms.map(p => {
             const pType = (p.programType || p.type || 'individual').toLowerCase();
             const regType = (pType === 'general') ? (p.registrationType || 'individual') : pType;
+            const categoryName = p.categoryId === 'general_programs' ? 'General' : (catMap.get(p.categoryId) || p.categoryName || 'General');
+            
             return {
-                id: progDoc.id,
+                id: p.id,
                 programName: p.programName || 'Unnamed Program',
                 programType: pType,
                 type: regType === 'group' ? 'Group' : 'Individual',
@@ -173,13 +342,13 @@ async function loadMarkEntryData() {
                 programLocation: p.programLocation || p.location || 'Stage',
                 groupSize: p.maxParticipants || p.groupSize || 1,
                 categoryId: p.categoryId || '',
-                categoryName: p.categoryName || p.categoryId || 'General',
+                categoryName: categoryName,
                 classId: p.classId || '',
                 className: p.className || ''
             };
         });
 
-        // Real-time listener for results to map status
+        // Real-time listener for results to map status reactively
         const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
         unsubscribeMarkEntry = onSnapshot(resultsRef, (snapshot) => {
             allResults.clear();
@@ -200,7 +369,7 @@ async function loadMarkEntryData() {
 }
 
 // ─────────────────────────────────────────────
-// Render Cards Grid
+// Render High-Density Table
 // ─────────────────────────────────────────────
 function renderMarkEntryGrid() {
     const grid = document.getElementById('markEntryGrid');
@@ -212,7 +381,6 @@ function renderMarkEntryGrid() {
         if (markEntryFilter.search && !p.programName.toLowerCase().includes(markEntryFilter.search)) return false;
         // Filters
         if (markEntryFilter.categoryId && p.categoryId !== markEntryFilter.categoryId) return false;
-        if (markEntryFilter.classId && p.classId !== markEntryFilter.classId) return false;
         if (markEntryFilter.gender && p.genderCategory !== markEntryFilter.gender) return false;
         if (markEntryFilter.stage && p.programLocation !== markEntryFilter.stage) return false;
 
@@ -225,43 +393,69 @@ function renderMarkEntryGrid() {
 
     if (filtered.length === 0) {
         grid.innerHTML = `
-            <div class="empty-state" style="grid-column:1/-1; margin-top:2rem;">
-                <div class="empty-state-icon">🖋️</div>
-                <h3>No Matching Programs</h3>
-                <p>Try adjusting your search query or filters.</p>
+            <div class="empty-state" style="padding: 2.5rem 1rem; text-align: center;">
+                <div class="empty-state-icon" style="font-size: 2rem;">🖋️</div>
+                <h3 style="margin-top: 0.5rem; font-size: 1.1rem; color: #1e293b;">No Matching Programs</h3>
+                <p style="color: #64748b; font-size: 0.85rem;">Try adjusting your search query or filters.</p>
             </div>`;
         return;
     }
 
-    filtered.forEach(p => {
+    let rowsHTML = filtered.map(p => {
         const status = getProgramStatus(p.id);
         const badge = getStatusBadgeHTML(status);
-
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `
-            <div class="card-header">
-                <h3 class="card-title">${window.escapeHTML(p.programName)}</h3>
-                <div style="display:flex; gap:0.3rem; flex-wrap:wrap; align-items:center;">
+        const displayType = p.programType === 'general' ? 'General' : p.type;
+        
+        return `
+            <tr>
+                <td style="font-weight: 700; color: #1e293b;">
+                    ${window.escapeHTML(p.programName)}
+                </td>
+                <td style="font-weight: 600;">
+                    <span class="me-type-badge">${window.escapeHTML(displayType)}</span>
+                </td>
+                <td class="me-desktop-col" style="font-weight: 600; color: #475569;">
+                    ${window.escapeHTML(p.categoryName)}
+                </td>
+                <td>
                     ${badge}
-                </div>
-            </div>
-            <div class="card-body">
-                <p style="font-size:0.82rem; color:#64748b; margin-bottom:0.4rem;">
-                    <strong>Category:</strong> ${window.escapeHTML(p.categoryName)} ${p.className ? `· ${window.escapeHTML(p.className)}` : ''}
-                </p>
-                <p style="font-size:0.82rem; color:#64748b;">
-                    <strong>Type:</strong> ${window.escapeHTML(p.type)} · ${window.escapeHTML(p.genderCategory)} · ${window.escapeHTML(p.programLocation)}
-                </p>
-            </div>
-            <div class="card-actions" style="margin-top:0.75rem;">
-                <button class="btn btn-primary btn-sm btn-me-open" data-id="${p.id}">🖋️ Mark Entry</button>
-            </div>
+                </td>
+                <td style="text-align: center;">
+                    <button class="me-action-btn btn-me-open" data-id="${p.id}">
+                        🖋️ <span class="me-desktop-col">Mark Entry</span>
+                    </button>
+                </td>
+            </tr>
         `;
+    }).join('');
 
-        card.querySelector('.btn-me-open').onclick = () => openMarkEntryModal(p);
-        grid.appendChild(card);
-    });
+    grid.innerHTML = `
+        <table class="me-table">
+            <thead>
+                <tr>
+                    <th style="width: 40%;">Program Name</th>
+                    <th style="width: 15%;">Type</th>
+                    <th style="width: 15%;" class="me-desktop-col">Category</th>
+                    <th style="width: 15%;">Status</th>
+                    <th style="width: 15%; text-align: center;">Action</th>
+                </tr>
+            </thead>
+            <tbody id="meTableBody">
+                ${rowsHTML}
+            </tbody>
+        </table>
+    `;
+
+    const tbody = grid.querySelector('#meTableBody');
+    if (tbody) {
+        tbody.querySelectorAll('.btn-me-open').forEach(btn => {
+            const id = btn.getAttribute('data-id');
+            const prog = filtered.find(p => p.id === id);
+            if (prog) {
+                btn.onclick = () => openMarkEntryModal(prog);
+            }
+        });
+    }
 }
 
 function getProgramStatus(progId) {
@@ -269,17 +463,17 @@ function getProgramStatus(progId) {
     if (!res) return 'Pending';
     if (res.status === 'published') return 'Published';
     if (res.markEntryStatus === 'submitted') return 'Submitted';
-    return 'In Progress';
+    return 'Active';
 }
 
 function getStatusBadgeHTML(status) {
     const styles = {
         'Pending': 'background:#f1f5f9; color:#64748b; border:1px solid #cbd5e1;',
-        'In Progress': 'background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd;',
-        'Submitted': 'background:#fff7ed; color:#ea580c; border:1px solid #ffedd5;',
-        'Published': 'background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0;'
+        'Active': 'background:#f0fdf4; color:#166534; border:1px solid #bbf7d0;',
+        'Submitted': 'background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe;',
+        'Published': 'background:#faf5ff; color:#6b21a8; border:1px solid #e9d5ff;'
     };
-    return `<span class="badge" style="font-size:0.73rem; font-weight:700; ${styles[status]}">${status}</span>`;
+    return `<span class="me-badge" style="${styles[status]}">${status}</span>`;
 }
 
 // ─────────────────────────────────────────────
@@ -287,7 +481,7 @@ function getStatusBadgeHTML(status) {
 // ─────────────────────────────────────────────
 async function loadStudentsForProgram(prog) {
     const snap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs", prog.id, "participants"));
-    const isGroup = prog.programType === 'group' || prog.type === 'Group';
+    const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
     const list = [];
 
     snap.docs.forEach(d => {
@@ -448,7 +642,7 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
 }
 
 function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, existingResult) {
-    const isGroup = prog.programType === 'group';
+    const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
     const savedMarksMap = new Map();
 
     if (existingResult && Array.isArray(existingResult.marksData)) {
@@ -738,7 +932,7 @@ async function persistMarks(prog, judges, isSubmit) {
         return;
     }
 
-    const isGroup = prog.programType === 'group';
+    const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
     const marksData = [];
     let filledCount = 0;
 
@@ -952,7 +1146,7 @@ async function persistMarks(prog, judges, isSubmit) {
         }
 
         await batch.commit();
-
+        await updateDashboardMetadata(window.currentInstituteId);
         window.showToast(isSubmit ? "📤 Marks submitted successfully!" : "📝 Draft saved successfully!", "success");
         document.getElementById('dynamicModal').classList.add('hidden');
         document.getElementById('dynamicModal').classList.remove('result-fullscreen-modal');

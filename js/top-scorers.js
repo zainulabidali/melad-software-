@@ -18,7 +18,8 @@ let filters = {
     categoryId: '',
     teamId: '',
     gender: '',
-    stage: ''
+    stage: '',
+    status: ''
 };
 
 // ─────────────────────────────────────────────
@@ -61,21 +62,34 @@ export async function initTopScorersView(container, topActions) {
         <div style="display:flex; flex-direction:column; gap:1.25rem; width:100%;">
             
             <!-- Filters Toolbar -->
-            <div class="card" style="padding:1rem; border-color:#cbd5e1; display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center;">
-                <input type="text" id="tsSearchInput" class="form-input" placeholder="🔍 Search by chest or name..." style="flex:1.5; min-width:200px; background:#fff;" />
-                <select id="tsCatFilter" class="form-input" style="flex:1; min-width:140px; background:#fff;">${catOptions}</select>
-                <select id="tsTeamFilter" class="form-input" style="flex:1; min-width:140px; background:#fff;">${teamOptions}</select>
-                <select id="tsGenderFilter" class="form-input" style="flex:1; min-width:120px; background:#fff;">
-                    <option value="">All Genders</option>
-                    <option value="Boys">Boys</option>
-                    <option value="Girls">Girls</option>
-                    <option value="Mixed">Mixed</option>
-                </select>
-                <select id="tsStageFilter" class="form-input" style="flex:1; min-width:120px; background:#fff;">
-                    <option value="">All Stages</option>
-                    <option value="Stage">Stage Only</option>
-                    <option value="Off Stage">Off Stage Only</option>
-                </select>
+            <div class="top-scorers-filter-toolbar">
+                <div class="filter-item ts-search-wrapper">
+                    <input type="text" id="tsSearchInput" class="form-input filter-input" placeholder="🔍 Search by chest or name..." />
+                </div>
+                <div class="filter-item ts-cat-wrapper">
+                    <select id="tsCatFilter" class="form-input filter-select">${catOptions}</select>
+                </div>
+                <div class="filter-item ts-gender-wrapper">
+                    <select id="tsGenderFilter" class="form-input filter-select">
+                        <option value="">All Genders</option>
+                        <option value="Boys">Boys</option>
+                        <option value="Girls">Girls</option>
+                        <option value="Mixed">Mixed</option>
+                    </select>
+                </div>
+                <div class="filter-item ts-stage-wrapper">
+                    <select id="tsStageFilter" class="form-input filter-select">
+                        <option value="">All Stages</option>
+                        <option value="Stage">Stage Only</option>
+                        <option value="Off Stage">Off Stage Only</option>
+                    </select>
+                </div>
+                <div class="filter-item ts-status-wrapper">
+                    <select id="tsTeamFilter" class="form-input filter-select">${teamOptions}</select>
+                    <select id="tsStatusFilter" class="form-input filter-select" style="display:none;">
+                        <option value="">All Statuses</option>
+                    </select>
+                </div>
             </div>
 
             <!-- Summary Cards Grid -->
@@ -151,6 +165,14 @@ export async function initTopScorersView(container, topActions) {
         filters.stage = e.target.value;
         renderContendersList();
     };
+
+    const statusFilter = document.getElementById('tsStatusFilter');
+    if (statusFilter) {
+        statusFilter.onchange = (e) => {
+            filters.status = e.target.value;
+            renderContendersList();
+        };
+    }
 
     // Subscribe to results live update
     subscribeResultsLive();
@@ -244,6 +266,18 @@ function recalculateScorers(publishedResults) {
                     categoryName: r.categoryName || 'General'
                 };
             }
+
+            // Resolve chestNumber with absolute fallback (PART 4 & PART 5)
+            let chestNumber = stu.chestNumber || item.chestNumber || '—';
+            if (chestNumber === '—' || !chestNumber || chestNumber === 'undefined' || chestNumber === 'null') {
+                const mappedStudent = studentLookupMap.get(stuId);
+                if (mappedStudent && mappedStudent.chestNumber && mappedStudent.chestNumber !== '—') {
+                    chestNumber = mappedStudent.chestNumber;
+                } else {
+                    chestNumber = '—';
+                }
+            }
+            stu.chestNumber = chestNumber;
 
             if (!scorersMap.has(stuId)) {
                 scorersMap.set(stuId, {
@@ -422,44 +456,47 @@ function renderContendersList() {
     }
 
     container.innerHTML = `
-        <table style="width:100%; border-collapse:collapse; min-width:800px; font-size:0.875rem; color:#1e293b;">
+        <table style="width:100%; border-collapse:collapse; min-width:700px; font-size:0.82rem; color:#1e293b;">
             <thead>
                 <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; text-align:left;">
-                    <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:90px; text-align:center;">Rank</th>
-                    <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:110px; text-align:center;">Chest No</th>
-                    <th style="padding:0.75rem 1rem; color:#475569; font-weight:700;">Student Name</th>
-                    <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:100px;">Gender</th>
-                    <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:180px;">Team Name</th>
-                    <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:140px;">Category</th>
-                    <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:140px; text-align:center;">Stage (Points)</th>
-                    <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:120px; text-align:center;">Total Points</th>
+                    <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700; width:80px; text-align:center;">Rank</th>
+                    <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700; width:90px; text-align:center;">Chest No</th>
+                    <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700;">Student Name</th>
+                    <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700; width:90px;">Gender</th>
+                    <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700; width:150px;">Team Name</th>
+                    <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700; width:120px;">Category</th>
+                    <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700; width:130px; text-align:center;">Stage (Points)</th>
+                    <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700; width:100px; text-align:center;">Total Points</th>
                 </tr>
             </thead>
             <tbody>
                 ${filtered.map(c => {
                     let rankHTML = `Rank #${c.rank}`;
-                    if (c.rank === 1) rankHTML = '<span style="font-size:1.15rem;">🥇</span> #1';
-                    else if (c.rank === 2) rankHTML = '<span style="font-size:1.15rem;">🥈</span> #2';
-                    else if (c.rank === 3) rankHTML = '<span style="font-size:1.15rem;">🥉</span> #3';
+                    if (c.rank === 1) rankHTML = '<span style="font-size:1.1rem;">🥇</span> #1';
+                    else if (c.rank === 2) rankHTML = '<span style="font-size:1.1rem;">🥈</span> #2';
+                    else if (c.rank === 3) rankHTML = '<span style="font-size:1.1rem;">🥉</span> #3';
 
                     const displayedPoints = filters.stage === 'Stage' ? c.stagePoints 
                                          : (filters.stage === 'Off Stage' ? c.offStagePoints : c.totalPoints);
 
+                    let displayChest = c.chestNumber || '—';
+                    if (displayChest === 'undefined' || displayChest === 'null') displayChest = '—';
+
                     return `
                         <tr style="border-bottom:1px solid #e2e8f0; hover:background:#f8fafc;">
-                            <td style="padding:0.75rem 1rem; text-align:center; font-weight:800; color:#475569;">${rankHTML}</td>
-                            <td style="padding:0.75rem 1rem; text-align:center; font-weight:800; color:#0f172a;">${window.escapeHTML(c.chestNumber)}</td>
-                            <td style="padding:0.75rem 1rem; font-weight:700; color:#1e293b;">${window.escapeHTML(c.studentName)}</td>
-                            <td style="padding:0.75rem 1rem; color:#475569; font-weight:600;">${window.escapeHTML(c.gender)}</td>
-                            <td style="padding:0.75rem 1rem; color:#475569; font-weight:600;">${window.escapeHTML(c.teamName)}</td>
-                            <td style="padding:0.75rem 1rem; color:#64748b;">${window.escapeHTML(c.categoryName)}</td>
-                            <td style="padding:0.75rem 1rem; text-align:center; color:#64748b;">
-                                <div style="display:flex; flex-direction:column; gap:0.1rem; font-size:0.75rem;">
+                            <td style="padding:0.5rem 0.75rem; text-align:center; font-weight:800; color:#475569;">${rankHTML}</td>
+                            <td style="padding:0.5rem 0.75rem; text-align:center; font-weight:800; color:#0f172a;">${window.escapeHTML(displayChest)}</td>
+                            <td style="padding:0.5rem 0.75rem; font-weight:700; color:#1e293b;">${window.escapeHTML(c.studentName)}</td>
+                            <td style="padding:0.5rem 0.75rem; color:#475569; font-weight:600;">${window.escapeHTML(c.gender)}</td>
+                            <td style="padding:0.5rem 0.75rem; color:#475569; font-weight:600;">${window.escapeHTML(c.teamName)}</td>
+                            <td style="padding:0.5rem 0.75rem; color:#64748b;">${window.escapeHTML(c.categoryName)}</td>
+                            <td style="padding:0.5rem 0.75rem; text-align:center; color:#64748b;">
+                                <div style="display:flex; flex-direction:column; gap:0.05rem; font-size:0.72rem;">
                                     <span>Stage: <strong>${c.stagePoints}</strong></span>
                                     <span>Off-stage: <strong>${c.offStagePoints}</strong></span>
                                 </div>
                             </td>
-                            <td style="padding:0.75rem 1rem; text-align:center; font-weight:850; color:#4338ca; font-size:0.95rem;">
+                            <td style="padding:0.5rem 0.75rem; text-align:center; font-weight:850; color:#4338ca; font-size:0.9rem;">
                                 ${displayedPoints} pts
                             </td>
                         </tr>

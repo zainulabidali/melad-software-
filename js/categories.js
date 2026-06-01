@@ -1,4 +1,4 @@
-import { db } from './firebase.js';
+import { db, updateDashboardMetadata } from './firebase.js';
 import { collection, getDocs, doc, updateDoc, onSnapshot, serverTimestamp, writeBatch, query, where, setDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 let unsubscribeCategories = null;
@@ -95,6 +95,7 @@ function startRealtimeSync() {
     // 1. Listen to Categories
     unsubscribeCategories = onSnapshot(catRef, (snap) => {
         localCategories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        window.cachedCategories = { data: localCategories, lastFetched: Date.now() };
         categoriesLoaded = true;
         checkAndRender();
     }, (err) => {
@@ -203,6 +204,8 @@ function renderCategoriesUI() {
                             data-id="${catId}"
                             data-name="${window.escapeHTML(cat.name)}"
                             data-desc="${window.escapeHTML(cat.description || '')}"
+                            data-cheststart="${cat.chestStart || ''}"
+                            data-chestend="${cat.chestEnd || ''}"
                             data-classes='${JSON.stringify(classes).replace(/'/g, "&#39;")}'>
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.95rem; height:0.95rem;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
@@ -222,7 +225,7 @@ function renderCategoriesUI() {
     tableContainer.innerHTML = tableHTML;
 }
 
-function openCategoryModal(catId = null, currentName = '', currentDesc = '', currentClasses = []) {
+function openCategoryModal(catId = null, currentName = '', currentDesc = '', currentClasses = [], currentChestStart = '', currentChestEnd = '') {
     const modalTitle = document.getElementById('dynamicModalTitle');
     const modalBody = document.getElementById('dynamicModalBody');
     const modalOverlay = document.getElementById('dynamicModal');
@@ -247,6 +250,16 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
             <div class="form-group">
                 <label class="form-label">Description (Optional)</label>
                 <textarea id="catDesc" class="form-input" rows="2">${window.escapeHTML(currentDesc)}</textarea>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:1rem;">
+                <div class="form-group" style="margin:0;">
+                    <label class="form-label">Chest Number Start *</label>
+                    <input type="number" id="catChestStart" class="form-input" min="1" required placeholder="e.g. 100" value="${window.escapeHTML((currentChestStart !== undefined && currentChestStart !== null) ? currentChestStart.toString() : '')}">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label class="form-label">Chest Number End *</label>
+                    <input type="number" id="catChestEnd" class="form-input" min="1" required placeholder="e.g. 199" value="${window.escapeHTML((currentChestEnd !== undefined && currentChestEnd !== null) ? currentChestEnd.toString() : '')}">
+                </div>
             </div>
             <div class="form-group">
                 <label class="form-label">Classes Included</label>
@@ -326,6 +339,41 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
             return;
         }
 
+        const chestStartRaw = document.getElementById('catChestStart').value.trim();
+        const chestEndRaw = document.getElementById('catChestEnd').value.trim();
+
+        if (!chestStartRaw || !chestEndRaw) {
+            window.showToast('Chest number start and end ranges are required.', 'error');
+            return;
+        }
+
+        const chestStart = parseInt(chestStartRaw, 10);
+        const chestEnd = parseInt(chestEndRaw, 10);
+
+        if (isNaN(chestStart) || isNaN(chestEnd)) {
+            window.showToast('Chest number ranges must be valid integers.', 'error');
+            return;
+        }
+
+        if (chestStart >= chestEnd) {
+            window.showToast('Chest start number must be strictly less than chest end number.', 'error');
+            return;
+        }
+
+        // Overlap Check with other active categories
+        const hasOverlap = localCategories.some(cat => {
+            if (cat.id === catId) return false;
+            const cStart = parseInt(cat.chestStart, 10);
+            const cEnd = parseInt(cat.chestEnd, 10);
+            if (isNaN(cStart) || isNaN(cEnd)) return false;
+            return (chestStart <= cEnd && chestEnd >= cStart);
+        });
+
+        if (hasOverlap) {
+            window.showToast('Chest number range overlaps with another category.', 'error');
+            return;
+        }
+
         if (selectedClasses.length === 0) {
             window.showToast('Please add at least one class.', 'error');
             return;
@@ -337,10 +385,26 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
 
         try {
             const description = document.getElementById('catDesc').value.trim();
+
+            let nextChestNumber = chestStart;
+            if (catId) {
+                const originalCat = localCategories.find(c => c.id === catId);
+                const prevNext = originalCat?.nextChestNumber;
+                if (prevNext !== undefined && prevNext !== null) {
+                    nextChestNumber = prevNext;
+                }
+                if (nextChestNumber < chestStart || nextChestNumber > chestEnd) {
+                    nextChestNumber = chestStart;
+                }
+            }
+
             const payload = {
                 name,
                 description,
                 classes: selectedClasses,
+                chestStart,
+                chestEnd,
+                nextChestNumber,
                 updatedAt: serverTimestamp()
             };
 
@@ -359,6 +423,8 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
                 }, { merge: true });
                 window.showToast('Category created successfully.');
             }
+            await updateDashboardMetadata(window.currentInstituteId);
+            window.cachedCategories = null;
             modalOverlay.classList.add('hidden');
         } catch (error) {
             console.error('Error saving category:', error);
@@ -378,6 +444,7 @@ async function deleteCategory(catId) {
         const instId = window.currentInstituteId;
         const batch = writeBatch(db);
 
+        // 1. Delete all students in this category
         const studentsSnap = await getDocs(query(collection(db, 'institutes', instId, 'students'), where('categoryId', '==', catId)));
 
         if (studentsSnap.size > 0 && !confirm(`Found ${studentsSnap.size} students in this category. Delete them all?`)) {
@@ -385,16 +452,50 @@ async function deleteCategory(catId) {
         }
         studentsSnap.forEach(s => batch.delete(s.ref));
 
+        // 2. Delete all programs in this category — including participants + results
         const progsSnap = await getDocs(query(collection(db, 'institutes', instId, 'programs'), where('categoryId', '==', catId)));
+
+        // Fetch judges once (needed for cleaning competition assignments)
+        const judgesSnap = progsSnap.empty ? null : await getDocs(collection(db, 'institutes', instId, 'judges'));
+
         for (const progDoc of progsSnap.docs) {
+            // Delete participants subcollection
             const partSnap = await getDocs(collection(db, 'institutes', instId, 'programs', progDoc.id, 'participants'));
             partSnap.forEach(part => batch.delete(part.ref));
+
+            // Delete linked results + clean judge assignments
+            const resultsSnap = await getDocs(query(
+                collection(db, 'institutes', instId, 'results'),
+                where('programId', '==', progDoc.id)
+            ));
+            for (const resDoc of resultsSnap.docs) {
+                const r = resDoc.data();
+                const progName = r.programName || '';
+                if (judgesSnap) {
+                    judgesSnap.forEach(jDoc => {
+                        const j = jDoc.data();
+                        const comps = Array.isArray(j.competitions) ? j.competitions : [];
+                        const wasAssigned = Array.isArray(r.judges) && r.judges.includes(j.name);
+                        if (wasAssigned && comps.includes(progName)) {
+                            const newComps = comps.filter(c => c !== progName);
+                            batch.update(jDoc.ref, { competitions: newComps, updatedAt: serverTimestamp() });
+                        }
+                    });
+                }
+                batch.delete(resDoc.ref);
+            }
+
+            // Delete program doc itself
             batch.delete(progDoc.ref);
         }
 
+        // 3. Delete category document
         batch.delete(doc(db, 'institutes', instId, 'categories', catId));
+
         await batch.commit();
-        window.showToast('Category and related records deleted successfully.');
+        await updateDashboardMetadata(window.currentInstituteId);
+        window.cachedCategories = null;
+        window.showToast('Category and all related records deleted successfully.');
     } catch (error) {
         console.error('Error deleting category:', error);
         window.showToast('Failed to delete category.', 'error');
@@ -415,6 +516,8 @@ function openCategoryDropdown(btn) {
     const name = btn.dataset.name;
     const desc = btn.dataset.desc;
     const classesStr = btn.dataset.classes;
+    const chestStart = btn.dataset.cheststart;
+    const chestEnd = btn.dataset.chestend;
 
     dropdown.innerHTML = `
         <button class="dropdown-item btn-edit-cat" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#475569; text-align:left; cursor:pointer;">
@@ -468,7 +571,7 @@ function openCategoryDropdown(btn) {
         dropdown.remove();
         let parsedClasses = [];
         try { parsedClasses = JSON.parse(classesStr); } catch (_) {}
-        openCategoryModal(id, name, desc, parsedClasses);
+        openCategoryModal(id, name, desc, parsedClasses, chestStart, chestEnd);
     });
 
     dropdown.querySelector('.btn-delete-cat').addEventListener('click', () => {

@@ -1,4 +1,4 @@
-import { db } from './firebase.js';
+import { db, updateDashboardMetadata } from './firebase.js';
 import {
     collection, doc, getDocs, onSnapshot, serverTimestamp, updateDoc, deleteDoc, writeBatch
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -15,10 +15,10 @@ const MEDALS = { 'First': '🥇', 'Second': '🥈', 'Third': '🥉', 'Participat
 // ─────────────────────────────────────────────
 let resultsFilter = {
     categoryId: '',
-    classId: '',
     gender: '',
     stage: '',
-    onlyPublished: false
+    status: '',
+    search: ''
 };
 
 let allPrograms = [];
@@ -52,26 +52,39 @@ export async function initResultsView(container, topActions) {
     } catch (e) { console.error(e); }
 
     topActions.innerHTML = `
-        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
-            <select id="resCatFilter" class="form-input" style="width:140px;">${catOptions}</select>
-            <select id="resClassFilter" class="form-input" style="width:140px;" disabled>
-                <option value="">All Classes</option>
-            </select>
-            <select id="resGenderFilter" class="form-input" style="width:120px;">
-                <option value="">All Genders</option>
-                <option value="Boys">Boys</option>
-                <option value="Girls">Girls</option>
-                <option value="Mixed">Mixed</option>
-            </select>
-            <select id="resStageFilter" class="form-input" style="width:120px;">
-                <option value="">All Stages</option>
-                <option value="Stage">Stage</option>
-                <option value="Off Stage">Off Stage</option>
-            </select>
-            <label style="display:flex; align-items:center; gap:0.35rem; font-size:0.8rem; font-weight:700; color:#475569; cursor:pointer; user-select:none;">
-                <input type="checkbox" id="resOnlyPublished" style="cursor:pointer;" /> Only Published
-            </label>
-            <button class="btn btn-primary btn-sm" id="btnPublishAll" style="font-weight:700;">🚀 Publish All</button>
+        <div class="results-filter-toolbar">
+            <div class="filter-item res-search-wrapper">
+                <input type="text" id="resSearchFilter" class="form-input filter-input" placeholder="🔍 Search program..." />
+            </div>
+            <div class="filter-item res-cat-wrapper">
+                <select id="resCatFilter" class="form-input filter-select">${catOptions}</select>
+            </div>
+            <div class="filter-item res-gender-wrapper">
+                <select id="resGenderFilter" class="form-input filter-select">
+                    <option value="">All Genders</option>
+                    <option value="Boys">Boys</option>
+                    <option value="Girls">Girls</option>
+                    <option value="Mixed">Mixed</option>
+                </select>
+            </div>
+            <div class="filter-item res-stage-wrapper">
+                <select id="resStageFilter" class="form-input filter-select">
+                    <option value="">All Stages</option>
+                    <option value="Stage">Stage</option>
+                    <option value="Off Stage">Off Stage</option>
+                </select>
+            </div>
+            <div class="filter-item res-status-wrapper">
+                <select id="resStatusFilter" class="form-input filter-select">
+                    <option value="">All Statuses</option>
+                    <option value="inprogress">In Progress</option>
+                    <option value="submitted">Submitted</option>
+                    <option value="published">Published</option>
+                </select>
+            </div>
+            <div class="filter-item res-btn-wrapper">
+                <button class="btn btn-primary btn-sm filter-btn" id="btnPublishAll" style="font-weight:700;">🚀 Publish All</button>
+            </div>
         </div>
     `;
 
@@ -129,37 +142,20 @@ export async function initResultsView(container, topActions) {
     `;
 
     // Wire filters
+    const searchFilter = document.getElementById('resSearchFilter');
     const catFilter = document.getElementById('resCatFilter');
-    const classFilter = document.getElementById('resClassFilter');
     const genderFilter = document.getElementById('resGenderFilter');
     const stageFilter = document.getElementById('resStageFilter');
-    const onlyPublishedCheck = document.getElementById('resOnlyPublished');
+    const statusFilter = document.getElementById('resStatusFilter');
     const publishAllBtn = document.getElementById('btnPublishAll');
 
-    catFilter.onchange = async (e) => {
-        resultsFilter.categoryId = e.target.value;
-        resultsFilter.classId = '';
-        classFilter.innerHTML = '<option value="">All Classes</option>';
-        classFilter.disabled = true;
-
-        if (resultsFilter.categoryId) {
-            const catDoc = await getDoc(doc(db, "institutes", window.currentInstituteId, "categories", resultsFilter.categoryId));
-            if (catDoc.exists()) {
-                const classes = normalizeClasses(catDoc.data().classes || []);
-                classes.forEach(c => {
-                    const opt = document.createElement('option');
-                    opt.value = c.id;
-                    opt.textContent = c.name;
-                    classFilter.appendChild(opt);
-                });
-                classFilter.disabled = false;
-            }
-        }
+    searchFilter.oninput = (e) => {
+        resultsFilter.search = e.target.value.toLowerCase().trim();
         renderResultsView();
     };
 
-    classFilter.onchange = (e) => {
-        resultsFilter.classId = e.target.value;
+    catFilter.onchange = (e) => {
+        resultsFilter.categoryId = e.target.value;
         renderResultsView();
     };
 
@@ -173,8 +169,8 @@ export async function initResultsView(container, topActions) {
         renderResultsView();
     };
 
-    onlyPublishedCheck.onchange = (e) => {
-        resultsFilter.onlyPublished = e.target.checked;
+    statusFilter.onchange = (e) => {
+        resultsFilter.status = e.target.value;
         renderResultsView();
     };
 
@@ -320,11 +316,24 @@ function renderResultsView() {
 
     // Filter results
     const filteredResults = allResults.filter(r => {
-        if (resultsFilter.onlyPublished && r.status !== 'published') return false;
+        // Search filter (program name)
+        if (resultsFilter.search) {
+            const progName = (r.programName || '').toLowerCase();
+            if (!progName.includes(resultsFilter.search)) return false;
+        }
+        // Category filter
         if (resultsFilter.categoryId && r.categoryId !== resultsFilter.categoryId) return false;
-        if (resultsFilter.classId && r.classId !== resultsFilter.classId) return false;
+        // Gender filter
         if (resultsFilter.gender && r.genderCategory !== resultsFilter.gender) return false;
+        // Stage filter
         if (resultsFilter.stage && r.programLocation !== resultsFilter.stage) return false;
+        // Status filter
+        if (resultsFilter.status) {
+            const isDraft = r.status === 'draft';
+            if (resultsFilter.status === 'published' && r.status !== 'published') return false;
+            if (resultsFilter.status === 'submitted' && (r.status !== 'draft' || r.markEntryStatus !== 'submitted')) return false;
+            if (resultsFilter.status === 'inprogress' && (r.status !== 'draft' || r.markEntryStatus === 'submitted')) return false;
+        }
         return true;
     });
 
@@ -423,6 +432,7 @@ function renderResultsView() {
                         status: 'published',
                         publishedAt: serverTimestamp()
                     });
+                    await updateDashboardMetadata(window.currentInstituteId);
                     window.showToast("Result published successfully!", "success");
                 } catch (err) {
                     console.error(err);
@@ -443,6 +453,7 @@ function renderResultsView() {
                         status: 'draft',
                         markEntryStatus: 'submitted'
                     });
+                    await updateDashboardMetadata(window.currentInstituteId);
                     window.showToast("Result revoked successfully!", "success");
                 } catch (err) {
                     console.error(err);
@@ -673,6 +684,7 @@ function openResultDetailPopup(r) {
                 batch.delete(resRef);
 
                 await batch.commit();
+                await updateDashboardMetadata(window.currentInstituteId);
                 window.showToast("Result deleted permanently!", "success");
             } catch (err) {
                 console.error("Error deleting result:", err);
@@ -707,6 +719,7 @@ async function triggerPublishAll() {
         });
 
         await batch.commit();
+        await updateDashboardMetadata(window.currentInstituteId);
         window.showToast(`Successfully published all ${submittedDrafts.length} program results!`, "success");
     } catch (err) {
         console.error("Batch publish error:", err);

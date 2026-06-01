@@ -1,4 +1,4 @@
-import { auth, db } from './firebase.js';
+import { auth, db, updateDashboardMetadata } from './firebase.js';
 import { getUserProfile, validateInstituteAccess } from './auth.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 import { doc, getDoc, collection, query, where, getCountFromServer, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -14,10 +14,12 @@ import { initMarkEntryView } from './mark-entry.js';
 import { initJudgesView } from './judges.js';
 import { initExportsView } from './exports.js';
 import { initTopScorersView } from './top-scorers.js';
+import { initSettingsView } from './settings.js';
 
 // Global state
 window.currentInstituteId = null;
 window.currentInstituteDetails = null;
+window.currentEventDetails = null;
 
 // Dashboard Memory Safe Real-Time Listener References & Data Cache
 let dbUnsubscribes = [];
@@ -44,6 +46,7 @@ const views = {
     'results': initResultsView,
     'exports': initExportsView,
     'top-scorers': initTopScorersView,
+    'settings': initSettingsView,
     'participants-workflow': (container, topActions) => {
         const payload = window.__participantsWorkflowPayload || {};
         return initParticipantsWorkflowView(container, topActions, payload);
@@ -66,6 +69,7 @@ onAuthStateChanged(auth, async (user) => {
         if (userProfile && userProfile.role === 'admin') {
             window.currentInstituteId = userProfile.instituteId;
             let isInitialized = false;
+            let unsubEventConfig = null;
 
             // Listen to Institute status and check expiry real-time to detect instant deactivation
             const instRef = doc(db, "institutes", window.currentInstituteId);
@@ -90,7 +94,9 @@ onAuthStateChanged(auth, async (user) => {
                         });
                         dbUnsubscribes = [];
                         try { unsubInstitute(); } catch (e) { }
+                        try { unsubEventConfig(); } catch (e) { }
 
+                        sessionStorage.clear();
                         // Force logout instantly due to expiry
                         await signOut(auth);
                         window.location.href = '../pages/login.html?error=expired';
@@ -104,21 +110,45 @@ onAuthStateChanged(auth, async (user) => {
                         });
                         dbUnsubscribes = [];
                         try { unsubInstitute(); } catch (e) { }
+                        try { unsubEventConfig(); } catch (e) { }
 
+                        sessionStorage.clear();
                         // Force logout instantly
                         await signOut(auth);
                         window.location.href = '../pages/login.html?error=deactivated';
                         return;
                     }
 
-                    const instName = instData.name || instData.instituteName || 'Admin Portal';
+                    let instName = instData.name || instData.instituteName || 'Admin Portal';
+                    if (window.currentEventDetails && window.currentEventDetails.eventName) {
+                        instName = window.currentEventDetails.eventName;
+                    }
                     const headerEl = document.getElementById('instituteNameHeader');
                     if (headerEl) {
                         headerEl.textContent = instName;
                     }
 
+                    // Keep cache synchronized and fresh in real time
+                    sessionStorage.setItem('melad_institute_status', JSON.stringify({
+                        status: instData.status || 'active',
+                        expiryDate: expiryDateObj ? expiryDateObj.toISOString() : null
+                    }));
+                    sessionStorage.setItem('melad_last_validated', new Date().getTime().toString());
+
                     if (!isInitialized) {
                         isInitialized = true;
+                        
+                        // Setup Realtime Custom Event Name Listener
+                        const configRef = doc(db, "institutes", window.currentInstituteId, "metadata", "eventConfig");
+                        unsubEventConfig = onSnapshot(configRef, (configSnap) => {
+                            if (configSnap.exists()) {
+                                window.currentEventDetails = configSnap.data();
+                                const eventName = window.currentEventDetails.eventName || window.currentInstituteDetails?.name || 'Admin Portal';
+                                const headerEl = document.getElementById('instituteNameHeader');
+                                if (headerEl) headerEl.textContent = eventName;
+                            }
+                        });
+
                         document.body.style.display = 'flex';
                         document.body.classList.remove('hidden');
 
@@ -133,6 +163,8 @@ onAuthStateChanged(auth, async (user) => {
                     });
                     dbUnsubscribes = [];
                     try { unsubInstitute(); } catch (e) { }
+                    try { unsubEventConfig(); } catch (e) { }
+                    sessionStorage.clear();
                     await signOut(auth);
                     window.location.href = '../pages/login.html';
                 }
@@ -144,12 +176,15 @@ onAuthStateChanged(auth, async (user) => {
                 });
                 dbUnsubscribes = [];
                 try { unsubInstitute(); } catch (e) { }
+                try { unsubEventConfig(); } catch (e) { }
+                sessionStorage.clear();
                 await signOut(auth);
                 window.location.href = '../pages/login.html?error=expired';
             });
             dbUnsubscribes.push(unsubInstitute);
 
         } else {
+            sessionStorage.clear();
             await signOut(auth);
             window.location.href = '../pages/login.html';
         }
@@ -182,6 +217,7 @@ function setupNavigation() {
 
     const logoutHandler = async (e) => {
         e.preventDefault();
+        sessionStorage.clear();
         await signOut(auth);
         window.location.href = '../pages/login.html';
     };
@@ -595,17 +631,18 @@ function updateCharts(teamLabels, teamData, catLabels, catData) {
     }
 }
 
-function recalculateDashboard() {
-    // 1. Update 6 Top Summary Cards
-    const totalStudents = dbData.students.length;
-    const totalCompetitions = dbData.programs.length;
-    const totalTeams = dbData.teams.length;
-    const totalCategories = dbData.categories.length;
-    const totalJudges = dbData.judges.length;
+let metadataCache = null;
 
-    // Total stages calculated dynamically from the unique program locations
-    const stagesSet = new Set(dbData.programs.map(p => p.programLocation).filter(Boolean));
-    const totalStages = stagesSet.size;
+function recalculateDashboard() {
+    if (!metadataCache) return;
+
+    // 1. Update 6 Top Summary Cards
+    const totalStudents = metadataCache.studentsCount || 0;
+    const totalCompetitions = metadataCache.programsCount || 0;
+    const totalTeams = metadataCache.teamsCount || 0;
+    const totalCategories = metadataCache.categoriesCount || 0;
+    const totalJudges = metadataCache.judgesCount || 0;
+    const totalStages = metadataCache.stagesCount || 0;
 
     const elStudents = document.getElementById('statStudents');
     const elCompetitions = document.getElementById('statCompetitions');
@@ -622,42 +659,13 @@ function recalculateDashboard() {
     if (elJudges) elJudges.textContent = totalJudges;
 
     // 2. Real-time Live Team Leaderboard
-    const teamPoints = new Map();
-    // Initialize all known teams with 0 points
-    dbData.teams.forEach(t => {
-        if (t.name) teamPoints.set(t.name, 0);
-    });
-
-    dbData.results.forEach(r => {
-        if (r.status === 'published') {
-            const prog = dbData.programs.find(p => p.id === r.programId);
-            if (prog && prog.leaderboardEnabled === false) return;
-
-            if (Array.isArray(r.marksData) && r.marksData.length > 0) {
-                r.marksData.forEach(w => {
-                    if (w.teamName && w.totalPoints > 0) {
-                        const current = teamPoints.get(w.teamName) || 0;
-                        teamPoints.set(w.teamName, current + (w.totalPoints || 0));
-                    }
-                });
-            } else if (Array.isArray(r.winners)) {
-                r.winners.forEach(w => {
-                    if (w.teamName) {
-                        const current = teamPoints.get(w.teamName) || 0;
-                        teamPoints.set(w.teamName, current + (w.marks || 0));
-                    }
-                });
-            }
-        }
-    });
-
-    const sortedTeams = [...teamPoints.entries()].sort((a, b) => b[1] - a[1]);
+    const sortedTeams = metadataCache.leaderboard || [];
     const leaderboardBody = document.getElementById('leaderboardBody');
     if (leaderboardBody) {
         if (sortedTeams.length === 0) {
             leaderboardBody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:2rem; color:#64748b; font-style:italic;">No points recorded yet.</td></tr>`;
         } else {
-            leaderboardBody.innerHTML = sortedTeams.map(([name, points], idx) => {
+            leaderboardBody.innerHTML = sortedTeams.map(({ name, points }, idx) => {
                 let rankHTML = `${idx + 1}`;
                 if (idx === 0) rankHTML = '<span class="leaderboard-badge gold-medal">🥇 Gold</span>';
                 else if (idx === 1) rankHTML = '<span class="leaderboard-badge silver-medal">🥈 Silver</span>';
@@ -680,7 +688,7 @@ function recalculateDashboard() {
     }
 
     // 3. Public Result Portal Status Update
-    const publishedCount = dbData.results.filter(r => r.status === 'published').length;
+    const publishedCount = metadataCache.publishedResultsCount || 0;
     const hasPublished = publishedCount > 0;
     const statusEl = document.getElementById('portalStatus');
     const copyBtn = document.getElementById('dashCopyLink');
@@ -704,51 +712,18 @@ function recalculateDashboard() {
         }
     }
 
-    // 4. Aggregate Participants By Team (Radar Chart) - FIXED aggregation logic lookup
-    const teamCounts = new Map();
-    dbData.teams.forEach(t => {
-        if (t.name) teamCounts.set(t.name, 0);
-    });
-    dbData.students.forEach(s => {
-        if (s.teamId) {
-            const team = dbData.teams.find(t => t.id === s.teamId);
-            if (team && team.name) {
-                const current = teamCounts.get(team.name) || 0;
-                teamCounts.set(team.name, current + 1);
-            }
-        } else if (s.teamName) {
-            const current = teamCounts.get(s.teamName) || 0;
-            teamCounts.set(s.teamName, current + 1);
-        }
-    });
-
-    const teamLabels = [...teamCounts.keys()];
-    const teamData = [...teamCounts.values()];
+    // 4. Aggregate Participants By Team (Radar Chart)
+    const teamLabels = metadataCache.radarChartData?.labels || [];
+    const teamData = metadataCache.radarChartData?.data || [];
 
     // 5. Aggregate Participants By Category (Horizontal Bar Chart)
-    const catCounts = new Map();
-    dbData.categories.forEach(c => {
-        if (c.name) catCounts.set(c.name, 0);
-    });
-    dbData.students.forEach(s => {
-        if (s.categoryId) {
-            const cat = dbData.categories.find(c => c.id === s.categoryId);
-            if (cat && cat.name) {
-                const current = catCounts.get(cat.name) || 0;
-                catCounts.set(cat.name, current + 1);
-            }
-        } else if (s.categoryName) {
-            const current = catCounts.get(s.categoryName) || 0;
-            catCounts.set(s.categoryName, current + 1);
-        }
-    });
-
-    const catLabels = [...catCounts.keys()];
-    const catData = [...catCounts.values()];
+    const catLabels = metadataCache.barChartData?.labels || [];
+    const catData = metadataCache.barChartData?.data || [];
 
     // Trigger charts drawing/updating
     updateCharts(teamLabels, teamData, catLabels, catData);
 }
+
 
 async function initDashboardOverview(container, topActions) {
     const instId = window.currentInstituteId;
@@ -945,25 +920,23 @@ async function initDashboardOverview(container, topActions) {
     };
     document.getElementById('dashOpenPortal').onclick = () => window.open(publicUrl, '_blank');
 
-    // Attach 6 Snapshot Listeners to Firestore collections
-    const pushListener = (collName, ref, processor) => {
-        const unsub = onSnapshot(ref, (snap) => {
-            dbData[collName] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            processor();
+    // Attach a single optimized Snapshot Listener to the dashboard metadata aggregates document
+    try {
+        const metaRef = doc(db, "institutes", instId, "metadata", "dashboard");
+        const unsub = onSnapshot(metaRef, async (snap) => {
+            if (snap.exists()) {
+                metadataCache = snap.data();
+                recalculateDashboard();
+            } else {
+                console.warn("Dashboard metadata aggregates document is missing. Triggering self-healing generation...");
+                // Trigger background update
+                await updateDashboardMetadata(instId);
+            }
         }, (err) => {
-            console.error(`Error listening to ${collName}:`, err);
+            console.error("Error listening to dashboard metadata aggregates:", err);
         });
         dbUnsubscribes.push(unsub);
-    };
-
-    try {
-        pushListener('students', collection(db, "institutes", instId, "students"), requestDashboardUpdate);
-        pushListener('teams', collection(db, "institutes", instId, "teams"), requestDashboardUpdate);
-        pushListener('programs', collection(db, "institutes", instId, "programs"), requestDashboardUpdate);
-        pushListener('categories', collection(db, "institutes", instId, "categories"), requestDashboardUpdate);
-        pushListener('judges', collection(db, "institutes", instId, "judges"), requestDashboardUpdate);
-        pushListener('results', collection(db, "institutes", instId, "results"), requestDashboardUpdate);
     } catch (err) {
-        console.error("Error launching database listeners:", err);
+        console.error("Error launching database aggregates listener:", err);
     }
 }

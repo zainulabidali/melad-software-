@@ -144,6 +144,11 @@ service cloud.firestore {
         allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
         allow write: if isSuperAdmin();
       }
+
+      // ── Dashboard and general Metadata ──
+      match /metadata/{docId} {
+        allow read, write: if isInstituteAdmin(instituteId) || isSuperAdmin();
+      }
     }
 
     // ── Collection Group read access for participants ──

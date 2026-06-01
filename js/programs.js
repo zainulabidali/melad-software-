@@ -1,4 +1,4 @@
-import { db } from './firebase.js';
+import { db, updateDashboardMetadata, migrateParticipantCounts, getCachedCategories } from './firebase.js';
 import {
     collection, addDoc, getDocs, doc, deleteDoc, updateDoc, setDoc,
     onSnapshot, serverTimestamp, writeBatch, query, where, collectionGroup
@@ -71,16 +71,15 @@ export async function initProgramsView(container, topActions) {
     const btnCreateGeneralProgram = document.getElementById('btnCreateGeneralProgram');
     const searchInput = document.getElementById('progSearchInput');
 
-    // Load Global Categories
+    // Load Global Categories via Caching Layer
     try {
-        const catSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "categories"));
+        const categoriesData = await getCachedCategories(window.currentInstituteId);
         allCategories = [];
-        catSnap.forEach(d => {
-            const data = d.data();
-            allCategories.push({ id: d.id, ...data, classes: normalizeClasses(data.classes) });
+        categoriesData.forEach(cat => {
+            allCategories.push({ id: cat.id, ...cat, classes: normalizeClasses(cat.classes) });
             const opt = document.createElement('option');
-            opt.value = d.id;
-            opt.textContent = data.name;
+            opt.value = cat.id;
+            opt.textContent = cat.name;
             if (catSel) catSel.appendChild(opt);
         });
     } catch (e) { console.error("Error loading categories", e); }
@@ -178,7 +177,7 @@ function loadProgramsAllData() {
     const programsRef = collection(db, "institutes", window.currentInstituteId, "programs");
     unsubscribePrograms = onSnapshot(programsRef, (snapshot) => {
         localProgramsAll = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        setupParticipantsListeners();
+        window.cachedPrograms = { data: localProgramsAll, lastFetched: Date.now() };
         applyProgramFiltersAndRender();
     }, (err) => {
         console.error("Programs listener error:", err);
@@ -194,55 +193,7 @@ function loadProgramsAllData() {
     });
 }
 
-function setupParticipantsListeners() {
-    // Unsubscribe from any active subcollection listeners
-    participantUnsubs.forEach(unsub => unsub());
-    participantUnsubs = [];
 
-    if (localProgramsAll.length === 0) {
-        localParticipants = [];
-        renderProgramsUI();
-        return;
-    }
-
-    const participantsMap = new Map();
-
-    localProgramsAll.forEach(prog => {
-        const progId = prog.id;
-        const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
-
-        const unsub = onSnapshot(partRef, (snapshot) => {
-            const docs = snapshot.docs.map(d => ({
-                id: d.id,
-                programId: progId,
-                ...d.data()
-            }));
-            participantsMap.set(progId, docs);
-
-            // Combine all participants from the local maps
-            const allParts = [];
-            participantsMap.forEach(parts => {
-                allParts.push(...parts);
-            });
-            localParticipants = allParts;
-
-            renderProgramsUI();
-        }, (err) => {
-            console.error(`Participants subcollection listener error for ${progId}:`, err);
-            participantsMap.set(progId, []);
-
-            const allParts = [];
-            participantsMap.forEach(parts => {
-                allParts.push(...parts);
-            });
-            localParticipants = allParts;
-
-            renderProgramsUI();
-        });
-
-        participantUnsubs.push(unsub);
-    });
-}
 
 function renderProgramsUI() {
     const gridContainer = document.getElementById('programsGridContainer');
@@ -309,49 +260,6 @@ function renderProgramsUI() {
         const cat = allCategories.find(c => c.id === prog.categoryId || c.name === prog.categoryId);
         const catName = cat?.name || (prog.categoryId === 'general_programs' ? 'General' : prog.categoryId || 'General');
 
-        // Participant Count Calculation from localParticipants
-        let participantCount = 0;
-        let participantText = '0 Registrations';
-        if (pType === 'group') {
-            let groupCount = 0;
-            localParticipants.forEach(p => {
-                if (p.programId === progId && p.type === 'group' && Array.isArray(p.groups)) {
-                    groupCount += p.groups.length;
-                }
-            });
-            participantCount = groupCount;
-            participantText = `${groupCount} Teams`;
-        } else if (pType === 'general') {
-            if (prog.registrationType === 'group') {
-                let groupCount = 0;
-                localParticipants.forEach(p => {
-                    if (p.programId === progId && p.type === 'group' && Array.isArray(p.groups)) {
-                        groupCount += p.groups.length;
-                    }
-                });
-                participantCount = groupCount;
-                participantText = `${groupCount} Teams`;
-            } else {
-                let count = 0;
-                localParticipants.forEach(p => {
-                    if (p.programId === progId && p.type === 'individual') {
-                        count++;
-                    }
-                });
-                participantCount = count;
-                participantText = `${count} Registrations`;
-            }
-        } else {
-            let count = 0;
-            localParticipants.forEach(p => {
-                if (p.programId === progId && p.type === 'individual') {
-                    count++;
-                }
-            });
-            participantCount = count;
-            participantText = `${count} Participants`;
-        }
-
         // Dynamic Program Status Calculation (Hierarchical Override Engine)
         const resDoc = localResults.find(r => r.programId === progId);
         let resultSubmitted = false;
@@ -365,20 +273,35 @@ function renderProgramsUI() {
             }
         }
 
+        // Synchronous count render with fallback trigger
+        const regType = prog.registrationType || pType;
+        const isGroup = pType === 'group' || (pType === 'general' && regType === 'group');
+
+        let partHTML = '';
+        let showActiveStatus = false;
+        if (prog.participantCount !== undefined) {
+            const count = prog.participantCount;
+            const text = isGroup ? `${count} ${count === 1 ? 'Team' : 'Teams'}` : `${count} Participant${count === 1 ? '' : 's'}`;
+            partHTML = `<span class="program-participants-text">👥 ${text}</span>`;
+            if (count > 0) showActiveStatus = true;
+        } else {
+            partHTML = `<span class="program-participants-text">👥 <span class="spinner-small" style="display:inline-block; width:10px; height:10px; border:2px solid #ccc; border-top:2px solid #000; border-radius:50%; animation:spin 1s linear infinite; margin-right:4px; vertical-align:middle;"></span> Migrating...</span>`;
+            // Trigger self-healing background migration
+            migrateParticipantCounts(window.currentInstituteId);
+        }
+
         let status = 'Pending';
         let statusDotClass = 'status-dot-pending';
 
-        if (participantCount > 0) {
-            status = 'Active';
-            statusDotClass = 'status-dot-active';
-        }
         if (resultSubmitted) {
             status = 'Submitted';
             statusDotClass = 'status-dot-submitted';
-        }
-        if (resultPublished) {
+        } else if (resultPublished) {
             status = 'Published';
             statusDotClass = 'status-dot-published';
+        } else if (showActiveStatus) {
+            status = 'Active';
+            statusDotClass = 'status-dot-active';
         }
 
         const isGeneral = pType === 'general';
@@ -386,6 +309,10 @@ function renderProgramsUI() {
 
         const row = document.createElement('div');
         row.className = rowClass;
+        
+        const cellId = `prog-part-cell-${progId}`;
+        const statusCellId = `prog-status-cell-${progId}`;
+
         row.innerHTML = `
             <div class="program-name-cell">
                 <div style="display:flex; flex-direction:column; gap:0.15rem;">
@@ -405,10 +332,10 @@ function renderProgramsUI() {
                     <span class="program-badge ${genderBadgeClass}">${window.escapeHTML(gender)}</span>
                 </div>
             </div>
-            <div class="program-participants-cell">
-                <span class="program-participants-text">👥 ${participantText}</span>
+            <div class="program-participants-cell" id="${cellId}">
+                ${partHTML}
             </div>
-            <div class="program-status-cell">
+            <div class="program-status-cell" id="${statusCellId}">
                 <span class="status-indicator-badge">
                     <span class="status-dot ${statusDotClass}"></span>
                     <span class="status-text">${window.escapeHTML(status)}</span>
@@ -546,6 +473,8 @@ function openProgramModal(progId = null, data = {}) {
                 await addDoc(progCollection, payload);
                 window.showToast("Program added.");
             }
+            await updateDashboardMetadata(window.currentInstituteId);
+            window.cachedPrograms = null;
             modalOverlay.classList.add('hidden');
         } catch (err) {
             console.error(err);
@@ -664,6 +593,8 @@ function openGeneralProgramModal(progId = null, data = {}) {
                 await addDoc(progCollection, payload);
                 window.showToast("General Program added.");
             }
+            await updateDashboardMetadata(window.currentInstituteId);
+            window.cachedPrograms = null;
             modalOverlay.classList.add('hidden');
         } catch (err) {
             console.error(err);
@@ -685,19 +616,53 @@ function openGeneralProgramModal(progId = null, data = {}) {
 
 
 // ─────────────────────────────────────────────
-// Delete Program
+// Delete Program (Full Cascade)
 // ─────────────────────────────────────────────
 async function deleteProgram(id) {
-    if (!confirm("Delete this program? All team participants will also be removed.")) return;
+    if (!confirm("Delete this program? All participants, results, and judge assignments will also be removed.")) return;
     try {
+        const instId = window.currentInstituteId;
         const batch = writeBatch(db);
-        // Find all participants to delete
-        const pSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs", id, "participants"));
+
+        // 1. Delete all participants subcollection docs
+        const pSnap = await getDocs(collection(db, "institutes", instId, "programs", id, "participants"));
         pSnap.forEach(d => batch.delete(d.ref));
 
-        batch.delete(doc(db, "institutes", window.currentInstituteId, "programs", id));
+        // 2. Find and delete linked results + clean judge assignments
+        const resultsSnap = await getDocs(query(
+            collection(db, "institutes", instId, "results"),
+            where("programId", "==", id)
+        ));
+
+        if (!resultsSnap.empty) {
+            const judgesSnap = await getDocs(collection(db, "institutes", instId, "judges"));
+            for (const resDoc of resultsSnap.docs) {
+                const r = resDoc.data();
+                const progName = r.programName || '';
+
+                // Remove this program from each judge's competitions[]
+                judgesSnap.forEach(jDoc => {
+                    const j = jDoc.data();
+                    const comps = Array.isArray(j.competitions) ? j.competitions : [];
+                    const wasAssigned = Array.isArray(r.judges) && r.judges.includes(j.name);
+                    if (wasAssigned && comps.includes(progName)) {
+                        const newComps = comps.filter(c => c !== progName);
+                        batch.update(jDoc.ref, { competitions: newComps, updatedAt: serverTimestamp() });
+                    }
+                });
+
+                // Delete the result doc
+                batch.delete(resDoc.ref);
+            }
+        }
+
+        // 3. Delete the program document itself
+        batch.delete(doc(db, "institutes", instId, "programs", id));
+
         await batch.commit();
-        window.showToast("Program deleted.");
+        await updateDashboardMetadata(instId);
+        window.cachedPrograms = null;
+        window.showToast("Program and all related data deleted.");
     } catch (e) {
         console.error(e);
         window.showToast("Error deleting program.", "error");
