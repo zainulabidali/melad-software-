@@ -468,13 +468,15 @@ async function openViewProgramsModal(stu) {
 
     let studentProgs = [];
     try {
-        // Fetch all individual and group participant records for this team
-        const q = query(
-            collectionGroup(db, "participants"),
-            where("teamId", "==", stu.teamId)
-        );
-        const snap = await getDocs(q);
-        const teamParticipants = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Fetch all individual and group participant records for this team securely without collectionGroup
+        const promises = allPrograms.map(async (prog) => {
+            const partRef = collection(db, "institutes", window.currentInstituteId, "programs", prog.id, "participants");
+            const q = query(partRef, where("teamId", "==", stu.teamId));
+            const snap = await getDocs(q);
+            return snap.docs.map(d => ({ id: d.id, ...d.data(), programId: prog.id }));
+        });
+        const results = await Promise.all(promises);
+        const teamParticipants = results.flat();
 
         // Process student programs locally from teamParticipants
         teamParticipants.forEach(p => {
