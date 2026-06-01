@@ -255,7 +255,15 @@ function setupNavigation() {
         if (e.key === 'Escape') {
             closeSidebarDrawer();
             closeMoreDrawer();
+            const activeDropdown = document.querySelector('.active-body-dropdown');
+            if (activeDropdown) activeDropdown.remove();
         }
+    });
+
+    // Global Click Outside to Close Actions Dropdowns
+    document.addEventListener('click', () => {
+        const activeDropdown = document.querySelector('.active-body-dropdown');
+        if (activeDropdown) activeDropdown.remove();
     });
 
     // Close when clicking any nav item inside the sidebar
@@ -769,88 +777,76 @@ async function initDashboardOverview(container, topActions) {
             <div class="dashboard-summary-cards">
                 
                 <!-- Card 👥 PARTICIPANTS -->
-                <div class="card stat-card-premium" style="display:flex; flex-direction:column; gap:0.25rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.35rem;">
-                        <span style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Participants</span>
+                <div class="card stat-card-premium">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="stat-title">Students</span>
                         <div class="stat-card-icon-container" style="background: rgba(99, 102, 241, 0.08);">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.35rem; height:1.35rem; color:#4f46e5;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="color:#4f46e5;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                             </svg>
                         </div>
                     </div>
-                    <h2 style="font-size:2rem; font-weight:800; margin:0; color:#0f172a;" id="statStudents">-</h2>
-                    <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Enrolled students</span>
+                    <h2 class="stat-value" id="statStudents">-</h2>
+                    <span class="stat-desc">Enrolled students</span>
                 </div>
 
                 <!-- Card 🏆 COMPETITIONS -->
-                <div class="card stat-card-premium" style="display:flex; flex-direction:column; gap:0.25rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.35rem;">
-                        <span style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Competitions</span>
+                <div class="card stat-card-premium">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="stat-title">Programs</span>
                         <div class="stat-card-icon-container" style="background: rgba(139, 92, 246, 0.08);">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.35rem; height:1.35rem; color:#7c3aed;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="color:#7c3aed;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.504-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 0a7.454 7.454 0 0 0 .981 3.172M8.312 14.375a6.002 6.002 0 0 1-2.813-5.326m13.002 0a6.002 6.002 0 0 1-2.813 5.326M5.499 9.049a3.75 3.75 0 0 1 2.812-4.673M18.501 9.049a3.75 3.75 0 0 0-2.812-4.673M12 2.25A2.25 2.25 0 0 0 9.75 4.5v1.25a2.25 2.25 0 0 0 4.5 0V4.5A2.25 2.25 0 0 0 12 2.25z" />
                             </svg>
                         </div>
                     </div>
-                    <h2 style="font-size:2rem; font-weight:800; margin:0; color:#0f172a;" id="statCompetitions">-</h2>
-                    <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Active events</span>
+                    <h2 class="stat-value" id="statCompetitions">-</h2>
+                    <span class="stat-desc">Active events</span>
                 </div>
 
                 <!-- Card 👥 TEAMS -->
-                <div class="card stat-card-premium" style="display:flex; flex-direction:column; gap:0.25rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.35rem;">
-                        <span style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Teams</span>
+                <div class="card stat-card-premium">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="stat-title">Teams</span>
                         <div class="stat-card-icon-container" style="background: rgba(234, 88, 12, 0.08);">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.35rem; height:1.35rem; color:#ea580c;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="color:#ea580c;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
                             </svg>
                         </div>
                     </div>
-                    <h2 style="font-size:2rem; font-weight:800; margin:0; color:#0f172a;" id="statTeams">-</h2>
-                    <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Participating divisions</span>
+                    <h2 class="stat-value" id="statTeams">-</h2>
+                    <span class="stat-desc">Participating divisions</span>
                 </div>
 
                 <!-- Card 📄 CATEGORIES -->
-                <div class="card stat-card-premium" style="display:flex; flex-direction:column; gap:0.25rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.35rem;">
-                        <span style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Categories</span>
+                <div class="card stat-card-premium">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="stat-title">Categories</span>
                         <div class="stat-card-icon-container" style="background: rgba(16, 185, 129, 0.08);">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.35rem; height:1.35rem; color:#10b981;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="color:#10b981;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581a2.25 2.25 0 0 0 3.182 0l4.318-4.318a2.25 2.25 0 0 0 0-3.182L11.16 3.659A2.25 2.25 0 0 0 9.568 3ZM6 7.5h.008v.008H6V7.5Z" />
                             </svg>
                         </div>
                     </div>
-                    <h2 style="font-size:2rem; font-weight:800; margin:0; color:#0f172a;" id="statCategories">-</h2>
-                    <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Student groups</span>
-                </div>
-
-                <!-- Card 🚩 STAGES -->
-                <div class="card stat-card-premium" style="display:flex; flex-direction:column; gap:0.25rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.35rem;">
-                        <span style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Stages</span>
-                        <div class="stat-card-icon-container" style="background: rgba(245, 158, 11, 0.08);">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.35rem; height:1.35rem; color:#f59e0b;">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 21V3m0 9h18l-4-4.5 4-4.5H3v9Z" />
-                            </svg>
-                        </div>
-                    </div>
-                    <h2 style="font-size:2rem; font-weight:800; margin:0; color:#0f172a;" id="statStages">-</h2>
-                    <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Active venues</span>
+                    <h2 class="stat-value" id="statCategories">-</h2>
+                    <span class="stat-desc">Student groups</span>
                 </div>
 
                 <!-- Card 🧑‍⚖️ JUDGES -->
-                <div class="card stat-card-premium" style="display:flex; flex-direction:column; gap:0.25rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.35rem;">
-                        <span style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Judges</span>
+                <div class="card stat-card-premium">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="stat-title">Judges</span>
                         <div class="stat-card-icon-container" style="background: rgba(100, 116, 139, 0.08);">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.35rem; height:1.35rem; color:#64748b;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="color:#64748b;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 22h8M16 17v5M5 13l3.5-3.5M3 15l3.5-3.5M6 10l8.5 8.5-3 3-8.5-8.5 3-3ZM14.5 5.5l4 4-2.5 2.5-4-4 2.5-2.5Z" />
                             </svg>
                         </div>
                     </div>
-                    <h2 style="font-size:2rem; font-weight:800; margin:0; color:#0f172a;" id="statJudges">-</h2>
-                    <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Assigned evaluators</span>
+                    <h2 class="stat-value" id="statJudges">-</h2>
+                    <span class="stat-desc">Assigned evaluators</span>
                 </div>
+
+               
 
             </div>
 

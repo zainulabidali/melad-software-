@@ -1,42 +1,75 @@
 import { db } from './firebase.js';
 import {
     collection, addDoc, getDocs, doc, deleteDoc, updateDoc, setDoc,
-    onSnapshot, serverTimestamp, writeBatch, query, where
+    onSnapshot, serverTimestamp, writeBatch, query, where, collectionGroup
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 import { normalizeClasses } from './categories.js';
 
 let unsubscribePrograms = null;
+let unsubscribeParticipants = null;
+let unsubscribeResults = null;
 let currentCategoryId = null;
 let allCategories = [];
+let localPrograms = [];
+let localProgramsAll = [];
+let localParticipants = [];
+let localResults = [];
+let participantUnsubs = [];
 
 // ─────────────────────────────────────────────
 // Init View
 // ─────────────────────────────────────────────
 export async function initProgramsView(container, topActions) {
     if (unsubscribePrograms) unsubscribePrograms();
+    if (unsubscribeParticipants) unsubscribeParticipants();
+    if (unsubscribeResults) {
+        unsubscribeResults();
+        unsubscribeResults = null;
+    }
+    participantUnsubs.forEach(unsub => unsub());
+    participantUnsubs = [];
 
-    topActions.innerHTML = `
-        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
-            <button class="btn btn-general" id="btnCreateGeneralProgram">+ Add General Program</button>
-            <select id="progCatSelect" class="form-input" style="width: 250px;">
-                <option value="">Select Category...</option>
-                <option value="general_programs">⭐ General Programs (Non-Category)</option>
-            </select>
-            <button class="btn btn-primary" id="btnCreateProgram" disabled>+ Add Program</button>
-        </div>
-    `;
+    localPrograms = [];
+    localProgramsAll = [];
+    localParticipants = [];
+    localResults = [];
+
+    // Clear top actions to allow a unified premium responsive SaaS header inside the main container
+    topActions.innerHTML = '';
 
     container.innerHTML = `
-        <div class="grid" id="programsGrid">
-            <div class="empty-state" style="grid-column: 1 / -1; margin-top:2rem;">
+        <div class="programs-view-header">
+            <div class="programs-header-left">
+                <h2 class="programs-view-heading">Manage Programs</h2>
+                <p class="programs-view-subtitle">Manage competition and general programs</p>
+            </div>
+            <div class="programs-header-right filter-bar-scrollable">
+                <div class="search-input-wrapper">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="progSearchInput" class="form-input search-input-premium" placeholder="Search program..." />
+                </div>
+                <select id="progCatSelect" class="form-input select-premium" style="width: 230px;">
+                    <option value="">Select Category...</option>
+                    <option value="general_programs">⭐ General Programs (Non-Category)</option>
+                </select>
+                <button class="btn btn-general" id="btnCreateGeneralProgram">+ General</button>
+                <button class="btn btn-primary" id="btnCreateProgram" disabled>+ Program</button>
+            </div>
+        </div>
+
+        <div class="programs-table-container" id="programsGridContainer">
+            <div class="empty-state" style="margin-top:2rem;">
                 <div class="empty-state-icon">📝</div>
-                <h3>Select a Category</h3>
-                <p>Use the dropdown above to view programs.</p>
+                <h3>Loading Programs...</h3>
+                <p>Establishing secure connection to database.</p>
             </div>
         </div>
     `;
 
     const catSel = document.getElementById('progCatSelect');
+    const btnCreateProgram = document.getElementById('btnCreateProgram');
+    const btnCreateGeneralProgram = document.getElementById('btnCreateGeneralProgram');
+    const searchInput = document.getElementById('progSearchInput');
 
     // Load Global Categories
     try {
@@ -48,146 +81,352 @@ export async function initProgramsView(container, topActions) {
             const opt = document.createElement('option');
             opt.value = d.id;
             opt.textContent = data.name;
-            catSel.appendChild(opt);
+            if (catSel) catSel.appendChild(opt);
         });
     } catch (e) { console.error("Error loading categories", e); }
 
-    catSel.addEventListener('change', (e) => {
-        currentCategoryId = e.target.value;
-        const btn = document.getElementById('btnCreateProgram');
-        if (currentCategoryId === "general_programs") {
-            btn.disabled = true;
-            loadProgramsData();
-        } else if (currentCategoryId) {
-            btn.disabled = false;
-            loadProgramsData();
-        } else {
-            btn.disabled = true;
-            resetProgramGrid();
+    if (catSel) {
+        catSel.addEventListener('change', (e) => {
+            currentCategoryId = e.target.value;
+            if (btnCreateProgram) {
+                if (currentCategoryId && currentCategoryId !== "general_programs") {
+                    btnCreateProgram.disabled = false;
+                } else {
+                    btnCreateProgram.disabled = true;
+                }
+            }
+            applyProgramFiltersAndRender();
+        });
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', debounce(() => {
+            applyProgramFiltersAndRender();
+        }, 300));
+    }
+
+    if (btnCreateProgram) btnCreateProgram.addEventListener('click', () => openProgramModal());
+    if (btnCreateGeneralProgram) btnCreateGeneralProgram.addEventListener('click', () => openGeneralProgramModal());
+
+    // Scroll handler to close fixed menus when scrolling to prevent floating drifts
+    window.addEventListener('scroll', () => {
+        const activeDropdown = document.querySelector('.active-body-dropdown');
+        if (activeDropdown) activeDropdown.remove();
+    }, true);
+
+    // Single delegated click listener on container for prog-dots-btn
+    container.addEventListener('click', (e) => {
+        const dotsBtn = e.target.closest('.prog-dots-btn');
+        if (dotsBtn) {
+            e.stopPropagation();
+            openProgramsDropdown(dotsBtn);
         }
     });
 
-    document.getElementById('btnCreateProgram').addEventListener('click', () => openProgramModal());
-    document.getElementById('btnCreateGeneralProgram').addEventListener('click', () => openGeneralProgramModal());
+    // Start live sync of all programs immediately
+    loadProgramsAllData();
 }
 
-function resetProgramGrid() {
-    if (unsubscribePrograms) unsubscribePrograms();
-    document.getElementById('programsGrid').innerHTML = `
-        <div class="empty-state" style="grid-column: 1 / -1; margin-top:2rem;">
-            <div class="empty-state-icon">📝</div>
-            <h3>Select a Category</h3>
-        </div>
-    `;
+function debounce(fn, ms) {
+    let t = null;
+    return (...args) => {
+        clearTimeout(t);
+        t = setTimeout(() => fn(...args), ms);
+    };
 }
 
-// ─────────────────────────────────────────────
-// Badge helpers
-// ─────────────────────────────────────────────
-const LOCATION_BADGE = { 'Stage': '#dbeafe|#1d4ed8', 'Off Stage': '#fce7f3|#be185d' };
-const GENDER_BADGE = { 'Boys': '#dbeafe|#1d4ed8', 'Girls': '#fce7f3|#be185d', 'Mixed': '#dcfce7|#15803d' };
+function applyProgramFiltersAndRender() {
+    const q = (document.getElementById('progSearchInput')?.value || '').trim().toLowerCase();
 
-function coloredBadge(value, map) {
-    const [bg, color] = (map[value] || '#f1f5f9|#475569').split('|');
-    return `<span style="background:${bg}; color:${color}; border-radius:999px; padding:0.15rem 0.65rem; font-size:0.73rem; font-weight:700;">${window.escapeHTML(value)}</span>`;
-}
+    let filtered = localProgramsAll;
 
-// ─────────────────────────────────────────────
-// Load Programs (real-time)
-// ─────────────────────────────────────────────
-function loadProgramsData() {
-    if (unsubscribePrograms) unsubscribePrograms();
+    // 1. Search locally by name, type, or category name
+    if (q) {
+        filtered = filtered.filter(p => {
+            const nameMatch = (p.programName || '').toLowerCase().includes(q);
+            const typeMatch = (p.programType || p.type || '').toLowerCase().includes(q);
+            
+            // find category name
+            const cat = allCategories.find(c => c.id === p.categoryId || c.name === p.categoryId);
+            const catName = cat?.name || (p.categoryId === 'general_programs' ? 'General' : p.categoryId || '');
+            const catMatch = catName.toLowerCase().includes(q);
 
-    const programsRef = collection(db, "institutes", window.currentInstituteId, "programs");
-    let qPrograms;
-    if (currentCategoryId === "general_programs") {
-        qPrograms = query(programsRef, where("programType", "==", "general"));
-    } else {
-        const cat = allCategories.find(c => c.id === currentCategoryId);
-        qPrograms = query(programsRef, where("categoryId", "in", [currentCategoryId, cat?.name || '']));
+            return nameMatch || typeMatch || catMatch;
+        });
     }
 
-    unsubscribePrograms = onSnapshot(qPrograms, (snapshot) => {
-        const grid = document.getElementById('programsGrid');
-        grid.innerHTML = '';
+    // 2. Cascaded category post-filter
+    if (currentCategoryId) {
+        if (currentCategoryId === "general_programs") {
+            filtered = filtered.filter(p => (p.programType || p.type) === "general");
+        } else {
+            const cat = allCategories.find(c => c.id === currentCategoryId);
+            filtered = filtered.filter(p => p.categoryId === currentCategoryId || p.categoryId === cat?.name);
+        }
+    }
 
-        if (snapshot.empty) {
-            grid.innerHTML = `
-                <div class="empty-state" style="grid-column:1/-1; margin-top:2rem;">
-                    <div class="empty-state-icon">📑</div>
-                    <h3>No Programs</h3>
-                    <p>Click details to create one.</p>
-                </div>`;
-            return;
+    localPrograms = filtered;
+    renderProgramsUI();
+}
+
+function loadProgramsAllData() {
+    if (unsubscribePrograms) unsubscribePrograms();
+    if (unsubscribeResults) unsubscribeResults();
+    participantUnsubs.forEach(unsub => unsub());
+    participantUnsubs = [];
+
+    const programsRef = collection(db, "institutes", window.currentInstituteId, "programs");
+    unsubscribePrograms = onSnapshot(programsRef, (snapshot) => {
+        localProgramsAll = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        setupParticipantsListeners();
+        applyProgramFiltersAndRender();
+    }, (err) => {
+        console.error("Programs listener error:", err);
+        window.showToast("Failed to load programs.", "error");
+    });
+
+    const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
+    unsubscribeResults = onSnapshot(resultsRef, (snapshot) => {
+        localResults = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderProgramsUI();
+    }, (err) => {
+        console.error("Results snapshot error in programs:", err);
+    });
+}
+
+function setupParticipantsListeners() {
+    // Unsubscribe from any active subcollection listeners
+    participantUnsubs.forEach(unsub => unsub());
+    participantUnsubs = [];
+
+    if (localProgramsAll.length === 0) {
+        localParticipants = [];
+        renderProgramsUI();
+        return;
+    }
+
+    const participantsMap = new Map();
+
+    localProgramsAll.forEach(prog => {
+        const progId = prog.id;
+        const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
+
+        const unsub = onSnapshot(partRef, (snapshot) => {
+            const docs = snapshot.docs.map(d => ({
+                id: d.id,
+                programId: progId,
+                ...d.data()
+            }));
+            participantsMap.set(progId, docs);
+
+            // Combine all participants from the local maps
+            const allParts = [];
+            participantsMap.forEach(parts => {
+                allParts.push(...parts);
+            });
+            localParticipants = allParts;
+
+            renderProgramsUI();
+        }, (err) => {
+            console.error(`Participants subcollection listener error for ${progId}:`, err);
+            participantsMap.set(progId, []);
+
+            const allParts = [];
+            participantsMap.forEach(parts => {
+                allParts.push(...parts);
+            });
+            localParticipants = allParts;
+
+            renderProgramsUI();
+        });
+
+        participantUnsubs.push(unsub);
+    });
+}
+
+function renderProgramsUI() {
+    const gridContainer = document.getElementById('programsGridContainer');
+    if (!gridContainer) return;
+
+    if (localPrograms.length === 0) {
+        gridContainer.innerHTML = `
+            <div class="programs-empty-state">
+                <div class="programs-empty-icon">🎭</div>
+                <h3>Program Management</h3>
+                <p>No programs have been created yet.</p>
+                ${currentCategoryId !== "general_programs" ? '<button class="btn btn-primary" id="btnCreateProgramEmpty" style="margin-top:0.75rem;">+ Create Program</button>' : ''}
+            </div>`;
+        const btnEmpty = document.getElementById("btnCreateProgramEmpty");
+        if (btnEmpty) {
+            btnEmpty.onclick = () => openProgramModal();
+        }
+        return;
+    }
+
+    gridContainer.innerHTML = `
+        <div class="programs-table">
+            <div class="programs-table-header">
+                <div>Program Name</div>
+                <div>Program Type</div>
+                <div>Location</div>
+                <div>Category</div>
+                <div>Participants</div>
+                <div>Status</div>
+                <div style="text-align: right;">Actions</div>
+            </div>
+            <div class="programs-table-body" id="programsGrid"></div>
+        </div>
+    `;
+
+    const grid = document.getElementById('programsGrid');
+    if (!grid) return;
+
+    localPrograms.forEach(prog => {
+        const progId = prog.id;
+
+        const pType = (prog.programType || prog.type || 'individual').toLowerCase();
+        let typeLabel = 'Individual';
+        let typeBadgeClass = 'badge-individual';
+
+        if (pType === 'group') {
+            typeLabel = 'Group';
+            typeBadgeClass = 'badge-group';
+        } else if (pType === 'general') {
+            typeLabel = 'General';
+            typeBadgeClass = 'badge-general';
         }
 
-        snapshot.forEach(docSnap => {
-            const prog = docSnap.data();
-            const progId = docSnap.id;
+        // Location Badges
+        const rawLoc = prog.programLocation || prog.location || 'Off Stage';
+        const locBadgeClass = rawLoc === 'Stage' ? 'badge-location-stage' : 'badge-location-offstage';
 
-            const pType = (prog.programType || prog.type || 'individual').toLowerCase();
-            let typeLine = '';
-            if (pType === 'group' && prog.maxParticipants) {
-                typeLine = `Group · ${prog.maxParticipants} max per team`;
-            } else if (pType === 'general') {
-                const regTypeLabel = prog.registrationType === 'group' ? 'Group Registration' : 'Individual Registration';
-                typeLine = `General · ${regTypeLabel}` + (prog.maxParticipants ? ` · ${prog.maxParticipants} max` : '');
-            } else {
-                typeLine = 'Individual';
-            }
+        // Category Info (Gender Category)
+        const gender = prog.genderCategory || 'Mixed';
+        let genderBadgeClass = 'badge-gender-mixed';
+        if (gender === 'Boys') genderBadgeClass = 'badge-gender-boys';
+        else if (gender === 'Girls') genderBadgeClass = 'badge-gender-girls';
 
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.innerHTML = `
-                <div class="card-header">
-                    <h3 class="card-title">${window.escapeHTML(prog.programName)}</h3>
-                    <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
-                        ${(prog.programLocation || prog.location) ? coloredBadge(prog.programLocation || prog.location, LOCATION_BADGE) : ''}
-                        ${prog.genderCategory ? coloredBadge(prog.genderCategory, GENDER_BADGE) : ''}
-                        ${pType === 'general' ? `<span style="background:linear-gradient(135deg, #7c3aed, #4f46e5); color:white; border-radius:999px; padding:0.15rem 0.65rem; font-size:0.73rem; font-weight:700;">GENERAL</span>` : ''}
-                    </div>
-                </div>
-                <div class="card-body">
-                    <p style="font-size:0.82rem; margin-bottom:0.3rem;">
-                        <strong>Type:</strong> ${window.escapeHTML(typeLine)}
-                    </p>
-                    ${prog.description ? `<p class="text-muted" style="font-size:0.82rem;">${window.escapeHTML(prog.description)}</p>` : ''}
-                </div>
-                <div class="card-actions" style="flex-wrap:wrap; gap:0.4rem;">
-                    <button class="btn btn-secondary btn-sm edit-prog-btn"
-                        data-id="${progId}"
-                        data-all='${JSON.stringify(prog).replace(/'/g, "&#39;")}'>✏️ Edit</button>
-                    <button class="btn btn-primary btn-sm participants-btn"
-                        data-id="${progId}"
-                        data-all='${JSON.stringify(prog).replace(/'/g, "&#39;")}'>👥 Reg Participants</button>
-                    <button class="btn btn-danger btn-sm delete-prog-btn"
-                        data-id="${progId}">🗑 Delete</button>
-                </div>
-            `;
-            grid.appendChild(card);
-        });
+        const cat = allCategories.find(c => c.id === prog.categoryId || c.name === prog.categoryId);
+        const catName = cat?.name || (prog.categoryId === 'general_programs' ? 'General' : prog.categoryId || 'General');
 
-        document.querySelectorAll('.edit-prog-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                const id = e.target.dataset.id;
-                const allData = JSON.parse(e.target.dataset.all);
-                const type = (allData.programType || allData.type || 'individual').toLowerCase();
-                if (type === 'general') {
-                    openGeneralProgramModal(id, allData);
-                } else {
-                    openProgramModal(id, allData);
+        // Participant Count Calculation from localParticipants
+        let participantCount = 0;
+        let participantText = '0 Registrations';
+        if (pType === 'group') {
+            let groupCount = 0;
+            localParticipants.forEach(p => {
+                if (p.programId === progId && p.type === 'group' && Array.isArray(p.groups)) {
+                    groupCount += p.groups.length;
                 }
-            };
-        });
-        document.querySelectorAll('.participants-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                e.preventDefault();
-                window.navigateToParticipantsWorkflow?.(e.target.dataset.id, JSON.parse(e.target.dataset.all));
-            };
-        });
-        document.querySelectorAll('.delete-prog-btn').forEach(btn => {
-            btn.onclick = (e) => deleteProgram(e.target.dataset.id);
-        });
+            });
+            participantCount = groupCount;
+            participantText = `${groupCount} Teams`;
+        } else if (pType === 'general') {
+            if (prog.registrationType === 'group') {
+                let groupCount = 0;
+                localParticipants.forEach(p => {
+                    if (p.programId === progId && p.type === 'group' && Array.isArray(p.groups)) {
+                        groupCount += p.groups.length;
+                    }
+                });
+                participantCount = groupCount;
+                participantText = `${groupCount} Teams`;
+            } else {
+                let count = 0;
+                localParticipants.forEach(p => {
+                    if (p.programId === progId && p.type === 'individual') {
+                        count++;
+                    }
+                });
+                participantCount = count;
+                participantText = `${count} Registrations`;
+            }
+        } else {
+            let count = 0;
+            localParticipants.forEach(p => {
+                if (p.programId === progId && p.type === 'individual') {
+                    count++;
+                }
+            });
+            participantCount = count;
+            participantText = `${count} Participants`;
+        }
+
+        // Dynamic Program Status Calculation (Hierarchical Override Engine)
+        const resDoc = localResults.find(r => r.programId === progId);
+        let resultSubmitted = false;
+        let resultPublished = false;
+        if (resDoc) {
+            if (resDoc.status === 'published') {
+                resultPublished = true;
+            }
+            if (resDoc.markEntryStatus === 'submitted') {
+                resultSubmitted = true;
+            }
+        }
+
+        let status = 'Pending';
+        let statusDotClass = 'status-dot-pending';
+
+        if (participantCount > 0) {
+            status = 'Active';
+            statusDotClass = 'status-dot-active';
+        }
+        if (resultSubmitted) {
+            status = 'Submitted';
+            statusDotClass = 'status-dot-submitted';
+        }
+        if (resultPublished) {
+            status = 'Published';
+            statusDotClass = 'status-dot-published';
+        }
+
+        const isGeneral = pType === 'general';
+        const rowClass = isGeneral ? 'program-row general-program-row' : 'program-row';
+
+        const row = document.createElement('div');
+        row.className = rowClass;
+        row.innerHTML = `
+            <div class="program-name-cell">
+                <div style="display:flex; flex-direction:column; gap:0.15rem;">
+                    <span class="program-title-text">${window.escapeHTML(prog.programName)}</span>
+                    ${prog.description ? `<span class="program-desc-text">${window.escapeHTML(prog.description)}</span>` : ''}
+                </div>
+            </div>
+            <div class="program-type-cell">
+                <span class="program-badge ${typeBadgeClass}">${typeLabel}</span>
+            </div>
+            <div class="program-location-cell">
+                <span class="program-badge ${locBadgeClass}">${window.escapeHTML(rawLoc)}</span>
+            </div>
+            <div class="program-category-cell">
+                <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                    <span class="program-category-name">${window.escapeHTML(catName)}</span>
+                    <span class="program-badge ${genderBadgeClass}">${window.escapeHTML(gender)}</span>
+                </div>
+            </div>
+            <div class="program-participants-cell">
+                <span class="program-participants-text">👥 ${participantText}</span>
+            </div>
+            <div class="program-status-cell">
+                <span class="status-indicator-badge">
+                    <span class="status-dot ${statusDotClass}"></span>
+                    <span class="status-text">${window.escapeHTML(status)}</span>
+                </span>
+            </div>
+            <div class="program-actions-cell">
+                <div class="actions-dropdown-container">
+                    <button class="btn-action-icon btn-action-more dots-btn prog-dots-btn" 
+                        data-id="${progId}" 
+                        data-all='${JSON.stringify(prog).replace(/'/g, "&#39;")}'>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.95rem; height:0.95rem;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `;
+        grid.appendChild(row);
     });
 }
 
@@ -391,7 +630,7 @@ function openGeneralProgramModal(progId = null, data = {}) {
 
     document.getElementById('generalProgramForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const btn = document.getElementById('saveProgBtn');
         const text = btn.querySelector('.btn-text');
         const spinner = btn.querySelector('.btn-spinner');
@@ -463,4 +702,91 @@ async function deleteProgram(id) {
         console.error(e);
         window.showToast("Error deleting program.", "error");
     }
+}
+
+function openProgramsDropdown(btn) {
+    // 1. Remove any existing dynamic body-appended dropdown
+    const existing = document.querySelector('.active-body-dropdown');
+    if (existing) existing.remove();
+
+    // 2. Create the dropdown element
+    const dropdown = document.createElement('div');
+    dropdown.className = 'actions-dropdown-menu active-body-dropdown';
+    
+    // Get datasets
+    const id = btn.dataset.id;
+    const progDataStr = btn.dataset.all;
+
+    dropdown.innerHTML = `
+        <button class="dropdown-item btn-view-parts" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#475569; text-align:left; cursor:pointer;">
+            👥 Participants
+        </button>
+        <button class="dropdown-item btn-edit-prog" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#475569; text-align:left; cursor:pointer;">
+            ✏️ Edit Program
+        </button>
+        <button class="dropdown-item btn-delete-prog text-danger" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#dc2626; text-align:left; cursor:pointer;">
+            🗑️ Delete Program
+        </button>
+    `;
+
+    // 3. Append directly to body
+    document.body.appendChild(dropdown);
+
+    // 4. Position fixed menu dynamically to avoid clipping
+    const rect = btn.getBoundingClientRect();
+    const menuWidth = 155;
+    const menuHeight = 120;
+
+    let leftPos = rect.right - menuWidth;
+    if (leftPos < 10) leftPos = 10;
+    if (leftPos + menuWidth > window.innerWidth - 10) {
+        leftPos = window.innerWidth - menuWidth - 10;
+    }
+    dropdown.style.left = `${leftPos}px`;
+
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    if (spaceBelow < menuHeight + 15 && spaceAbove > spaceBelow) {
+        let topPos = rect.top - menuHeight - 4;
+        if (topPos < 10) topPos = 10;
+        dropdown.style.top = `${topPos}px`;
+        dropdown.classList.add('open-upward');
+    } else {
+        let topPos = rect.bottom + 4;
+        if (topPos + menuHeight > window.innerHeight - 10) {
+            topPos = window.innerHeight - menuHeight - 10;
+        }
+        if (topPos < 10) topPos = 10;
+        dropdown.style.top = `${topPos}px`;
+        dropdown.classList.remove('open-upward');
+    }
+
+    // Prevent clicks inside the dropdown from closing it unless an item is clicked
+    dropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+
+    // 5. Bind actions (always remove dropdown from body FIRST)
+    dropdown.querySelector('.btn-view-parts').addEventListener('click', () => {
+        dropdown.remove();
+        const allData = JSON.parse(progDataStr);
+        window.navigateToParticipantsWorkflow?.(id, allData);
+    });
+
+    dropdown.querySelector('.btn-edit-prog').addEventListener('click', () => {
+        dropdown.remove();
+        const allData = JSON.parse(progDataStr);
+        const type = (allData.programType || allData.type || 'individual').toLowerCase();
+        if (type === 'general') {
+            openGeneralProgramModal(id, allData);
+        } else {
+            openProgramModal(id, allData);
+        }
+    });
+
+    dropdown.querySelector('.btn-delete-prog').addEventListener('click', () => {
+        dropdown.remove();
+        deleteProgram(id);
+    });
 }

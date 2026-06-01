@@ -146,5 +146,10 @@ service cloud.firestore {
       }
     }
 
+    // ── Collection Group read access for participants ──
+    match /{path=**}/participants/{participantId} {
+      allow read: if isAuthenticated();
+    }
+
   }
 }

@@ -2,6 +2,12 @@ import { db } from './firebase.js';
 import { collection, getDocs, doc, updateDoc, onSnapshot, serverTimestamp, writeBatch, query, where, setDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 let unsubscribeCategories = null;
+let unsubscribeStudents = null;
+let unsubscribePrograms = null;
+
+let localCategories = [];
+let localStudents = [];
+let localPrograms = [];
 
 /**
  * Normalizes class data to handle both legacy strings and new object format.
@@ -11,106 +17,209 @@ export function normalizeClasses(classes) {
     if (!Array.isArray(classes)) return [];
     return classes.map(c => {
         if (typeof c === 'string') {
-            return { 
-                id: c.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-'), 
-                name: c.trim() 
+            return {
+                id: c.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                name: c.trim()
             };
         }
         return c;
     });
 }
 
-export async function initCategoriesView(container, topActions) {
+export function initCategoriesView(container, topActions) {
     if (unsubscribeCategories) unsubscribeCategories();
+    if (unsubscribeStudents) unsubscribeStudents();
+    if (unsubscribePrograms) unsubscribePrograms();
+
+    localCategories = [];
+    localStudents = [];
+    localPrograms = [];
 
     topActions.innerHTML = `
         <button class="btn btn-primary" id="btnCreateCategory">+ Add Category</button>
     `;
 
     container.innerHTML = `
-        <div class="grid" id="categoriesGrid">
-            <div class="empty-state" style="grid-column: 1 / -1; margin-top:2rem;">
-                <div class="empty-state-icon">🏷️</div>
-                <h3>Create Institute Categories</h3>
-                <p>Categories and classes are now managed at the institute level.</p>
+        <div class="teams-view-header">
+            <div>
+                <h2 class="teams-view-heading">Manage Categories & Classes</h2>
+                <p class="teams-view-subtitle">Organize student groups and class structures</p>
+            </div>
+        </div>
+
+        <div class="categories-table-container" id="categoriesTableContainer">
+            <div class="loader-container">
+                <div class="spinner"></div>
             </div>
         </div>
     `;
 
     document.getElementById('btnCreateCategory').addEventListener('click', () => openCategoryModal());
-    loadCategoriesData();
+
+    // Scroll handler to close fixed menus when scrolling to prevent floating drifts
+    window.addEventListener('scroll', () => {
+        const activeDropdown = document.querySelector('.active-body-dropdown');
+        if (activeDropdown) activeDropdown.remove();
+    }, true);
+
+    // Single delegated click listener on container for cat-dots-btn
+    container.addEventListener('click', (e) => {
+        const dotsBtn = e.target.closest('.cat-dots-btn');
+        if (dotsBtn) {
+            e.stopPropagation();
+            openCategoryDropdown(dotsBtn);
+        }
+    });
+
+    startRealtimeSync();
 }
 
-function loadCategoriesData() {
-    if (unsubscribeCategories) unsubscribeCategories();
+function startRealtimeSync() {
+    const instId = window.currentInstituteId;
+    if (!instId) return;
 
-    const catRef = collection(db, "institutes", window.currentInstituteId, "categories");
+    const catRef = collection(db, "institutes", instId, "categories");
+    const studentsRef = collection(db, "institutes", instId, "students");
+    const programsRef = collection(db, "institutes", instId, "programs");
 
-    unsubscribeCategories = onSnapshot(catRef, (snapshot) => {
-        const grid = document.getElementById('categoriesGrid');
-        if (!grid) return;
-        grid.innerHTML = '';
+    let categoriesLoaded = false;
+    let studentsLoaded = false;
+    let programsLoaded = false;
 
-        if (snapshot.empty) {
-            grid.innerHTML = `
-                <div class="empty-state" style="grid-column: 1 / -1; margin-top:2rem;">
-                    <div class="empty-state-icon">🏷️</div>
-                    <h3>No Categories Yet</h3>
-                    <p>Click "Add Category" to create a category and classes.</p>
-                </div>
-            `;
-            return;
+    const checkAndRender = () => {
+        if (categoriesLoaded && studentsLoaded && programsLoaded) {
+            renderCategoriesUI();
         }
+    };
 
-        snapshot.forEach(docSnap => {
-            const cat = docSnap.data();
-            const catId = docSnap.id;
-            const classes = normalizeClasses(cat.classes);
-
-            const classChipsHTML = classes.length > 0
-                ? `<div style="display:flex; flex-wrap:wrap; gap:0.35rem; margin-top:0.5rem;">
-                    ${classes.map(c => `<span style="background:#fce7f3; color:#9d174d; border-radius:999px; padding:0.28rem 0.65rem; font-size:0.76rem; font-weight:700;">${window.escapeHTML(c.name)}</span>`).join('')}
-                   </div>`
-                : '';
-
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.innerHTML = `
-                <div class="card-header">
-                    <h3 class="card-title">${window.escapeHTML(cat.name)}</h3>
-                    <span class="badge" style="background:#ede9fe; color:#5b21b6; font-size:0.75rem;">${classes.length} classes</span>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted">${window.escapeHTML(cat.description || 'No description')}</p>
-                    ${classChipsHTML}
-                </div>
-                <div class="card-actions">
-                    <button class="btn btn-secondary btn-sm edit-cat-btn"
-                        data-id="${catId}"
-                        data-name="${window.escapeHTML(cat.name)}"
-                        data-desc="${window.escapeHTML(cat.description || '')}"
-                        data-classes='${JSON.stringify(classes).replace(/'/g, "&#39;")}'>Edit</button>
-                    <button class="btn btn-danger btn-sm delete-cat-btn" data-id="${catId}">Delete</button>
-                </div>
-            `;
-            grid.appendChild(card);
-        });
-
-        document.querySelectorAll('.edit-cat-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                const t = e.currentTarget;
-                let classes = [];
-                try { classes = JSON.parse(t.dataset.classes); } catch (_) { }
-                openCategoryModal(t.dataset.id, t.dataset.name, t.dataset.desc, classes);
-            };
-        });
-        document.querySelectorAll('.delete-cat-btn').forEach(btn => {
-            btn.onclick = (e) => deleteCategory(e.currentTarget.dataset.id);
-        });
-    }, (error) => {
-        console.error('Error loading categories:', error);
-        window.showToast('Unable to load categories.', 'error');
+    // 1. Listen to Categories
+    unsubscribeCategories = onSnapshot(catRef, (snap) => {
+        localCategories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        categoriesLoaded = true;
+        checkAndRender();
+    }, (err) => {
+        console.error("Categories listener error:", err);
+        window.showToast("Failed to load categories.", "error");
     });
+
+    // 2. Listen to Students (used to calculate category sizes in real-time)
+    unsubscribeStudents = onSnapshot(studentsRef, (snap) => {
+        localStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        studentsLoaded = true;
+        checkAndRender();
+    }, (err) => {
+        console.error("Students listener error:", err);
+        window.showToast("Failed to load students.", "error");
+    });
+
+    // 3. Listen to Programs (used to calculate category programs in real-time)
+    unsubscribePrograms = onSnapshot(programsRef, (snap) => {
+        localPrograms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        programsLoaded = true;
+        checkAndRender();
+    }, (err) => {
+        console.error("Programs listener error:", err);
+        window.showToast("Failed to load programs.", "error");
+    });
+}
+
+function renderCategoriesUI() {
+    const tableContainer = document.getElementById("categoriesTableContainer");
+    if (!tableContainer) return;
+
+    const totalCategories = localCategories.length;
+
+    if (totalCategories === 0) {
+        tableContainer.innerHTML = `
+            <div class="teams-empty-state">
+                <div class="teams-empty-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581a2.25 2.25 0 0 0 3.182 0l4.318-4.318a2.25 2.25 0 0 0 0-3.182L11.16 3.659A2.25 2.25 0 0 0 9.568 3ZM6 7.5h.008v.008H6V7.5Z" />
+                    </svg>
+                </div>
+                <h3>No categories yet</h3>
+                <p>Click "Add Category" to create a category and classes.</p>
+                <button class="btn btn-primary" id="btnCreateCategoryEmpty" style="margin-top:0.75rem;">+ Add Category</button>
+            </div>
+        `;
+        const btnEmpty = document.getElementById("btnCreateCategoryEmpty");
+        if (btnEmpty) {
+            btnEmpty.onclick = () => openCategoryModal();
+        }
+        return;
+    }
+
+    let tableHTML = `
+        <div class="categories-table">
+            <div class="categories-table-header">
+                <div>Category Name</div>
+                <div>Classes</div>
+                <div class="category-desc-header-item">Description</div>
+                <div>Students</div>
+                <div>Programs</div>
+                <div style="text-align: right;">Actions</div>
+            </div>
+            <div class="categories-table-body">
+    `;
+
+    localCategories.forEach((cat) => {
+        const catId = cat.id;
+        const classes = normalizeClasses(cat.classes);
+
+        // Calculate Student and Program counts dynamically in memory
+        const studentsCount = localStudents.filter(s => s.categoryId === catId || s.categoryName === cat.name).length;
+        const programsCount = localPrograms.filter(p => p.categoryId === catId || p.categoryName === cat.name).length;
+
+        const classesHTML = classes.length > 0
+            ? `<div class="category-classes-cell">
+                ${classes.map(c => `<span class="class-pill">${window.escapeHTML(c.name)}</span>`).join('')}
+               </div>`
+            : '<span style="color:#94a3b8; font-size:0.85rem; font-style:italic;">No classes</span>';
+
+        tableHTML += `
+            <div class="category-row">
+                <div class="category-name-cell">
+                    ${window.escapeHTML(cat.name)}
+                </div>
+                <div>
+                    ${classesHTML}
+                </div>
+                <div class="category-desc-cell">
+                    ${window.escapeHTML(cat.description || "No description")}
+                </div>
+                <div class="category-students-cell">
+                    <span class="category-count-badge category-count-students">
+                        🎓 ${studentsCount}
+                    </span>
+                </div>
+                <div class="category-programs-cell">
+                    <span class="category-count-badge category-count-programs">
+                        🎭 ${programsCount}
+                    </span>
+                </div>
+                <div class="category-actions-cell">
+                    <div class="actions-dropdown-container">
+                        <button class="btn-action-icon btn-action-more dots-btn cat-dots-btn" 
+                            data-id="${catId}"
+                            data-name="${window.escapeHTML(cat.name)}"
+                            data-desc="${window.escapeHTML(cat.description || '')}"
+                            data-classes='${JSON.stringify(classes).replace(/'/g, "&#39;")}'>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.95rem; height:0.95rem;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    tableHTML += `
+            </div>
+        </div>
+    `;
+
+    tableContainer.innerHTML = tableHTML;
 }
 
 function openCategoryModal(catId = null, currentName = '', currentDesc = '', currentClasses = []) {
@@ -120,13 +229,12 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
 
     modalTitle.textContent = catId ? "Edit Category" : "Add Category";
 
-    // Ensure classes are objects
     let selectedClasses = normalizeClasses(currentClasses);
 
     const buildChipsHTML = (classes) => classes.map((c) =>
-        `<span class="class-chip" data-id="${c.id}" style="display:inline-flex; align-items:center; gap:0.3rem; background:#fce7f3; color:#9d174d; border-radius:999px; padding:0.23rem 0.6rem; font-size:0.8rem; font-weight:700; margin:0.2rem;">
+        `<span class="class-chip" data-id="${c.id}" style="display:inline-flex; align-items:center; gap:0.3rem; background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; border-radius:999px; padding:0.25rem 0.65rem; font-size:0.75rem; font-weight:700; margin:0.2rem;">
             ${window.escapeHTML(c.name)}
-            <button type="button" class="remove-chip-btn" data-id="${c.id}" style="background:none; border:none; color:#7e22ce; cursor:pointer; font-size:0.95rem; line-height:1; padding:0;">✕</button>
+            <button type="button" class="remove-chip-btn" data-id="${c.id}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.95rem; line-height:1; padding:0; font-weight:bold; margin-left:0.15rem;">✕</button>
         </span>`
     ).join('');
 
@@ -179,8 +287,7 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
         if (!value) return;
 
         const classId = value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        
-        // Duplicate Prevention
+
         if (selectedClasses.some(c => c.id === classId)) {
             window.showToast('This class already exists in this category.', 'error');
             return;
@@ -199,6 +306,14 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
         }
     });
 
+    // Make chips interactive initially
+    document.querySelectorAll('.remove-chip-btn').forEach(btn => {
+        btn.onclick = () => {
+            selectedClasses = selectedClasses.filter(c => c.id !== btn.dataset.id);
+            renderChips();
+        };
+    });
+
     document.getElementById('categoryForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const saveBtn = document.getElementById('saveCatBtn');
@@ -211,7 +326,6 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
             return;
         }
 
-        // Empty Class Validation
         if (selectedClasses.length === 0) {
             window.showToast('Please add at least one class.', 'error');
             return;
@@ -260,22 +374,17 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
 async function deleteCategory(catId) {
     if (!confirm('Delete this category? THIS IS IRREVERSIBLE. All related student and program associations may break.')) return;
 
-    // Safety Guard: Check for students using this category before deleting
-    // (Note: This is a partial check as students might be in nested paths still)
     try {
         const instId = window.currentInstituteId;
         const batch = writeBatch(db);
 
-        // Check flat students collection (future structure)
         const studentsSnap = await getDocs(query(collection(db, 'institutes', instId, 'students'), where('categoryId', '==', catId)));
-        
-        // Safety: If there are many students, warn the user or handle carefully
+
         if (studentsSnap.size > 0 && !confirm(`Found ${studentsSnap.size} students in this category. Delete them all?`)) {
             return;
         }
         studentsSnap.forEach(s => batch.delete(s.ref));
 
-        // Cleanup related programs
         const progsSnap = await getDocs(query(collection(db, 'institutes', instId, 'programs'), where('categoryId', '==', catId)));
         for (const progDoc of progsSnap.docs) {
             const partSnap = await getDocs(collection(db, 'institutes', instId, 'programs', progDoc.id, 'participants'));
@@ -290,4 +399,80 @@ async function deleteCategory(catId) {
         console.error('Error deleting category:', error);
         window.showToast('Failed to delete category.', 'error');
     }
+}
+
+function openCategoryDropdown(btn) {
+    // 1. Remove any existing dynamic body-appended dropdown
+    const existing = document.querySelector('.active-body-dropdown');
+    if (existing) existing.remove();
+
+    // 2. Create the dropdown element
+    const dropdown = document.createElement('div');
+    dropdown.className = 'actions-dropdown-menu active-body-dropdown';
+    
+    // Get datasets
+    const id = btn.dataset.id;
+    const name = btn.dataset.name;
+    const desc = btn.dataset.desc;
+    const classesStr = btn.dataset.classes;
+
+    dropdown.innerHTML = `
+        <button class="dropdown-item btn-edit-cat" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#475569; text-align:left; cursor:pointer;">
+            ✏️ Edit
+        </button>
+        <button class="dropdown-item btn-delete-cat text-danger" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#dc2626; text-align:left; cursor:pointer;">
+            🗑️ Delete
+        </button>
+    `;
+
+    // 3. Append directly to body
+    document.body.appendChild(dropdown);
+
+    // 4. Position fixed menu dynamically to avoid clipping
+    const rect = btn.getBoundingClientRect();
+    const menuWidth = 150;
+    const menuHeight = 90;
+
+    let leftPos = rect.right - menuWidth;
+    if (leftPos < 10) leftPos = 10;
+    if (leftPos + menuWidth > window.innerWidth - 10) {
+        leftPos = window.innerWidth - menuWidth - 10;
+    }
+    dropdown.style.left = `${leftPos}px`;
+
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    if (spaceBelow < menuHeight + 15 && spaceAbove > spaceBelow) {
+        let topPos = rect.top - menuHeight - 4;
+        if (topPos < 10) topPos = 10;
+        dropdown.style.top = `${topPos}px`;
+        dropdown.classList.add('open-upward');
+    } else {
+        let topPos = rect.bottom + 4;
+        if (topPos + menuHeight > window.innerHeight - 10) {
+            topPos = window.innerHeight - menuHeight - 10;
+        }
+        if (topPos < 10) topPos = 10;
+        dropdown.style.top = `${topPos}px`;
+        dropdown.classList.remove('open-upward');
+    }
+
+    // Prevent clicks inside the dropdown from closing it unless an item is clicked
+    dropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+
+    // 5. Bind actions (always remove dropdown from body FIRST)
+    dropdown.querySelector('.btn-edit-cat').addEventListener('click', () => {
+        dropdown.remove();
+        let parsedClasses = [];
+        try { parsedClasses = JSON.parse(classesStr); } catch (_) {}
+        openCategoryModal(id, name, desc, parsedClasses);
+    });
+
+    dropdown.querySelector('.btn-delete-cat').addEventListener('click', () => {
+        dropdown.remove();
+        deleteCategory(id);
+    });
 }

@@ -51,7 +51,15 @@ function buildStudentRow({ student, checked, disabled }) {
       </label>
       <div class="stu-meta">
         <div class="stu-name">${window.escapeHTML(s.name)}</div>
-        <div class="stu-sub">#${window.escapeHTML(s.chestNumber || '—')} · ${window.escapeHTML(s.gender || '')} ${disabled ? '· <span class="badge-assigned" style="color: #059669; font-weight: 700; background: #ecfdf5; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.7rem; border: 1px solid #a7f3d0; margin-left: 0.25rem;">Assigned</span>' : ''}</div>
+        <div class="stu-sub">
+            <span>#${window.escapeHTML(s.chestNumber || '—')}</span>
+            <span>·</span>
+            <span>${window.escapeHTML(s.gender || '')}</span>
+            ${disabled ? `
+            <span>·</span>
+            <span class="pw-badge pw-badge-active" style="font-size: 0.65rem; padding: 0.1rem 0.4rem;">Assigned</span>
+            ` : ''}
+        </div>
       </div>
     </div>
   `;
@@ -83,14 +91,32 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     let groupContainerRef = null; // Reference to the program group container doc
     const participantDocIds = new Map(); // studentId -> firestoreDocId
 
+    // Real-time calculated status variables
+    let resultSubmitted = false;
+    let resultPublished = false;
+
     // 2. Set Up Main Page UI structure
     container.innerHTML = `
     <div class="pw-page" data-pw-root>
       <div class="pw-sticky-header">
         <div class="pw-header-left">
           <div class="pw-breadcrumb">Admin Panel · Programs · Participants</div>
-          <h2 class="pw-title">👥 ${window.escapeHTML(progName)}</h2>
-          <div class="pw-subtitle">${window.escapeHTML(isGroupEvent ? 'Group competition management' : 'Individual participant management')} · Gender Constraint: <strong>${window.escapeHTML(genderFilter)}</strong></div>
+          <div class="pw-title-row">
+            <h2 class="pw-title">👥 ${window.escapeHTML(progName)}</h2>
+            <div class="pw-header-badges">
+              <span class="pw-badge ${pType === 'group' ? 'pw-badge-group' : (pType === 'general' ? 'pw-badge-general' : 'pw-badge-individual')}">
+                ${pType === 'group' ? 'Group Event' : (pType === 'general' ? 'General Event' : 'Individual Event')}
+              </span>
+              <span class="pw-badge ${genderFilter === 'Boys' ? 'pw-badge-boys' : (genderFilter === 'Girls' ? 'pw-badge-girls' : 'pw-badge-mixed')}">
+                ${window.escapeHTML(genderFilter)}
+              </span>
+              <span class="pw-badge pw-badge-pending" id="pwHeaderStatusBadge">Pending</span>
+              <span class="pw-badge pw-badge-active" id="pwHeaderParticipantCount" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;">👥 0 Participants</span>
+            </div>
+          </div>
+          <div class="pw-subtitle">
+            Category: <strong id="pwHeaderCategoryLabel" style="color:var(--pw-primary);">Loading...</strong> · Location: <strong>${window.escapeHTML(progData.programLocation || '—')}</strong>
+          </div>
         </div>
         <div class="pw-header-right">
           <button class="btn btn-secondary" id="pwBackBtn">← Back to Programs</button>
@@ -99,11 +125,14 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
       <div class="pw-content">
         <div class="pw-grid">
-          <!-- Left Sidebar Panel - Compact 2-Step Accordion -->
+          <!-- Left Sidebar Panel - Accordion style -->
           <aside class="pw-panel" id="pwAccordionRoot">
             <div class="pw-accordion-item is-active" data-step="team">
               <div class="pw-accordion-header">
-                <h3 class="pw-step-title">1) Team <span id="pwTeamSelectedLabel" style="font-size: 0.8rem; font-weight: normal; margin-left: 0.5rem; color: #64748b;"></span></h3>
+                <h3 class="pw-step-title">
+                  <span>🏢 1. Team Selection</span>
+                  <span id="pwTeamSelectedLabel" style="font-size: 0.8rem; font-weight: normal; color: var(--pw-primary); margin-left: 0.5rem;"></span>
+                </h3>
                 <span class="pw-accordion-icon">▼</span>
               </div>
               <div class="pw-accordion-body">
@@ -111,13 +140,16 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                   <input type="text" id="pwTeamSearch" class="form-input" placeholder="Search team..." />
                   <div id="pwTeamList" class="pw-select-list" role="listbox" style="margin-top: 0.5rem;"></div>
                 </div>
-                <div class="pw-help" style="margin-top:0.5rem;">Select a team to continue.</div>
+                <div class="pw-help" style="margin-top:0.5rem;">Select a team to load eligible participants.</div>
               </div>
             </div>
 
             <div class="pw-accordion-item" data-step="students">
               <div class="pw-accordion-header">
-                <h3 class="pw-step-title">2) Students</h3>
+                <h3 class="pw-step-title">
+                  <span>🎓 2. Student Selection</span>
+                  <span id="pwStudentsSelectedLabel" style="font-size: 0.8rem; font-weight: normal; color: var(--pw-success); margin-left: 0.5rem;"></span>
+                </h3>
                 <span class="pw-accordion-icon">▼</span>
               </div>
               <div class="pw-accordion-body">
@@ -128,10 +160,11 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                       <option value="">All Classes</option>
                     </select>
                   </div>
+                  <div id="pwStudentsCountLabel" style="font-size:0.75rem; font-weight:700; color:var(--pw-slate-600); margin-top:0.5rem;">Total Eligible Students: 0</div>
                   <div id="pwStudentList" class="pw-student-list" style="margin-top:0.5rem;"></div>
                   <div id="pwStudentsSkeleton" class="pw-skeleton" style="display:none;"></div>
                 </div>
-                <div class="pw-help" style="margin-top:0.5rem;">Select students to add or assign.</div>
+                <div class="pw-help" style="margin-top:0.5rem;">Check checkboxes to select students for assignment.</div>
               </div>
             </div>
           </aside>
@@ -140,43 +173,43 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
           <main class="pw-main">
             <div class="pw-progress-row">
               <div class="pw-pill" data-pill="team">Team: <span id="pwTeamPill">—</span></div>
-              <div class="pw-pill" data-pill="selected">Selected: <span id="pwSelectedCount">0</span></div>
+              <div class="pw-pill" data-pill="selected">Selected Students: <span id="pwSelectedCount">0</span></div>
             </div>
 
             ${isGroupEvent ? `
               <!-- Group Management Sections -->
               <section class="pw-section">
                 <div class="pw-section-head">
-                  <h3>Group Registration</h3>
-                  <div class="pw-muted">Create multiple groups under this team.</div>
+                  <h3>👥 Group Registration Dashboard</h3>
+                  <div class="pw-muted">Create and manage team groups for this program.</div>
                 </div>
 
-                <div class="pw-group-create">
+                <div class="pw-group-create" style="background:var(--pw-slate-50); border:1px solid var(--pw-slate-200); border-radius:var(--pw-radius-md); padding:1.25rem; margin-bottom:1rem;">
                   <div class="pw-form-grid">
                     <div>
-                      <label class="form-label">New Group Name *</label>
-                      <input id="pwNewGroupName" class="form-input" placeholder="e.g. Group A" />
+                      <label class="form-label" style="font-weight:700; font-size:0.8rem; color:var(--pw-slate-700);">NEW GROUP NAME *</label>
+                      <input id="pwNewGroupName" class="form-input" placeholder="e.g. Group A" style="background:#ffffff; padding:0.6rem 0.85rem;" />
                     </div>
                     <div>
-                      <label class="form-label">Action</label>
-                      <div class="pw-members-bar">
+                      <label class="form-label" style="font-weight:700; font-size:0.8rem; color:var(--pw-slate-700);">MEMBERS SELECTION</label>
+                      <div class="pw-members-bar" style="background:#ffffff; border-radius:var(--pw-radius-sm); border:1.5px dashed var(--pw-slate-300); padding:0.5rem 0.85rem; height:42px; display:flex; align-items:center;">
                         <span id="pwNewGroupMembersCount">0 selected</span>
-                        <button class="btn btn-primary" id="pwCreateGroupBtn" disabled>+ Create Group</button>
+                        <button class="btn btn-primary" id="pwCreateGroupBtn" disabled style="padding:0.4rem 0.85rem; font-size:0.78rem; font-weight:700; margin-left:auto;">+ Create Group</button>
                       </div>
                     </div>
                   </div>
 
-                  <div class="pw-selected-preview">
-                    <div class="pw-selected-title">Selected Students (Add to group)</div>
+                  <div class="pw-selected-preview" style="margin-top: 1rem; padding: 1rem; border-radius: var(--pw-radius-sm);">
+                    <div class="pw-selected-title">Students Preview (Check on Left Sidebar to Add)</div>
                     <div id="pwSelectedStudentsPreview" class="pw-preview-list"></div>
                   </div>
                 </div>
 
                 <div class="pw-divider"></div>
 
-                <section class="pw-groups-list-head">
-                  <h3>Existing Registered Groups</h3>
-                  <div class="pw-muted">Manage group names, add/remove members, or delete groups.</div>
+                <section class="pw-groups-list-head" style="margin-top:1.5rem;">
+                  <h3>📂 Existing Registered Groups</h3>
+                  <div class="pw-muted">Rename, add members, or remove groups.</div>
                 </section>
                 <div id="pwGroupsList" class="pw-groups-list"></div>
               </section>
@@ -184,27 +217,36 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
               <!-- Individual Management Sections -->
               <section class="pw-section">
                 <div class="pw-section-head">
-                  <h3>Individual Registration</h3>
-                  <div class="pw-muted">Assign the selected students as individual participants.</div>
+                  <h3>⚡ Individual Registration Card</h3>
+                  <div class="pw-muted">Submit your checkbox selection of participants.</div>
                 </div>
-                <div class="pw-divider"></div>
+                
                 <div class="pw-actions-row">
                   <button class="btn btn-secondary" id="pwClearSelectedBtn">Clear Selection</button>
                   <button class="btn btn-primary" id="pwSaveParticipantsBtn" disabled>Save Participants</button>
                 </div>
-                <div class="pw-save-status" id="pwSaveStatus" aria-live="polite"></div>
+                <div class="pw-save-status" id="pwSaveStatus" aria-live="polite" style="margin-top: 0.5rem;"></div>
+
+                <div class="pw-selected-preview" style="margin-top: 1rem; padding: 1rem; border-radius: var(--pw-radius-sm);">
+                  <div class="pw-selected-title">Selected Students Preview</div>
+                  <div id="pwSelectedStudentsPreview" class="pw-preview-list"></div>
+                </div>
+
                 <!-- Assigned Participants Management Panel -->
-                <div id="pwAssignedManagementPanel" style="margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; display: none;">
+                <div id="pwAssignedManagementPanel" style="margin-top: 1.5rem; border-top: 1px solid var(--pw-slate-200); padding-top: 1.5rem; display: none;">
                 </div>
               </section>
             `}
-
-            <section class="pw-section pw-bottom-note">
-              <div class="pw-note-box">
-                <strong>Validation Constraints:</strong> Prevents duplicate registrations, disallows empty submissions, and ensures full gender filter compliance.
-              </div>
-            </section>
           </main>
+        </div>
+      </div>
+      
+      <!-- Sticky Action Bar for Mobile selection -->
+      <div class="pw-mobile-action-bar" id="pwMobileActionBar">
+        <div class="pw-bar-left">Selected: <span id="pwMobileSelectedCount">0</span></div>
+        <div class="pw-bar-right">
+          <button class="btn btn-secondary" id="pwMobileClearBtn">Clear</button>
+          <button class="btn btn-primary" id="pwMobileSaveBtn" disabled>Save Selected</button>
         </div>
       </div>
     </div>
@@ -224,6 +266,52 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 item.classList.remove('is-active');
             }
         });
+    }
+
+    // Dynamic Program Status Calculation (Real-Time Badge Engine)
+    function updateProgramHeaderBadges() {
+        const pCountBadge = document.getElementById('pwHeaderParticipantCount');
+        const statusBadge = document.getElementById('pwHeaderStatusBadge');
+        const mobileBarCount = document.getElementById('pwMobileSelectedCount');
+        const mobileSaveBtn = document.getElementById('pwMobileSaveBtn');
+
+        let pCount = 0;
+        let pText = '0 Participants';
+
+        if (isGroupEvent) {
+            pCount = groups.length;
+            pText = `${pCount} ${pCount === 1 ? 'Team' : 'Teams'}`;
+        } else {
+            pCount = assignedParticipantsAll.length;
+            pText = `${pCount} ${pCount === 1 ? 'Participant' : 'Participants'}`;
+        }
+
+        if (pCountBadge) pCountBadge.innerHTML = `👥 ${pText}`;
+
+        let status = 'Pending';
+        let badgeClass = 'pw-badge-pending';
+
+        if (pCount > 0) {
+            status = 'Active';
+            badgeClass = 'pw-badge-active';
+        }
+        if (resultSubmitted) {
+            status = 'Submitted';
+            badgeClass = 'pw-badge-submitted';
+        }
+        if (resultPublished) {
+            status = 'Published';
+            badgeClass = 'pw-badge-published';
+        }
+
+        if (statusBadge) {
+            statusBadge.className = `pw-badge ${badgeClass}`;
+            statusBadge.textContent = status;
+        }
+
+        // Mobile actions sync
+        if (mobileBarCount) mobileBarCount.textContent = selectedStudentIds.size;
+        if (mobileSaveBtn) mobileSaveBtn.disabled = selectedStudentIds.size === 0;
     }
 
     function toggleStudentSelection(student) {
@@ -274,6 +362,9 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         
         const groupCount = document.getElementById('pwNewGroupMembersCount');
         if (groupCount) groupCount.textContent = `${selectedStudentIds.size} selected`;
+
+        // Sync header & mobile values
+        updateProgramHeaderBadges();
 
         // Update main buttons
         if (isGroupEvent) {
@@ -402,6 +493,26 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         });
     }
 
+    async function loadResultsStatus() {
+        try {
+            const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
+            const resultsSnap = await getDocs(query(resultsRef, where("programId", "==", progId)));
+            resultSubmitted = false;
+            resultPublished = false;
+            if (!resultsSnap.empty) {
+                const resDoc = resultsSnap.docs[0].data();
+                if (resDoc.status === 'published') {
+                    resultPublished = true;
+                }
+                if (resDoc.markEntryStatus === 'submitted') {
+                    resultSubmitted = true;
+                }
+            }
+        } catch (e) {
+            console.error("Error loading results status:", e);
+        }
+    }
+
     async function loadStudentsForSelection() {
         const showSkel = document.getElementById('pwStudentsSkeleton');
         const listEl = document.getElementById('pwStudentList');
@@ -415,6 +526,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         refreshSelectedPreviews();
 
         try {
+            await loadResultsStatus();
+
             if (!isGroupEvent) {
                 const participantsRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
                 let existingSnap;
@@ -499,6 +612,11 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             studentsAll = uniqById(studentsAll);
             studentsFiltered = studentsAll;
             applyStudentSearchFilter();
+            
+            // Render Counts label
+            const label = document.getElementById('pwStudentsCountLabel');
+            if (label) label.textContent = `Total Eligible Students: ${studentsAll.length}`;
+
             renderAssignedManagement();
 
         } catch (e) {
@@ -675,13 +793,13 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
               <div class="pw-group-badge">${membersCount} members</div>
             </div>
             <div class="pw-group-actions">
-              <button class="btn btn-secondary btn-sm pw-edit-group-btn" data-edit-group-id="${g.id}">Edit Name</button>
-              <button class="btn btn-danger btn-sm pw-delete-group-btn" data-delete-group-id="${g.id}">Delete</button>
+              <button class="btn btn-secondary btn-sm pw-edit-group-btn" data-edit-group-id="${g.id}" style="font-size:0.75rem; padding:0.3rem 0.65rem;">Edit Name</button>
+              <button class="btn btn-danger btn-sm pw-delete-group-btn" data-delete-group-id="${g.id}" style="font-size:0.75rem; padding:0.3rem 0.65rem; background:#fef2f2; border-color:#fca5a5; color:#dc2626;">Delete</button>
             </div>
           </div>
 
           <div class="pw-group-members-preview">
-            ${membersCount === 0 ? `<div class="pw-empty">No members inside this group.</div>` : g.members.map(m => `
+            ${membersCount === 0 ? `<div class="pw-empty" style="width:100%;">No members inside this group.</div>` : g.members.map(m => `
               <span class="pw-member-chip">${window.escapeHTML(m.studentName)}</span>
             `).join('')}
           </div>
@@ -691,8 +809,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
               <div class="pw-muted" style="font-size: 0.8rem;">Select students on the left, then click action:</div>
             </div>
             <div class="pw-group-member-actions-row">
-              <button class="btn btn-primary btn-sm pw-add-to-group-btn" data-add-group-id="${g.id}" ${selectedStudentIds.size === 0 ? 'disabled' : ''}>Add Selected</button>
-              <button class="btn btn-secondary btn-sm pw-remove-from-group-btn" data-remove-group-id="${g.id}" ${selectedStudentIds.size === 0 ? 'disabled' : ''}>Remove Selected</button>
+              <button class="btn btn-primary btn-sm pw-add-to-group-btn" data-add-group-id="${g.id}" ${selectedStudentIds.size === 0 ? 'disabled' : ''} style="font-size:0.75rem; padding:0.35rem 0.75rem;">Add Selected</button>
+              <button class="btn btn-secondary btn-sm pw-remove-from-group-btn" data-remove-group-id="${g.id}" ${selectedStudentIds.size === 0 ? 'disabled' : ''} style="font-size:0.75rem; padding:0.35rem 0.75rem;">Remove Selected</button>
             </div>
           </div>
         </div>
@@ -794,7 +912,14 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 window.showToast('Please select a team first.', 'error');
                 return;
             }
-            openAccordionStep(step);
+            
+            // Toggle active state
+            if (item.classList.contains('is-active')) {
+                item.classList.remove('is-active');
+            } else {
+                document.querySelectorAll('.pw-accordion-item').forEach(el => el.classList.remove('is-active'));
+                item.classList.add('is-active');
+            }
         };
     });
 
@@ -835,6 +960,12 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             }
         } else {
             selectedCategoryId = inheritedCategoryId;
+        }
+
+        const catData = categoriesById.get(inheritedCategoryId);
+        const headerCatLabel = document.getElementById('pwHeaderCategoryLabel');
+        if (headerCatLabel) {
+            headerCatLabel.textContent = catData?.name || (inheritedCategoryId === 'general_programs' ? 'General Program (Non-Category)' : inheritedCategoryId);
         }
 
         // Populate class inline filter
@@ -884,6 +1015,10 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             loadStudentsForSelection();
             if (isGroupEvent) loadGroupsForTeam();
 
+            // Set student header selection state text
+            const stuLabel = document.getElementById('pwStudentsSelectedLabel');
+            if (stuLabel) stuLabel.textContent = `· Selecting under ${tName}`;
+
             openAccordionStep('students');
         });
 
@@ -898,15 +1033,18 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             applyStudentSearchFilter();
         }, 120));
 
-        // Clear Selection
-        document.getElementById('pwClearSelectedBtn')?.addEventListener('click', () => {
+        // Clear Selection Hooks (Both standard and mobile actions)
+        const clearSelectionHandler = () => {
             selectedStudentIds.clear();
             refreshSelectedPreviews();
             renderStudentList();
-        });
+            window.showToast('Selection cleared.', 'success');
+        };
+        document.getElementById('pwClearSelectedBtn')?.addEventListener('click', clearSelectionHandler);
+        document.getElementById('pwMobileClearBtn')?.addEventListener('click', clearSelectionHandler);
 
-        // Save Individual Selection
-        document.getElementById('pwSaveParticipantsBtn')?.addEventListener('click', async () => {
+        // Save Individual Selection Hooks (Both standard and mobile action hooks)
+        const saveSelectionHandler = async () => {
             if (!selectedTeamId || !inheritedCategoryId) {
                 window.showToast('Please select a team.', 'error');
                 return;
@@ -917,12 +1055,17 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             }
 
             const btn = document.getElementById('pwSaveParticipantsBtn');
+            const mobileBtn = document.getElementById('pwMobileSaveBtn');
             const statusEl = document.getElementById('pwSaveStatus');
-            if (btn.dataset.locked === '1') return;
-            btn.dataset.locked = '1';
-            btn.disabled = true;
-            const previousLabel = btn.textContent;
-            btn.textContent = 'Saving...';
+            
+            const isBusy = btn?.dataset.locked === '1';
+            if (isBusy) return;
+
+            if (btn) { btn.dataset.locked = '1'; btn.disabled = true; }
+            if (mobileBtn) { mobileBtn.disabled = true; }
+            
+            const previousLabel = btn ? btn.textContent : '';
+            if (btn) btn.textContent = 'Saving...';
             if (statusEl) statusEl.textContent = 'Saving participant registrations...';
 
             try {
@@ -954,7 +1097,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 if (toAdd.length === 0) {
                     window.showToast('All selected students are already assigned to this program.', 'success');
                     if (statusEl) statusEl.textContent = 'No new participants to save.';
-                    btn.dataset.locked = '0';
+                    if (btn) btn.dataset.locked = '0';
                     refreshSelectedPreviews();
                     return;
                 }
@@ -990,11 +1133,16 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 window.showToast('Failed to save participants.', 'error');
                 if (statusEl) statusEl.textContent = 'Save failed. Please check your connection and try again.';
             } finally {
-                btn.textContent = previousLabel;
-                btn.dataset.locked = '0';
+                if (btn) {
+                    btn.textContent = previousLabel;
+                    btn.dataset.locked = '0';
+                }
                 refreshSelectedPreviews();
             }
-        });
+        };
+
+        document.getElementById('pwSaveParticipantsBtn')?.addEventListener('click', saveSelectionHandler);
+        document.getElementById('pwMobileSaveBtn')?.addEventListener('click', saveSelectionHandler);
 
         // Create New Group Action
         document.getElementById('pwCreateGroupBtn')?.addEventListener('click', async () => {
@@ -1073,6 +1221,14 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 createBtn.disabled = false;
             }
         });
+
+        // Trigger dynamic header count & state render
+        updateProgramHeaderBadges();
+    }
+
+    function closeAllDropdowns() {
+        const activeMenus = document.querySelectorAll('.active-body-dropdown');
+        activeMenus.forEach(m => m.remove());
     }
 
     function renderAssignedManagement() {
@@ -1088,83 +1244,105 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
         let listHTML = '';
         if (assignedParticipantsAll.length === 0) {
-            listHTML = `<div class="pw-empty" style="padding:1rem; text-align:center; color:#64748b; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; font-size:0.85rem;">No participants currently assigned to this program for this team.</div>`;
+            listHTML = `<div class="pw-empty" style="padding:2rem; text-align:center; color:var(--pw-slate-600); background:var(--pw-slate-50); border-radius:var(--pw-radius-md); border:1.5px dashed var(--pw-slate-300); font-size:0.85rem;">No participants currently assigned to this program for this team.</div>`;
         } else {
-            listHTML = assignedParticipantsAll.map(p => {
-                const isEditing = editingParticipantId === p.studentId;
+            const teamName = teamById.get(selectedTeamId)?.name || '—';
+            
+            // Build Desktop/Mobile Unified Table Rows
+            const tableRows = assignedParticipantsAll.map(p => `
+                <tr>
+                    <td>#${window.escapeHTML(p.chestNumber || '—')}</td>
+                    <td style="font-weight:700; color:var(--pw-slate-900);">${window.escapeHTML(p.studentName)}</td>
+                    <td>${window.escapeHTML(p.className)}</td>
+                    <td><span class="pw-badge" style="background:var(--pw-slate-50); color:var(--pw-slate-800); border:1px solid var(--pw-slate-200); font-size:0.75rem;">${window.escapeHTML(teamName)}</span></td>
+                    <td><span class="pw-badge pw-badge-active" style="font-size:0.65rem; padding:0.15rem 0.5rem;">🟢 Assigned</span></td>
+                    <td>
+                        <div class="actions-dropdown-container">
+                            <button class="btn-action-icon pw-part-dots-btn" 
+                                data-id="${p.studentId}" 
+                                data-name="${window.escapeHTML(p.studentName)}" 
+                                data-chest="${window.escapeHTML(p.chestNumber)}" 
+                                data-class="${window.escapeHTML(p.className)}">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.95rem; height:0.95rem;">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
 
-                if (isEditing) {
-                    return `
-                        <div class="pw-assigned-card editing" style="background:#f8fafc; border:1px solid #3b82f6; border-radius:8px; padding:1rem; margin-bottom:1rem; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-                            <div style="display:flex; flex-direction:column; gap:0.75rem;">
+            listHTML = `
+                <div class="pw-table-container">
+                    <table class="pw-table">
+                        <thead>
+                            <tr>
+                                <th>Chest No</th>
+                                <th>Student Name</th>
+                                <th>Class</th>
+                                <th>Team</th>
+                                <th>Status</th>
+                                <th style="width: 80px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        // Add Edit Inline wrapper at top if editing
+        let editingFormHTML = '';
+        if (editingParticipantId) {
+            const p = assignedParticipantsAll.find(x => x.studentId === editingParticipantId);
+            if (p) {
+                editingFormHTML = `
+                    <div class="pw-assigned-card editing" style="background:var(--pw-slate-50); border:1.5px solid var(--pw-primary); border-radius:var(--pw-radius-md); padding:1.25rem; margin-bottom:1.25rem; box-shadow:var(--pw-shadow-lg);">
+                        <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                            <h4 style="margin:0 0 0.25rem 0; font-family:'Outfit', sans-serif; font-size:0.95rem; font-weight:800; color:var(--pw-primary);">✏️ Edit Participant Details</h4>
+                            <div>
+                                <label class="form-label" style="font-size:0.75rem; font-weight:700; color:var(--pw-slate-700);">STUDENT NAME</label>
+                                <input type="text" id="pwEditName_${p.studentId}" class="form-input" value="${window.escapeHTML(p.studentName)}" style="font-size:0.85rem; width:100%;" />
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
                                 <div>
-                                    <label class="form-label" style="font-size:0.75rem; font-weight:700; color:#475569;">STUDENT NAME</label>
-                                    <input type="text" id="pwEditName_${p.studentId}" class="form-input" value="${window.escapeHTML(p.studentName)}" style="font-size:0.85rem;" />
+                                    <label class="form-label" style="font-size:0.75rem; font-weight:700; color:var(--pw-slate-700);">ID / CHEST NUMBER</label>
+                                    <input type="text" id="pwEditChest_${p.studentId}" class="form-input" value="${window.escapeHTML(p.chestNumber)}" style="font-size:0.85rem; width:100%;" />
                                 </div>
-                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
-                                    <div>
-                                        <label class="form-label" style="font-size:0.75rem; font-weight:700; color:#475569;">ID / CHEST NUMBER</label>
-                                        <input type="text" id="pwEditChest_${p.studentId}" class="form-input" value="${window.escapeHTML(p.chestNumber)}" style="font-size:0.85rem;" />
-                                    </div>
-                                    <div>
-                                        <label class="form-label" style="font-size:0.75rem; font-weight:700; color:#475569;">CLASS</label>
-                                        <input type="text" id="pwEditClass_${p.studentId}" class="form-input" value="${window.escapeHTML(p.className)}" style="font-size:0.85rem;" />
-                                    </div>
-                                </div>
-                                <div style="display:flex; gap:0.5rem; justify-content:flex-end; margin-top:0.25rem;">
-                                    <button class="btn btn-secondary btn-sm pw-cancel-edit-btn" data-id="${p.studentId}" style="padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:600;">Cancel</button>
-                                    <button class="btn btn-primary btn-sm pw-save-edit-btn" data-id="${p.studentId}" style="padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:600;">Save Changes</button>
+                                <div>
+                                    <label class="form-label" style="font-size:0.75rem; font-weight:700; color:var(--pw-slate-700);">CLASS</label>
+                                    <input type="text" id="pwEditClass_${p.studentId}" class="form-input" value="${window.escapeHTML(p.className)}" style="font-size:0.85rem; width:100%;" />
                                 </div>
                             </div>
-                        </div>
-                    `;
-                }
-
-                return `
-                    <div class="pw-assigned-card" style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:0.85rem 1rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:all 0.2s;">
-                        <div style="flex:1; min-width:0; padding-right:1rem;">
-                            <div style="font-size:0.95rem; font-weight:700; color:#1e293b; text-transform:uppercase; margin-bottom:0.35rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                                [ ${window.escapeHTML(p.studentName)} ]
+                            <div style="display:flex; gap:0.5rem; justify-content:flex-end; margin-top:0.25rem;">
+                                <button class="btn btn-secondary btn-sm pw-cancel-edit-btn" data-id="${p.studentId}" style="padding:0.35rem 0.8rem; font-size:0.75rem; font-weight:700;">Cancel</button>
+                                <button class="btn btn-primary btn-sm pw-save-edit-btn" data-id="${p.studentId}" style="padding:0.35rem 0.8rem; font-size:0.75rem; font-weight:700;">Save Changes</button>
                             </div>
-                            <div style="display:flex; gap:1rem; font-size:0.8rem; color:#64748b;">
-                                <span><strong>ID:</strong> #${window.escapeHTML(p.chestNumber)}</span>
-                                <span><strong>Class:</strong> ${window.escapeHTML(p.className)}</span>
-                            </div>
-                        </div>
-                        <div style="display:flex; gap:0.4rem; flex-shrink:0;">
-                            <button class="btn btn-secondary btn-sm pw-edit-assigned-btn" data-id="${p.studentId}" style="padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:600; border-color:#cbd5e1; color:#475569; background:#fff;">Edit</button>
-                            <button class="btn btn-danger btn-sm pw-delete-assigned-btn" data-id="${p.studentId}" style="padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:600; background:#fef2f2; border-color:#fca5a5; color:#dc2626;">Delete</button>
                         </div>
                     </div>
                 `;
-            }).join('');
+            }
         }
 
         panel.innerHTML = `
-            <div class="pw-section-head" style="margin-bottom:1rem; display:flex; flex-direction:column; gap:0.15rem;">
-                <h3 style="font-size:1.05rem; font-weight:700; color:#0f172a; display:flex; align-items:center; gap:0.5rem; margin:0;">
-                    📋 Assigned Participants Management
-                    <span style="font-size:0.8rem; font-weight:normal; color:#64748b; background:#f1f5f9; padding:0.15rem 0.45rem; border-radius:4px; margin-left:auto;">${assignedParticipantsAll.length} assigned</span>
-                </h3>
-                <div class="pw-muted" style="font-size:0.78rem; color:#64748b;">Manage already assigned individual participants.</div>
+            <div class="pw-section-head" style="margin-bottom:1.25rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+                <div>
+                    <h3 style="font-family:'Outfit', sans-serif; font-size:1.2rem; font-weight:800; color:var(--pw-slate-900);">📋 Assigned Participants Table</h3>
+                    <div class="pw-muted" style="font-size:0.8rem;">Manage registrations for this team.</div>
+                </div>
+                <span class="pw-badge pw-badge-active" style="font-size:0.75rem; padding:0.25rem 0.75rem;">${assignedParticipantsAll.length} assigned</span>
             </div>
-            <div class="pw-assigned-list" style="display:flex; flex-direction:column; max-height:450px; overflow-y:auto; padding-right:0.25rem;">
+            ${editingFormHTML}
+            <div class="pw-assigned-list">
                 ${listHTML}
             </div>
         `;
 
         // Wire Event Listeners
 
-        // 1. Edit Button click
-        panel.querySelectorAll('.pw-edit-assigned-btn').forEach(btn => {
-            btn.onclick = () => {
-                const id = btn.getAttribute('data-id');
-                editingParticipantId = id;
-                renderAssignedManagement();
-            };
-        });
-
-        // 2. Cancel Edit Button click
+        // 1. Cancel Edit Button click
         panel.querySelectorAll('.pw-cancel-edit-btn').forEach(btn => {
             btn.onclick = () => {
                 editingParticipantId = null;
@@ -1172,7 +1350,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             };
         });
 
-        // 3. Save Edit Button click
+        // 2. Save Edit Button click
         panel.querySelectorAll('.pw-save-edit-btn').forEach(btn => {
             btn.onclick = async () => {
                 const id = btn.getAttribute('data-id');
@@ -1208,9 +1386,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     }, { merge: true });
 
                     window.showToast("Participant updated successfully!", "success");
-
                     editingParticipantId = null;
-
                     await loadStudentsForSelection();
 
                 } catch (e) {
@@ -1222,44 +1398,132 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             };
         });
 
-        // 4. Delete Button click
-        panel.querySelectorAll('.pw-delete-assigned-btn').forEach(btn => {
-            btn.onclick = async () => {
-                const id = btn.getAttribute('data-id');
-                if (!confirm("Are you sure you want to delete this participant?")) return;
+        // Sync header counts
+        updateProgramHeaderBadges();
+    }
 
-                const spinner = document.getElementById('pwStudentsSkeleton');
-                if (spinner) spinner.style.display = 'block';
+    // Dynamic body-appended actions menu (⋮)
+    function openParticipantDropdown(btn) {
+        // Clear any existing active menus first
+        closeAllDropdowns();
 
-                try {
-                    const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
-                    let docId = participantDocIds.get(id);
-                    if (!docId) {
-                        docId = `individual_${safeDocId(selectedTeamId)}_${safeDocId(id)}`;
-                    }
-                    const docRef = doc(partRef, docId);
+        const id = btn.getAttribute('data-id');
 
-                    await deleteDoc(docRef);
+        // Create dropdown menu element
+        const dropdown = document.createElement('div');
+        dropdown.className = 'actions-dropdown-menu active-body-dropdown';
+        dropdown.innerHTML = `
+            <button class="dropdown-item pw-dropdown-edit-btn" data-id="${id}" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#475569; text-align:left; cursor:pointer;">
+                ✏️ Edit
+            </button>
+            <button class="dropdown-item btn-danger-item pw-dropdown-delete-btn text-danger" data-id="${id}" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#dc2626; text-align:left; cursor:pointer;">
+                🗑️ Delete
+            </button>
+        `;
 
-                    // Fully update local state to avoid cached/ghost entries
-                    savedIndividualStudentIds.delete(id);
-                    selectedStudentIds.delete(id);
+        document.body.appendChild(dropdown);
 
-                    window.showToast("Participant deleted successfully!", "success");
+        // Position calculations
+        const rect = btn.getBoundingClientRect();
+        const dropdownHeight = 84; // approximate height of 2 items
+        const dropdownWidth = 140; // minimum width
+        
+        let topPos = rect.bottom + window.scrollY;
+        let leftPos = rect.left + window.scrollX - dropdownWidth + rect.width;
 
-                    await loadStudentsForSelection();
+        // Upward repositioning near screen bottom
+        if (rect.bottom + dropdownHeight > window.innerHeight - 10) {
+            topPos = rect.top + window.scrollY - dropdownHeight;
+        }
 
-                } catch (e) {
-                    console.error("Delete failure:", e);
-                    window.showToast("Failed to delete participant.", "error");
-                } finally {
-                    if (spinner) spinner.style.display = 'none';
-                }
-            };
+        // Left alignment safety boundaries
+        if (leftPos < 10) leftPos = 10;
+
+        dropdown.style.top = `${topPos}px`;
+        dropdown.style.left = `${leftPos}px`;
+
+        // Prevent clicks inside the dropdown from closing it
+        dropdown.addEventListener('click', (e) => {
+            e.stopPropagation();
         });
+
+        // Bind dropdown item clicks (remove menu first)
+        dropdown.querySelector('.pw-dropdown-edit-btn').onclick = () => {
+            dropdown.remove();
+            editingParticipantId = id;
+            renderAssignedManagement();
+        };
+
+        dropdown.querySelector('.pw-dropdown-delete-btn').onclick = async () => {
+            dropdown.remove();
+            // Direct delete logic
+            const student = assignedParticipantsAll.find(x => x.studentId === id);
+            if (!student) return;
+            if (!confirm(`Are you sure you want to delete ${student.studentName}?`)) return;
+
+            const spinner = document.getElementById('pwStudentsSkeleton');
+            if (spinner) spinner.style.display = 'block';
+
+            try {
+                const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
+                let docId = participantDocIds.get(id);
+                if (!docId) {
+                    docId = `individual_${safeDocId(selectedTeamId)}_${safeDocId(id)}`;
+                }
+                const docRef = doc(partRef, docId);
+
+                await deleteDoc(docRef);
+
+                savedIndividualStudentIds.delete(id);
+                selectedStudentIds.delete(id);
+
+                window.showToast("Participant deleted successfully!", "success");
+                await loadStudentsForSelection();
+
+            } catch (e) {
+                console.error("Delete failure:", e);
+                window.showToast("Failed to delete participant.", "error");
+            } finally {
+                if (spinner) spinner.style.display = 'none';
             }
+        };
+    }
+
+    // Single delegated click listener on container for pw-part-dots-btn
+    container.addEventListener('click', (e) => {
+        const dotsBtn = e.target.closest('.pw-part-dots-btn');
+        if (dotsBtn) {
+            e.stopPropagation();
+            openParticipantDropdown(dotsBtn);
+        }
+    });
+
+    // Global scroll close
+    window.addEventListener('scroll', () => {
+        closeAllDropdowns();
+    }, true);
+
+    // Global outside click close
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.pw-part-dots-btn') && !e.target.closest('.active-body-dropdown')) {
+            closeAllDropdowns();
+        }
+    });
+
+    // Global ESC key close
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeAllDropdowns();
+        }
+    });
+
+    // Handle Mobile-specific default-collapsed state for accordions
+    if (window.innerWidth < 768) {
+        document.querySelectorAll('.pw-accordion-item').forEach(item => {
+            item.classList.remove('is-active');
+        });
+    }
 
     // Start running the initialization
     await initialize();
 }
-        
