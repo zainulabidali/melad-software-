@@ -328,23 +328,46 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     }
 
     function refreshSelectedPreviews() {
+        // Update Title with Dynamic Counter
+        const titleEl = document.querySelector('.pw-selected-title');
+        if (titleEl) {
+            titleEl.textContent = `Selected Students (${selectedStudentIds.size})`;
+        }
+
         const preview = document.getElementById('pwSelectedStudentsPreview');
         if (preview) {
             const selected = studentsAll.filter(s => selectedStudentIds.has(s.id));
             const listHTML = selected
                 .slice(0, 250)
-                .map(s => `
-            <div class="pw-preview-item" data-preview-stu="${s.id}">
-              <div class="pw-preview-main">
-                <span class="pw-preview-name">${window.escapeHTML(s.name)}</span>
-                <span class="pw-preview-chip">#${window.escapeHTML(s.chestNumber || '—')}</span>
+                .map(s => {
+                    const teamName = teamById.get(s.teamId)?.name || '—';
+                    return `
+            <div class="pw-selected-card" data-preview-stu="${s.id}">
+              <div class="pw-selected-avatar">👤</div>
+              <div class="pw-selected-info">
+                <div class="pw-selected-name">${window.escapeHTML(s.name)}</div>
+                <div class="pw-selected-meta">
+                  <span>#${window.escapeHTML(s.chestNumber || '—')}</span>
+                  <span class="pw-selected-meta-dot">•</span>
+                  <span>${window.escapeHTML(s.gender || '—')}</span>
+                  <span class="pw-selected-meta-dot">•</span>
+                  <span>${window.escapeHTML(teamName)}</span>
+                </div>
               </div>
-              <button class="pw-preview-remove" data-preview-remove="${s.id}" title="Remove">✕</button>
+              <button class="pw-selected-remove-btn" data-preview-remove="${s.id}" title="Remove Student">
+                ✕ Remove
+              </button>
             </div>
-          `)
+          `;
+                })
                 .join('');
 
-            preview.innerHTML = listHTML || `<div class="pw-empty">No students selected.</div>`;
+            preview.innerHTML = listHTML || `
+                <div class="pw-selected-empty">
+                  <div class="pw-selected-empty-icon">👤</div>
+                  <div class="pw-selected-empty-text">No students selected yet.</div>
+                </div>
+            `;
 
             // Wire up individual remove buttons in preview list
             preview.querySelectorAll('[data-preview-remove]').forEach(btn => {
@@ -493,6 +516,27 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         });
     }
 
+    function getAllClasses() {
+        const all = [];
+        const seen = new Set();
+        for (const catData of categoriesById.values()) {
+            const classes = catData?.classes || [];
+            classes.forEach(c => {
+                let resolved;
+                if (typeof c === 'string') {
+                    resolved = { id: c.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-'), name: c.trim() };
+                } else {
+                    resolved = { id: c.id, name: c.name || c.id };
+                }
+                if (resolved.id && !seen.has(resolved.id)) {
+                    seen.add(resolved.id);
+                    all.push(resolved);
+                }
+            });
+        }
+        return all.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+    }
+
     async function loadResultsStatus() {
         try {
             const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
@@ -571,18 +615,28 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 );
             }
 
-            // Apply Firestore gender queries directly
-            if (genderFilter === 'Boys') q = query(q, where('gender', '==', 'Male'));
-            if (genderFilter === 'Girls') q = query(q, where('gender', '==', 'Female'));
+            // Apply Firestore gender queries directly (only for non-general programs to keep query simple and index-free for general programs)
+            if (pType !== 'general' && inheritedCategoryId !== 'general_programs') {
+                if (genderFilter === 'Boys') q = query(q, where('gender', '==', 'Male'));
+                if (genderFilter === 'Girls') q = query(q, where('gender', '==', 'Female'));
+            }
 
             let snap;
             try {
                 snap = await getDocs(q);
             } catch (err) {
-                let qFallback = query(
-                    collection(db, "institutes", window.currentInstituteId, "students"),
-                    where('categoryId', '==', inheritedCategoryId)
-                );
+                let qFallback;
+                if (pType === 'general' || inheritedCategoryId === 'general_programs') {
+                    qFallback = query(
+                        collection(db, "institutes", window.currentInstituteId, "students"),
+                        where('teamId', '==', selectedTeamId)
+                    );
+                } else {
+                    qFallback = query(
+                        collection(db, "institutes", window.currentInstituteId, "students"),
+                        where('categoryId', '==', inheritedCategoryId)
+                    );
+                }
                 snap = await getDocs(qFallback);
             }
 
@@ -778,39 +832,63 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         if (!el) return;
 
         if (!groups || groups.length === 0) {
-            el.innerHTML = `<div class="pw-empty">No groups created yet.</div>`;
+            el.innerHTML = `
+                <div class="pw-selected-empty" style="margin-top:0;">
+                  <div class="pw-selected-empty-icon">📂</div>
+                  <div class="pw-selected-empty-text">No groups created yet.</div>
+                </div>
+            `;
             return;
         }
 
         el.innerHTML = groups.map((g, idx) => {
             const membersCount = g.members?.length || 0;
+            const teamName = teamById.get(selectedTeamId)?.name || '—';
             return `
         <div class="pw-group-card" data-group-id="${g.id}">
-          <div class="pw-group-top">
-            <div class="pw-group-title">
-              <div class="pw-group-index">#${idx + 1}</div>
+          <div class="pw-group-header">
+            <div class="pw-group-meta-left">
+              <div class="pw-group-index">Group #${idx + 1}</div>
               <div class="pw-group-name">${window.escapeHTML(g.name)}</div>
-              <div class="pw-group-badge">${membersCount} members</div>
+              <div class="pw-group-team">${window.escapeHTML(teamName)}</div>
             </div>
-            <div class="pw-group-actions">
-              <button class="btn btn-secondary btn-sm pw-edit-group-btn" data-edit-group-id="${g.id}" style="font-size:0.75rem; padding:0.3rem 0.65rem;">Edit Name</button>
-              <button class="btn btn-danger btn-sm pw-delete-group-btn" data-delete-group-id="${g.id}" style="font-size:0.75rem; padding:0.3rem 0.65rem; background:#fef2f2; border-color:#fca5a5; color:#dc2626;">Delete</button>
+            <div class="pw-group-meta-right">
+              <span class="pw-group-members-count">👥 ${membersCount} Member${membersCount === 1 ? '' : 's'}</span>
             </div>
           </div>
 
-          <div class="pw-group-members-preview">
-            ${membersCount === 0 ? `<div class="pw-empty" style="width:100%;">No members inside this group.</div>` : g.members.map(m => `
-              <span class="pw-member-chip">${window.escapeHTML(m.studentName)}</span>
-            `).join('')}
+          <div class="pw-group-members-section">
+            <div class="pw-group-members-title">Group Members</div>
+            <div class="pw-group-members-list">
+              ${membersCount === 0 ? `
+                <div class="pw-group-members-empty">
+                  No registered members in this group.
+                </div>
+              ` : g.members.map(m => `
+                <span class="pw-member-badge">
+                  <span class="pw-member-avatar">👤</span>
+                  <span class="pw-member-name">${window.escapeHTML(m.studentName)}</span>
+                </span>
+              `).join('')}
+            </div>
           </div>
 
-          <div class="pw-group-edit-members">
-            <div class="pw-inline-actions">
-              <div class="pw-muted" style="font-size: 0.8rem;">Select students on the left, then click action:</div>
+          <div class="pw-group-footer">
+            <div class="pw-group-footer-actions-left">
+              <button class="btn-group-action btn-group-edit pw-edit-group-btn" data-edit-group-id="${g.id}" title="Rename Group">
+                <span>✏️</span> Rename
+              </button>
+              <button class="btn-group-action btn-group-delete pw-delete-group-btn" data-delete-group-id="${g.id}" title="Delete Group">
+                <span>🗑️</span> Delete
+              </button>
             </div>
-            <div class="pw-group-member-actions-row">
-              <button class="btn btn-primary btn-sm pw-add-to-group-btn" data-add-group-id="${g.id}" ${selectedStudentIds.size === 0 ? 'disabled' : ''} style="font-size:0.75rem; padding:0.35rem 0.75rem;">Add Selected</button>
-              <button class="btn btn-secondary btn-sm pw-remove-from-group-btn" data-remove-group-id="${g.id}" ${selectedStudentIds.size === 0 ? 'disabled' : ''} style="font-size:0.75rem; padding:0.35rem 0.75rem;">Remove Selected</button>
+            <div class="pw-group-footer-actions-right">
+              <button class="btn-group-action btn-group-add pw-add-to-group-btn" data-add-group-id="${g.id}" ${selectedStudentIds.size === 0 ? 'disabled' : ''} title="Add Selected Students">
+                <span>➕</span> Add Selected
+              </button>
+              <button class="btn-group-action btn-group-remove pw-remove-from-group-btn" data-remove-group-id="${g.id}" ${selectedStudentIds.size === 0 ? 'disabled' : ''} title="Remove Selected Students">
+                <span>➖</span> Remove Selected
+              </button>
             </div>
           </div>
         </div>
@@ -973,7 +1051,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         }
 
         // Populate class inline filter
-        const classes = getClassesForCategory(inheritedCategoryId);
+        const classes = (pType === 'general' || inheritedCategoryId === 'general_programs') ? getAllClasses() : getClassesForCategory(inheritedCategoryId);
         const classFilter = document.getElementById('pwClassFilter');
         if (classFilter) {
             classFilter.innerHTML = `<option value="">All Classes</option>` +

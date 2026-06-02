@@ -836,3 +836,425 @@
         display: flex;
     }
 }
+
+/* ═══════════════════════════════════════════
+   Selected Students Redesign Styling
+   ═══════════════════════════════════════════ */
+.pw-preview-list {
+    max-height: 350px !important;
+    overflow-y: auto !important;
+    padding: 0.35rem 0.25rem !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.pw-preview-list::-webkit-scrollbar {
+    width: 6px;
+}
+.pw-preview-list::-webkit-scrollbar-thumb {
+    background: var(--pw-slate-300);
+    border-radius: 99px;
+}
+
+.pw-selected-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #ffffff;
+    border: 1px solid var(--pw-slate-200);
+    border-radius: var(--pw-radius-md);
+    box-shadow: var(--pw-shadow-sm);
+    transition: var(--pw-transition);
+}
+
+.pw-selected-card:hover {
+    border-color: var(--pw-slate-300);
+    box-shadow: var(--pw-shadow-md);
+}
+
+.pw-selected-avatar {
+    font-size: 1.15rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: var(--pw-slate-50);
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.pw-selected-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.pw-selected-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--pw-slate-900);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pw-selected-meta {
+    font-size: 0.75rem;
+    color: var(--pw-slate-600);
+    margin-top: 0.15rem;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.pw-selected-meta-dot {
+    color: var(--pw-slate-300);
+}
+
+.pw-selected-remove-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--pw-slate-50);
+    color: var(--pw-slate-600);
+    border: 1.5px solid var(--pw-slate-200);
+    border-radius: var(--pw-radius-sm);
+    padding: 0.35rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--pw-transition);
+    flex-shrink: 0;
+}
+
+.pw-selected-remove-btn:hover {
+    background: var(--pw-danger-light);
+    color: var(--pw-danger);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.pw-selected-remove-btn svg {
+    width: 0.75rem;
+    height: 0.75rem;
+}
+
+/* Empty State Styling */
+.pw-selected-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    text-align: center;
+    background: var(--pw-slate-50);
+    border: 1.5px dashed var(--pw-slate-300);
+    border-radius: var(--pw-radius-md);
+    color: var(--pw-slate-600);
+    margin-top: 0.25rem;
+}
+
+.pw-selected-empty-icon {
+    font-size: 1.65rem;
+    margin-bottom: 0.35rem;
+}
+
+.pw-selected-empty-text {
+    font-size: 0.825rem;
+    font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════
+   Registered Groups Cards, Chips & Actions Redesign
+   ═══════════════════════════════════════════ */
+.pw-groups-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    margin-top: 1rem;
+}
+
+.pw-group-card {
+    background: #ffffff;
+    border: 1px solid var(--pw-slate-200);
+    border-radius: var(--pw-radius-lg);
+    box-shadow: var(--pw-shadow-sm);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    transition: var(--pw-transition);
+}
+
+.pw-group-card:hover {
+    border-color: var(--pw-slate-300);
+    box-shadow: var(--pw-shadow-md);
+}
+
+.pw-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 1px solid var(--pw-slate-100);
+    padding-bottom: 0.85rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.pw-group-meta-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.pw-group-index {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--pw-primary);
+    letter-spacing: 0.05em;
+}
+
+.pw-group-name {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--pw-slate-900);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pw-group-team {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--pw-slate-600);
+    background: var(--pw-slate-100);
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    display: inline-block;
+    align-self: flex-start;
+    margin-top: 0.15rem;
+    border: 1px solid var(--pw-slate-200);
+}
+
+.pw-group-meta-right {
+    flex-shrink: 0;
+}
+
+.pw-group-members-count {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--pw-primary);
+    background: var(--pw-primary-light);
+    padding: 0.4rem 0.85rem;
+    border-radius: 99px;
+    border: 1px solid rgba(79, 70, 229, 0.15);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.pw-group-members-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.pw-group-members-title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--pw-slate-600);
+    letter-spacing: 0.05em;
+}
+
+.pw-group-members-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.pw-group-members-empty {
+    width: 100%;
+    padding: 1.25rem;
+    text-align: center;
+    background: var(--pw-slate-50);
+    border: 1.5px dashed var(--pw-slate-200);
+    border-radius: var(--pw-radius-sm);
+    font-size: 0.825rem;
+    color: var(--pw-slate-600);
+}
+
+.pw-member-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--pw-slate-50);
+    border: 1px solid var(--pw-slate-200);
+    border-radius: 99px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--pw-slate-800);
+    transition: var(--pw-transition);
+}
+
+.pw-member-badge:hover {
+    background: var(--pw-primary-light);
+    color: var(--pw-primary);
+    border-color: rgba(79, 70, 229, 0.2);
+}
+
+.pw-member-avatar {
+    font-size: 0.85rem;
+    opacity: 0.85;
+}
+
+.pw-group-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--pw-slate-100);
+    padding-top: 1rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.pw-group-footer-actions-left,
+.pw-group-footer-actions-right {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.btn-group-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.5rem 0.95rem;
+    border-radius: var(--pw-radius-sm);
+    border: 1.5px solid var(--pw-slate-200);
+    cursor: pointer;
+    background: #ffffff;
+    color: var(--pw-slate-700);
+    transition: var(--pw-transition);
+}
+
+.btn-group-action span {
+    font-size: 0.85rem;
+}
+
+.btn-group-edit:hover {
+    background: var(--pw-info-light);
+    color: var(--pw-info);
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+.btn-group-delete:hover {
+    background: var(--pw-danger-light);
+    color: var(--pw-danger);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.btn-group-add {
+    background: var(--pw-primary);
+    color: #ffffff;
+    border-color: var(--pw-primary);
+}
+
+.btn-group-add:hover {
+    background: var(--pw-primary-hover);
+    border-color: var(--pw-primary-hover);
+}
+
+.btn-group-remove {
+    background: #ffffff;
+    color: var(--pw-slate-800);
+    border-color: var(--pw-slate-300);
+}
+
+.btn-group-remove:hover:not(:disabled) {
+    background: var(--pw-slate-50);
+    color: var(--pw-slate-900);
+    border-color: var(--pw-slate-400);
+}
+
+.btn-group-add:disabled,
+.btn-group-remove:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    background: var(--pw-slate-100) !important;
+    color: var(--pw-slate-500) !important;
+    border-color: var(--pw-slate-200) !important;
+    box-shadow: none !important;
+}
+
+/* Student Cards Selection Panel Refinements */
+.pw-student-list {
+    border: none !important;
+    background: transparent !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    max-height: 380px !important;
+    padding: 0.25rem 0.15rem;
+}
+
+.stu-row {
+    background: #ffffff !important;
+    border: 1px solid var(--pw-slate-200) !important;
+    border-radius: var(--pw-radius-sm) !important;
+    box-shadow: var(--pw-shadow-sm) !important;
+    padding: 0.65rem 1rem !important;
+    transition: var(--pw-transition) !important;
+    min-height: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.85rem !important;
+}
+
+.stu-row:hover {
+    border-color: var(--pw-slate-300) !important;
+    box-shadow: var(--pw-shadow-md) !important;
+    background: var(--pw-slate-50) !important;
+}
+
+.stu-row-checked {
+    background: var(--pw-success-light) !important;
+    border-color: rgba(16, 185, 129, 0.3) !important;
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.04) !important;
+}
+
+.stu-row-disabled {
+    background: var(--pw-slate-50) !important;
+    border-color: var(--pw-slate-200) !important;
+    box-shadow: none !important;
+    opacity: 0.55 !important;
+}
+
+.stu-check-ui {
+    border: 2px solid var(--pw-slate-300) !important;
+    border-radius: 6px !important;
+    width: 20px !important;
+    height: 20px !important;
+}
+
+.stu-name {
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+    color: var(--pw-slate-900) !important;
+}
+
+.stu-sub {
+    font-size: 0.75rem !important;
+    color: var(--pw-slate-600) !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.35rem !important;
+}
