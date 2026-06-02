@@ -1197,36 +1197,79 @@ async function triggerDelete(exp) {
 // ─────────────────────────────────────────────
 // Sub-Collection Helper: Loads students dynamically
 // ─────────────────────────────────────────────
-async function loadParticipants(prog, limitTeamId) {
+async function loadParticipants(prog, limitTeamId, studentMap = {}) {
     const snap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs", prog.id, "participants"));
-    const isGroup = prog.programType === 'group' || prog.type === 'Group';
+    const pType = (prog.programType || '').toLowerCase();
     const list = [];
 
     snap.docs.forEach(d => {
         const p = d.data();
         if (limitTeamId && p.teamId !== limitTeamId) return;
 
-        if (isGroup) {
+        if (pType === 'general') {
+            if (p.type === 'group') {
+                const groups = Array.isArray(p.groups) ? p.groups : [];
+                groups.forEach(g => {
+                    const members = (g.members || []).map(m => {
+                        const resolvedStudent = studentMap[m.studentId];
+                        return {
+                            studentId: m.studentId || '',
+                            name: resolvedStudent ? resolvedStudent.name : (m.studentName || '—'),
+                            chestNumber: resolvedStudent ? resolvedStudent.chestNumber : '—'
+                        };
+                    });
+                    list.push({
+                        isGroup: true,
+                        name: g.name || p.teamName || 'Group',
+                        teamName: p.teamName || '',
+                        teamId: p.teamId || '',
+                        members: members
+                    });
+                });
+            } else {
+                const resolvedStudent = studentMap[p.studentId];
+                list.push({
+                    studentId: p.studentId || '',
+                    name: resolvedStudent ? resolvedStudent.name : (p.studentName || '—'),
+                    chestNumber: resolvedStudent ? resolvedStudent.chestNumber : (p.chestNumber || '—'),
+                    teamName: p.teamName || '—',
+                    teamId: p.teamId || ''
+                });
+            }
+        } else if (pType === 'group') {
             const groups = Array.isArray(p.groups) ? p.groups : [];
             if (groups.length > 0) {
                 groups.forEach(g => {
+                    const members = (g.members || []).map(m => {
+                        const resolvedStudent = studentMap[m.studentId];
+                        return {
+                            studentId: m.studentId || '',
+                            name: resolvedStudent ? resolvedStudent.name : (m.studentName || '—'),
+                            chestNumber: resolvedStudent ? resolvedStudent.chestNumber : '—'
+                        };
+                    });
                     list.push({
+                        isGroup: true,
                         name: g.name || p.teamName || 'Group',
-                        chestNumber: '—',
-                        teamName: p.teamName || ''
+                        teamName: p.teamName || '',
+                        teamId: p.teamId || '',
+                        members: members
                     });
                 });
             } else {
                 list.push({
+                    isGroup: true,
                     name: p.teamName || 'Team',
-                    chestNumber: '—',
-                    teamName: p.teamName || ''
+                    teamName: p.teamName || '',
+                    teamId: p.teamId || '',
+                    members: []
                 });
             }
         } else {
+            const resolvedStudent = studentMap[p.studentId];
             list.push({
-                name: p.studentName || '—',
-                chestNumber: p.chestNumber || '—',
+                name: resolvedStudent ? resolvedStudent.name : (p.studentName || '—'),
+                chestNumber: resolvedStudent ? resolvedStudent.chestNumber : (p.chestNumber || '—'),
                 teamName: p.teamName || ''
             });
         }
@@ -1270,10 +1313,23 @@ async function triggerDownload(exp) {
             resultsList = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         }
 
+        // Resolve students cache map dynamically to ensure chest numbers are up-to-date
+        let studentMap = {};
+        if (f.type !== 'Results') {
+            try {
+                const studentsSnap = await getDocs(collection(db, "institutes", instId, "students"));
+                studentsSnap.forEach(d => {
+                    studentMap[d.id] = d.data();
+                });
+            } catch (err) {
+                console.error("Failed to load students collection:", err);
+            }
+        }
+
         // Phase 7 Firestore Parallel Fetch Optimization using Promise.all
         let participantsMap = {};
         if (f.type !== 'Results') {
-            const participantPromises = programs.map(p => loadParticipants(p, f.teamId));
+            const participantPromises = programs.map(p => loadParticipants(p, f.teamId, studentMap));
             const allParts = await Promise.all(participantPromises);
             programs.forEach((p, idx) => {
                 participantsMap[p.id] = allParts[idx];
@@ -1620,8 +1676,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap) {
     }
 
     else if (f.type === 'Call List') {
-        // Phase 5 Call List Redesign: Stage Friendly, oversized badges, sorted by stage order
-        // Stage location sort logic
+        // Sort programs by location then program name
         programs.sort((a, b) => {
             const locCmp = (a.programLocation || '').localeCompare(b.programLocation || '');
             if (locCmp !== 0) return locCmp;
@@ -1630,54 +1685,151 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap) {
 
         programs.forEach(p => {
             const parts = participantsMap[p.id] || [];
-
+            const pType = (p.programType || '').toLowerCase();
             const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
 
+            let bodyHtml = '';
+
+            if (pType === 'general' || pType === 'group') {
+                const tableHeaderHtml = `
+                    <tr>
+                        <th style="width:50px; text-align:center;">SL</th>
+                        <th style="width:250px;">Chest Numbers</th>
+                        <th>Group Name</th>
+                        <th style="width:160px;">Team</th>
+                    </tr>
+                `;
+
+                let tableBodyHtml = '';
+
+                const hasGroups = parts.some(item => item.isGroup);
+
+                if (pType === 'general' && !hasGroups) {
+                    // Group actual participants by team for General Programs with individual registrations (1 row per team)
+                    const teamsMap = {};
+                    parts.forEach(item => {
+                        const tName = item.teamName || 'General';
+                        if (!teamsMap[tName]) teamsMap[tName] = [];
+                        teamsMap[tName].push(item);
+                    });
+
+                    const teamNames = Object.keys(teamsMap).sort();
+
+                    tableBodyHtml = teamNames.length === 0 ? `
+                        <tr>
+                            <td colspan="4" style="text-align:center; padding:0.6rem; color:#64748b;">No registered entries.</td>
+                        </tr>
+                    ` : teamNames.map((tName, idx) => {
+                        const teamParts = teamsMap[tName];
+                        // Sort and de-duplicate chest numbers numerically
+                        const chestNumbers = [...new Set(teamParts.map(item => item.chestNumber).filter(Boolean))]
+                            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+                            .join(', ');
+
+                        return `
+                            <tr style="height:28px; page-break-inside:avoid; vertical-align:middle;">
+                                <td style="text-align:center; font-weight:800; color:#64748b; padding:0.35rem 0.4rem;">${idx + 1}</td>
+                                <td style="font-weight:800; color:#1e1b4b; word-break:break-word; white-space:normal; padding:0.35rem 0.4rem; letter-spacing:0.02em;">
+                                    ${window.escapeHTML(chestNumbers || '—')}
+                                </td>
+                                <td style="font-weight:800; color:#475569; padding:0.35rem 0.4rem;">${window.escapeHTML(tName)} Participants</td>
+                                <td style="padding:0.35rem 0.4rem;">
+                                    <span class="call-team-badge">${window.escapeHTML(tName)}</span>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                } else {
+                    // Group Programs OR General Programs with group registrations (render actual group name!)
+                    tableBodyHtml = parts.length === 0 ? `
+                        <tr>
+                            <td colspan="4" style="text-align:center; padding:0.6rem; color:#64748b;">No registered entries.</td>
+                        </tr>
+                    ` : parts.map((groupItem, idx) => {
+                        // Sort and de-duplicate chest numbers numerically
+                        const chestNumbers = [...new Set((groupItem.members || []).map(m => m.chestNumber).filter(Boolean))]
+                            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+                            .join(', ');
+
+                        return `
+                            <tr style="height:28px; page-break-inside:avoid; vertical-align:middle;">
+                                <td style="text-align:center; font-weight:800; color:#64748b; padding:0.35rem 0.4rem;">${idx + 1}</td>
+                                <td style="font-weight:800; color:#1e1b4b; word-break:break-word; white-space:normal; padding:0.35rem 0.4rem; letter-spacing:0.02em;">
+                                    ${window.escapeHTML(chestNumbers || '—')}
+                                </td>
+                                <td style="font-weight:800; color:#475569; padding:0.35rem 0.4rem;">${window.escapeHTML(groupItem.name)}</td>
+                                <td style="padding:0.35rem 0.4rem;">
+                                    <span class="call-team-badge">${window.escapeHTML(groupItem.teamName || '—')}</span>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+
+                bodyHtml = `
+                    <table class="report-table call-list-table" style="margin-top: 0.15rem; width:100%; border-collapse:collapse;">
+                        <thead>
+                            ${tableHeaderHtml}
+                        </thead>
+                        <tbody>
+                            ${tableBodyHtml}
+                        </tbody>
+                    </table>
+                `;
+            } else {
+                // Individual Programs: 4-column compact table
+                const tableHeaderHtml = `
+                    <tr>
+                        <th style="width:50px; text-align:center;">SL</th>
+                        <th style="width:110px; text-align:center;">Chest No</th>
+                        <th>Participant Name</th>
+                        <th style="width:160px;">Team</th>
+                    </tr>
+                `;
+
+                const tableBodyHtml = parts.length === 0 ? `
+                    <tr>
+                        <td colspan="4" style="text-align:center; padding:0.6rem; color:#64748b;">No registered entries.</td>
+                    </tr>
+                ` : parts.map((item, idx) => `
+                    <tr style="height:28px; page-break-inside:avoid;">
+                        <td style="text-align:center; font-weight:800; color:#64748b;">${idx + 1}</td>
+                        <td style="text-align:center;">
+                            <span class="call-chest-badge">${window.escapeHTML(item.chestNumber || '—')}</span>
+                        </td>
+                        <td style="font-weight:800; color:#1e1b4b;">${window.escapeHTML(item.name)}</td>
+                        <td>
+                            <span class="call-team-badge">${window.escapeHTML(item.teamName || '—')}</span>
+                        </td>
+                    </tr>
+                `).join('');
+
+                bodyHtml = `
+                    <table class="report-table call-list-table" style="margin-top: 0.15rem; width:100%;">
+                        <thead>
+                            ${tableHeaderHtml}
+                        </thead>
+                        <tbody>
+                            ${tableBodyHtml}
+                        </tbody>
+                    </table>
+                `;
+            }
+
             htmlContent += `
-                <div class="${pageDivClass}">
-                    <div class="report-header" style="border-bottom:3px solid #1e1b4b;">
+                <div class="${pageDivClass}" style="margin-bottom: 0.75rem; page-break-inside: avoid; break-inside: avoid;">
+                    <!-- Compact 1-line Info Header Bar (Phase 4) -->
+                    <div style="border-bottom:1.5px solid #1e1b4b; padding-bottom:0.15rem; margin-bottom:0.25rem; display:flex; justify-content:space-between; align-items:baseline;">
                         <div>
-                            <div class="report-title" style="color:#1e1b4b; display:flex; align-items:center; gap:0.4rem;">📣 STAGE CALL LIST & ROSTER</div>
-                            <h2 style="margin-top:0.3rem; margin-bottom:0.1rem; color:#1e1b4b; font-size:1.4rem;">${window.escapeHTML(p.programName)}</h2>
-                            <div style="font-size:0.8rem; font-weight:800; color:#4338ca;">
-                                Venue / Location: <span style="background:#e0e7ff; padding:0.1rem 0.5rem; border-radius:4px;">📍 ${window.escapeHTML(p.programLocation || 'Stage')}</span> · 
-                                Class: ${window.escapeHTML(p.className || 'General')} (${window.escapeHTML(p.categoryName)})
-                            </div>
+                            <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:#1e1b4b; display:inline;">${window.escapeHTML(p.programName)}</h3>
+                            <span style="font-size:0.75rem; font-weight:700; color:#475569; margin-left:0.4rem;">&bull; ${window.escapeHTML(formatLabel(p.categoryName))} ${p.className ? `&bull; Class: ${window.escapeHTML(formatLabel(p.className))}` : ''} &bull; Location: ${window.escapeHTML(formatLabel(p.programLocation || 'Stage'))}</span>
                         </div>
-                        <div style="text-align:right; display:flex; align-items:center; gap:0.75rem;">
-                            <div style="text-align:right;">
-                                <span style="font-size:0.65rem; font-weight:800; color:#64748b; text-transform:uppercase; display:block;">Roster Total</span>
-                                <span style="font-weight:900; font-size:1.25rem; color:#1e1b4b;">${parts.length} entries</span>
-                            </div>
-                            <div style="border:1px solid #cbd5e1; padding:0.2rem; border-radius:4px; width:44px; height:44px; display:flex; align-items:center; justify-content:center; background:#f8fafc; font-size:0.5rem; font-weight:800; color:#64748b; line-height:1;">
-                                QR SCAN<br>STAGE
-                            </div>
+                        <div style="font-size:0.75rem; font-weight:800; color:#1e1b4b;">
+                            ${parts.length} ${pType === 'general' ? 'participants' : (pType === 'group' ? 'groups' : 'entries')}
                         </div>
                     </div>
 
-                    <table class="report-table call-list-table">
-                        <thead>
-                            <tr>
-                                <th style="width:60px; text-align:center;">SL</th>
-                                <th style="width:130px; text-align:center;">Chest Badge</th>
-                                <th>Participant Name</th>
-                                <th>Team / Institute Representing</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${parts.length === 0 ? `<tr><td colspan="4" style="text-align:center; padding:2rem; color:#64748b;">No registered entries.</td></tr>` : 
-                              parts.map((item, idx) => `
-                                <tr>
-                                    <td style="text-align:center; font-weight:800; color:#64748b; font-size:1rem;">${idx + 1}</td>
-                                    <td style="text-align:center; padding:0.4rem 0;">
-                                        <span class="call-chest-badge">${window.escapeHTML(item.chestNumber || '—')}</span>
-                                    </td>
-                                    <td style="font-weight:800; color:#1e1b4b; font-size:1.05rem;">${window.escapeHTML(item.name)}</td>
-                                    <td style="font-weight:700; color:#475569;">🏛️ ${window.escapeHTML(item.teamName || 'Group Entry')}</td>
-                                </tr>
-                              `).join('')}
-                        </tbody>
-                    </table>
+                    ${bodyHtml}
                 </div>
             `;
         });
@@ -2161,22 +2313,25 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap) {
             /* Custom Large Badges for Call List */
             .call-chest-badge {
                 display: inline-block;
-                font-size: 1.2rem;
-                font-weight: 900;
+                font-size: 1.05rem;
+                font-weight: 800;
                 color: #1e1b4b;
-                background: #e0e7ff;
-                border: 2px solid #4338ca;
-                padding: 0.2rem 0.5rem;
-                border-radius: 6px;
+                background: #f1f5f9;
+                border: 1px solid #cbd5e1;
+                padding: 0.1rem 0.35rem;
+                border-radius: 4px;
                 text-align: center;
-                min-width: 55px;
+                min-width: 44px;
+            }
+            .call-list-table th, .call-list-table td {
+                padding: 0.2rem 0.4rem !important;
             }
 
             /* Compact A4 Packing Mode Styles */
             .program-card-compact {
-                margin-bottom: 2rem;
-                border-bottom: 2px dashed #cbd5e1;
-                padding-bottom: 1.5rem;
+                margin-bottom: 0.75rem;
+                border-bottom: 1.5px dashed #cbd5e1;
+                padding-bottom: 0.5rem;
                 page-break-inside: avoid;
                 break-inside: avoid;
             }
