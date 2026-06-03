@@ -838,6 +838,239 @@
             box-shadow: 0 6px 16px rgba(16, 120, 80, 0.08);
         }
 
+        /* ─────────────────────────────────────────────────────────────
+           Template Picker Modal Styles
+           ───────────────────────────────────────────────────────────── */
+        .template-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .template-modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .template-modal-content {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid rgba(16, 120, 80, 0.2);
+            border-radius: 35px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            padding: 30px;
+            box-sizing: border-box;
+            transform: scale(0.95);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            scrollbar-width: thin;
+            scrollbar-color: rgba(16, 120, 80, 0.2) transparent;
+        }
+
+        .template-modal-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .template-modal-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .template-modal-content::-webkit-scrollbar-thumb {
+            background-color: rgba(16, 120, 80, 0.2);
+            border-radius: 10px;
+        }
+
+        .template-modal.show .template-modal-content {
+            transform: scale(1);
+        }
+
+        .template-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            border-bottom: 1px solid rgba(16, 120, 80, 0.1);
+            padding-bottom: 15px;
+        }
+
+        .template-modal-title {
+            font-family: 'Cinzel', serif;
+            font-size: 24px;
+            font-weight: 700;
+            color: #064e3b;
+            margin: 0;
+        }
+
+        .template-modal-close {
+            background: rgba(16, 120, 80, 0.08);
+            border: none;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            font-size: 20px;
+            color: #064e3b;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .template-modal-close:hover {
+            background: rgba(16, 120, 80, 0.15);
+            transform: rotate(90deg);
+        }
+
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+
+        @media (max-width: 640px) {
+            .template-grid {
+                grid-template-columns: 1fr;
+                gap: 18px;
+            }
+            .template-modal-content {
+                padding: 20px;
+            }
+        }
+
+        .template-option-card {
+            background: #ffffff;
+            border: 2px solid rgba(16, 120, 80, 0.1);
+            border-radius: 24px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
+        }
+
+        .template-option-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(16, 120, 80, 0.3);
+            box-shadow: 0 12px 20px rgba(16, 120, 80, 0.08);
+        }
+
+        .template-option-card.active {
+            border-color: #D4A017;
+            background: rgba(212, 175, 55, 0.03);
+            box-shadow: 0 12px 24px rgba(212, 175, 55, 0.1);
+        }
+
+        .template-option-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1f2937;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .template-option-card.active .template-option-title {
+            color: #b45309;
+        }
+
+        /* Miniature live previews */
+        .mini-poster-preview {
+            width: 160px;
+            height: 200px;
+            border-radius: 16px;
+            position: relative;
+            overflow: hidden;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+            pointer-events: none;
+        }
+        .mini-poster-preview::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.4) 100%);
+            z-index: 1;
+        }
+
+        /* Template 2 (Separated Cards) Styles */
+        .t2-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 16px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+        }
+        .t2-card:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+        .t2-rank-badge {
+            font-size: 14px;
+            font-weight: 800;
+            color: #fbbf24;
+            min-width: 85px;
+            text-align: left;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+            border-right: 1px solid rgba(255, 255, 255, 0.15);
+            padding-right: 8px;
+        }
+        .t2-details {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            flex-grow: 1;
+            text-align: left;
+        }
+        .t2-student {
+            font-size: 17px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.01em;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+        }
+        .t2-team {
+            font-size: 12px;
+            color: #cbd5e1;
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        .t2-institute {
+            font-size: 10px;
+            color: #fbbf24;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            margin-top: 1px;
+        }
+
+
 
         /* ─────────────────────────────────────────────────────────────
            Toast Notification Styles
@@ -1047,6 +1280,19 @@
 
         <!-- Results Grid -->
         <div id="resultsList"></div>
+    </div>
+
+    <!-- Template Picker Modal -->
+    <div id="templateModal" class="template-modal">
+        <div class="template-modal-content">
+            <div class="template-modal-header">
+                <h2 class="template-modal-title">📐 Select Layout Template</h2>
+                <button type="button" class="template-modal-close" id="closeTemplateModalBtn">&times;</button>
+            </div>
+            <div class="template-grid" id="templateGrid">
+                <!-- Rendered dynamically in JS -->
+            </div>
+        </div>
     </div>
 
     <!-- Toast Notifications -->
