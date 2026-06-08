@@ -897,11 +897,11 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
         // Wire group-level clicks
         el.querySelectorAll('[data-edit-group-id]').forEach(btn => {
-            btn.onclick = () => {
+            btn.onclick = async () => {
                 const id = btn.getAttribute('data-edit-group-id');
                 const g = groups.find(x => x.id === id);
                 if (!g) return;
-                const next = window.prompt('Enter new name for the group:', g.name);
+                const next = await window.customPrompt('Enter new name for the group:', g.name, 'Rename Group');
                 if (next == null) return;
                 const newName = next.trim();
                 if (!newName) {
@@ -915,7 +915,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         el.querySelectorAll('[data-delete-group-id]').forEach(btn => {
             btn.onclick = async () => {
                 const id = btn.getAttribute('data-delete-group-id');
-                if (!confirm('Are you sure you want to delete this group?')) return;
+                const confirmed = await window.customConfirm('Are you sure you want to delete this group?');
+                if (!confirmed) return;
                 groups = groups.filter(x => x.id !== id);
                 await persistGroups();
 
@@ -1546,7 +1547,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             // Direct delete logic
             const student = assignedParticipantsAll.find(x => x.studentId === id);
             if (!student) return;
-            if (!confirm(`Are you sure you want to delete ${student.studentName}?`)) return;
+            const confirmed = await window.customConfirm(`Are you sure you want to delete ${student.studentName}?`);
+            if (!confirmed) return;
 
             const spinner = document.getElementById('pwStudentsSkeleton');
             if (spinner) spinner.style.display = 'block';

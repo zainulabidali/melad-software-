@@ -251,11 +251,12 @@ function openJudgeModal(judgeId = null, existing = {}) {
 // ─────────────────────────────────────────────
 // Deletion Protection
 // ─────────────────────────────────────────────
-function triggerDeleteJudge(judge) {
+async function triggerDeleteJudge(judge) {
     const comps = Array.isArray(judge.competitions) ? judge.competitions : [];
     if (comps.length === 0) {
         // Direct safe delete allowed
-        if (!confirm(`Are you sure you want to permanently delete judge "${judge.name}"?`)) return;
+        const confirmed = await window.customConfirm(`Are you sure you want to permanently delete judge "${judge.name}"?`);
+        if (!confirmed) return;
         executeDeleteJudge(judge.id);
         return;
     }
@@ -318,7 +319,8 @@ function triggerDeleteJudge(judge) {
     };
 
     document.getElementById('btnProtectRemove').onclick = async () => {
-        if (!confirm("Remove this judge name from all program sheets permanently and delete?")) return;
+        const confirmed = await window.customConfirm("Remove this judge name from all program sheets permanently and delete?");
+        if (!confirmed) return;
         
         const btn = document.getElementById('btnProtectRemove');
         btn.disabled = true;

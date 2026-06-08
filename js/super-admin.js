@@ -399,7 +399,8 @@ document.getElementById('updateInstituteBtn').addEventListener('click', async ()
 
 async function deleteInstitute(e) {
     const instId = e.target.getAttribute('data-id');
-    if (!confirm("Are you sure you want to delete this institute? This action cannot be undone.")) return;
+    const confirmed = await window.customConfirm("Are you sure you want to delete this institute? This action cannot be undone.");
+    if (!confirmed) return;
 
     try {
         await deleteDoc(doc(db, "institutes", instId));
@@ -651,7 +652,8 @@ document.getElementById('confirmApproveBtn').addEventListener('click', async () 
 
 async function rejectAdmin(e) {
     const uid = e.target.getAttribute('data-uid');
-    if (!confirm("Are you sure you want to reject this registration? The user will NOT be able to access the system.")) return;
+    const confirmed = await window.customConfirm("Are you sure you want to reject this registration? The user will NOT be able to access the system.");
+    if (!confirmed) return;
 
     try {
         await updateDoc(doc(db, "teachers", uid), {

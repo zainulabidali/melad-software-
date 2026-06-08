@@ -800,8 +800,9 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
     };
 
     document.getElementById('meDraftBtn').onclick = () => persistMarks(prog, judges, false);
-    document.getElementById('meSubmitBtn').onclick = () => {
-        if (!confirm("Are you sure you want to submit these marks? This locks editing until unsubmitted/unpublished.")) return;
+    document.getElementById('meSubmitBtn').onclick = async () => {
+        const confirmed = await window.customConfirm("Are you sure you want to submit these marks? This locks editing until unsubmitted/unpublished.");
+        if (!confirmed) return;
         persistMarks(prog, judges, true);
     };
 }

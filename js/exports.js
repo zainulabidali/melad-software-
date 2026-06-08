@@ -1182,7 +1182,8 @@ async function triggerRetry(exp) {
 // Deletion Safety Trigger
 // ─────────────────────────────────────────────
 async function triggerDelete(exp) {
-    if (!confirm("Are you sure you want to delete this export history log?\n(This will not affect any students, results, or program records).")) return;
+    const confirmed = await window.customConfirm("Are you sure you want to delete this export history log?\n(This will not affect any students, results, or program records).");
+    if (!confirmed) return;
 
     try {
         const instId = window.currentInstituteId;

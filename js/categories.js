@@ -438,7 +438,7 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
 }
 
 async function deleteCategory(catId) {
-    if (!confirm('Delete this category? THIS IS IRREVERSIBLE. All related student and program associations may break.')) return;
+    if (!await window.customConfirm('Delete this category? THIS IS IRREVERSIBLE. All related student and program associations may break.', 'Delete Category', { danger: true, okText: 'Delete' })) return;
 
     try {
         const instId = window.currentInstituteId;
@@ -447,7 +447,7 @@ async function deleteCategory(catId) {
         // 1. Delete all students in this category
         const studentsSnap = await getDocs(query(collection(db, 'institutes', instId, 'students'), where('categoryId', '==', catId)));
 
-        if (studentsSnap.size > 0 && !confirm(`Found ${studentsSnap.size} students in this category. Delete them all?`)) {
+        if (studentsSnap.size > 0 && !await window.customConfirm(`Found ${studentsSnap.size} students in this category. Delete them all?`, 'Delete Category Students', { danger: true, okText: 'Delete All' })) {
             return;
         }
         studentsSnap.forEach(s => batch.delete(s.ref));
@@ -497,8 +497,7 @@ async function deleteCategory(catId) {
         window.cachedCategories = null;
         window.showToast('Category and all related records deleted successfully.');
     } catch (error) {
-        console.error('Error deleting category:', error);
-        window.showToast('Failed to delete category.', 'error');
+        window.handleError(error, 'deleting category');
     }
 }
 

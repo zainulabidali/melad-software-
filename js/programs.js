@@ -619,7 +619,8 @@ function openGeneralProgramModal(progId = null, data = {}) {
 // Delete Program (Full Cascade)
 // ─────────────────────────────────────────────
 async function deleteProgram(id) {
-    if (!confirm("Delete this program? All participants, results, and judge assignments will also be removed.")) return;
+    const confirmed = await window.customConfirm("Delete this program? All participants, results, and judge assignments will also be removed.");
+    if (!confirmed) return;
     try {
         const instId = window.currentInstituteId;
         const batch = writeBatch(db);

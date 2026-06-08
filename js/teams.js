@@ -327,8 +327,7 @@ function openTeamModal(teamId = null, currentName = "", currentDesc = "") {
                 window.cachedTeams = null;
                 modalOverlay.classList.add("hidden");
             } catch (err) {
-                console.error(err);
-                window.showToast("An error occurred", "error");
+                window.handleError(err, "saving team");
             } finally {
                 saveBtn.disabled = false;
                 text.classList.remove("hidden");
@@ -338,7 +337,7 @@ function openTeamModal(teamId = null, currentName = "", currentDesc = "") {
 }
 
 async function deleteTeam(teamId) {
-    if (!confirm("Delete this team? All member students and their program registrations will also be removed.")) return;
+    if (!await window.customConfirm("Are you sure you want to delete this team? All member students and their program registrations will also be removed.", "Delete Team", { danger: true, okText: "Delete" })) return;
 
     try {
         const instId = window.currentInstituteId;
@@ -364,13 +363,15 @@ async function deleteTeam(teamId) {
                     where("type", "==", "individual")
                 ));
                 indivSnap.forEach(d => {
-                    const data = d.data();
-                    batch.delete(d.ref);
-                    if (data.programId) {
-                        programCountDeltas.set(
-                            data.programId,
-                            (programCountDeltas.get(data.programId) || 0) - 1
-                        );
+                    if (d.ref.path.startsWith(`institutes/${instId}/`)) {
+                        const data = d.data();
+                        batch.delete(d.ref);
+                        if (data.programId) {
+                            programCountDeltas.set(
+                                data.programId,
+                                (programCountDeltas.get(data.programId) || 0) - 1
+                            );
+                        }
                     }
                 });
 
@@ -381,17 +382,19 @@ async function deleteTeam(teamId) {
                     where("teamId", "==", teamId)
                 ));
                 groupSnap.forEach(d => {
-                    const data = d.data();
-                    const groups = Array.isArray(data.groups) ? data.groups : [];
-                    const studentInGroup = groups.some(g =>
-                        Array.isArray(g.members) && g.members.some(m => m.studentId === stuId)
-                    );
-                    if (studentInGroup) {
-                        const updatedGroups = groups.map(g => ({
-                            ...g,
-                            members: (g.members || []).filter(m => m.studentId !== stuId)
-                        }));
-                        batch.update(d.ref, { groups: updatedGroups });
+                    if (d.ref.path.startsWith(`institutes/${instId}/`)) {
+                        const data = d.data();
+                        const groups = Array.isArray(data.groups) ? data.groups : [];
+                        const studentInGroup = groups.some(g =>
+                            Array.isArray(g.members) && g.members.some(m => m.studentId === stuId)
+                        );
+                        if (studentInGroup) {
+                            const updatedGroups = groups.map(g => ({
+                                ...g,
+                                members: (g.members || []).filter(m => m.studentId !== stuId)
+                            }));
+                            batch.update(d.ref, { groups: updatedGroups });
+                        }
                     }
                 });
 
@@ -412,10 +415,9 @@ async function deleteTeam(teamId) {
         await batch.commit();
         await updateDashboardMetadata(instId);
         window.cachedTeams = null;
-        window.showToast("Team and all member students deleted successfully.");
+        window.showToast("Team deleted successfully.");
     } catch (err) {
-        console.error(err);
-        window.showToast("Error deleting team", "error");
+        window.handleError(err, "deleting team");
     }
 }
 

@@ -32,6 +32,7 @@ service cloud.firestore {
         (
           !('expiryDate' in get(/databases/$(database)/documents/institutes/$(instituteId)).data) ||
           get(/databases/$(database)/documents/institutes/$(instituteId)).data.expiryDate == null ||
+          !(get(/databases/$(database)/documents/institutes/$(instituteId)).data.expiryDate is timestamp) ||
           get(/databases/$(database)/documents/institutes/$(instituteId)).data.expiryDate > request.time
         );
     }
@@ -148,6 +149,18 @@ service cloud.firestore {
       // ── Dashboard and general Metadata ──
       match /metadata/{docId} {
         allow read, write: if isInstituteAdmin(instituteId) || isSuperAdmin();
+      }
+
+      // ── Judges ──
+      match /judges/{judgeId} {
+        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
+        allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
+      }
+
+      // ── Recovery Bin ──
+      match /recoveryBin/{docId} {
+        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
+        allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
       }
     }
 

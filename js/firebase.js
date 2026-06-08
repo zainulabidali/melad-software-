@@ -367,4 +367,373 @@ export async function getCachedPrograms(instituteId, forceRefresh = false) {
     return data;
 }
 
+// ─────────────────────────────────────────────
+// CENTRALIZED DIALOGS AND ERROR HANDLING SYSTEM
+// ─────────────────────────────────────────────
+
+if (typeof document !== 'undefined') {
+    const styleEl = document.createElement('style');
+    styleEl.id = 'custom-dialog-styles';
+    styleEl.innerHTML = `
+        .custom-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100000;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .custom-modal-dialog {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 1.75rem;
+            width: 92%;
+            max-width: 440px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+            transform: scale(0.95);
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: #1e293b;
+        }
+        .custom-modal-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .custom-modal-icon {
+            border-radius: 50%;
+            width: 42px;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 1.35rem;
+        }
+        .custom-modal-title {
+            margin: 0 0 0.35rem 0;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.3;
+        }
+        .custom-modal-message {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #475569;
+            line-height: 1.5;
+            white-space: pre-line;
+        }
+        .custom-modal-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+        }
+        .custom-dialog-btn {
+            min-height: 38px;
+            font-weight: 600;
+            padding: 0.5rem 1.25rem;
+            font-size: 0.875rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        .custom-dialog-btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+        }
+        .custom-dialog-btn-secondary:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+        .custom-dialog-btn-primary {
+            background: #4f46e5;
+            color: #ffffff;
+            border: none;
+        }
+        .custom-dialog-btn-primary:hover {
+            background: #4338ca;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+        }
+        .custom-dialog-btn-danger {
+            background: #dc2626;
+            color: #ffffff;
+            border: none;
+        }
+        .custom-dialog-btn-danger:hover {
+            background: #b91c1c;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+        }
+    `;
+    document.head.appendChild(styleEl);
+}
+
+window.customConfirm = function (message, title = "Confirm Action", options = {}) {
+    const danger = options.danger || false;
+    const okText = options.okText || "Yes, Proceed";
+    const cancelText = options.cancelText || "Cancel";
+    const icon = options.icon || (danger ? "⚠️" : "❓");
+    const iconBg = options.iconBg || (danger ? "rgba(239, 68, 68, 0.08)" : "rgba(79, 70, 229, 0.08)");
+    const iconColor = options.iconColor || (danger ? "#ef4444" : "#4f46e5");
+    const okBtnClass = danger ? "custom-dialog-btn-danger" : "custom-dialog-btn-primary";
+    
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'custom-modal-overlay';
+        
+        const dialog = document.createElement('div');
+        dialog.className = 'custom-modal-dialog';
+        
+        dialog.innerHTML = `
+            <div class="custom-modal-header">
+                <div class="custom-modal-icon" style="background: ${iconBg}; color: ${iconColor};">
+                    ${icon}
+                </div>
+                <div>
+                    <h3 class="custom-modal-title">${window.escapeHTML ? window.escapeHTML(title) : title}</h3>
+                    <p class="custom-modal-message">${window.escapeHTML ? window.escapeHTML(message) : message}</p>
+                </div>
+            </div>
+            <div class="custom-modal-actions">
+                <button id="customConfirmCancelBtn" class="custom-dialog-btn custom-dialog-btn-secondary">${cancelText}</button>
+                <button id="customConfirmOkBtn" class="custom-dialog-btn ${okBtnClass}">${okText}</button>
+            </div>
+        `;
+        
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        
+        setTimeout(() => {
+            overlay.style.opacity = '1';
+            dialog.style.transform = 'scale(1)';
+        }, 10);
+        
+        const close = (result) => {
+            overlay.style.opacity = '0';
+            dialog.style.transform = 'scale(0.95)';
+            document.body.style.overflow = originalOverflow;
+            setTimeout(() => {
+                overlay.remove();
+                resolve(result);
+            }, 250);
+        };
+        
+        overlay.querySelector('#customConfirmCancelBtn').onclick = () => close(false);
+        overlay.querySelector('#customConfirmOkBtn').onclick = () => close(true);
+        
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                document.removeEventListener('keydown', handleKeyDown);
+                close(false);
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+    });
+};
+
+window.customAlert = function (message, title = "Alert", options = {}) {
+    const icon = options.icon || "ℹ️";
+    const iconBg = options.iconBg || "rgba(79, 70, 229, 0.08)";
+    const iconColor = options.iconColor || "#4f46e5";
+    const buttonText = options.buttonText || "OK";
+    
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'custom-modal-overlay';
+        
+        const dialog = document.createElement('div');
+        dialog.className = 'custom-modal-dialog';
+        
+        dialog.innerHTML = `
+            <div class="custom-modal-header">
+                <div class="custom-modal-icon" style="background: ${iconBg}; color: ${iconColor};">
+                    ${icon}
+                </div>
+                <div>
+                    <h3 class="custom-modal-title">${window.escapeHTML ? window.escapeHTML(title) : title}</h3>
+                    <p class="custom-modal-message">${window.escapeHTML ? window.escapeHTML(message) : message}</p>
+                </div>
+            </div>
+            <div class="custom-modal-actions">
+                <button id="customAlertOkBtn" class="custom-dialog-btn custom-dialog-btn-primary" style="width: 100%;">${buttonText}</button>
+            </div>
+        `;
+        
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        
+        setTimeout(() => {
+            overlay.style.opacity = '1';
+            dialog.style.transform = 'scale(1)';
+        }, 10);
+        
+        const close = () => {
+            overlay.style.opacity = '0';
+            dialog.style.transform = 'scale(0.95)';
+            document.body.style.overflow = originalOverflow;
+            setTimeout(() => {
+                overlay.remove();
+                resolve();
+            }, 250);
+        };
+        
+        overlay.querySelector('#customAlertOkBtn').onclick = () => close();
+        
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape' || e.key === 'Enter') {
+                document.removeEventListener('keydown', handleKeyDown);
+                close();
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+    });
+};
+
+window.customPrompt = function (message, defaultValue = "", title = "Input Required", options = {}) {
+    const okText = options.okText || "Submit";
+    const cancelText = options.cancelText || "Cancel";
+    const icon = options.icon || "✏️";
+    const iconBg = options.iconBg || "rgba(79, 70, 229, 0.08)";
+    const iconColor = options.iconColor || "#4f46e5";
+    const placeholder = options.placeholder || "Type here...";
+    
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'custom-modal-overlay';
+        
+        const dialog = document.createElement('div');
+        dialog.className = 'custom-modal-dialog';
+        
+        dialog.innerHTML = `
+            <div class="custom-modal-header">
+                <div class="custom-modal-icon" style="background: ${iconBg}; color: ${iconColor};">
+                    ${icon}
+                </div>
+                <div style="flex: 1;">
+                    <h3 class="custom-modal-title">${window.escapeHTML ? window.escapeHTML(title) : title}</h3>
+                    <p class="custom-modal-message">${window.escapeHTML ? window.escapeHTML(message) : message}</p>
+                    <input type="text" id="customPromptInput" class="form-input" value="${window.escapeHTML ? window.escapeHTML(defaultValue) : defaultValue}" placeholder="${window.escapeHTML ? window.escapeHTML(placeholder) : placeholder}" style="width: 100%; margin-top: 1rem; min-height: 38px; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 0.875rem;" />
+                </div>
+            </div>
+            <div class="custom-modal-actions">
+                <button id="customPromptCancelBtn" class="custom-dialog-btn custom-dialog-btn-secondary">${cancelText}</button>
+                <button id="customPromptOkBtn" class="custom-dialog-btn custom-dialog-btn-primary">${okText}</button>
+            </div>
+        `;
+        
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        
+        const inputEl = overlay.querySelector('#customPromptInput');
+        inputEl.focus();
+        if (defaultValue) {
+            inputEl.setSelectionRange(0, defaultValue.length);
+        }
+        
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        
+        setTimeout(() => {
+            overlay.style.opacity = '1';
+            dialog.style.transform = 'scale(1)';
+        }, 10);
+        
+        const close = (result) => {
+            overlay.style.opacity = '0';
+            dialog.style.transform = 'scale(0.95)';
+            document.body.style.overflow = originalOverflow;
+            setTimeout(() => {
+                overlay.remove();
+                resolve(result);
+            }, 250);
+        };
+        
+        overlay.querySelector('#customPromptCancelBtn').onclick = () => close(null);
+        overlay.querySelector('#customPromptOkBtn').onclick = () => close(inputEl.value);
+        
+        inputEl.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                close(inputEl.value);
+            }
+        };
+        
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                document.removeEventListener('keydown', handleKeyDown);
+                close(null);
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+    });
+};
+
+window.handleError = function (error, context = "operation") {
+    console.error(`Error during ${context}:`, error);
+    
+    let friendlyMessage = "Something went wrong. Please try again.";
+    let msg = (typeof error === 'string') ? error : (error?.message || '');
+    
+    if (error && error.code) {
+        switch (error.code) {
+            case 'permission-denied':
+            case 'PERMISSION_DENIED':
+                friendlyMessage = "You do not have permission to perform this action.";
+                break;
+            case 'unavailable':
+                friendlyMessage = "Connection problem detected. Please try again.";
+                break;
+            case 'not-found':
+                friendlyMessage = "The requested record could not be found.";
+                break;
+            case 'already-exists':
+                friendlyMessage = "A record with these details already exists.";
+                break;
+        }
+    } else if (msg) {
+        if (msg === "unauthenticated") {
+            friendlyMessage = "You must be logged in to perform this action.";
+        } else if (msg === "deactivated") {
+            friendlyMessage = "Your institute account has been deactivated. Please contact the administrator.";
+        } else if (msg === "expired") {
+            friendlyMessage = "Your institute subscription has expired. Please contact Super Admin.";
+        } else if (msg === "permission-denied" || msg.includes("permission") || msg.includes("Permission") || msg.includes("insufficient")) {
+            friendlyMessage = "You do not have permission to perform this action.";
+        } else if (msg.includes("network") || msg.includes("Network")) {
+            friendlyMessage = "Connection problem detected. Please try again.";
+        } else if (context === "deleting student") {
+            friendlyMessage = "Unable to delete student. Please try again.";
+        }
+    } else {
+        if (context === "deleting student") {
+            friendlyMessage = "Unable to delete student. Please try again.";
+        }
+    }
+    
+    window.customAlert(friendlyMessage, "Error Occurred", {
+        icon: "⚠️",
+        iconBg: "rgba(239, 68, 68, 0.08)",
+        iconColor: "#ef4444",
+        buttonText: "OK"
+    });
+};
+
+
 

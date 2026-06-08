@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, getCachedCategories, getCachedTeams, getCachedPrograms } from './firebase.js';
+import { auth, db, updateDashboardMetadata, getCachedCategories, getCachedTeams, getCachedPrograms } from './firebase.js';
 import {
     collection,
     addDoc,
@@ -14,7 +14,8 @@ import {
     where,
     collectionGroup,
     setDoc,
-    increment
+    increment,
+    runTransaction
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 import { normalizeClasses } from './categories.js';
 
@@ -267,7 +268,7 @@ export async function initStudentsView(container, topActions) {
     }
 
     if (btnAddStudents) {
-        btnAddStudents.addEventListener('click', openAddStudentModal);
+        btnAddStudents.addEventListener('click', () => window.navigateTo('add-student'));
     }
 
     const btnImportExcel = document.getElementById('btnImportExcel');
@@ -634,7 +635,7 @@ async function checkLegacyStudents() {
 }
 
 async function migrateLegacyStudents(docs) {
-    if (!confirm(`Move ${docs.length} students to the new structure? This will migrate them once and use the flat collection from now on.`)) return;
+    if (!await window.customConfirm(`Move ${docs.length} students to the new structure? This will migrate them once and use the flat collection from now on.`, "Migrate Students")) return;
     const btn = document.getElementById('btnMigrateLegacy');
     btn.disabled = true;
     btn.textContent = "Moving...";
@@ -671,453 +672,641 @@ async function migrateLegacyStudents(docs) {
         document.getElementById('legacyMigrationCheck').innerHTML = '';
         loadStudentsData();
     } catch (e) {
-        console.error(e);
-        window.showToast("Migration failed. Please try again.", "error");
+        window.handleError(e, "migrating legacy students");
         btn.disabled = false;
         btn.textContent = "Retry Move";
     }
 }
 
-function openAddStudentModal() {
-    const modalTitle = document.getElementById('dynamicModalTitle');
-    const modalBody = document.getElementById('dynamicModalBody');
-    const modalOverlay = document.getElementById('dynamicModal');
+export async function initAddStudentView(container, topActions) {
+    // Clear topbar actions
+    topActions.innerHTML = '';
 
-    modalTitle.textContent = '🎓 Add Student';
-    modalBody.innerHTML = `
+    container.innerHTML = `
+        <div style="text-align:center; padding:3rem; color:#4f46e5;">
+            <div class="spinner" style="margin:0 auto 1rem; width:40px; height:40px; border:4px solid rgba(99,102,241,0.1); border-top-color:#4f46e5; border-radius:50%; animation:spin 1s linear infinite;"></div>
+            <p style="color:#64748b; font-size:0.875rem; font-weight:600;">Loading configurations...</p>
+        </div>
+    `;
+
+    // Ensure we have categories and teams loaded
+    try {
+        if (allCategories.length === 0) {
+            const categoriesData = await getCachedCategories(window.currentInstituteId);
+            allCategories = categoriesData.map(cat => ({ id: cat.id, ...cat, classes: normalizeClasses(cat.classes) }));
+        }
+        if (teamMap.size === 0) {
+            const teamsData = await getCachedTeams(window.currentInstituteId);
+            teamsData.forEach(team => {
+                teamMap.set(team.id, team.name);
+            });
+        }
+    } catch (e) {
+        console.error("Error loading categories or teams for add view:", e);
+    }
+
+    container.innerHTML = `
         <style>
-        .student-form-grid {
+        .premium-container {
+            font-family: 'Inter', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 1.5rem;
             display: flex;
             flex-direction: column;
-            gap: 0.75rem;
+            gap: 1.5rem;
         }
-        .student-form-grid .form-row-1,
-        .student-form-grid .form-row-2,
-        .student-form-grid .form-row-3 {
+        .premium-card {
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .flow-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 0.75rem;
+            gap: 1.25rem;
         }
         @media (max-width: 600px) {
-            .student-form-grid .form-row-1,
-            .student-form-grid .form-row-2,
-            .student-form-grid .form-row-3 {
+            .flow-grid {
                 grid-template-columns: 1fr;
-                gap: 0.75rem;
             }
         }
+        .preview-panel {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: #475569;
+        }
+        .preview-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+        .stat-badge {
+            background: #f1f5f9;
+            color: #475569;
+            border-radius: 6px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        .stat-badge.valid {
+            background: #dcfce7;
+            color: #15803d;
+        }
+        .stat-badge.duplicate {
+            background: #fef3c7;
+            color: #b45309;
+        }
+        .stat-badge.invalid {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        .warning-card {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: #92400e;
+        }
         </style>
-        <form id="addStudentForm" style="font-family:'Inter', sans-serif; display:flex; flex-direction:column; gap:1rem;">
-            <div class="student-form-grid">
-                <!-- Row 1: Name & Gender -->
-                <div class="form-row-1">
-                    <div class="form-group" style="margin:0;">
-                        <label class="form-label">Student Name *</label>
-                        <input type="text" id="addStuName" class="form-input" required placeholder="Full Name">
+
+        <div class="premium-container">
+            <div class="premium-card">
+                <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h2 style="margin:0; font-size:1.4rem; font-weight:800; color:#0f172a;">Student Registration</h2>
+                        <p style="margin:0.25rem 0 0 0; font-size:0.875rem; color:#64748b;">Enroll multiple students at once into a specific category, team, gender, and class.</p>
                     </div>
+                    <button class="btn btn-secondary" id="btnBackToDirectory" style="min-height:38px;">⬅ Back</button>
+                </div>
+
+                <!-- Sequence Dropdowns -->
+                <div class="flow-grid">
                     <div class="form-group" style="margin:0;">
-                        <label class="form-label">Gender *</label>
-                        <select id="addStuGender" class="form-input" required>
-                            <option value="">Select Gender...</option>
+                        <label class="form-label">1. Category *</label>
+                        <select id="seqCategory" class="form-input">
+                            <option value="">Select Category...</option>
+                            ${allCategories.map(cat => `<option value="${cat.id}">${window.escapeHTML(cat.name)}</option>`).join('')}
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label">2. Team *</label>
+                        <select id="seqTeam" class="form-input" disabled>
+                            <option value="">Select Team (Disabled)...</option>
+                            ${Array.from(teamMap.entries()).map(([id, name]) => `<option value="${id}">${window.escapeHTML(name)}</option>`).join('')}
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label">3. Gender *</label>
+                        <select id="seqGender" class="form-input" disabled>
+                            <option value="">Select Gender (Disabled)...</option>
                             <option value="Male">Male</option>
                             <option value="Female">Female</option>
                             <option value="Other">Other</option>
                         </select>
                     </div>
-                </div>
-                
-                <!-- Row 2: Category & Class -->
-                <div class="form-row-2">
+
                     <div class="form-group" style="margin:0;">
-                        <label class="form-label">Category *</label>
-                        <select id="addStuCategory" class="form-input" required>
-                            <option value="">Select Category...</option>
-                            ${allCategories.map(cat => `<option value="${cat.id}">${window.escapeHTML(cat.name)}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="form-group" style="margin:0;">
-                        <label class="form-label">Class *</label>
-                        <select id="addStuClass" class="form-input" required disabled>
-                            <option value="">Select Class...</option>
+                        <label class="form-label">4. Class *</label>
+                        <select id="seqClass" class="form-input" disabled>
+                            <option value="">Select Class (Disabled)...</option>
                         </select>
                     </div>
                 </div>
 
-                <!-- Row 3: Team & Chest Number Preview -->
-                <div class="form-row-3">
-                    <div class="form-group" style="margin:0;">
-                        <label class="form-label">Team *</label>
-                        <select id="addStuTeam" class="form-input" required>
-                            <option value="">Select Team...</option>
-                            ${Array.from(teamMap.entries()).map(([id, name]) => `<option value="${id}">${window.escapeHTML(name)}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="form-group" style="margin:0;">
-                        <label class="form-label">Chest Number Preview</label>
-                        <div id="addStuChestPreview" style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:0.5rem 0.75rem; font-size:0.9rem; font-weight:700; color:#475569; min-height:36px; display:flex; align-items:center;">
-                            Select category to preview...
+                <!-- Chest Number Live Preview -->
+                <div id="chestPreviewPanel" class="preview-panel" style="display: none;">
+                    <div class="preview-title">Chest Number Preview (Auto-Generated)</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1rem;">
+                        <div>Highest Existing: <strong id="lblHighestChest" style="color: #0f172a;">—</strong></div>
+                        <div>Next Available: <strong id="lblNextChest" style="color: #4f46e5;">—</strong></div>
+                        <div style="grid-column: span 2; border-top: 1px solid #e2e8f0; margin-top: 0.25rem; padding-top: 0.25rem;">
+                            Expected Range for Batch: <strong id="lblExpectedRange" style="color: #0f172a;">—</strong>
                         </div>
                     </div>
                 </div>
-            </div>
-            
-            <div style="font-size:0.72rem; color:#64748b; background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; padding:0.5rem 0.75rem; line-height:1.4;">
-                ℹ️ Chest Number will be generated automatically based on the selected category.
-            </div>
 
-            <div class="modal-actions" style="margin-top:0.5rem;">
-                <button type="button" class="btn btn-secondary" id="cancelAddStuBtn">Cancel</button>
-                <button type="submit" class="btn btn-primary" id="saveAddStuBtn">
-                    <span class="btn-text">💾 Save Student</span>
-                    <span class="btn-spinner hidden"></span>
-                </button>
+                <!-- Student Names Area -->
+                <div class="form-group" style="margin:0;">
+                    <label class="form-label">5. Student Names (One per line) *</label>
+                    <textarea id="bulkNamesTextarea" class="form-input" disabled rows="8" placeholder="Type or paste names here...&#10;Muhammed Ali&#10;Abdul Rahman&#10;Fathima..." style="padding: 0.8rem 1rem; font-family: monospace; line-height: 1.5; font-size: 0.9rem; resize: vertical;"></textarea>
+                </div>
+
+                <!-- Statistics panel -->
+                <div id="statsPanel" style="display: none; justify-content: flex-start; gap: 0.75rem; flex-wrap: wrap; margin-top: -0.5rem;">
+                    <span class="stat-badge">Total Count: <strong id="statTotal">0</strong></span>
+                    <span class="stat-badge valid">Valid: <strong id="statValid">0</strong></span>
+                    <span class="stat-badge duplicate">Duplicates: <strong id="statDuplicate">0</strong></span>
+                    <span class="stat-badge invalid">Invalid: <strong id="statInvalid">0</strong></span>
+                </div>
+
+                <!-- Warning card for duplicates -->
+                <div id="duplicateWarningCard" class="warning-card" style="display: none;">
+                    <h4 style="margin: 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 0.35rem;">
+                        ⚠️ Duplicate Entries Detected
+                    </h4>
+                    <p style="margin: 0; line-height: 1.4;">The following names are duplicates (in this batch or already exist in this category/team/class):</p>
+                    <div id="duplicateListContainer" style="max-height: 120px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; background: rgba(255, 255, 255, 0.5); padding: 0.5rem; border-radius: 6px; border: 1px solid #fde68a;">
+                        <!-- Duplicates filled dynamically -->
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end; border-top: 1px solid #e2e8f0; padding-top: 1.25rem;">
+                    <button class="btn btn-secondary" id="btnCancelRegistration" style="min-height:40px; font-weight:700;">Cancel</button>
+                    <button class="btn btn-primary" id="btnSaveBulkStudents" disabled style="min-height:40px; font-weight:700;">
+                        <span class="btn-text">💾 Save Students</span>
+                        <span class="btn-spinner hidden" style="display:inline-block; width:16px; height:16px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:spin 0.6s linear infinite; margin-left:0.35rem;"></span>
+                    </button>
+                </div>
             </div>
-        </form>
+        </div>
     `;
 
-    modalOverlay.classList.remove('hidden');
+    const seqCategory = document.getElementById('seqCategory');
+    const seqTeam = document.getElementById('seqTeam');
+    const seqGender = document.getElementById('seqGender');
+    const seqClass = document.getElementById('seqClass');
+    const bulkNamesTextarea = document.getElementById('bulkNamesTextarea');
+    const btnSave = document.getElementById('btnSaveBulkStudents');
+    const statsPanel = document.getElementById('statsPanel');
+    const chestPreviewPanel = document.getElementById('chestPreviewPanel');
 
-    const form = document.getElementById('addStudentForm');
-    const catSelect = document.getElementById('addStuCategory');
-    const classSelect = document.getElementById('addStuClass');
-    const previewEl = document.getElementById('addStuChestPreview');
-    const cancelBtn = document.getElementById('cancelAddStuBtn');
-    const saveBtn = document.getElementById('saveAddStuBtn');
+    // Go back buttons
+    document.getElementById('btnBackToDirectory').onclick = () => window.navigateTo('students');
+    document.getElementById('btnCancelRegistration').onclick = () => window.navigateTo('students');
 
-    cancelBtn.onclick = () => modalOverlay.classList.add('hidden');
+    function updateFlowState() {
+        const catId = seqCategory.value;
+        const teamId = seqTeam.value;
+        const gender = seqGender.value;
+        const classId = seqClass.value;
 
-    function updateClassDropdownAndPreview() {
-        const catId = catSelect.value;
-        classSelect.innerHTML = '<option value="">Select Class...</option>';
-        classSelect.disabled = true;
-        previewEl.innerHTML = 'Select category to preview...';
+        // Reset flow
+        if (!catId) {
+            seqTeam.value = "";
+            seqTeam.disabled = true;
+            seqTeam.innerHTML = '<option value="">Select Team (Disabled)...</option>';
+            
+            seqGender.value = "";
+            seqGender.disabled = true;
+            seqGender.innerHTML = `
+                <option value="">Select Gender (Disabled)...</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+            `;
+            
+            seqClass.value = "";
+            seqClass.disabled = true;
+            seqClass.innerHTML = '<option value="">Select Class (Disabled)...</option>';
+            
+            bulkNamesTextarea.value = "";
+            bulkNamesTextarea.disabled = true;
+            chestPreviewPanel.style.display = 'none';
+            statsPanel.style.display = 'none';
+            btnSave.disabled = true;
+            return;
+        }
 
-        if (!catId) return;
+        // Enable Team
+        seqTeam.disabled = false;
+        if (seqTeam.innerHTML.includes('(Disabled)')) {
+            seqTeam.innerHTML = '<option value="">Select Team...</option>' + 
+                Array.from(teamMap.entries()).map(([id, name]) => `<option value="${id}">${window.escapeHTML(name)}</option>`).join('');
+        }
 
+        if (!teamId) {
+            seqGender.value = "";
+            seqGender.disabled = true;
+            seqGender.innerHTML = `
+                <option value="">Select Gender (Disabled)...</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+            `;
+            
+            seqClass.value = "";
+            seqClass.disabled = true;
+            seqClass.innerHTML = '<option value="">Select Class (Disabled)...</option>';
+            
+            bulkNamesTextarea.value = "";
+            bulkNamesTextarea.disabled = true;
+            chestPreviewPanel.style.display = 'none';
+            statsPanel.style.display = 'none';
+            btnSave.disabled = true;
+            return;
+        }
+
+        // Enable Gender
+        seqGender.disabled = false;
+        if (seqGender.innerHTML.includes('(Disabled)')) {
+            seqGender.innerHTML = `
+                <option value="">Select Gender...</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+            `;
+            seqGender.value = gender;
+        }
+
+        if (!gender) {
+            seqClass.value = "";
+            seqClass.disabled = true;
+            seqClass.innerHTML = '<option value="">Select Class (Disabled)...</option>';
+            
+            bulkNamesTextarea.value = "";
+            bulkNamesTextarea.disabled = true;
+            chestPreviewPanel.style.display = 'none';
+            statsPanel.style.display = 'none';
+            btnSave.disabled = true;
+            return;
+        }
+
+        // Enable Class
+        seqClass.disabled = false;
         const cat = allCategories.find(c => c.id === catId);
-        if (cat) {
-            // Populate classes
-            if (Array.isArray(cat.classes)) {
+        if (seqClass.innerHTML.includes('(Disabled)') || seqClass.innerHTML === "") {
+            seqClass.innerHTML = '<option value="">Select Class...</option>';
+            if (cat && cat.classes) {
                 cat.classes.forEach(cls => {
                     const opt = document.createElement('option');
                     opt.value = cls.id;
                     opt.textContent = cls.name;
-                    classSelect.appendChild(opt);
+                    seqClass.appendChild(opt);
                 });
-                classSelect.disabled = false;
             }
-
-            // Calculate next chest preview with self-healing skip logic
-            const chestStart = parseInt(cat.chestStart, 10);
-            const chestEnd = parseInt(cat.chestEnd, 10);
-            let nextChest = parseInt(cat.nextChestNumber || chestStart, 10);
-
-            if (isNaN(chestStart) || isNaN(chestEnd)) {
-                previewEl.innerHTML = `<span style="color:#ef4444; font-size:0.8rem;">Invalid range in Category Settings</span>`;
-                return;
-            }
-
-            let assignedChest = null;
-            while (nextChest <= chestEnd) {
-                const chestStr = nextChest.toString();
-                const isTaken = localStudentsAll.some(s => s.chestNumber === chestStr);
-                if (!isTaken) {
-                    assignedChest = chestStr;
-                    break;
-                }
-                nextChest++;
-            }
-
-            if (assignedChest) {
-                previewEl.innerHTML = `Next Available: <span style="color:#4f46e5; margin-left:0.25rem;">#${assignedChest}</span>`;
-            } else {
-                previewEl.innerHTML = `<span style="color:#ef4444; font-size:0.8rem;">No available chest numbers remaining</span>`;
+            if (classId && cat?.classes.some(cls => cls.id === classId)) {
+                seqClass.value = classId;
             }
         }
-    }
 
-    // Pre-populate if category/class/team are selected in main filter
-    if (currentCategoryId) {
-        catSelect.value = currentCategoryId;
-        updateClassDropdownAndPreview();
-    }
-    if (currentClassId && currentCategoryId) {
-        classSelect.value = currentClassId;
-    }
-    if (currentTeamId) {
-        document.getElementById('addStuTeam').value = currentTeamId;
-    }
-
-    catSelect.addEventListener('change', updateClassDropdownAndPreview);
-
-    form.onsubmit = async (e) => {
-        e.preventDefault();
-        
-        const name = document.getElementById('addStuName').value.trim();
-        const gender = document.getElementById('addStuGender').value;
-        const catId = catSelect.value;
-        const classId = classSelect.value;
-        const teamId = document.getElementById('addStuTeam').value;
-
-        if (!name || !gender || !catId || !classId || !teamId) {
-            window.showToast("Please fill in all required fields.", "error");
+        if (!seqClass.value) {
+            bulkNamesTextarea.value = "";
+            bulkNamesTextarea.disabled = true;
+            chestPreviewPanel.style.display = 'none';
+            statsPanel.style.display = 'none';
+            btnSave.disabled = true;
             return;
         }
 
-        saveBtn.disabled = true;
-        saveBtn.querySelector('.btn-text').classList.add('hidden');
-        saveBtn.querySelector('.btn-spinner').classList.remove('hidden');
+        // Enable Names Textarea
+        bulkNamesTextarea.disabled = false;
+        chestPreviewPanel.style.display = 'flex';
+        calculateChestPreviewAndStats();
+    }
 
-        try {
-            // Fetch fresh category document
-            const catRef = doc(db, "institutes", window.currentInstituteId, "categories", catId);
-            const catSnap = await getDoc(catRef);
-            if (!catSnap.exists()) {
-                window.showToast("Selected Category does not exist.", "error");
-                saveBtn.disabled = false;
-                saveBtn.querySelector('.btn-text').classList.remove('hidden');
-                saveBtn.querySelector('.btn-spinner').classList.add('hidden');
+    function calculateChestPreviewAndStats() {
+        const catId = seqCategory.value;
+        const classId = seqClass.value;
+        const teamId = seqTeam.value;
+        const rawNames = bulkNamesTextarea.value;
+
+        const cat = allCategories.find(c => c.id === catId);
+        if (!cat) return;
+
+        // 1. Calculate highest existing chest number
+        const catStudents = localStudentsAll.filter(s => s.categoryId === catId);
+        const chestNums = catStudents.map(s => parseInt(s.chestNumber, 10)).filter(num => !isNaN(num));
+        const highestChest = chestNums.length > 0 ? Math.max(...chestNums) : 0;
+        
+        const chestStart = parseInt(cat.chestStart, 10) || 1;
+        const chestEnd = parseInt(cat.chestEnd, 10) || Infinity;
+        
+        const lblHighestChest = document.getElementById('lblHighestChest');
+        lblHighestChest.textContent = highestChest > 0 ? `#${highestChest}` : 'None';
+
+        // 2. Parse batch names
+        const lines = rawNames.split('\n');
+        const validNames = [];
+        const invalidLines = [];
+        const batchDuplicates = [];
+        const dbDuplicates = [];
+
+        const seenInBatch = new Set();
+
+        lines.forEach((line, idx) => {
+            const name = line.trim();
+            if (!name) return;
+
+            if (name.length < 2) {
+                invalidLines.push({ name, lineNum: idx + 1, reason: "Name too short" });
                 return;
             }
 
-            const catData = catSnap.data();
-            const chestStart = parseInt(catData.chestStart, 10);
-            const chestEnd = parseInt(catData.chestEnd, 10);
-            let nextChest = parseInt(catData.nextChestNumber || chestStart, 10);
-
-            if (isNaN(chestStart) || isNaN(chestEnd)) {
-                window.showToast("Category chest range is not configured properly in Category Settings.", "error");
-                saveBtn.disabled = false;
-                saveBtn.querySelector('.btn-text').classList.remove('hidden');
-                saveBtn.querySelector('.btn-spinner').classList.add('hidden');
+            const nameLower = name.toLowerCase();
+            if (seenInBatch.has(nameLower)) {
+                batchDuplicates.push({ name, lineNum: idx + 1 });
                 return;
             }
+            seenInBatch.add(nameLower);
 
-            // Pre-allocate chest number with self-healing skip logic
-            let assignedChest = null;
-            while (nextChest <= chestEnd) {
-                const chestStr = nextChest.toString();
-                const isTaken = localStudentsAll.some(s => s.chestNumber === chestStr);
-                if (!isTaken) {
-                    assignedChest = chestStr;
-                    nextChest++;
-                    break;
-                }
-                nextChest++;
+            const isDbDup = localStudentsAll.some(s => 
+                s.name.trim().toLowerCase() === nameLower && 
+                s.categoryId === catId && 
+                s.teamId === teamId && 
+                s.classId === classId
+            );
+
+            if (isDbDup) {
+                dbDuplicates.push({ name, lineNum: idx + 1 });
             }
 
-            if (!assignedChest) {
-                window.showToast("No available chest numbers remaining for this category.", "error");
-                saveBtn.disabled = false;
-                saveBtn.querySelector('.btn-text').classList.remove('hidden');
-                saveBtn.querySelector('.btn-spinner').classList.add('hidden');
-                return;
-            }
-
-            const batch = writeBatch(db);
-            const colRef = collection(db, "institutes", window.currentInstituteId, "students");
-            const newDocRef = doc(colRef);
-
-            const catObj = allCategories.find(c => c.id === catId);
-            const clsObj = catObj?.classes.find(c => c.id === classId);
-            
-            batch.set(newDocRef, {
-                chestNumber: assignedChest,
-                name: name,
-                gender: gender,
-                categoryId: catId,
-                categoryName: catObj?.name || '',
-                classId: classId,
-                className: clsObj?.name || '',
-                teamId: teamId,
-                createdAt: serverTimestamp()
-            });
-
-            // Commit the updated nextChestNumber on the Category doc
-            batch.update(catRef, {
-                nextChestNumber: nextChest,
-                updatedAt: serverTimestamp()
-            });
-
-            if (teamId) {
-                const teamRef = doc(db, "institutes", window.currentInstituteId, "teams", teamId);
-                batch.update(teamRef, { memberCount: increment(1) });
-            }
-
-            await batch.commit();
-            await updateDashboardMetadata(window.currentInstituteId);
-            window.showToast(`Student ${name} successfully enrolled with Chest No #${assignedChest}!`, "success");
-            modalOverlay.classList.add('hidden');
-        } catch (err) {
-            console.error("Error creating student:", err);
-            window.showToast("Failed to create student.", "error");
-        } finally {
-            saveBtn.disabled = false;
-            saveBtn.querySelector('.btn-text').classList.remove('hidden');
-            saveBtn.querySelector('.btn-spinner').classList.add('hidden');
-        }
-    };
-}
-
-function openBulkAddModal() {
-    const modalTitle = document.getElementById('dynamicModalTitle');
-    const modalBody = document.getElementById('dynamicModalBody');
-    const modalOverlay = document.getElementById('dynamicModal');
-
-    const cat = allCategories.find(c => c.id === currentCategoryId);
-    const cls = cat?.classes.find(c => c.id === currentClassId);
-
-    modalTitle.textContent = '🎓 Add Students';
-    modalBody.innerHTML = `
-        <div style="margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:center;">
-            <p style="font-size:0.85rem; color:#64748b; margin:0;">Adding to: <strong>${cat?.name} / ${cls?.name}</strong></p>
-            <button type="button" id="addRowBtn" class="btn btn-secondary btn-sm">+ Add Row</button>
-        </div>
-        <div style="overflow-x:auto;">
-            <table style="width:100%; border-collapse:collapse; font-size:0.875rem;">
-                <thead>
-                    <tr style="border-bottom:2px solid #e2e8f0;">
-                        <th style="text-align:left; padding:0.5rem 0.4rem; color:#64748b; font-weight:600;">Student Name</th>
-                        <th style="text-align:left; padding:0.5rem 0.4rem; color:#64748b; font-weight:600; width:150px;">Gender</th>
-                        <th style="width:32px;"></th>
-                    </tr>
-                </thead>
-                <tbody id="studentRowsBody"></tbody>
-            </table>
-        </div>
-        <div class="modal-actions" style="margin-top:1.25rem;">
-            <button type="button" class="btn btn-secondary" id="cancelBulkBtn">Cancel</button>
-            <button type="button" class="btn btn-primary" id="saveBulkBtn">
-                <span class="btn-text">💾 Save All Students</span>
-                <span class="btn-spinner hidden"></span>
-            </button>
-        </div>
-    `;
-
-    modalOverlay.classList.remove('hidden');
-    document.getElementById('cancelBulkBtn').onclick = () => modalOverlay.classList.add('hidden');
-    document.getElementById('addRowBtn').onclick = () => addStudentRow();
-
-    addStudentRow();
-    addStudentRow();
-
-    document.getElementById('saveBulkBtn').onclick = async () => {
-        const rows = document.querySelectorAll('.student-entry-row');
-        const students = [];
-        rows.forEach(row => {
-            const name = row.querySelector('.s-name').value.trim();
-            const gender = row.querySelector('.s-gender').value;
-            if (name) students.push({ name, gender });
+            validNames.push(name);
         });
 
-        if (students.length === 0) return window.showToast("Fill in at least one student.", "error");
+        const totalCount = lines.filter(l => l.trim() !== "").length;
+        const validCount = validNames.length;
+        const dupCount = batchDuplicates.length + dbDuplicates.length;
+        const invalidCount = invalidLines.length;
 
-        const btn = document.getElementById('saveBulkBtn');
-        btn.disabled = true;
+        document.getElementById('statTotal').textContent = totalCount;
+        document.getElementById('statValid').textContent = validNames.length - dbDuplicates.length;
+        document.getElementById('statDuplicate').textContent = dupCount;
+        document.getElementById('statInvalid').textContent = invalidCount;
+
+        if (totalCount > 0) {
+            statsPanel.style.display = 'flex';
+        } else {
+            statsPanel.style.display = 'none';
+        }
+
+        // Next Available and Range calculation
+        const lblNextChest = document.getElementById('lblNextChest');
+        const lblExpectedRange = document.getElementById('lblExpectedRange');
+
+        let nextChest = Math.max(highestChest + 1, chestStart);
+        
+        const findNextAvailable = (startFrom, excludeSet) => {
+            let current = startFrom;
+            while (true) {
+                const currentStr = current.toString();
+                const isTaken = localStudentsAll.some(s => s.chestNumber === currentStr) || excludeSet.has(currentStr);
+                if (!isTaken) return current;
+                current++;
+                if (current > chestEnd) return null;
+            }
+        };
+
+        let tempExclude = new Set();
+        let rangeStart = null;
+        let rangeEnd = null;
+        let limitReached = false;
+
+        const studentsToAllocateCount = validNames.length;
+
+        for (let i = 0; i < studentsToAllocateCount; i++) {
+            const allocated = findNextAvailable(nextChest, tempExclude);
+            if (allocated === null) {
+                limitReached = true;
+                break;
+            }
+            if (i === 0) rangeStart = allocated;
+            rangeEnd = allocated;
+            tempExclude.add(allocated.toString());
+            nextChest = allocated + 1;
+        }
+
+        const firstAvailable = findNextAvailable(Math.max(highestChest + 1, chestStart), new Set());
+
+        if (firstAvailable) {
+            lblNextChest.textContent = `#${firstAvailable}`;
+            lblNextChest.style.color = '#4f46e5';
+        } else {
+            lblNextChest.textContent = 'Limit reached';
+            lblNextChest.style.color = '#ef4444';
+        }
+
+        if (studentsToAllocateCount === 0) {
+            lblExpectedRange.textContent = '—';
+            lblExpectedRange.style.color = '#475569';
+        } else if (limitReached) {
+            lblExpectedRange.textContent = 'Chest range limit exceeded!';
+            lblExpectedRange.style.color = '#ef4444';
+        } else {
+            lblExpectedRange.textContent = rangeStart === rangeEnd ? `#${rangeStart}` : `#${rangeStart} – #${rangeEnd}`;
+            lblExpectedRange.style.color = '#15803d';
+        }
+
+        // Smart Duplicate Warnings UI Panel
+        const warningCard = document.getElementById('duplicateWarningCard');
+        const warningListContainer = document.getElementById('duplicateListContainer');
+
+        if (dupCount > 0) {
+            warningCard.style.display = 'flex';
+            warningListContainer.innerHTML = '';
+
+            batchDuplicates.forEach(d => {
+                const div = document.createElement('div');
+                div.innerHTML = `⚠️ Line ${d.lineNum}: <strong>${window.escapeHTML(d.name)}</strong> (Duplicate in current batch)`;
+                warningListContainer.appendChild(div);
+            });
+
+            dbDuplicates.forEach(d => {
+                const div = document.createElement('div');
+                div.innerHTML = `👤 Line ${d.lineNum}: <strong>${window.escapeHTML(d.name)}</strong> (Already exists in same category/team/class)`;
+                warningListContainer.appendChild(div);
+            });
+        } else {
+            warningCard.style.display = 'none';
+        }
+
+        btnSave.disabled = (validCount === 0 || limitReached || invalidCount > 0);
+    }
+
+    // Attach sequence listeners
+    seqCategory.addEventListener('change', () => {
+        seqTeam.innerHTML = '<option value="">Select Team (Disabled)...</option>';
+        seqClass.innerHTML = '<option value="">Select Class (Disabled)...</option>';
+        updateFlowState();
+    });
+    seqTeam.addEventListener('change', updateFlowState);
+    seqGender.addEventListener('change', updateFlowState);
+    seqClass.addEventListener('change', updateFlowState);
+
+    bulkNamesTextarea.addEventListener('input', calculateChestPreviewAndStats);
+
+    btnSave.onclick = async (e) => {
+        e.preventDefault();
+        
+        const catId = seqCategory.value;
+        const classId = seqClass.value;
+        const teamId = seqTeam.value;
+        
+        const lines = bulkNamesTextarea.value.split('\n');
+        const validNames = [];
+        const seen = new Set();
+        
+        lines.forEach(line => {
+            const name = line.trim();
+            if (name && name.length >= 2 && !seen.has(name.toLowerCase())) {
+                validNames.push(name);
+                seen.add(name.toLowerCase());
+            }
+        });
+
+        if (validNames.length === 0) {
+            window.showToast("Please enter at least one valid student name.", "error");
+            return;
+        }
+
+        const dupCount = document.getElementById('duplicateWarningCard').style.display !== 'none';
+        if (dupCount) {
+            const confirmSave = await window.customConfirm(
+                "Duplicate student names were detected. Are you sure you want to proceed and save?",
+                "Potential Duplicates Found",
+                { danger: true, okText: "Save Anyway", cancelText: "Cancel" }
+            );
+            if (!confirmSave) return;
+        }
+
+        btnSave.disabled = true;
+        btnSave.querySelector('.btn-text').classList.add('hidden');
+        btnSave.querySelector('.btn-spinner').classList.remove('hidden');
 
         try {
-            // Fetch fresh category state
-            const catRef = doc(db, "institutes", window.currentInstituteId, "categories", currentCategoryId);
-            const catSnap = await getDoc(catRef);
-            if (!catSnap.exists()) {
-                window.showToast("Category not found.", "error");
-                btn.disabled = false;
-                return;
-            }
-            const catData = catSnap.data();
-            const chestStart = parseInt(catData.chestStart, 10);
-            const chestEnd = parseInt(catData.chestEnd, 10);
-            let nextChest = parseInt(catData.nextChestNumber || chestStart, 10);
+            const instId = window.currentInstituteId;
+            const catRef = doc(db, "institutes", instId, "categories", catId);
+            
+            await runTransaction(db, async (transaction) => {
+                const catSnap = await transaction.get(catRef);
+                if (!catSnap.exists()) {
+                    throw new Error("Category configuration not found.");
+                }
 
-            if (isNaN(chestStart) || isNaN(chestEnd)) {
-                window.showToast("Category chest range is not configured properly in Category Settings.", "error");
-                btn.disabled = false;
-                return;
-            }
+                const catData = catSnap.data();
+                const chestStart = parseInt(catData.chestStart, 10) || 1;
+                const chestEnd = parseInt(catData.chestEnd, 10) || Infinity;
+                
+                const catStudents = localStudentsAll.filter(s => s.categoryId === catId);
+                const chestNums = catStudents.map(s => parseInt(s.chestNumber, 10)).filter(num => !isNaN(num));
+                const highestChest = chestNums.length > 0 ? Math.max(...chestNums) : 0;
+                
+                let nextChest = Math.max(parseInt(catData.nextChestNumber || chestStart, 10), highestChest + 1);
 
-            // Pre-allocate chest numbers with self-healing skip logic
-            const allocatedStudents = [];
-            for (const stu of students) {
-                let assignedChest = null;
-                while (nextChest <= chestEnd) {
-                    const chestStr = nextChest.toString();
-                    const isTaken = localStudentsAll.some(s => s.chestNumber === chestStr);
-                    if (!isTaken) {
-                        assignedChest = chestStr;
+                const colRef = collection(db, "institutes", instId, "students");
+                const catObj = allCategories.find(c => c.id === catId);
+                const clsObj = catObj?.classes.find(c => c.id === classId);
+
+                const allocatedStudents = [];
+                for (const name of validNames) {
+                    while (true) {
+                        const chestStr = nextChest.toString();
+                        const isTaken = localStudentsAll.some(s => s.chestNumber === chestStr);
+                        if (!isTaken) {
+                            allocatedStudents.push({ name, chestNumber: chestStr });
+                            nextChest++;
+                            break;
+                        }
                         nextChest++;
-                        break;
                     }
-                    nextChest++;
+
+                    if (nextChest - 1 > chestEnd) {
+                        throw new Error("No available chest numbers remaining for this category.");
+                    }
                 }
 
-                if (!assignedChest) {
-                    window.showToast("Chest number limit reached for this category. Please extend the range in Category Settings.", "error");
-                    btn.disabled = false;
-                    return;
+                allocatedStudents.forEach(stu => {
+                    const newStuRef = doc(colRef);
+                    transaction.set(newStuRef, {
+                        chestNumber: stu.chestNumber,
+                        name: stu.name,
+                        gender: seqGender.value,
+                        categoryId: catId,
+                        categoryName: catObj?.name || '',
+                        classId: classId,
+                        className: clsObj?.name || '',
+                        teamId: teamId,
+                        createdAt: serverTimestamp()
+                    });
+                });
+
+                transaction.update(catRef, {
+                    nextChestNumber: nextChest,
+                    updatedAt: serverTimestamp()
+                });
+
+                if (teamId) {
+                    const teamRef = doc(db, "institutes", instId, "teams", teamId);
+                    transaction.update(teamRef, { memberCount: increment(validNames.length) });
                 }
-
-                allocatedStudents.push({
-                    ...stu,
-                    chestNumber: assignedChest
-                });
-            }
-
-            const batch = writeBatch(db);
-            const colRef = collection(db, "institutes", window.currentInstituteId, "students");
-            allocatedStudents.forEach(stu => {
-                batch.set(doc(colRef), {
-                    ...stu,
-                    categoryId: currentCategoryId,
-                    categoryName: cat?.name || '',
-                    classId: currentClassId,
-                    className: cls?.name || '',
-                    teamId: currentTeamId || '',
-                    createdAt: serverTimestamp()
-                });
             });
 
-            // Commit the updated nextChestNumber on the Category doc
-            batch.update(catRef, {
-                nextChestNumber: nextChest,
-                updatedAt: serverTimestamp()
-            });
+            await updateDashboardMetadata(instId);
+            window.showToast(`Successfully enrolled ${validNames.length} students!`, "success");
+            window.navigateTo('students');
 
-            if (currentTeamId) {
-                const teamRef = doc(db, "institutes", window.currentInstituteId, "teams", currentTeamId);
-                batch.update(teamRef, { memberCount: increment(students.length) });
-            }
-
-            await batch.commit();
-            await updateDashboardMetadata(window.currentInstituteId);
-            window.showToast(`${students.length} students added!`);
-            modalOverlay.classList.add('hidden');
-        } catch (e) {
-            console.error(e);
-            window.showToast("Save failed", "error");
+        } catch (err) {
+            window.handleError(err, "registering students in bulk");
         } finally {
-            btn.disabled = false;
+            btnSave.disabled = false;
+            btnSave.querySelector('.btn-text').classList.remove('hidden');
+            btnSave.querySelector('.btn-spinner').classList.add('hidden');
         }
     };
-}
-
-function addStudentRow() {
-    const tbody = document.getElementById('studentRowsBody');
-    const tr = document.createElement('tr');
-    tr.className = 'student-entry-row';
-    tr.style.cssText = 'border-bottom:1px solid #f1f5f9;';
-    tr.innerHTML = `
-        <td style="padding:0.4rem 0.4rem;"><input type="text" class="form-input s-name" placeholder="Full name"></td>
-        <td style="padding:0.4rem 0.4rem;">
-            <select class="form-input s-gender">
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-            </select>
-        </td>
-        <td style="padding:0.4rem 0.2rem;"><button type="button" class="remove-row-btn" style="background:none; border:none; color:#ef4444; cursor:pointer;">✕</button></td>
-    `;
-    tr.querySelector('.remove-row-btn').onclick = () => tr.remove();
-    tbody.appendChild(tr);
 }
 
 function openEditModal(stuId, data) {
@@ -1157,98 +1346,400 @@ function openEditModal(stuId, data) {
         const btn = document.getElementById('saveEditStuBtn');
         btn.disabled = true;
 
+        const newName = document.getElementById('eName').value.trim();
+        const newGender = document.getElementById('eGender').value;
+
+        if (!newName || newName.length < 2) {
+            window.showToast("Student name must be at least 2 characters.", "error");
+            btn.disabled = false;
+            return;
+        }
+
         try {
-            await updateDoc(doc(db, "institutes", window.currentInstituteId, "students", stuId), {
-                name: document.getElementById('eName').value.trim(),
-                gender: document.getElementById('eGender').value,
+            const instId = window.currentInstituteId;
+            const batch = writeBatch(db);
+
+            // 1. Update student document itself
+            const studentRef = doc(db, "institutes", instId, "students", stuId);
+            batch.update(studentRef, {
+                name: newName,
+                gender: newGender,
                 updatedAt: serverTimestamp()
             });
-            await updateDashboardMetadata(window.currentInstituteId);
-            window.showToast("Student updated");
+
+            // 2. Query individual participant registrations
+            const indivSnap = await getDocs(query(
+                collectionGroup(db, "participants"),
+                where("studentId", "==", stuId),
+                where("type", "==", "individual")
+            ));
+            indivSnap.forEach(d => {
+                if (d.ref.path.startsWith(`institutes/${instId}/`)) {
+                    batch.update(d.ref, {
+                        studentName: newName,
+                        gender: newGender,
+                        updatedAt: serverTimestamp()
+                    });
+                }
+            });
+
+            // 3. Query group participant docs and update member name inside members array
+            const student = localStudentsAll.find(s => s.id === stuId);
+            const teamId = student?.teamId || '';
+            if (teamId) {
+                const groupSnap = await getDocs(query(
+                    collectionGroup(db, "participants"),
+                    where("type", "==", "group"),
+                    where("teamId", "==", teamId)
+                ));
+                groupSnap.forEach(d => {
+                    if (d.ref.path.startsWith(`institutes/${instId}/`)) {
+                        const data = d.data();
+                        const groupsList = Array.isArray(data.groups) ? data.groups : [];
+                        let modified = false;
+                        const updatedGroups = groupsList.map(g => {
+                            const members = Array.isArray(g.members) ? g.members : [];
+                            const updatedMembers = members.map(m => {
+                                if (m.studentId === stuId) {
+                                    modified = true;
+                                    return { ...m, studentName: newName };
+                                }
+                                return m;
+                            });
+                            return { ...g, members: updatedMembers };
+                        });
+                        if (modified) {
+                            batch.update(d.ref, { groups: updatedGroups, updatedAt: serverTimestamp() });
+                        }
+                    }
+                });
+            }
+
+            await batch.commit();
+            await updateDashboardMetadata(instId);
+            window.showToast("Student updated successfully.");
             modalOverlay.classList.add('hidden');
-        } catch (e) {
-            console.error(e);
-            window.showToast("Update failed", "error");
+        } catch (err) {
+            window.handleError(err, "updating student");
             btn.disabled = false;
         }
     };
 }
 
-async function deleteStudent(stuId) {
-    if (!confirm("Delete this student? This will also remove them from all program registrations.")) return;
+// ─────────────────────────────────────────────
+// Redesigned Student Deletion Service
+// ─────────────────────────────────────────────
+
+class BatchCommitter {
+    constructor(db) {
+        this.db = db;
+        this.batch = writeBatch(db);
+        this.opsCount = 0;
+        this.commits = [];
+    }
+
+    addSet(ref, data, options) {
+        if (options) {
+            this.batch.set(ref, data, options);
+        } else {
+            this.batch.set(ref, data);
+        }
+        this.checkLimit();
+    }
+
+    addUpdate(ref, data) {
+        this.batch.update(ref, data);
+        this.checkLimit();
+    }
+
+    addDelete(ref) {
+        this.batch.delete(ref);
+        this.checkLimit();
+    }
+
+    checkLimit() {
+        this.opsCount++;
+        if (this.opsCount >= 450) {
+            this.commits.push(this.batch.commit());
+            this.batch = writeBatch(this.db);
+            this.opsCount = 0;
+        }
+    }
+
+    async commitAll() {
+        if (this.opsCount > 0) {
+            this.commits.push(this.batch.commit());
+        }
+        await Promise.all(this.commits);
+    }
+}
+
+async function validatePreDelete(instId) {
+    const user = auth.currentUser;
+    if (!user) {
+        throw new Error("unauthenticated");
+    }
+
+    // 1. Fetch User profile document
+    const userRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+        throw new Error("permission-denied");
+    }
+
+    const userData = userSnap.data();
+    if (userData.role !== 'admin' && userData.role !== 'super_admin') {
+        throw new Error("permission-denied");
+    }
+
+    if (userData.role === 'admin' && userData.instituteId !== instId) {
+        throw new Error("permission-denied");
+    }
+
+    // 2. Fetch Institute details
+    const instRef = doc(db, "institutes", instId);
+    const instSnap = await getDoc(instRef);
+    if (!instSnap.exists()) {
+        throw new Error("not-found");
+    }
+
+    const instData = instSnap.data();
+    if (instData.status !== 'active') {
+        throw new Error("deactivated");
+    }
+
+    const now = new Date().getTime();
+    const expiryDateObj = instData.expiryDate?.toDate?.() || (instData.expiryDate ? new Date(instData.expiryDate) : null);
+    if (expiryDateObj && now >= expiryDateObj.getTime()) {
+        throw new Error("expired");
+    }
+
+    return { user, userData };
+}
+
+async function executeStudentDeletion(studentIds) {
+    const instId = window.currentInstituteId;
+    if (!instId) {
+        throw new Error("Institute ID is not set.");
+    }
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+        return;
+    }
+
+    let lastQueryLabel = "validatePreDelete";
+    let authUid = 'N/A';
+    let userRole = 'N/A';
+
     try {
-        const instId = window.currentInstituteId;
-        const student = localStudentsAll.find(s => s.id === stuId);
-        const teamId = student?.teamId || '';
+        // 1. Pre-delete Validation
+        const { user, userData } = await validatePreDelete(instId);
+        authUid = user.uid;
+        userRole = userData.role;
 
-        const batch = writeBatch(db);
+        const deletionDate = new Date();
+        const expiryDate = new Date(deletionDate.getTime() + 24 * 60 * 60 * 1000); // 24 Hours
+        const deletedBy = user.email || user.uid || 'Admin';
 
-        // ── 1. Individual participant registrations ──────────────────────
-        // Use collectionGroup to find every participant doc with studentId == stuId
-        const programCountDeltas = new Map(); // programId -> count change
-
-        const indivSnap = await getDocs(query(
-            collectionGroup(db, "participants"),
-            where("studentId", "==", stuId),
-            where("type", "==", "individual")
-        ));
-        indivSnap.forEach(d => {
-            const data = d.data();
-            batch.delete(d.ref);
-            if (data.programId) {
-                programCountDeltas.set(
-                    data.programId,
-                    (programCountDeltas.get(data.programId) || 0) - 1
-                );
+        // 2. Fetch Student details to get data and teamId
+        const studentsDataMap = new Map(); // studentId -> studentData
+        const teamMemberCountDeltas = new Map(); // teamId -> count decrement
+        
+        lastQueryLabel = `Fetch student documents (bulk count: ${studentIds.length})`;
+        
+        const fetchPromises = studentIds.map(async (stuId) => {
+            const studentRef = doc(db, "institutes", instId, "students", stuId);
+            const snap = await getDoc(studentRef);
+            if (snap.exists()) {
+                const sData = snap.data();
+                studentsDataMap.set(stuId, sData);
+                if (sData.teamId) {
+                    teamMemberCountDeltas.set(sData.teamId, (teamMemberCountDeltas.get(sData.teamId) || 0) + 1);
+                }
             }
         });
+        await Promise.all(fetchPromises);
 
-        // ── 2. Group participant docs ─────────────────────────────────────
-        // Groups embed student data as groups[].members[] arrays.
-        // Query by teamId to scope the search, then filter programmatically.
-        if (teamId) {
-            const groupSnap = await getDocs(query(
-                collectionGroup(db, "participants"),
-                where("type", "==", "group"),
-                where("teamId", "==", teamId)
-            ));
-            groupSnap.forEach(d => {
+        const committer = new BatchCommitter(db);
+
+        // 3. Write Recovery Bin backup and Student deletes to batch
+        for (const [stuId, sData] of studentsDataMap.entries()) {
+            const binRef = doc(db, "institutes", instId, "recoveryBin", stuId);
+            committer.addSet(binRef, {
+                type: 'student',
+                originalId: stuId,
+                originalPath: `institutes/${instId}/students/${stuId}`,
+                data: sData,
+                deletedBy,
+                deletedAt: deletionDate.toISOString(),
+                expiryTime: expiryDate.toISOString()
+            });
+
+            const studentRef = doc(db, "institutes", instId, "students", stuId);
+            committer.addDelete(studentRef);
+        }
+
+        const studentIdsSet = new Set(studentIds);
+        const programCountDeltas = new Map(); // programId -> count change
+
+        // 4. Clean up Participant Registrations (100% Index-Free Strategy)
+        lastQueryLabel = `getCachedPrograms(window.currentInstituteId)`;
+        const allProgs = await getCachedPrograms(instId);
+
+        // Fetch all program participants in parallel using standard subcollection paths (no index required)
+        lastQueryLabel = `Fetch participants for all ${allProgs.length} programs`;
+        const progParticipantsSnaps = await Promise.all(
+            allProgs.map(prog => getDocs(collection(db, "institutes", instId, "programs", prog.id, "participants")))
+        );
+
+        for (let idx = 0; idx < allProgs.length; idx++) {
+            const prog = allProgs[idx];
+            const progId = prog.id;
+            const partSnap = progParticipantsSnaps[idx];
+
+            let individualDeletedCount = 0;
+            let groupsDeletedTotal = 0;
+
+            partSnap.forEach(d => {
                 const data = d.data();
-                const groups = Array.isArray(data.groups) ? data.groups : [];
-                const studentInGroup = groups.some(g =>
-                    Array.isArray(g.members) && g.members.some(m => m.studentId === stuId)
-                );
-                if (studentInGroup) {
-                    const updatedGroups = groups.map(g => ({
-                        ...g,
-                        members: (g.members || []).filter(m => m.studentId !== stuId)
-                    }));
-                    batch.update(d.ref, { groups: updatedGroups });
+                if (data.type === 'individual') {
+                    if (studentIdsSet.has(data.studentId)) {
+                        committer.addDelete(d.ref);
+                        individualDeletedCount++;
+                    }
+                } else if (data.type === 'group') {
+                    const groups = Array.isArray(data.groups) ? data.groups : [];
+                    let groupsDeleted = 0;
+                    const updatedGroups = [];
+
+                    groups.forEach(g => {
+                        const remainingMembers = (g.members || []).filter(m => !studentIdsSet.has(m.studentId));
+                        if (remainingMembers.length > 0) {
+                            updatedGroups.push({
+                                ...g,
+                                members: remainingMembers
+                            });
+                        } else {
+                            groupsDeleted++;
+                        }
+                    });
+
+                    groupsDeletedTotal += groupsDeleted;
+
+                    if (updatedGroups.length === 0) {
+                        committer.addDelete(d.ref);
+                    } else {
+                        committer.addUpdate(d.ref, { groups: updatedGroups });
+                    }
                 }
             });
+
+            if (individualDeletedCount > 0) {
+                programCountDeltas.set(
+                    progId,
+                    (programCountDeltas.get(progId) || 0) - individualDeletedCount
+                );
+            }
+            if (groupsDeletedTotal > 0) {
+                programCountDeltas.set(
+                    progId,
+                    (programCountDeltas.get(progId) || 0) - groupsDeletedTotal
+                );
+            }
         }
 
-        // ── 3. Decrement participantCount on every affected program ───────
-        for (const [programId, delta] of programCountDeltas) {
-            const progRef = doc(db, "institutes", instId, "programs", programId);
-            batch.update(progRef, { participantCount: increment(delta) });
+        // 5. Update Program Participant Counts
+        for (const [progId, delta] of programCountDeltas.entries()) {
+            if (delta !== 0) {
+                const progRef = doc(db, "institutes", instId, "programs", progId);
+                committer.addUpdate(progRef, { participantCount: increment(delta) });
+            }
         }
 
-        // ── 4. Delete the student document ───────────────────────────────
-        batch.delete(doc(db, "institutes", instId, "students", stuId));
-
-        // ── 5. Decrement team memberCount ─────────────────────────────────
-        if (teamId) {
-            const teamRef = doc(db, "institutes", instId, "teams", teamId);
-            batch.update(teamRef, { memberCount: increment(-1) });
+        // 6. Update Team Member Counts
+        for (const [teamId, count] of teamMemberCountDeltas.entries()) {
+            if (count !== 0) {
+                const teamRef = doc(db, "institutes", instId, "teams", teamId);
+                committer.addUpdate(teamRef, { memberCount: increment(-count) });
+            }
         }
 
-        await batch.commit();
+        // 7. Commit all batches
+        lastQueryLabel = `batch.commitAll()`;
+        await committer.commitAll();
+
+        // 8. Update Dashboard Metadata
+        lastQueryLabel = `updateDashboardMetadata("${instId}")`;
         await updateDashboardMetadata(instId);
-        window.showToast("Student deleted and all registrations removed.");
+
+        console.log(`Successfully deleted ${studentIds.length} students. Recovery Bin backups created.`);
     } catch (e) {
-        console.error(e);
-        window.showToast("Delete failed", "error");
+        console.error("Student deletion failure diagnostic log:", {
+            authUid: authUid || auth.currentUser?.uid || 'N/A',
+            userRole: userRole || 'N/A',
+            instituteId: instId || 'N/A',
+            studentIds: studentIds,
+            queryPath: lastQueryLabel,
+            firestoreErrorCode: e.code || 'N/A',
+            firestoreErrorMessage: e.message || 'N/A'
+        });
+        throw e;
+    }
+}
+
+export async function deleteStudent(stuId) {
+    const confirmed = await window.customConfirm(
+        "Are you sure you want to delete this student? This will move them to the Recovery Bin for 24 hours and remove them from all program registrations.",
+        "Delete Student",
+        { danger: true, okText: "Delete" }
+    );
+    if (!confirmed) return;
+
+    try {
+        await executeStudentDeletion([stuId]);
+        window.showToast("Student deleted successfully.", "success");
+    } catch (err) {
+        window.handleError(err, "deleting student");
+    }
+}
+
+export async function deleteStudents(studentIds) {
+    if (!Array.isArray(studentIds) || studentIds.length === 0) return;
+    const confirmed = await window.customConfirm(
+        `Are you sure you want to delete the ${studentIds.length} selected students? They will be moved to the Recovery Bin and removed from all program registrations.`,
+        "Delete Selected Students",
+        { danger: true, okText: "Delete Bulk" }
+    );
+    if (!confirmed) return;
+
+    try {
+        await executeStudentDeletion(studentIds);
+        window.showToast(`${studentIds.length} students deleted successfully.`, "success");
+    } catch (err) {
+        window.handleError(err, "deleting selected students");
+    }
+}
+
+export async function deleteAllStudents() {
+    const confirmed = await window.customConfirm(
+        "⚠️ WARNING: This will delete ALL students in this institute! They will be moved to the Recovery Bin and removed from all program registrations. This action is highly destructive.",
+        "Delete All Students",
+        { danger: true, okText: "Delete All" }
+    );
+    if (!confirmed) return;
+
+    try {
+        const instId = window.currentInstituteId;
+        const snap = await getDocs(collection(db, "institutes", instId, "students"));
+        const studentIds = snap.docs.map(d => d.id);
+        if (studentIds.length === 0) {
+            window.showToast("No students to delete.", "info");
+            return;
+        }
+
+        await executeStudentDeletion(studentIds);
+        window.showToast(`All ${studentIds.length} students deleted successfully.`, "success");
+    } catch (err) {
+        window.handleError(err, "deleting all students");
     }
 }
 

@@ -6,7 +6,7 @@ import { doc, getDoc, collection, query, where, getCountFromServer, onSnapshot, 
 // Import modules
 import { initTeamsView } from './teams.js';
 import { initCategoriesView } from './categories.js';
-import { initStudentsView } from './students.js';
+import { initStudentsView, initAddStudentView } from './students.js';
 import { initProgramsView } from './programs.js';
 import { initResultsView } from './results.js';
 import { initParticipantsWorkflowView } from './participants-workflow.js';
@@ -40,6 +40,7 @@ const views = {
     'teams': initTeamsView,
     'categories': initCategoriesView,
     'students': initStudentsView,
+    'add-student': initAddStudentView,
     'programs': initProgramsView,
     'judges': initJudgesView,
     'mark-entry': initMarkEntryView,
@@ -377,6 +378,7 @@ function navigateTo(viewName) {
         'teams': 'Manage Teams',
         'categories': 'Manage Categories & Classes',
         'students': 'Student Directory',
+        'add-student': 'Register Students (Bulk)',
         'programs': 'Manage Programs',
         'judges': 'Manage Judges',
         'mark-entry': 'Mark Entry',
@@ -396,6 +398,7 @@ function navigateTo(viewName) {
         }, 100);
     }
 }
+window.navigateTo = navigateTo;
 
 // ─────────────────────────────────────────────
 // Centralized Proximity Expiry Banner Helper (7 days check)

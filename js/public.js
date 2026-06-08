@@ -327,7 +327,7 @@ function downloadResultImage(result) {
     }).catch(err => {
         console.error('Download failed:', err);
         document.body.removeChild(target);
-        alert('Image download failed. Please try again.');
+        window.customAlert('Image download failed. Please try again.', 'Error', { icon: '⚠️', iconColor: '#ef4444', iconBg: 'rgba(239, 68, 68, 0.08)' });
     });
 }
 

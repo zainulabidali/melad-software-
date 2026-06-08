@@ -426,7 +426,8 @@ function renderResultsView() {
             pubBtn.onclick = async (e) => {
                 e.stopPropagation();
                 menu.style.display = 'none';
-                if (!confirm("Publish this result to the public portal?")) return;
+                const confirmed = await window.customConfirm("Publish this result to the public portal?");
+                if (!confirmed) return;
                 try {
                     await updateDoc(doc(db, "institutes", window.currentInstituteId, "results", r.id), {
                         status: 'published',
@@ -447,7 +448,8 @@ function renderResultsView() {
             revBtn.onclick = async (e) => {
                 e.stopPropagation();
                 menu.style.display = 'none';
-                if (!confirm("Revoke this result from the public view?")) return;
+                const confirmed = await window.customConfirm("Revoke this result from the public view?");
+                if (!confirmed) return;
                 try {
                     await updateDoc(doc(db, "institutes", window.currentInstituteId, "results", r.id), {
                         status: 'draft',
@@ -659,7 +661,8 @@ function openResultDetailPopup(r) {
     modalBody.querySelectorAll('.btn-popup-delete').forEach(btn => {
         btn.onclick = async (e) => {
             e.stopPropagation();
-            if (!confirm("Delete this result permanently?")) return;
+            const confirmed = await window.customConfirm("Delete this result permanently?");
+            if (!confirmed) return;
 
             try {
                 handleClose();
@@ -704,7 +707,8 @@ async function triggerPublishAll() {
         return;
     }
 
-    if (!confirm(`Are you sure you want to publish all ${submittedDrafts.length} submitted program results at once?`)) return;
+    const confirmed = await window.customConfirm(`Are you sure you want to publish all ${submittedDrafts.length} submitted program results at once?`);
+    if (!confirmed) return;
 
     const spinner = document.getElementById('resultsStatsGrid');
     const batch = writeBatch(db);

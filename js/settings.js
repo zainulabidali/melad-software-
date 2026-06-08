@@ -788,7 +788,8 @@ async function triggerRestore(binId) {
 // ─────────────────────────────────────────────
 async function triggerPurge(binId) {
     const instId = window.currentInstituteId;
-    if (!confirm("Are you sure you want to permanently delete this backup document from the recovery bin? This cannot be undone.")) return;
+    const confirmed = await window.customConfirm("Are you sure you want to permanently delete this backup document from the recovery bin? This cannot be undone.");
+    if (!confirmed) return;
 
     showToast("Purging recovery record...");
 
