@@ -519,10 +519,69 @@ function toggleChartEmptyState(containerId, isEmpty) {
     }
 }
 
+function getCategoryColor(categoryName, index) {
+    const name = categoryName.toLowerCase().trim();
+    if (name.includes('sub junior')) return '#3B82F6'; // Blue
+    if (name.includes('junior')) return '#8B5CF6'; // Purple
+    if (name.includes('senior')) return '#10B981'; // Green
+    
+    // Fallback list of modern colors
+    const colors = [
+        '#F59E0B', // Amber
+        '#EC4899', // Pink
+        '#06B6D4', // Cyan
+        '#14B8A6', // Teal
+        '#6366F1', // Indigo
+        '#EF4444', // Red
+        '#84CC16', // Lime
+        '#10B981'  // Emerald
+    ];
+    return colors[index % colors.length];
+}
+
+const centerTextPlugin = {
+    id: 'centerText',
+    beforeDraw: function(chart) {
+        if (chart.config.type !== 'doughnut') return;
+        
+        const { ctx, chartArea } = chart;
+        if (!chartArea) return;
+        
+        const centerX = (chartArea.left + chartArea.right) / 2;
+        const centerY = (chartArea.top + chartArea.bottom) / 2;
+        
+        ctx.save();
+        
+        // Draw "Total" label
+        ctx.font = "600 11px 'Inter', sans-serif";
+        ctx.fillStyle = "#64748b";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("TOTAL", centerX, centerY - 12);
+        
+        // Draw total count value
+        const total = chart.data.datasets[0].data.reduce((sum, val) => sum + val, 0);
+        ctx.font = "bold 26px 'Outfit', sans-serif";
+        ctx.fillStyle = "#0f172a";
+        ctx.fillText(total.toString(), centerX, centerY + 12);
+        
+        ctx.restore();
+    }
+};
+
 function updateCharts(teamLabels, teamData, catLabels, catData) {
     if (!window.Chart) {
         console.warn("Chart.js not loaded yet.");
         return;
+    }
+
+    if (window.ChartDataLabels) {
+        try {
+            Chart.register(window.ChartDataLabels);
+        } catch (e) {
+            // Already registered or not supported
+        }
+        Chart.defaults.plugins.datalabels = { display: false };
     }
 
     const isTeamEmpty = teamData.length === 0 || teamData.every(v => v === 0);
@@ -531,50 +590,92 @@ function updateCharts(teamLabels, teamData, catLabels, catData) {
     toggleChartEmptyState('radarContainer', isTeamEmpty);
     toggleChartEmptyState('barContainer', isCatEmpty);
 
-    // Radar Chart (Participants by Team)
+    // Modern Bar Chart (Participants by Team)
     const ctxRadar = document.getElementById('chartTeamsRadar')?.getContext('2d');
+    
+    // Generate gradients for each team
+    const gradients = [];
+    const gradientStops = [
+        { start: '#7C3AED', end: '#C084FC' }, // Team A: Purple → Violet
+        { start: '#3B82F6', end: '#06B6D4' }, // Team B: Blue → Cyan
+        { start: '#10B981', end: '#34D399' }, // Team C: Emerald → Green
+        { start: '#F59E0B', end: '#FBBF24' }, // Amber → Yellow
+        { start: '#EC4899', end: '#F472B6' }, // Pink
+        { start: '#6366F1', end: '#818CF8' }  // Indigo
+    ];
+
     if (ctxRadar) {
+        teamLabels.forEach((label, idx) => {
+            const stop = gradientStops[idx % gradientStops.length];
+            const grad = ctxRadar.createLinearGradient(0, 300, 0, 50);
+            grad.addColorStop(0, stop.start);
+            grad.addColorStop(1, stop.end);
+            gradients.push(grad);
+        });
+
         if (radarChartInstance) {
             radarChartInstance.data.labels = teamLabels;
             radarChartInstance.data.datasets[0].data = teamData;
+            radarChartInstance.data.datasets[0].backgroundColor = gradients;
             radarChartInstance.update();
         } else {
             radarChartInstance = new Chart(ctxRadar, {
-                type: 'radar',
+                type: 'bar',
                 data: {
                     labels: teamLabels,
                     datasets: [{
                         label: 'Participants Count',
                         data: teamData,
-                        backgroundColor: 'rgba(99, 102, 241, 0.15)',
-                        borderColor: '#6366f1',
-                        pointBackgroundColor: '#4f46e5',
-                        pointBorderColor: '#fff',
-                        pointHoverBackgroundColor: '#fff',
-                        pointHoverBorderColor: '#6366f1',
-                        borderWidth: 2
+                        backgroundColor: gradients,
+                        borderRadius: 8,
+                        borderSkipped: false
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeOutQuart'
+                    },
                     plugins: {
-                        legend: { display: false }
+                        legend: { display: false },
+                        datalabels: {
+                            display: true,
+                            anchor: 'end',
+                            align: 'top',
+                            color: '#1e293b',
+                            font: {
+                                weight: '700',
+                                family: "'Inter', sans-serif",
+                                size: 12
+                            },
+                            formatter: (value) => value
+                        }
                     },
                     scales: {
-                        r: {
-                            angleLines: { color: 'rgba(148, 163, 184, 0.2)' },
-                            grid: { color: 'rgba(148, 163, 184, 0.15)' },
-                            pointLabels: {
+                        x: {
+                            grid: { display: false },
+                            ticks: {
                                 font: {
                                     family: "'Inter', sans-serif",
-                                    size: 11,
+                                    size: 12,
                                     weight: '600'
                                 },
                                 color: '#475569'
+                            }
+                        },
+                        y: {
+                            grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                            ticks: {
+                                precision: 0,
+                                font: {
+                                    family: "'Inter', sans-serif",
+                                    size: 11
+                                },
+                                color: '#64748b'
                             },
-                            suggestedMin: 0,
-                            ticks: { precision: 0, display: false }
+                            suggestedMin: 0
                         }
                     }
                 }
@@ -582,53 +683,81 @@ function updateCharts(teamLabels, teamData, catLabels, catData) {
         }
     }
 
-    // Horizontal Bar Chart (Participants by Category)
+    // Modern Doughnut Chart (Participants by Category)
     const ctxBar = document.getElementById('chartCatsBar')?.getContext('2d');
     if (ctxBar) {
+        const bgColors = catLabels.map((label, idx) => getCategoryColor(label, idx));
         if (barChartInstance) {
             barChartInstance.data.labels = catLabels;
             barChartInstance.data.datasets[0].data = catData;
+            barChartInstance.data.datasets[0].backgroundColor = bgColors;
             barChartInstance.update();
         } else {
             barChartInstance = new Chart(ctxBar, {
-                type: 'bar',
+                type: 'doughnut',
                 data: {
                     labels: catLabels,
                     datasets: [{
-                        label: 'Participants Count',
                         data: catData,
-                        backgroundColor: 'rgba(99, 102, 241, 0.85)',
-                        borderColor: '#4f46e5',
-                        borderWidth: 1,
-                        borderRadius: 6
+                        backgroundColor: bgColors,
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                        hoverOffset: 4
                     }]
                 },
                 options: {
-                    indexAxis: 'y', // Makes it horizontal
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
+                    cutout: '70%',
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeOutQuart'
                     },
-                    scales: {
-                        x: {
-                            grid: { color: 'rgba(148, 163, 184, 0.1)' },
-                            ticks: {
-                                font: { family: "'Inter', sans-serif", weight: '500' },
-                                color: '#64748b'
-                            },
-                            suggestedMin: 0,
-                            ticks: { precision: 0 }
-                        },
-                        y: {
-                            grid: { display: false },
-                            ticks: {
-                                font: { family: "'Inter', sans-serif", weight: '600' },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 15,
+                                font: {
+                                    family: "'Inter', sans-serif",
+                                    size: 11,
+                                    weight: '500'
+                                },
                                 color: '#475569'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const datapoints = context.dataset.data;
+                                    const total = datapoints.reduce((total, datapoint) => total + datapoint, 0);
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
+                                    return ` ${label}: ${value} (${percentage})`;
+                                }
+                            }
+                        },
+                        datalabels: {
+                            display: true,
+                            color: '#ffffff',
+                            font: {
+                                weight: '700',
+                                size: 10,
+                                family: "'Inter', sans-serif"
+                            },
+                            formatter: (value, ctx) => {
+                                const datapoints = ctx.chart.data.datasets[0].data;
+                                const total = datapoints.reduce((total, datapoint) => total + datapoint, 0);
+                                if (total === 0) return '';
+                                const percentage = ((value / total) * 100).toFixed(0);
+                                return percentage > 5 ? percentage + '%' : '';
                             }
                         }
                     }
-                }
+                },
+                plugins: [centerTextPlugin]
             });
         }
     }
@@ -681,7 +810,7 @@ function recalculateDashboard() {
                         <td style="padding:0.85rem 0.5rem; font-weight:700; color:#1e293b; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                             ${window.escapeHTML(name)}
                         </td>
-                        <td style="padding:0.85rem 0.5rem; text-align:right; font-weight:800; color:#4f46e5;">
+                        <td style="padding:0.85rem 0.5rem; text-align:right; font-weight:800; color:#7C3AED;">
                             ${points} pts
                         </td>
                     </tr>
@@ -758,8 +887,8 @@ async function initDashboardOverview(container, topActions) {
                 <div class="card stat-card-premium">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span class="stat-title">Students</span>
-                        <div class="stat-card-icon-container" style="background: rgba(99, 102, 241, 0.08);">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="color:#4f46e5;">
+                        <div class="stat-card-icon-container" style="background: rgba(124, 58, 237, 0.08);">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="color:#7C3AED;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                             </svg>
                         </div>
@@ -772,7 +901,7 @@ async function initDashboardOverview(container, topActions) {
                 <div class="card stat-card-premium">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span class="stat-title">Programs</span>
-                        <div class="stat-card-icon-container" style="background: rgba(139, 92, 246, 0.08);">
+                        <div class="stat-card-icon-container" style="background: rgba(124, 58, 237, 0.08);">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="color:#7c3aed;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.504-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 0a7.454 7.454 0 0 0 .981 3.172M8.312 14.375a6.002 6.002 0 0 1-2.813-5.326m13.002 0a6.002 6.002 0 0 1-2.813 5.326M5.499 9.049a3.75 3.75 0 0 1 2.812-4.673M18.501 9.049a3.75 3.75 0 0 0-2.812-4.673M12 2.25A2.25 2.25 0 0 0 9.75 4.5v1.25a2.25 2.25 0 0 0 4.5 0V4.5A2.25 2.25 0 0 0 12 2.25z" />
                             </svg>
@@ -824,8 +953,6 @@ async function initDashboardOverview(container, topActions) {
                     <span class="stat-desc">Assigned evaluators</span>
                 </div>
 
-               
-
             </div>
 
             <!-- Two-Column Main Analytics Grid Area -->
@@ -834,10 +961,10 @@ async function initDashboardOverview(container, topActions) {
                 <!-- Left Column: Dynamic Charts -->
                 <div class="charts-section">
                     
-                    <!-- Card: Participants by Team (Radar Chart) -->
-                    <div class="card chart-card" id="radarContainer" style="display:flex; flex-direction:column; padding:1.5rem; border-color:#e2e8f0;">
+                    <!-- Card: Participants by Team (Bar Chart) -->
+                    <div class="card chart-card" id="radarContainer">
                         <h3 style="font-size:1.05rem; font-weight:800; color:#0f172a; margin-top:0; margin-bottom:1.25rem; display:flex; align-items:center; gap:0.5rem; font-family:'Outfit',sans-serif;">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:1.2rem; height:1.2rem; color:#4f46e5;"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" /></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:1.2rem; height:1.2rem; color:#7C3AED;"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" /></svg>
                             Participants By Team
                         </h3>
                         <div class="chart-container">
@@ -845,10 +972,10 @@ async function initDashboardOverview(container, topActions) {
                         </div>
                     </div>
 
-                    <!-- Card: Participants by Category (Horizontal Bar Chart) -->
-                    <div class="card chart-card" id="barContainer" style="display:flex; flex-direction:column; padding:1.5rem; border-color:#e2e8f0;">
+                    <!-- Card: Participants by Category (Doughnut Chart) -->
+                    <div class="card chart-card" id="barContainer">
                         <h3 style="font-size:1.05rem; font-weight:800; color:#0f172a; margin-top:0; margin-bottom:1.25rem; display:flex; align-items:center; gap:0.5rem; font-family:'Outfit',sans-serif;">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:1.2rem; height:1.2rem; color:#4f46e5;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 13.875v-.75ZM3 19.125c0-.621.504-1.125 1.125-1.125h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 19.875v-.75ZM3 7.125C3 6.504 3.504 6 4.125 6h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 7.875v-.75Z" /></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:1.2rem; height:1.2rem; color:#7C3AED;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 13.875v-.75ZM3 19.125c0-.621.504-1.125 1.125-1.125h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 19.875v-.75ZM3 7.125C3 6.504 3.504 6 4.125 6h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 7.875v-.75Z" /></svg>
                             Participants By Category
                         </h3>
                         <div class="chart-container">
@@ -858,13 +985,13 @@ async function initDashboardOverview(container, topActions) {
 
                 </div>
 
-                <!-- Right Column: Leaderboard and Result Portal -->
+                <!-- Right Column: Leaderboard -->
                 <div class="leaderboard-section">
                     
                     <!-- Team Leaderboard Card -->
-                    <div class="card" style="padding:1.5rem; border-color:#e2e8f0;">
+                    <div class="card" style="padding:1.75rem; border-radius:20px; border-color:#e2e8f0; box-shadow:0 10px 30px -10px rgba(15, 23, 42, 0.04);">
                         <h3 style="font-size:1.05rem; font-weight:800; color:#0f172a; margin-top:0; margin-bottom:0.2rem; display:flex; align-items:center; gap:0.5rem; font-family:'Outfit',sans-serif;">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:1.2rem; height:1.2rem; color:#4f46e5;"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.504-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 0a7.454 7.454 0 0 0 .981 3.172M8.312 14.375a6.002 6.002 0 0 1-2.813-5.326m13.002 0a6.002 6.002 0 0 1-2.813 5.326M5.499 9.049a3.75 3.75 0 0 1 2.812-4.673M18.501 9.049a3.75 3.75 0 0 0-2.812-4.673M12 2.25A2.25 2.25 0 0 0 9.75 4.5v1.25a2.25 2.25 0 0 0 4.5 0V4.5A2.25 2.25 0 0 0 12 2.25z" /></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:1.2rem; height:1.2rem; color:#7C3AED;"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.504-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 0a7.454 7.454 0 0 0 .981 3.172M8.312 14.375a6.002 6.002 0 0 1-2.813-5.326m13.002 0a6.002 6.002 0 0 1-2.813 5.326M5.499 9.049a3.75 3.75 0 0 1 2.812-4.673M18.501 9.049a3.75 3.75 0 0 0-2.812-4.673M12 2.25A2.25 2.25 0 0 0 9.75 4.5v1.25a2.25 2.25 0 0 0 4.5 0V4.5A2.25 2.25 0 0 0 12 2.25z" /></svg>
                             Team Leaderboard
                         </h3>
                         <p style="font-size:0.75rem; color:#64748b; margin-bottom:1rem; font-weight:500;">Standings aggregated from published results.</p>
@@ -884,35 +1011,47 @@ async function initDashboardOverview(container, topActions) {
                         </div>
                     </div>
 
-                    <!-- Public Result Portal Card -->
-                    <div class="card" style="border: 1px solid rgba(99, 102, 241, 0.2); background: rgba(99, 102, 241, 0.04); padding:1.5rem; border-radius: var(--radius-lg);">
-                        <div class="card-header" style="margin-bottom:0.5rem; border:none; padding:0;">
-                            <h3 class="card-title" style="color:#4f46e5; font-weight:800; font-family:'Outfit',sans-serif; display:flex; align-items:center; gap:0.5rem;">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.2rem; height:1.2rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" /></svg>
-                                Public Result Portal
-                            </h3>
-                        </div>
-                        <div class="card-body" style="padding: 0;">
-                            <p style="font-size:0.8rem; color:#64748b; margin-bottom:1rem; line-height:1.5; font-weight:500;">Share published standings instantly with parents and students.</p>
-                            <div id="portalStatus" style="font-size:0.78rem; font-weight:700; margin-bottom:1rem;">
-                                <span class="spinner-sm"></span> Checking status...
-                            </div>
-                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.6rem; margin-bottom:0.6rem;">
-                                <button class="btn btn-secondary btn-sm" id="dashCopyLink" style="min-height:36px; border-radius:8px;" disabled>📋 Copy Link</button>
-                                <a href="https://wa.me/?text=${waMessage}" target="_blank" class="btn btn-primary btn-sm" id="dashWhatsApp" 
-                                    style="background:#25D366; border-color:#25D366; text-decoration:none; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0.5; min-height:36px; border-radius:8px; font-weight:700;">
-                                    📲 WhatsApp
-                                </a>
-                            </div>
-                            <button class="btn btn-outline btn-sm w-full" id="dashOpenPortal" style="min-height:36px; border-radius:8px; font-weight:700;">🌐 Open Portal</button>
-                        </div>
-                    </div>
-
                 </div>
 
             </div>
 
+            <!-- Public Result Portal Card (Full Width) -->
+            <div class="card public-portal-card" style="border: 1px solid rgba(124, 58, 237, 0.15); background: linear-gradient(135deg, rgba(124, 58, 237, 0.02) 0%, rgba(59, 130, 246, 0.02) 100%); padding: 2rem; border-radius: 20px; box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.04); margin-top: 1rem;">
+                <div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 2rem; flex-wrap: wrap;">
+                    
+                    <!-- Left: Description and Status -->
+                    <div style="flex: 1; min-width: 280px;">
+                        <h3 class="card-title" style="color: #7C3AED; font-weight: 800; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem; margin-bottom: 0.5rem;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 1.4rem; height: 1.4rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" /></svg>
+                            Public Result Portal
+                        </h3>
+                        <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem; line-height: 1.5; font-weight: 500;">
+                            Share published standings instantly with parents and students. Results auto-sync in real-time.
+                        </p>
+                        <div id="portalStatus" style="font-size: 0.85rem; font-weight: 700; display: inline-flex; align-items: center;">
+                            <span class="spinner-sm"></span> Checking status...
+                        </div>
+                    </div>
+                    
+                    <!-- Right: Actions Grid -->
+                    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                        <button class="btn btn-secondary" id="dashCopyLink" style="border-radius: 10px; font-weight: 600; padding: 0.75rem 1.25rem; display: flex; align-items: center; gap: 0.5rem;" disabled>
+                            📋 Copy Link
+                        </button>
+                        <a href="https://wa.me/?text=${waMessage}" target="_blank" class="btn btn-primary" id="dashWhatsApp" 
+                            style="background: #25D366; border-color: #25D366; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; pointer-events: none; opacity: 0.5; border-radius: 10px; font-weight: 600; padding: 0.75rem 1.25rem; gap: 0.5rem; color: white;">
+                            📲 WhatsApp
+                        </a>
+                        <button class="btn btn-outline" id="dashOpenPortal" style="border-radius: 10px; font-weight: 700; padding: 0.75rem 1.5rem; display: flex; align-items: center; gap: 0.5rem; border-color: #7C3AED; color: #7C3AED;">
+                            🌐 Open Portal
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
         </div>
+
     `;
 
     // Bind Portal Actions
@@ -926,7 +1065,7 @@ async function initDashboardOverview(container, topActions) {
     // Attach a single optimized Snapshot Listener to the dashboard metadata aggregates document
     try {
         const metaRef = doc(db, "institutes", instId, "metadata", "dashboard");
-        const unsub = onSnapshot(metaRef, async (snap) => {
+        const metaUnsub = onSnapshot(metaRef, async (snap) => {
             if (snap.exists()) {
                 metadataCache = snap.data();
                 recalculateDashboard();
@@ -938,7 +1077,7 @@ async function initDashboardOverview(container, topActions) {
         }, (err) => {
             console.error("Error listening to dashboard metadata aggregates:", err);
         });
-        dbUnsubscribes.push(unsub);
+        dbUnsubscribes.push(metaUnsub);
     } catch (err) {
         console.error("Error launching database aggregates listener:", err);
     }

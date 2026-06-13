@@ -7,12 +7,12 @@
 
 :root {
     /* Color System */
-    --primary-color: #6366f1; /* Modern Indigo */
-    --primary: #4f46e5;
-    --primary-hover: #4338ca;
-    --accent: #6366f1;
-    --accent-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-    --accent-light: rgba(99, 102, 241, 0.08);
+    --primary-color: #7C3AED; /* Modern Violet */
+    --primary: #7C3AED;
+    --primary-hover: #6D28D9;
+    --accent: #7C3AED;
+    --accent-gradient: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%);
+    --accent-light: rgba(124, 58, 237, 0.08);
     
     /* Neutrals */
     --bg-main: #f8fafc; /* Crisp Slate 50 */
@@ -27,9 +27,9 @@
     --danger-color: #ef4444;
     --danger: #ef4444;
     --danger-light: rgba(239, 68, 68, 0.08);
-    --success: #10b981;
+    --success: #10B981;
     --success-light: rgba(16, 185, 129, 0.08);
-    --warning: #f59e0b;
+    --warning: #F59E0B;
     --warning-light: rgba(245, 158, 11, 0.08);
     
     /* Spacing & Radii */

@@ -80,12 +80,12 @@
 }
 
 .nav-item.active {
-    background: rgba(99, 102, 241, 0.08);
-    border-color: rgba(99, 102, 241, 0.25);
-    color: #818cf8;
-    /* Light Indigo */
+    background: var(--accent-light);
+    border-color: rgba(124, 58, 237, 0.25);
+    color: #a78bfa;
+    /* Light Purple */
     font-weight: 700;
-    box-shadow: inset 3px 0 0 #6366f1;
+    box-shadow: inset 3px 0 0 var(--primary);
 }
 
 .nav-item .icon {
@@ -106,7 +106,7 @@
 }
 
 .nav-item.active .icon {
-    color: #818cf8;
+    color: #a78bfa;
 }
 
 .pending-badge {
@@ -550,9 +550,43 @@
 
 .chart-card {
     position: relative;
-    height: 390px;
+    height: 400px;
     display: flex;
     flex-direction: column;
+    background: #ffffff;
+    border-radius: 20px !important;
+    border: 1px solid rgba(226, 232, 240, 0.8) !important;
+    box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.02) !important;
+    padding: 1.75rem !important;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.chart-card:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 20px 40px -15px rgba(124, 58, 237, 0.08), 0 1px 3px rgba(124, 58, 237, 0.02) !important;
+    border-color: rgba(124, 58, 237, 0.25) !important;
+}
+
+.dashboard-footer {
+    width: 100%;
+    padding: 1.5rem 2rem;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--bg-card);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-top: auto;
+}
+
+.public-portal-card {
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.public-portal-card:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 20px 40px -15px rgba(124, 58, 237, 0.08), 0 1px 3px rgba(124, 58, 237, 0.02) !important;
+    border-color: rgba(124, 58, 237, 0.3) !important;
 }
 
 .chart-container {
@@ -716,11 +750,11 @@
     }
 
     .sidebar .nav-item.active {
-        background: rgba(99, 102, 241, 0.16) !important;
-        border-color: rgba(99, 102, 241, 0.3) !important;
-        color: #818cf8 !important;
+        background: rgba(124, 58, 237, 0.16) !important;
+        border-color: rgba(124, 58, 237, 0.3) !important;
+        color: #a78bfa !important;
         font-weight: 700 !important;
-        box-shadow: inset 3px 0 0 #6366f1 !important;
+        box-shadow: inset 3px 0 0 var(--primary) !important;
         border-radius: 6px !important;
     }
 
