@@ -1,4 +1,4 @@
-import { db, getCachedTeams, getCachedCategories } from './firebase.js';
+import { db, getCachedTeams, getCachedCategories, updateDashboardMetadata } from './firebase.js';
 import {
     collection,
     getDocs,
@@ -810,6 +810,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             groups: normalizedGroups,
             updatedAt: serverTimestamp()
         }, { merge: true });
+        await updateDashboardMetadata(window.currentInstituteId);
     }
 
     async function updateGroup(groupId, updateFn) {
@@ -922,6 +923,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
                 const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
                 await setDoc(progRef, { participantCount: increment(-1) }, { merge: true });
+                await updateDashboardMetadata(window.currentInstituteId);
 
                 window.showToast('Group deleted.', 'success');
                 await loadGroupsForTeam();
@@ -1208,6 +1210,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
                 batch.update(progRef, { participantCount: increment(toAdd.length) });
                 await batch.commit();
+                await updateDashboardMetadata(window.currentInstituteId);
                 toAdd.forEach(s => savedIndividualStudentIds.add(s.id));
                 window.showToast(`${toAdd.length} participant${toAdd.length === 1 ? '' : 's'} saved successfully!`, 'success');
                 if (statusEl) statusEl.textContent = `${toAdd.length} participant${toAdd.length === 1 ? '' : 's'} saved.`;
@@ -1295,6 +1298,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
                 const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
                 await setDoc(progRef, { participantCount: increment(1) }, { merge: true });
+                await updateDashboardMetadata(window.currentInstituteId);
 
                 window.showToast('Group created successfully!', 'success');
                 nameInput.value = '';
@@ -1472,6 +1476,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                         className: newClass,
                         updatedAt: serverTimestamp()
                     }, { merge: true });
+                    await updateDashboardMetadata(window.currentInstituteId);
 
                     window.showToast("Participant updated successfully!", "success");
                     editingParticipantId = null;
@@ -1565,6 +1570,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
                 const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
                 await setDoc(progRef, { participantCount: increment(-1) }, { merge: true });
+                await updateDashboardMetadata(window.currentInstituteId);
 
                 savedIndividualStudentIds.delete(id);
                 selectedStudentIds.delete(id);

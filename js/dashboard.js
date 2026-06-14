@@ -784,6 +784,12 @@ function recalculateDashboard() {
     const elJudges = document.getElementById('statJudges');
 
     if (elStudents) elStudents.textContent = totalStudents;
+    const elStudentsDesc = document.getElementById('statStudentsDesc');
+    if (elStudentsDesc) {
+        const maleCount = metadataCache.maleStudentsCount || 0;
+        const femaleCount = metadataCache.femaleStudentsCount || 0;
+        elStudentsDesc.textContent = `Male: ${maleCount} | Female: ${femaleCount}`;
+    }
     if (elCompetitions) elCompetitions.textContent = totalCompetitions;
     if (elTeams) elTeams.textContent = totalTeams;
     if (elCategories) elCategories.textContent = totalCategories;
@@ -894,7 +900,7 @@ async function initDashboardOverview(container, topActions) {
                         </div>
                     </div>
                     <h2 class="stat-value" id="statStudents">-</h2>
-                    <span class="stat-desc">Enrolled students</span>
+                    <span class="stat-desc" id="statStudentsDesc">Enrolled students</span>
                 </div>
 
                 <!-- Card 🏆 COMPETITIONS -->
@@ -1067,8 +1073,13 @@ async function initDashboardOverview(container, topActions) {
         const metaRef = doc(db, "institutes", instId, "metadata", "dashboard");
         const metaUnsub = onSnapshot(metaRef, async (snap) => {
             if (snap.exists()) {
-                metadataCache = snap.data();
+                const data = snap.data();
+                metadataCache = data;
                 recalculateDashboard();
+                if (data.maleStudentsCount === undefined || data.femaleStudentsCount === undefined) {
+                    console.log("Legacy dashboard metadata detected. Self-healing gender statistics...");
+                    await updateDashboardMetadata(instId);
+                }
             } else {
                 console.warn("Dashboard metadata aggregates document is missing. Triggering self-healing generation...");
                 // Trigger background update

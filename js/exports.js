@@ -2000,7 +2000,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     break-after: page-inside;
                 }
                 .rotated-th {
-                    vertical-align: bottom;
+                    vertical-align: middle;
                     text-align: center;
                     padding: 0.5rem 0.15rem;
                     font-weight: bold;
@@ -2011,7 +2011,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     writing-mode: vertical-rl;
                     transform: rotate(180deg);
                     white-space: nowrap;
-                    text-align: left;
+                    text-align: center;
                     margin: 0 auto;
                     width: 14px;
                     box-sizing: border-box;

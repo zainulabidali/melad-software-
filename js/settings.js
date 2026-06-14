@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata } from './firebase.js';
+import { db, updateDashboardMetadata, invalidateTeamsCache, invalidateCategoriesCache, invalidateProgramsCache } from './firebase.js';
 import {
     collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -247,6 +247,14 @@ function renderSettingsLayout(container) {
                         </div>
                         <button class="btn btn-danger btn-sm btn-reset-trigger" data-type="factory">Factory Reset</button>
                     </div>
+
+                    <div class="reset-option-item">
+                        <div class="reset-details">
+                            <h4>Clear Local Cache & Storage</h4>
+                            <p>Clears browser local storage, session storage, and invalidates all local caches. Forces a fresh application reload.</p>
+                        </div>
+                        <button class="btn btn-danger btn-sm" id="btnClearLocalCache" style="background: #e2e8f0; border-color: #cbd5e1; color: #475569;">Clear Cache</button>
+                    </div>
                 </div>
             </div>
 
@@ -405,6 +413,26 @@ function bindDangerZoneEvents(container) {
             openWarningModal();
         };
     });
+
+    const btnClearLocalCache = document.getElementById('btnClearLocalCache');
+    if (btnClearLocalCache) {
+        btnClearLocalCache.onclick = async () => {
+            const confirmed = await window.customConfirm("Are you sure you want to clear the local storage cache? This will clear all saved session data and force a fresh page reload.");
+            if (!confirmed) return;
+            
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+                showToast("✓ Local storage cache cleared successfully.");
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } catch (e) {
+                console.error("Failed to clear local cache:", e);
+                showToast("❌ Failed to clear local cache.");
+            }
+        };
+    }
 }
 
 function openWarningModal() {
@@ -722,10 +750,19 @@ async function runStructuredReset() {
             batch.delete(doc(db, "institutes", instId, "metadata", "dashboard"));
 
             await batch.commit();
-
-            // Self heal & re-init clean dashboard metadata
-            await updateDashboardMetadata();
         }
+
+        // Clear appropriate local storage caches
+        if (activeResetType === 'factory') {
+            invalidateTeamsCache(instId);
+            invalidateCategoriesCache(instId);
+            invalidateProgramsCache(instId);
+        } else if (activeResetType === 'registrations' || activeResetType === 'event') {
+            invalidateProgramsCache(instId);
+        }
+
+        // Re-calculate and write clean dashboard metadata aggregates doc
+        await updateDashboardMetadata(instId);
 
         showToast("✓ Reset completed successfully! Files moved to Recovery Bin.");
         

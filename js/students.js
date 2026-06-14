@@ -25,6 +25,7 @@ let unsubscribeParticipants = null;
 let currentTeamId = null;
 let currentCategoryId = null;
 let currentClassId = null;
+let currentGender = '';
 
 let allCategories = [];
 let allPrograms = [];
@@ -124,6 +125,7 @@ export async function initStudentsView(container, topActions) {
     localStudents = [];
     localStudentsAll = [];
     localParticipants = [];
+    currentGender = '';
 
     // Clear top actions
     topActions.innerHTML = '';
@@ -148,6 +150,11 @@ export async function initStudentsView(container, topActions) {
                 <select id="stuTeamSelect" class="form-input select-premium" style="width: 170px;">
                     <option value="">All Teams (Filter)</option>
                 </select>
+                <select id="stuGenderSelect" class="form-input select-premium" style="width: 170px;">
+                    <option value="">All Students (Default)</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                </select>
                 <button class="btn btn-secondary" id="btnImportExcel" style="display:flex; align-items:center; gap:0.25rem;">📊 Import Excel</button>
                 <button class="btn btn-primary" id="btnAddStudents">+ Student</button>
             </div>
@@ -165,6 +172,7 @@ export async function initStudentsView(container, topActions) {
     const catSel = document.getElementById('stuCatSelect');
     const classSel = document.getElementById('stuClassSelect');
     const teamSel = document.getElementById('stuTeamSelect');
+    const genderSel = document.getElementById('stuGenderSelect');
     const btnAddStudents = document.getElementById('btnAddStudents');
     const searchInput = document.getElementById('stuSearchInput');
 
@@ -261,6 +269,13 @@ export async function initStudentsView(container, topActions) {
         });
     }
 
+    if (genderSel) {
+        genderSel.addEventListener('change', (e) => {
+            currentGender = e.target.value;
+            applyStudentFiltersAndRender();
+        });
+    }
+
     if (searchInput) {
         searchInput.addEventListener('input', debounce(() => {
             applyStudentFiltersAndRender();
@@ -316,6 +331,11 @@ function applyStudentFiltersAndRender() {
     // 4. Cascaded team post-filter
     if (currentTeamId) {
         filtered = filtered.filter(s => s.teamId === currentTeamId);
+    }
+
+    // 5. Gender post-filter
+    if (currentGender) {
+        filtered = filtered.filter(s => s.gender === currentGender);
     }
 
     localStudents = filtered;
