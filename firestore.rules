@@ -1,173 +1,357 @@
 rules_version = '2';
 
 service cloud.firestore {
-  match /databases/{database}/documents {
 
-    // ─────────────────────────────────────────────
-    // Helper Functions
-    // ─────────────────────────────────────────────
-    function isAuthenticated() {
-      return request.auth != null;
-    }
+match /databases/{database}/documents {
 
-    function isSuperAdmin() {
-      return isAuthenticated() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
-    }
 
-    function isApprovedAdmin() {
-      return isAuthenticated() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
+// =====================================================
+// AUTH HELPERS
+// =====================================================
 
-    function isInstituteAdmin(instituteId) {
-      return isAuthenticated() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.instituteId == instituteId &&
-        exists(/databases/$(database)/documents/institutes/$(instituteId)) &&
-        get(/databases/$(database)/documents/institutes/$(instituteId)).data.status == 'active' &&
-        (
-          !('expiryDate' in get(/databases/$(database)/documents/institutes/$(instituteId)).data) ||
-          get(/databases/$(database)/documents/institutes/$(instituteId)).data.expiryDate == null ||
-          !(get(/databases/$(database)/documents/institutes/$(instituteId)).data.expiryDate is timestamp) ||
-          get(/databases/$(database)/documents/institutes/$(instituteId)).data.expiryDate > request.time
-        );
-    }
+function isAuthenticated() {
+  return request.auth != null;
+}
 
-    // ─────────────────────────────────────────────
-    // users/{uid}
-    // Approved users profiles. Only super admin can create/modify.
-    // ─────────────────────────────────────────────
-    match /users/{userId} {
-      // Users can read their own profile (for auth guard redirect)
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin());
-      // Only super admin can create or update user profiles (after approval)
-      allow create, update: if isSuperAdmin();
-      allow delete: if isSuperAdmin();
-    }
+function userDoc() {
+  return get(
+    /databases/$(database)/documents/users/$(request.auth.uid)
+  );
+}
 
-    // ─────────────────────────────────────────────
-    // pending_admins/{uid}
-    // Teacher registrations awaiting approval.
-    // ─────────────────────────────────────────────
-    match /pending_admins/{uid} {
-      // A registering user can create their own pending document
-      allow create: if isAuthenticated() && request.auth.uid == uid;
-      // Only super admin can read all pending registrations and update status
-      allow read, update, delete: if isSuperAdmin();
-    }
+function userExists() {
+  return isAuthenticated() &&
+         exists(
+           /databases/$(database)/documents/users/$(request.auth.uid)
+         );
+}
 
-    // ─────────────────────────────────────────────
-    // teachers/{uid}
-    // Teacher registrations awaiting approval.
-    // ─────────────────────────────────────────────
-    match /teachers/{uid} {
-      // A registering user can create their own pending document
-      allow create: if isAuthenticated() && request.auth.uid == uid;
-      // Only super admin can read all pending registrations and update status
-      allow read, update, delete: if isSuperAdmin();
-    }
+function userData() {
+  return userDoc().data;
+}
 
-    // ─────────────────────────────────────────────
-    // config/{doc}
-    // Super Admin config (WhatsApp number, QR URL, etc.)
-    // ─────────────────────────────────────────────
-    match /config/{docId} {
-      // Public read (for registration-complete page)
-      allow read: if true;
-      allow write: if isSuperAdmin();
-    }
+function instituteDoc(instituteId) {
+  return get(
+    /databases/$(database)/documents/institutes/$(instituteId)
+  );
+}
 
-    // ─────────────────────────────────────────────
-    // institutes/{instituteId}
-    // ─────────────────────────────────────────────
-    match /institutes/{instituteId} {
-      // Public can read institute name and status (for public dropdowns)
-      allow read: if true;
-      // Only super admin manages institutes
-      allow create, update, delete: if isSuperAdmin();
+function instituteExists(instituteId) {
+  return exists(
+    /databases/$(database)/documents/institutes/$(instituteId)
+  );
+}
 
-      // ── NEW: Institute-level Categories (flattened) ──
-      match /categories/{categoryId} {
-        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
-        allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
-      }
+function instituteData(instituteId) {
+  return instituteDoc(instituteId).data;
+}
 
-      // ── NEW: Institute-level Students (flattened with categoryId, classId) ──
-      match /students/{studentId} {
-        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
-        allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
-      }
+// =====================================================
+// ROLE CHECKS
+// =====================================================
 
-      // ── Results (publicly readable) ──
-      match /results/{resultId} {
-        // Results are public
-        allow read: if true;
-        // Only the assigned admin or super admin can publish/revoke
-        allow write: if isInstituteAdmin(instituteId) || isSuperAdmin();
-      }
+function isSuperAdmin() {
+  return userExists()
+    && userData().role == "super_admin";
+}
 
-      // ── Programs (admin-only management, public read if published flag exists) ──
-      match /programs/{programId} {
-        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
-        allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
+function isAdmin() {
+  return userExists()
+    && userData().role == "admin";
+}
 
-        // Program participants (nested under programs)
-        match /participants/{participantId} {
-          allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
-          allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
-        }
-      }
+// =====================================================
+// INSTITUTE CHECKS
+// =====================================================
 
-      // ── Teams (kept for backward compatibility and group program management) ──
-      match /teams/{teamId} {
-        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
-        allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
+function isInstituteActive(instituteId) {
+  return instituteExists(instituteId)
+    && instituteData(instituteId).status == "active";
+}
 
-        // Nested categories under teams (OLD STRUCTURE - kept for migration)
-        match /categories/{categoryId} {
-          allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
-          allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
+function isInstituteNotExpired(instituteId) {
+  return instituteExists(instituteId)
+    && (
+      !("expiryDate" in instituteData(instituteId))
+      ||
+      instituteData(instituteId).expiryDate == null
+      ||
+      !(instituteData(instituteId).expiryDate is timestamp)
+      ||
+      instituteData(instituteId).expiryDate > request.time
+    );
+}
 
-          // Nested students under team categories (OLD STRUCTURE - kept for migration)
-          match /students/{studentId} {
-            allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
-            allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
-          }
-        }
-      }
+function isInstituteAdmin(instituteId) {
+  return isAdmin()
+    && userData().instituteId == instituteId
+    && isInstituteActive(instituteId)
+    && isInstituteNotExpired(instituteId);
+}
 
-      // ── Migration metadata ──
-      match /migrationStatus/{doc} {
-        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
-        allow write: if isSuperAdmin();
-      }
+// =====================================================
+// USERS
+// =====================================================
 
-      // ── Dashboard and general Metadata ──
-      match /metadata/{docId} {
-        allow read, write: if isInstituteAdmin(instituteId) || isSuperAdmin();
-      }
+match /users/{userId} {
 
-      // ── Judges ──
-      match /judges/{judgeId} {
-        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
-        allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
-      }
+  allow read:
+  if isAuthenticated()
+  &&
+  (
+    request.auth.uid == userId
+    ||
+    isSuperAdmin()
+  );
 
-      // ── Recovery Bin ──
-      match /recoveryBin/{docId} {
-        allow read: if isInstituteAdmin(instituteId) || isSuperAdmin();
-        allow create, update, delete: if isInstituteAdmin(instituteId) || isSuperAdmin();
-      }
-    }
+  allow create, update, delete:
+  if isSuperAdmin();
+}
 
-    // ── Collection Group read access for participants ──
-    match /{path=**}/participants/{participantId} {
-      allow read: if isAuthenticated();
-    }
+// =====================================================
+// PENDING ADMINS
+// =====================================================
 
+match /pending_admins/{uid} {
+
+  allow create:
+  if isAuthenticated()
+  && request.auth.uid == uid;
+
+  allow read, update, delete:
+  if isSuperAdmin();
+}
+
+// =====================================================
+// TEACHERS
+// =====================================================
+
+match /teachers/{uid} {
+
+  allow create:
+  if isAuthenticated()
+  && request.auth.uid == uid
+  && request.resource.data.fullName is string
+  && request.resource.data.email is string
+  && request.resource.data.phone is string
+  && request.resource.data.place is string
+  && request.resource.data.status == "pending";
+
+  allow read:
+  if isAuthenticated()
+  &&
+  (
+    request.auth.uid == uid
+    ||
+    isSuperAdmin()
+  );
+
+  allow update, delete:
+  if isSuperAdmin();
+}
+
+// =====================================================
+// CONFIG
+// =====================================================
+
+match /config/{docId} {
+
+  allow read: if true;
+
+  allow write:
+  if isSuperAdmin();
+}
+
+// =====================================================
+// INSTITUTES
+// =====================================================
+
+match /institutes/{instituteId} {
+
+  allow read: if true;
+
+  allow create, update, delete:
+  if isSuperAdmin();
+
+  // -----------------------------
+  // CATEGORIES
+  // -----------------------------
+
+  match /categories/{categoryId} {
+
+    allow read, create, update, delete:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
   }
+
+  // -----------------------------
+  // STUDENTS
+  // -----------------------------
+
+  match /students/{studentId} {
+
+    allow read, create, update, delete:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
+  }
+
+  // -----------------------------
+  // PROGRAMS
+  // -----------------------------
+
+  match /programs/{programId} {
+
+    allow read, create, update, delete:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
+
+    match /participants/{participantId} {
+
+      allow read, create, update, delete:
+      if isInstituteAdmin(instituteId)
+      || isSuperAdmin();
+    }
+  }
+
+  // -----------------------------
+  // TEAMS (OLD STRUCTURE SUPPORT)
+  // -----------------------------
+
+  match /teams/{teamId} {
+
+    allow read, create, update, delete:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
+
+    match /categories/{categoryId} {
+
+      allow read, create, update, delete:
+      if isInstituteAdmin(instituteId)
+      || isSuperAdmin();
+
+      match /students/{studentId} {
+
+        allow read, create, update, delete:
+        if isInstituteAdmin(instituteId)
+        || isSuperAdmin();
+      }
+    }
+  }
+
+  // -----------------------------
+  // RESULTS
+  // -----------------------------
+
+  match /results/{resultId} {
+
+    allow read: if true;
+
+    allow create, update, delete:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
+  }
+
+  // -----------------------------
+  // MARK ENTRIES
+  // -----------------------------
+
+  match /markEntries/{entryId} {
+
+    allow read, create, update, delete:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
+  }
+
+  // -----------------------------
+  // JUDGES
+  // -----------------------------
+
+  match /judges/{judgeId} {
+
+    allow read, create, update, delete:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
+  }
+
+  // -----------------------------
+  // EXPORTS
+  // -----------------------------
+
+  match /exports/{exportId} {
+
+    allow read, create, update, delete:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
+  }
+
+  // -----------------------------
+  // TOP SCORERS
+  // -----------------------------
+
+  match /topScorers/{docId} {
+
+    allow read: if true;
+
+    allow create, update, delete:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
+  }
+
+  // -----------------------------
+  // METADATA
+  // -----------------------------
+
+  match /metadata/{docId} {
+
+    allow read, write:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
+  }
+
+  // -----------------------------
+  // RECOVERY BIN
+  // -----------------------------
+
+  match /recoveryBin/{docId} {
+
+    allow read, create, update, delete:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
+  }
+
+  // -----------------------------
+  // MIGRATION STATUS
+  // -----------------------------
+
+  match /migrationStatus/{docId} {
+
+    allow read:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
+
+    allow write:
+    if isSuperAdmin();
+  }
+}
+
+// =====================================================
+// COLLECTION GROUP PARTICIPANTS
+// =====================================================
+
+match /{path=**}/participants/{participantId} {
+
+  allow read:
+  if isAuthenticated();
+}
+
+// =====================================================
+// DEFAULT DENY
+// =====================================================
+
+match /{document=**} {
+  allow read, write: if false;
+}
+
+
+}
 }

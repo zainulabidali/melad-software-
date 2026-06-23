@@ -104,6 +104,35 @@ export async function validateInstituteAccess(user) {
         // Database hit and cache prime on cache miss
         const profile = await getUserProfile(user.uid);
         if (!profile) {
+            // Check if they exist in the teachers collection
+            const teacherRef = doc(db, "teachers", user.uid);
+            const teacherSnap = await getDoc(teacherRef);
+            if (teacherSnap.exists()) {
+                const teacherData = teacherSnap.data();
+                const status = teacherData.status || 'pending';
+                
+                sessionStorage.clear();
+                await signOut(auth);
+                
+                if (status === 'pending') {
+                    if (typeof showAlert === 'function' && document.getElementById('alertMessage')) {
+                        showAlert('Your registration is under review. Please wait for Super Admin approval.', 'info');
+                    }
+                    window.location.href = `${pathPrefix}pages/registration-complete.html`;
+                } else if (status === 'rejected') {
+                    if (typeof showAlert === 'function' && document.getElementById('alertMessage')) {
+                        const reason = teacherData.rejectionReason || teacherData.message || '';
+                        const msg = reason ? `Your registration request has been rejected. Reason: ${reason}. Please contact the administrator.` : 'Your registration request has been rejected. Please contact the administrator.';
+                        showAlert(msg, 'error');
+                    }
+                } else {
+                    if (typeof showAlert === 'function' && document.getElementById('alertMessage')) {
+                        showAlert('Invalid account configuration. Contact support.', 'error');
+                    }
+                }
+                return false;
+            }
+
             sessionStorage.clear();
             await signOut(auth);
             return false;
@@ -387,6 +416,7 @@ if (registerForm) {
         spinner.classList.remove('hidden');
 
         try {
+            window.isRegistering = true;
             // 1. Create Firebase Auth account
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
@@ -418,6 +448,7 @@ if (registerForm) {
                 showAlert(error.message);
             }
         } finally {
+            window.isRegistering = false;
             btn.disabled = false;
             btnText.classList.remove('hidden');
             spinner.classList.add('hidden');
@@ -436,6 +467,7 @@ const isAuthPage = window.location.pathname.includes('login.html') ||
 
 if (isAuthPage) {
     onAuthStateChanged(auth, async (user) => {
+        if (window.isRegistering) return;
         if (user) {
             const isValid = await validateInstituteAccess(user);
             if (isValid) {
