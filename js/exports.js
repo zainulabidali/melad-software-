@@ -2738,14 +2738,16 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 sortedTeamNames.forEach(teamName => {
                     const data = teamWinners.get(teamName);
 
-                    const renderRows = (list, posLabel) => {
-                        if (list.length === 0) return `<tr><td colspan="4" style="color:#94a3b8; font-style:italic; font-size:0.75rem;">No ${posLabel} place winners recorded.</td></tr>`;
+                    const renderRows = (list, posLabel, actualPos) => {
+                        if (list.length === 0) return `<tr><td colspan="6" style="color:#94a3b8; font-style:italic; font-size:0.75rem;">No ${posLabel} place winners recorded.</td></tr>`;
                         return list.map(item => `
                             <tr>
-                                <td style="font-weight:800; color:#1e293b;">${window.escapeHTML(item.programName)}</td>
-                                <td style="color:#475569; font-weight:600;">${window.escapeHTML(item.categoryName)}</td>
                                 <td style="text-align:center; font-weight:800;">${window.escapeHTML(item.chestNumber)}</td>
-                                <td style="font-weight:700; color:#4338ca;">${window.escapeHTML(item.studentName)}</td>
+                                <td style="font-weight:700; color:#1e293b;">${window.escapeHTML(item.studentName)}</td>
+                                <td style="font-weight:600; color:#475569;">${window.escapeHTML(teamName)}</td>
+                                <td style="color:#475569; font-weight:600;">${window.escapeHTML(item.categoryName)}</td>
+                                <td style="text-align:center; font-weight:700; color:#4338ca;">${window.escapeHTML(actualPos)}</td>
+                                <td style="font-weight:800; color:#1e293b;">${window.escapeHTML(item.programName)}</td>
                             </tr>
                         `).join('');
                     };
@@ -2760,39 +2762,45 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             <table class="report-table" style="margin-bottom:1rem; font-size:0.8rem;">
                                 <thead>
                                     <tr style="background:#fffbeb;">
-                                        <th>Program</th>
-                                        <th>Category</th>
                                         <th style="width:100px; text-align:center;">Chest No</th>
-                                        <th>Winner Name</th>
+                                        <th>Student Name</th>
+                                        <th>Team</th>
+                                        <th>Category</th>
+                                        <th style="width:100px; text-align:center;">Position</th>
+                                        <th>Program</th>
                                     </tr>
                                 </thead>
-                                <tbody>${renderRows(data.First, 'first')}</tbody>
+                                <tbody>${renderRows(data.First, 'first', 'First')}</tbody>
                             </table>
 
                             <h4 style="color:#475569; margin-top:1.25rem; margin-bottom:0.4rem;">🥈 SECOND WINNERS</h4>
                             <table class="report-table" style="margin-bottom:1rem; font-size:0.8rem;">
                                 <thead>
                                     <tr style="background:#f8fafc;">
-                                        <th>Program</th>
-                                        <th>Category</th>
                                         <th style="width:100px; text-align:center;">Chest No</th>
-                                        <th>Winner Name</th>
+                                        <th>Student Name</th>
+                                        <th>Team</th>
+                                        <th>Category</th>
+                                        <th style="width:100px; text-align:center;">Position</th>
+                                        <th>Program</th>
                                     </tr>
                                 </thead>
-                                <tbody>${renderRows(data.Second, 'second')}</tbody>
+                                <tbody>${renderRows(data.Second, 'second', 'Second')}</tbody>
                             </table>
 
                             <h4 style="color:#ea580c; margin-top:1.25rem; margin-bottom:0.4rem;">🥉 THIRD WINNERS</h4>
                             <table class="report-table" style="font-size:0.8rem;">
                                 <thead>
                                     <tr style="background:#fff7ed;">
-                                        <th>Program</th>
-                                        <th>Category</th>
                                         <th style="width:100px; text-align:center;">Chest No</th>
-                                        <th>Winner Name</th>
+                                        <th>Student Name</th>
+                                        <th>Team</th>
+                                        <th>Category</th>
+                                        <th style="width:100px; text-align:center;">Position</th>
+                                        <th>Program</th>
                                     </tr>
                                 </thead>
-                                <tbody>${renderRows(data.Third, 'third')}</tbody>
+                                <tbody>${renderRows(data.Third, 'third', 'Third')}</tbody>
                             </table>
                         </div>
                     `;
@@ -2800,6 +2808,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             }
 
             else if (f.resultSubOption === 'Program Wise') {
+                const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
                 filteredResults.forEach(r => {
                     const winnersList = Array.isArray(r.winners) ? r.winners : [];
 
@@ -2807,7 +2816,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const sortedWinners = [...winnersList].sort((a, b) => (posOrder[a.position] || 4) - (posOrder[b.position] || 4));
 
                     htmlContent += `
-                        <div class="program-page-standard">
+                        <div class="${pageDivClass}">
                             <div class="report-header">
                                 <div>
                                     <div class="report-title">🏆 PROGRAM RESULTS PODIUM</div>
@@ -2828,14 +2837,13 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     <tr>
                                         <th style="width:110px; text-align:center;">Position</th>
                                         <th style="width:110px; text-align:center;">Chest No</th>
-                                        <th>Winner / Team Name</th>
-                                        <th>Representing Institute</th>
-                                        <th style="width:90px; text-align:center;">Grade</th>
-                                        <th style="width:100px; text-align:center;">Points</th>
+                                        <th>Student Name</th>
+                                        <th>Team</th>
+                                        <th style="width:100px; text-align:center;">Marks</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${sortedWinners.length === 0 ? `<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:#64748b;">No winners recorded for this program.</td></tr>` :
+                                    ${sortedWinners.length === 0 ? `<tr><td colspan="5" style="text-align:center; padding:1.5rem; color:#64748b;">No winners recorded for this program.</td></tr>` :
                             sortedWinners.map(w => {
                                 let posBadge = '';
                                 if (w.position === 'First') posBadge = '🥇 First';
@@ -2843,7 +2851,6 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 else if (w.position === 'Third') posBadge = '🥉 Third';
                                 else posBadge = w.position;
 
-                                let grade = w.grade || '—';
                                 let points = w.marks !== undefined ? `${w.marks} pts` : '0 pts';
 
                                 if (Array.isArray(r.marksData)) {
@@ -2853,7 +2860,6 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                         (r.programType !== 'group' && m.studentName === w.studentName)
                                     );
                                     if (match) {
-                                        grade = match.grade || grade;
                                         points = match.totalPoints !== undefined ? `${match.totalPoints} pts` : points;
                                     }
                                 }
@@ -2876,7 +2882,6 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                 <td style="text-align:center; font-weight:800; color:#0f172a;">${window.escapeHTML(chestNumber)}</td>
                                                 <td style="font-weight:700; color:#1e293b;">${window.escapeHTML(r.programType === 'group' ? w.teamName : w.studentName)}</td>
                                                 <td style="font-weight:600; color:#475569;">${window.escapeHTML(w.teamName || '—')}</td>
-                                                <td style="text-align:center; font-weight:800; color:#4338ca;">${grade}</td>
                                                 <td style="text-align:center; font-weight:900; color:#16a34a;">${points}</td>
                                             </tr>
                                         `;
@@ -2895,38 +2900,29 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const winnersList = Array.isArray(r.winners) ? r.winners : [];
                     winnersList.forEach(w => {
                         if (r.programType === 'group') return;
-                        const stuKey = w.chestNumber || w.studentName;
+                        
+                        let resolvedStudent = null;
+                        if (w.studentId && studentMap[w.studentId]) {
+                            resolvedStudent = studentMap[w.studentId];
+                        } else if (w.studentName) {
+                            resolvedStudent = Object.values(studentMap).find(s => s.name === w.studentName);
+                        }
+
+                        const chestNumber = resolvedStudent ? (resolvedStudent.chestNumber || '—') : (w.chestNumber || '—');
+                        const className = resolvedStudent ? (resolvedStudent.className || '—') : '—';
+                        const categoryName = resolvedStudent ? (resolvedStudent.categoryName || '—') : '—';
+                        const teamName = resolvedStudent ? (resolvedStudent.teamName || w.teamName || '—') : (w.teamName || '—');
+
+                        const stuKey = w.studentId || w.studentName;
                         if (!stuKey) return;
 
                         if (!studentPrizes.has(stuKey)) {
-                            let chestNumber = w.chestNumber || '—';
-                            let classId = '';
-                            let className = '—';
-                            let categoryId = '';
-                            let categoryName = '—';
-                            if (w.studentId && studentMap[w.studentId]) {
-                                chestNumber = studentMap[w.studentId].chestNumber || chestNumber;
-                                classId = studentMap[w.studentId].classId || '';
-                                className = studentMap[w.studentId].className || '—';
-                                categoryId = studentMap[w.studentId].categoryId || '';
-                                categoryName = studentMap[w.studentId].categoryName || '—';
-                            } else if (w.studentName) {
-                                const found = Object.values(studentMap).find(s => s.name === w.studentName);
-                                if (found) {
-                                    chestNumber = found.chestNumber || chestNumber;
-                                    classId = found.classId || '';
-                                    className = found.className || '—';
-                                    categoryId = found.categoryId || '';
-                                    categoryName = found.categoryName || '—';
-                                }
-                            }
-
                             studentPrizes.set(stuKey, {
                                 studentName: w.studentName,
                                 chestNumber: chestNumber,
                                 className: className,
                                 categoryName: categoryName,
-                                teamName: w.teamName || '—',
+                                teamName: teamName,
                                 prizes: []
                             });
                         }
@@ -2944,6 +2940,12 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const sortedStudents = [...studentPrizes.values()].sort((a, b) => {
                         const catA = a.categoryName || '';
                         const catB = b.categoryName || '';
+                        
+                        const idxA = allCategories.findIndex(c => c.name === catA);
+                        const idxB = allCategories.findIndex(c => c.name === catB);
+                        if (idxA !== -1 && idxB !== -1 && idxA !== idxB) {
+                            return idxA - idxB;
+                        }
                         const catCompare = catA.localeCompare(catB, undefined, { sensitivity: 'base' });
                         if (catCompare !== 0) return catCompare;
 
@@ -2969,8 +2971,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                         <th>Student Name</th>
                                         <th>Class</th>
                                         <th>Category</th>
-                                        <th>Team / Institute Name</th>
-                                        <th>Prizes Summary & Placements</th>
+                                        <th>Team</th>
+                                        <th>Prize Details</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -3644,7 +3646,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
         const filteredResults = filterResultsBySource(resultsList, f);
 
         if (f.resultSubOption === 'Team Wise') {
-            csvContent += "TEAM NAME,PLACEMENT,PROGRAM,CATEGORY,CHEST NUMBER,WINNER NAME\n";
+            csvContent += "CHEST NUMBER,STUDENT NAME,TEAM,CATEGORY,POSITION,PROGRAM\n";
 
             const teamWinners = new Map();
             filteredResults.forEach(r => {
@@ -3656,12 +3658,22 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     if (!teamWinners.has(w.teamName)) {
                         teamWinners.set(w.teamName, []);
                     }
+                    // Lookup chest number
+                    let chestNumber = w.chestNumber || '—';
+                    if (w.studentId && studentMap[w.studentId]) {
+                        chestNumber = studentMap[w.studentId].chestNumber || chestNumber;
+                    } else if (w.studentName) {
+                        const found = Object.values(studentMap).find(s => s.name === w.studentName);
+                        if (found) {
+                            chestNumber = found.chestNumber || chestNumber;
+                        }
+                    }
                     teamWinners.get(w.teamName).push({
                         position: w.position,
                         programName: r.programName,
                         categoryName: r.categoryName,
                         studentName: w.studentName,
-                        chestNumber: w.chestNumber || '—'
+                        chestNumber: chestNumber
                     });
                 });
             });
@@ -3670,18 +3682,17 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             sortedTeams.forEach(teamName => {
                 const entries = teamWinners.get(teamName);
                 entries.forEach(e => {
-                    csvContent += `"${teamName}","${e.position}","${e.programName}","${e.categoryName}","${e.chestNumber}","${e.studentName}"\n`;
+                    csvContent += `"${e.chestNumber}","${e.studentName}","${teamName}","${e.categoryName}","${e.position}","${e.programName}"\n`;
                 });
             });
         }
 
         else if (f.resultSubOption === 'Program Wise') {
-            csvContent += "PROGRAM NAME,CATEGORY,POSITION,CHEST NUMBER,NAME,TEAM NAME,GRADE,POINTS\n";
+            csvContent += "POSITION,CHEST NUMBER,STUDENT NAME,TEAM,MARKS\n";
 
             filteredResults.forEach(r => {
                 const winnersList = Array.isArray(r.winners) ? r.winners : [];
                 winnersList.forEach(w => {
-                    let grade = w.grade || '—';
                     let points = w.marks !== undefined ? w.marks : 0;
 
                     if (Array.isArray(r.marksData)) {
@@ -3691,18 +3702,30 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                             (r.programType !== 'group' && m.studentName === w.studentName)
                         );
                         if (match) {
-                            grade = match.grade || grade;
                             points = match.totalPoints !== undefined ? match.totalPoints : points;
                         }
                     }
 
-                    csvContent += `"${r.programName}","${r.categoryName}","${w.position}","${w.chestNumber || '—'}","${r.programType === 'group' ? w.teamName : w.studentName}","${w.teamName || ''}","${grade}",${points}\n`;
+                    let chestNumber = w.chestNumber || '—';
+                    if (r.programType !== 'group') {
+                        if (w.studentId && studentMap[w.studentId]) {
+                            chestNumber = studentMap[w.studentId].chestNumber || chestNumber;
+                        } else if (w.studentName) {
+                            const found = Object.values(studentMap).find(s => s.name === w.studentName);
+                            if (found) {
+                                            chestNumber = found.chestNumber || chestNumber;
+                            }
+                        }
+                    }
+
+                    const studentName = r.programType === 'group' ? w.teamName : w.studentName;
+                    csvContent += `"${w.position}","${chestNumber}","${studentName}","${w.teamName || ''}",${points}\n`;
                 });
             });
         }
 
         else if (f.resultSubOption === 'Student Prize Distribution') {
-            csvContent += "CHEST NUMBER,STUDENT NAME,TEAM,PRIZES SUMMARY\n";
+            csvContent += "CHEST NUMBER,STUDENT NAME,CLASS,CATEGORY,TEAM,PRIZE DETAILS\n";
 
             const studentPrizes = new Map();
             filteredResults.forEach(r => {
@@ -3710,14 +3733,29 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 winnersList.forEach(w => {
                     const pType = (r.programType || r.type || 'individual').toLowerCase();
                     if (pType !== 'individual') return;
-                    const stuKey = w.chestNumber || w.studentName;
+
+                    let resolvedStudent = null;
+                    if (w.studentId && studentMap[w.studentId]) {
+                        resolvedStudent = studentMap[w.studentId];
+                    } else if (w.studentName) {
+                        resolvedStudent = Object.values(studentMap).find(s => s.name === w.studentName);
+                    }
+
+                    const chestNumber = resolvedStudent ? (resolvedStudent.chestNumber || '—') : (w.chestNumber || '—');
+                    const className = resolvedStudent ? (resolvedStudent.className || '—') : '—';
+                    const categoryName = resolvedStudent ? (resolvedStudent.categoryName || '—') : '—';
+                    const teamName = resolvedStudent ? (resolvedStudent.teamName || w.teamName || '—') : (w.teamName || '—');
+
+                    const stuKey = w.studentId || w.studentName;
                     if (!stuKey) return;
 
                     if (!studentPrizes.has(stuKey)) {
                         studentPrizes.set(stuKey, {
                             studentName: w.studentName,
-                            chestNumber: w.chestNumber || '—',
-                            teamName: w.teamName || '—',
+                            chestNumber: chestNumber,
+                            className: className,
+                            categoryName: categoryName,
+                            teamName: teamName,
                             prizes: []
                         });
                     }
@@ -3726,9 +3764,118 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 });
             });
 
-            const sortedStudents = [...studentPrizes.values()].sort((a, b) => a.studentName.localeCompare(b.studentName));
+            // Sort systematically: Category ➔ Class ➔ Student
+            const sortedStudents = [...studentPrizes.values()].sort((a, b) => {
+                const catA = a.categoryName || '';
+                const catB = b.categoryName || '';
+                
+                const idxA = allCategories.findIndex(c => c.name === catA);
+                const idxB = allCategories.findIndex(c => c.name === catB);
+                if (idxA !== -1 && idxB !== -1 && idxA !== idxB) {
+                    return idxA - idxB;
+                }
+                const catCompare = catA.localeCompare(catB, undefined, { sensitivity: 'base' });
+                if (catCompare !== 0) return catCompare;
+
+                const classA = a.className || '';
+                const classB = b.className || '';
+                const classCompare = classA.localeCompare(classB, undefined, { numeric: true, sensitivity: 'base' });
+                if (classCompare !== 0) return classCompare;
+
+                return a.studentName.localeCompare(b.studentName);
+            });
+
             sortedStudents.forEach(stu => {
-                csvContent += `"${stu.chestNumber}","${stu.studentName}","${stu.teamName}","${stu.prizes.join('; ')}"\n`;
+                csvContent += `"${stu.chestNumber}","${stu.studentName}","${stu.className}","${stu.categoryName}","${stu.teamName}","${stu.prizes.join('; ')}"\n`;
+            });
+        }
+
+        else if (f.resultSubOption === 'Participants Without Major Prizes') {
+            csvContent += "CATEGORY,CHEST NUMBER,STUDENT NAME,CLASS,TEAM / HOUSE,NUMBER OF PARTICIPATIONS,STATUS,PROGRAMS PARTICIPATED\n";
+
+            const teamNamesMap = {};
+            allTeams.forEach(t => {
+                teamNamesMap[t.id] = t.name;
+            });
+
+            const studentDataList = [];
+            Object.entries(studentMap).forEach(([studentId, stu]) => {
+                if (f.categoryId && stu.categoryId !== f.categoryId) return;
+                if (f.classId && stu.classId !== f.classId) return;
+                if (f.teamId && stu.teamId !== f.teamId) return;
+                if (f.gender === 'Boys' && stu.gender !== 'Male') return;
+                if (f.gender === 'Girls' && stu.gender !== 'Female') return;
+
+                const participations = [];
+                const prizes = [];
+
+                programs.forEach(p => {
+                    if (p.programType === 'group') return;
+                    const pList = participantsMap[p.id] || [];
+                    const isPart = pList.some(part => part.studentId === studentId || part.name === stu.name);
+                    if (isPart) {
+                        participations.push(p.programName);
+                    }
+                });
+
+                filteredResults.forEach(r => {
+                    if (r.programType === 'group') return;
+                    const winners = Array.isArray(r.winners) ? r.winners : [];
+                    winners.forEach(w => {
+                        if (w.studentId === studentId || w.studentName === stu.name) {
+                            prizes.push(w.position);
+                        }
+                    });
+                });
+
+                const hasMajorPrize = prizes.some(p => p === 'First' || p === 'Second');
+                if (hasMajorPrize) return;
+
+                const hasThirdPrize = prizes.some(p => p === 'Third');
+                const statusLabel = hasThirdPrize ? 'Third Prize Only' : 'No Prize';
+
+                studentDataList.push({
+                    studentId: studentId,
+                    chestNumber: stu.chestNumber || '—',
+                    name: stu.name,
+                    classId: stu.classId || 'standard',
+                    className: stu.className || 'Standard',
+                    categoryId: stu.categoryId || 'general',
+                    categoryName: stu.categoryName || 'General',
+                    teamName: teamNamesMap[stu.teamId] || stu.teamName || 'Independent',
+                    participationsCount: participations.length,
+                    participationsList: participations,
+                    status: statusLabel
+                });
+            });
+
+            // Sorting: Category ➔ Status (No Prize first) ➔ Class ➔ Student
+            studentDataList.sort((a, b) => {
+                const catA = a.categoryName || '';
+                const catB = b.categoryName || '';
+                const idxA = allCategories.findIndex(c => c.name === catA);
+                const idxB = allCategories.findIndex(c => c.name === catB);
+                if (idxA !== -1 && idxB !== -1 && idxA !== idxB) {
+                    return idxA - idxB;
+                }
+                const catCompare = catA.localeCompare(catB, undefined, { sensitivity: 'base' });
+                if (catCompare !== 0) return catCompare;
+
+                // Priority: No Prize first, then Third Prize Only
+                if (a.status !== b.status) {
+                    return a.status === 'No Prize' ? -1 : 1;
+                }
+
+                const classA = a.className || '';
+                const classB = b.className || '';
+                const classCompare = classA.localeCompare(classB, undefined, { numeric: true, sensitivity: 'base' });
+                if (classCompare !== 0) return classCompare;
+
+                return a.name.localeCompare(b.name);
+            });
+
+            studentDataList.forEach(s => {
+                csvContent += `"${s.categoryName}","${s.chestNumber}","${s.name}","${s.className}","${s.teamName}",${s.participationsCount},"${s.status}","${s.participationsList.join('; ')}"\n`;
             });
         }
     }
