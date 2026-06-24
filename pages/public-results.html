@@ -1239,6 +1239,1056 @@
                 gap: 1.25rem;
             }
         }
+
+        /* ─────────────────────────────────────────────────────────────
+           Template 1 (Liquid Glass Redesign)
+           ───────────────────────────────────────────────────────────── */
+        .result-poster.template-1 {
+            position: relative;
+        }
+
+        .result-poster.template-1::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: inherit;
+            filter: blur(12px);
+            margin: -20px;
+            z-index: 0;
+        }
+
+        .result-poster.template-1::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.65);
+            z-index: 1;
+        }
+
+        .t1-container {
+            position: absolute;
+            top: 24px;
+            bottom: 24px;
+            left: 24px;
+            right: 24px;
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 32px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25), 
+                        inset 0 1px 1px rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            box-sizing: border-box;
+            z-index: 2;
+            justify-content: space-between;
+        }
+
+        .t1-container::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 50%;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, transparent 60%);
+            pointer-events: none;
+            border-radius: 32px 32px 0 0;
+        }
+
+        .t1-header {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+        }
+
+        .t1-badge-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 2px;
+        }
+
+        .t1-category {
+            font-size: 11px;
+            font-weight: 700;
+            color: #fbbf24;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+        }
+
+        .t1-result-badge {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 999px;
+            padding: 3px 10px;
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.85);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .t1-title {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(20px, 4.5vw, 30px);
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 1.5px;
+            margin: 0;
+            line-height: 1.25;
+            text-transform: uppercase;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .t1-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            width: 100%;
+            margin: auto 0;
+        }
+
+        .t1-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 16px;
+            box-sizing: border-box;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .t1-row:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .t1-rank-num {
+            font-size: 26px;
+            font-weight: 800;
+            font-family: 'Inter', sans-serif;
+            min-width: 42px;
+            text-align: center;
+        }
+
+        .t1-rank-1 {
+            border-left: 4px solid #fbbf24;
+        }
+        .t1-rank-1 .t1-rank-num {
+            color: #fbbf24;
+            text-shadow: 0 0 12px rgba(251, 191, 36, 0.35);
+        }
+
+        .t1-rank-2 {
+            border-left: 4px solid #cbd5e1;
+        }
+        .t1-rank-2 .t1-rank-num {
+            color: #e2e8f0;
+            text-shadow: 0 0 12px rgba(226, 232, 240, 0.35);
+        }
+
+        .t1-rank-3 {
+            border-left: 4px solid #d97706;
+        }
+        .t1-rank-3 .t1-rank-num {
+            color: #fdba74;
+            text-shadow: 0 0 12px rgba(253, 186, 116, 0.35);
+        }
+
+        .t1-details {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            text-align: left;
+            overflow: hidden;
+        }
+
+        .t1-name {
+            font-size: 15px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .t1-team {
+            font-size: 11px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .t1-footer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .t1-footer-line {
+            flex-grow: 1;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+        }
+
+        .t1-footer-text {
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 70%;
+        }
+
+        @media (max-width: 480px) {
+            .t1-container {
+                top: 14px;
+                bottom: 14px;
+                left: 14px;
+                right: 14px;
+                padding: 16px;
+                border-radius: 24px;
+            }
+            .t1-title {
+                font-size: 20px;
+            }
+            .t1-row {
+                padding: 12px;
+                border-radius: 16px;
+                gap: 12px;
+            }
+            .t1-rank-num {
+                font-size: 22px;
+                min-width: 32px;
+            }
+            .t1-name {
+                font-size: 13px;
+            }
+            .t1-team {
+                font-size: 10px;
+            }
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           Template 2 (Bento Card Redesign)
+           ───────────────────────────────────────────────────────────── */
+        .result-poster.template-2 {
+            position: relative;
+        }
+
+        .result-poster.template-2::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: inherit;
+            filter: blur(12px);
+            margin: -20px;
+            z-index: 0;
+        }
+
+        .result-poster.template-2::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.65);
+            z-index: 1;
+        }
+
+        .t2-container {
+            position: absolute;
+            top: 24px;
+            bottom: 24px;
+            left: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 2;
+            box-sizing: border-box;
+        }
+
+        .t2-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+            gap: 4px;
+        }
+
+        .t2-category-badge {
+            font-size: 11px;
+            font-weight: 700;
+            color: #fbbf24;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+        }
+
+        .t2-program-title {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(20px, 4.5vw, 30px);
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 1px;
+            margin: 4px 0;
+            line-height: 1.25;
+            text-transform: uppercase;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+        }
+
+        .t2-badge-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .t2-result-badge {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 999px;
+            padding: 3px 10px;
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.85);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .t2-bento-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            margin: auto 0;
+        }
+
+        .t2-bento-row {
+            display: flex;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .t2-card-bento {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 24px;
+            padding: 16px 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .t2-card-bento::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 50%;
+            background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .t2-card-bento:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.16);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .t2-card-1st {
+            width: 100%;
+            min-height: 110px;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            border-left: 4px solid #fbbf24;
+            border-radius: 28px;
+        }
+
+        .t2-card-2nd {
+            width: calc(50% - 6px);
+            min-height: 120px;
+            border-top: 4px solid #cbd5e1;
+        }
+
+        .t2-card-3rd {
+            width: calc(50% - 6px);
+            min-height: 120px;
+            border-top: 4px solid #d97706;
+        }
+
+        .t2-details {
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+            overflow: hidden;
+        }
+
+        .t2-student {
+            font-size: 16px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .t2-team {
+            font-size: 11px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+        }
+
+        .t2-rank-large {
+            font-size: 48px;
+            font-weight: 900;
+            font-family: 'Inter', sans-serif;
+            line-height: 1;
+            user-select: none;
+            pointer-events: none;
+        }
+
+        .t2-footer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .t2-footer-line {
+            flex-grow: 1;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+        }
+
+        .t2-footer-text {
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 70%;
+        }
+
+        @media (max-width: 480px) {
+            .t2-container {
+                top: 14px;
+                bottom: 14px;
+                left: 14px;
+                right: 14px;
+            }
+            .t2-program-title {
+                font-size: 20px;
+            }
+            .t2-bento-row {
+                flex-direction: column;
+                gap: 12px;
+            }
+            .t2-card-2nd, .t2-card-3rd {
+                width: 100%;
+                min-height: 95px;
+            }
+            .t2-card-1st {
+                padding: 12px 16px;
+                border-radius: 20px;
+                min-height: 90px;
+            }
+            .t2-card-2nd, .t2-card-3rd {
+                padding: 12px 16px;
+                border-radius: 20px;
+            }
+            .t2-student {
+                font-size: 14px;
+            }
+            .t2-rank-large {
+                font-size: 38px;
+            }
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           Template 3 (Editorial Layout Redesign)
+           ───────────────────────────────────────────────────────────── */
+        .result-poster.template-3 {
+            position: relative;
+        }
+
+        .result-poster.template-3::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: inherit;
+            filter: blur(12px);
+            margin: -20px;
+            z-index: 0;
+        }
+
+        .result-poster.template-3::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.70);
+            z-index: 1;
+        }
+
+        .t3-container {
+            position: absolute;
+            top: 36px;
+            bottom: 36px;
+            left: 36px;
+            right: 36px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 2;
+            box-sizing: border-box;
+        }
+
+        .t3-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            width: 100%;
+        }
+
+        .t3-header-left {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
+        }
+
+        .t3-official-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.45);
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        .t3-program-title {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(22px, 5vw, 32px);
+            font-weight: 700;
+            color: #ffffff;
+            margin: 4px 0;
+            line-height: 1.15;
+        }
+
+        .t3-category {
+            font-size: 11px;
+            font-weight: 700;
+            color: #fbbf24;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .t3-result-badge {
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 9px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.8);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+
+        .t3-header-right {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .t3-academic-icon {
+            width: 24px;
+            height: 24px;
+            color: #fbbf24;
+            opacity: 0.85;
+        }
+
+        .t3-vertical-labels {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            font-size: 7px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.35);
+            text-align: center;
+        }
+
+        .t3-winners-list {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            margin: auto 0;
+        }
+
+        .t3-row-editorial {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 16px;
+            margin-bottom: 16px;
+            box-sizing: border-box;
+            width: 100%;
+        }
+
+        .t3-row-editorial:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .t3-row-left {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            line-height: 1;
+        }
+
+        .t3-rank-num-edit {
+            font-family: 'Inter', sans-serif;
+            font-weight: 800;
+            font-size: 38px;
+            letter-spacing: -1px;
+        }
+
+        .t3-rank-row-1 .t3-rank-num-edit {
+            color: #fbbf24;
+        }
+        .t3-rank-row-2 .t3-rank-num-edit {
+            color: #cbd5e1;
+        }
+        .t3-rank-row-3 .t3-rank-num-edit {
+            color: #fdba74;
+        }
+
+        .t3-rank-label {
+            font-size: 8px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .t3-row-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            text-align: right;
+            overflow: hidden;
+            max-width: 70%;
+        }
+
+        .t3-student-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+        }
+
+        .t3-team-name {
+            font-size: 11px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+        }
+
+        .t3-footer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            width: 100%;
+        }
+
+        .t3-footer-line {
+            flex-grow: 1;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .t3-footer-text {
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.45);
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 70%;
+        }
+
+        @media (max-width: 480px) {
+            .t3-container {
+                top: 20px;
+                bottom: 20px;
+                left: 20px;
+                right: 20px;
+            }
+            .t3-program-title {
+                font-size: 22px;
+            }
+            .t3-academic-icon {
+                width: 20px;
+                height: 20px;
+            }
+            .t3-vertical-labels {
+                display: none;
+            }
+            .t3-row-editorial {
+                padding-bottom: 12px;
+                margin-bottom: 12px;
+            }
+            .t3-rank-num-edit {
+                font-size: 32px;
+            }
+            .t3-student-name {
+                font-size: 15px;
+            }
+            .t3-team-name {
+                font-size: 10px;
+            }
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           Template 4 (Premium Split-Screen Dashboard Layout Redesign)
+           ───────────────────────────────────────────────────────────── */
+        .result-poster.template-4 {
+            position: relative;
+        }
+
+        .result-poster.template-4::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: inherit;
+            filter: blur(12px);
+            margin: -20px;
+            z-index: 0;
+        }
+
+        .result-poster.template-4::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.70);
+            z-index: 1;
+        }
+
+        .t4-container {
+            position: absolute;
+            top: 36px;
+            bottom: 36px;
+            left: 36px;
+            right: 36px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 2;
+            box-sizing: border-box;
+        }
+
+        .t4-split-content {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            flex-grow: 1;
+            width: 100%;
+            gap: 28px;
+            padding-bottom: 20px;
+            box-sizing: border-box;
+        }
+
+        .t4-left-panel {
+            width: 35%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            text-align: left;
+            position: relative;
+            border-right: 1px solid rgba(255, 255, 255, 0.15);
+            padding-right: 20px;
+            box-sizing: border-box;
+        }
+
+        .t4-left-header {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .t4-official-badge {
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .t4-program-title {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(20px, 4vw, 26px);
+            font-weight: 700;
+            color: #ffffff;
+            line-height: 1.25;
+            margin: 4px 0;
+        }
+
+        .t4-category {
+            font-size: 11px;
+            font-weight: 700;
+            color: #fbbf24;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .t4-result-badge {
+            display: inline-block;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 4px;
+            padding: 3px 8px;
+            font-size: 9px;
+            font-weight: 800;
+            color: rgba(255, 255, 255, 0.85);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            align-self: flex-start;
+            margin-top: 6px;
+        }
+
+        .t4-academic-decor {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: auto;
+        }
+
+        .t4-academic-icon {
+            width: 24px;
+            height: 24px;
+            color: #fbbf24;
+            opacity: 0.85;
+        }
+
+        .t4-vertical-labels {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 7px;
+            font-weight: 800;
+            letter-spacing: 1.2px;
+            color: rgba(255, 255, 255, 0.35);
+        }
+
+        .t4-right-panel {
+            width: 65%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 16px;
+            box-sizing: border-box;
+            height: 100%;
+        }
+
+        .t4-rank-block {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 16px 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            box-sizing: border-box;
+            overflow: hidden;
+            position: relative;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .t4-rank-block:hover {
+            transform: translateX(4px);
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .t4-rank-1 { border-left: 4px solid #fbbf24; }
+        .t4-rank-2 { border-left: 4px solid #cbd5e1; }
+        .t4-rank-3 { border-left: 4px solid #fdba74; }
+
+        .t4-rank-left {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            line-height: 1;
+        }
+
+        .t4-rank-num {
+            font-family: 'Inter', sans-serif;
+            font-weight: 800;
+            font-size: 32px;
+        }
+
+        .t4-rank-1 .t4-rank-num { color: #fbbf24; }
+        .t4-rank-2 .t4-rank-num { color: #cbd5e1; }
+        .t4-rank-3 .t4-rank-num { color: #fdba74; }
+
+        .t4-rank-label {
+            font-size: 8px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        .t4-rank-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            text-align: right;
+            overflow: hidden;
+            max-width: 70%;
+        }
+
+        .t4-student-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+        }
+
+        .t4-team-name {
+            font-size: 10px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 3px;
+        }
+
+        .t4-footer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            width: 100%;
+            margin-top: auto;
+        }
+
+        .t4-footer-line {
+            flex-grow: 1;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .t4-footer-text {
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.45);
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 70%;
+        }
+
+        @media (max-width: 480px) {
+            .t4-container {
+                top: 20px;
+                bottom: 20px;
+                left: 20px;
+                right: 20px;
+            }
+            .t4-split-content {
+                flex-direction: column;
+                gap: 16px;
+            }
+            .t4-left-panel {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+                padding-right: 0;
+                padding-bottom: 16px;
+            }
+            .t4-right-panel {
+                width: 100%;
+                gap: 10px;
+            }
+            .t4-academic-decor {
+                display: none;
+            }
+            .t4-rank-block {
+                padding: 12px 16px;
+                border-radius: 12px;
+            }
+            .t4-rank-num {
+                font-size: 26px;
+            }
+            .t4-student-name {
+                font-size: 14px;
+            }
+            .t4-team-name {
+                font-size: 9px;
+            }
+            .t4-program-title {
+                font-size: 22px;
+            }
+        }
     </style>
 </head>
 

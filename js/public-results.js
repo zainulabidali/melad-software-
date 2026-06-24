@@ -318,119 +318,254 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
     const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
 
     if (templateId === 2) {
-        const medalMap = { 1: '🥇 1st', 2: '🥈 2nd', 3: '🥉 3rd' };
-        const winnersHTML = sortedWinners.map((w, idx) => {
-            const rank = idx + 1;
-            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
-            return `
-                <div style="display: flex; align-items: center; gap: 4px; padding: 4px 6px; background: rgba(255,255,255,0.08); border: 0.5px solid rgba(255,255,255,0.15); border-radius: 6px; font-size: 6px; color: white;">
-                    <span style="font-weight: 800; color: #fbbf24;">${medalMap[rank]}</span>
-                    <div style="display: flex; flex-direction: column; overflow: hidden; text-align: left;">
-                        <span style="font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px;">${escapeHTML(nameText.toUpperCase())}</span>
+        const w1 = sortedWinners[0];
+        const w2 = sortedWinners[1];
+        const w3 = sortedWinners[2];
+
+        const name1 = w1 ? (isGroup ? (w1.studentName || 'TEAM A') : (w1.studentName || '—')) : '—';
+        const team1 = w1 ? (w1.teamName || '—') : '—';
+
+        const name2 = w2 ? (isGroup ? (w2.studentName || 'TEAM B') : (w2.studentName || '—')) : '—';
+        const team2 = w2 ? (w2.teamName || '—') : '—';
+
+        const name3 = w3 ? (isGroup ? (w3.studentName || 'TEAM C') : (w3.studentName || '—')) : '—';
+        const team3 = w3 ? (w3.teamName || '—') : '—';
+
+        const hasWinners = sortedWinners.length > 0;
+
+        const bentoGridHTML = hasWinners ? `
+            <div style="display: flex; flex-direction: column; gap: 4px; width: 100%; box-sizing: border-box;">
+                <!-- 1st Place Card -->
+                <div style="background: rgba(255, 255, 255, 0.05); border: 0.5px solid rgba(255, 255, 255, 0.1); border-left: 2px solid #fbbf24; border-radius: 8px; padding: 4px 6px; display: flex; align-items: center; justify-content: space-between; position: relative;">
+                    <div style="display: flex; flex-direction: column; text-align: left; overflow: hidden; max-width: 90px;">
+                        <span style="font-size: 6px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(name1)}</span>
+                        <span style="font-size: 4px; color: rgba(255,255,255,0.4); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(team1)}</span>
+                    </div>
+                    <span style="font-size: 10px; font-weight: 900; color: rgba(251, 191, 36, 0.15); line-height: 1;">01</span>
+                </div>
+
+                <!-- 2nd & 3rd Row -->
+                <div style="display: flex; gap: 4px; width: 100%;">
+                    <!-- 2nd Place Card -->
+                    <div style="background: rgba(255, 255, 255, 0.05); border: 0.5px solid rgba(255, 255, 255, 0.1); border-top: 1.5px solid #cbd5e1; border-radius: 8px; padding: 4px 6px; width: calc(50% - 2px); display: flex; flex-direction: column; justify-content: space-between; position: relative; min-height: 28px; box-sizing: border-box;">
+                        <span style="font-size: 9px; font-weight: 900; color: rgba(203, 213, 225, 0.15); position: absolute; right: 4px; top: 2px; line-height: 1;">02</span>
+                        <div style="display: flex; flex-direction: column; text-align: left; overflow: hidden; margin-top: auto; z-index: 2;">
+                            <span style="font-size: 5px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(name2)}</span>
+                            <span style="font-size: 3.5px; color: rgba(255,255,255,0.4); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(team2)}</span>
+                        </div>
+                    </div>
+
+                    <!-- 3rd Place Card -->
+                    <div style="background: rgba(255, 255, 255, 0.05); border: 0.5px solid rgba(255, 255, 255, 0.1); border-top: 1.5px solid #d97706; border-radius: 8px; padding: 4px 6px; width: calc(50% - 2px); display: flex; flex-direction: column; justify-content: space-between; position: relative; min-height: 28px; box-sizing: border-box;">
+                        <span style="font-size: 9px; font-weight: 900; color: rgba(217, 119, 6, 0.15); position: absolute; right: 4px; top: 2px; line-height: 1;">03</span>
+                        <div style="display: flex; flex-direction: column; text-align: left; overflow: hidden; margin-top: auto; z-index: 2;">
+                            <span style="font-size: 5px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(name3)}</span>
+                            <span style="font-size: 3.5px; color: rgba(255,255,255,0.4); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(team3)}</span>
+                        </div>
                     </div>
                 </div>
-            `;
-        }).join('');
+            </div>
+        ` : `
+            <div style="text-align: center; color: rgba(255,255,255,0.3); font-size: 5px; font-style: italic; padding: 10px 0; width: 100%;">
+                No standings
+            </div>
+        `;
 
         return `
-            <div style="position: absolute; top: 15px; left: 10px; right: 10px; text-align: center; z-index: 2; line-height: 1;">
-                <div style="font-family: 'Cinzel', serif; font-size: 9px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(r.programName)}</div>
-                <div style="font-size: 5px; color: #fbbf24; text-transform: uppercase;">${escapeHTML(r.categoryName)}</div>
-                <div style="font-size: 4px; color: rgba(255,255,255,0.6);">RESULT ${resultNumber}</div>
-            </div>
-            <div style="position: absolute; bottom: 30px; left: 10px; right: 10px; display: flex; flex-direction: column; gap: 3px; z-index: 2;">
-                ${winnersHTML}
-            </div>
-            <div style="position: absolute; bottom: 6px; left: 5px; right: 5px; text-align: center; font-size: 5px; color: rgba(255,255,255,0.6); z-index: 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                ${escapeHTML(madrasaName)}
+            <!-- Mini Dark Overlay & Blur -->
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
+
+            <!-- Mini Bento Container -->
+            <div style="position: absolute; top: 10px; bottom: 10px; left: 10px; right: 10px; background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; z-index: 2; box-sizing: border-box;">
+                <div style="text-align: center; line-height: 1.1;">
+                    <span style="font-size: 4px; color: #fbbf24; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px;">${escapeHTML(r.categoryName.toUpperCase())}</span>
+                    <div style="font-family: 'Cinzel', serif; font-size: 8px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(r.programName)}</div>
+                    <div style="display: inline-block; background: rgba(255,255,255,0.08); border: 0.25px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 1px 3px; font-size: 3.5px; font-weight: 700; color: white; margin-top: 2px;">RESULT ${resultNumber}</div>
+                </div>
+
+                ${bentoGridHTML}
+
+                <div style="display: flex; align-items: center; gap: 3px; width: 100%;">
+                    <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
+                    <span style="font-size: 4px; color: rgba(255,255,255,0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px;">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
+                </div>
             </div>
         `;
     } else if (templateId === 3) {
-        const ordinalMap = { 1: '1st', 2: '2nd', 3: '3rd' };
-        const winnersHTML = sortedWinners.map((w, idx) => {
-            const rank = idx + 1;
-            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
-            return `
-                <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 0.5px solid rgba(255,255,255,0.15); padding-bottom: 3px; font-size: 6px; color: white;">
-                    <span style="font-family: 'Playfair Display', serif; font-style: italic; color: #fbbf24;">${ordinalMap[rank]}</span>
-                    <span style="font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; text-align: right;">${escapeHTML(nameText.toUpperCase())}</span>
-                </div>
-            `;
-        }).join('');
-
-        return `
-            <div style="position: absolute; top: 15px; left: 10px; right: 10px; text-align: center; z-index: 2; line-height: 1;">
-                <div style="font-family: 'Cinzel', serif; font-size: 9px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(r.programName)}</div>
-                <div style="font-size: 5px; color: #fbbf24; text-transform: uppercase;">${escapeHTML(r.categoryName)}</div>
-                <div style="font-family: 'Playfair Display', serif; font-size: 6px; font-style: italic; color: rgba(255, 255, 255, 0.85); margin-top: 1px;">Result ${resultNumber}</div>
-            </div>
-            <div style="position: absolute; bottom: 30px; left: 10px; right: 10px; display: flex; flex-direction: column; gap: 2px; z-index: 2;">
-                ${winnersHTML}
-            </div>
-            <div style="position: absolute; bottom: 6px; left: 5px; right: 5px; text-align: center; font-size: 5px; color: rgba(255,255,255,0.6); z-index: 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                ${escapeHTML(madrasaName)}
-            </div>
-        `;
-    } else if (templateId === 4) {
+        const ordinalMap = { 1: '1ST', 2: '2ND', 3: '3RD' };
         const winnersHTML = sortedWinners.map((w, idx) => {
             const rank = idx + 1;
             const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
             const teamText = w.teamName || '—';
+            const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
+            const rankColor = rankColors[rank] || '#ffffff';
+
             return `
-                <div style="display: grid; grid-template-columns: 20px 1fr 1fr; padding: 3px 4px; font-size: 5px; color: white; border-bottom: 0.5px solid rgba(255,255,255,0.08); line-height: 1;">
-                    <span style="font-weight: 800; color: ${rank === 1 ? '#fbbf24' : 'white'};">${rank}</span>
-                    <span style="font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;">${escapeHTML(nameText)}</span>
-                    <span style="color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;">${escapeHTML(teamText)}</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 0.25px solid rgba(255,255,255,0.1); padding-bottom: 2px; box-sizing: border-box; width: 100%;">
+                    <div style="display: flex; flex-direction: column; text-align: left; line-height: 1;">
+                        <span style="font-size: 5px; font-weight: 800; color: ${rankColor};">0${rank}</span>
+                        <span style="font-size: 3px; font-weight: 700; color: rgba(255,255,255,0.4); letter-spacing: 0.2px;">${ordinalMap[rank]}</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; text-align: right; overflow: hidden; max-width: 60px; line-height: 1;">
+                        <span style="font-size: 4.5px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(nameText)}</span>
+                        <span style="font-size: 3px; color: rgba(255,255,255,0.4); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(teamText)}</span>
+                    </div>
                 </div>
             `;
         }).join('');
 
-        return `
-            <div style="position: absolute; top: 15px; left: 10px; right: 10px; text-align: center; z-index: 2; line-height: 1;">
-                <div style="font-family: 'Cinzel', serif; font-size: 9px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(r.programName)}</div>
-                <div style="font-size: 5px; color: #fbbf24; text-transform: uppercase;">${escapeHTML(r.categoryName)}</div>
-                <div style="font-size: 4px; color: rgba(255,255,255,0.6);">RESULT ${resultNumber}</div>
-            </div>
-            <div style="position: absolute; bottom: 30px; left: 10px; right: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 0.5px solid rgba(255,255,255,0.1); overflow: hidden; z-index: 2;">
-                <div style="display: grid; grid-template-columns: 20px 1fr 1fr; padding: 3px 4px; background: rgba(255,255,255,0.12); font-size: 4px; font-weight: 800; color: #fbbf24; border-bottom: 0.5px solid rgba(255,255,255,0.15);">
-                    <span style="text-align: left;">RK</span>
-                    <span style="text-align: left;">NAME</span>
-                    <span style="text-align: left;">TEAM</span>
-                </div>
-                ${winnersHTML}
-            </div>
-            <div style="position: absolute; bottom: 6px; left: 5px; right: 5px; text-align: center; font-size: 5px; color: rgba(255,255,255,0.6); z-index: 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                ${escapeHTML(madrasaName)}
+        const finalWinnersHTML = winnersHTML || `
+            <div style="text-align: center; color: rgba(255,255,255,0.3); font-size: 5px; font-style: italic; padding: 10px 0; width: 100%;">
+                No standings
             </div>
         `;
-    } else {
+
+        return `
+            <!-- Mini Dark Overlay & Blur -->
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
+
+            <!-- Mini Editorial Container -->
+            <div style="position: absolute; top: 8px; bottom: 8px; left: 8px; right: 8px; display: flex; flex-direction: column; justify-content: space-between; z-index: 2; box-sizing: border-box;">
+                
+                <!-- Mini Header -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+                    <div style="display: flex; flex-direction: column; text-align: left; max-width: 70px; line-height: 1;">
+                        <span style="font-size: 3px; font-weight: 700; color: rgba(255, 255, 255, 0.45); letter-spacing: 0.5px;">STANDINGS</span>
+                        <div style="font-family: 'Cinzel', serif; font-size: 6px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; margin-top: 1px;">${escapeHTML(r.programName)}</div>
+                        <span style="font-size: 3.5px; font-weight: 700; color: #fbbf24; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 1px;">${escapeHTML(r.categoryName)}</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 1px;">
+                        <svg style="width: 6px; height: 6px; color: #fbbf24; opacity: 0.85;" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 11.55C9.64 9.35 6.48 8 3 8v11c3.48 0 6.64 1.35 9 3.55 2.36-2.2 5.52-3.55 9-3.55V8c-3.48 0-6.64 1.35-9 3.55zM12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Mini Winners List -->
+                <div style="display: flex; flex-direction: column; gap: 2px; width: 100%; margin: 2px 0;">
+                    ${finalWinnersHTML}
+                </div>
+
+                <!-- Mini Footer -->
+                <div style="display: flex; align-items: center; gap: 3px; width: 100%;">
+                    <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
+                    <span style="font-size: 4px; color: rgba(255, 255, 255, 0.45); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px;">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
+                </div>
+            </div>
+        `;
+    } else if (templateId === 4) {
+        const ordinalMap = { 1: '1ST', 2: '2ND', 3: '3RD' };
         const winnersHTML = sortedWinners.map((w, idx) => {
             const rank = idx + 1;
             const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
+            const teamText = w.teamName || '—';
+            const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
+            const rankColor = rankColors[rank] || '#ffffff';
 
             return `
-                <div style="display: flex; align-items: center; gap: 4px; padding: 4px 6px; margin-bottom: 3px; border-radius: 6px; background: rgba(255, 255, 255, .08); border: 0.5px solid rgba(255, 255, 255, .18); color: white; font-size: 6px; line-height: 1;">
-                    <div style="width: 12px; height: 12px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 6px; font-weight: 800; background: ${rank === 1 ? 'linear-gradient(135deg, #FFE082, #FFB300)' : rank === 2 ? 'linear-gradient(135deg, #F1F5F9, #94A3B8)' : 'linear-gradient(135deg, #FFEDD5, #D97706)'}; color: black; flex-shrink: 0;">
-                        ${rank}
+                <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.03); border: 0.25px solid rgba(255, 255, 255, 0.1); border-left: 1.5px solid ${rankColor}; border-radius: 4px; padding: 4px 6px; box-sizing: border-box; width: 100%;">
+                    <div style="display: flex; flex-direction: column; text-align: left; line-height: 1;">
+                        <span style="font-size: 5px; font-weight: 800; color: ${rankColor};">0${rank}</span>
+                        <span style="font-size: 3px; font-weight: 700; color: rgba(255,255,255,0.45);">${ordinalMap[rank]}</span>
                     </div>
-                    <div style="display: flex; flex-direction: column; overflow: hidden; text-align: left;">
-                        <span style="font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95px;">${escapeHTML(nameText.toUpperCase())}</span>
+                    <div style="display: flex; flex-direction: column; text-align: right; overflow: hidden; max-width: 50px; line-height: 1;">
+                        <span style="font-size: 4.5px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(nameText)}</span>
+                        <span style="font-size: 3px; color: rgba(255,255,255,0.4); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(teamText)}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        const finalWinnersHTML = winnersHTML || `
+            <div style="text-align: center; color: rgba(255,255,255,0.3); font-size: 4px; font-style: italic; padding: 5px 0;">
+                No standings
+            </div>
+        `;
+
+        return `
+            <!-- Mini Dark Overlay & Blur -->
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
+
+            <!-- Mini Split Screen Container -->
+            <div style="position: absolute; top: 8px; bottom: 8px; left: 8px; right: 8px; display: flex; flex-direction: column; justify-content: space-between; z-index: 2; box-sizing: border-box;">
+                
+                <div style="display: flex; flex-grow: 1; width: 100%; gap: 6px; padding-bottom: 4px; box-sizing: border-box;">
+                    <!-- Left Mini Panel (35% width) -->
+                    <div style="width: 35%; display: flex; flex-direction: column; justify-content: space-between; border-right: 0.25px solid rgba(255, 255, 255, 0.15); padding-right: 4px; box-sizing: border-box; text-align: left; line-height: 1.1;">
+                        <div>
+                            <span style="font-size: 3px; font-weight: 700; color: rgba(255, 255, 255, 0.45); letter-spacing: 0.3px; display: block;">OFFICIAL RESULT</span>
+                            <div style="font-family: 'Cinzel', serif; font-size: 6px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; margin-top: 1px;">${escapeHTML(r.programName)}</div>
+                            <span style="font-size: 3.5px; font-weight: 700; color: #fbbf24; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 1px; display: block;">${escapeHTML(r.categoryName)}</span>
+                            <div style="display: inline-block; border: 0.25px solid rgba(255, 255, 255, 0.25); border-radius: 2px; padding: 1px 3px; font-size: 3px; font-weight: 800; color: rgba(255, 255, 255, 0.85); letter-spacing: 0.5px; text-transform: uppercase; margin-top: 2px;">R-${resultNumber}</div>
+                        </div>
+                        <svg style="width: 6px; height: 6px; color: #fbbf24; opacity: 0.85; margin-bottom: 2px;" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 11.55C9.64 9.35 6.48 8 3 8v11c3.48 0 6.64 1.35 9 3.55 2.36-2.2 5.52-3.55 9-3.55V8c-3.48 0-6.64 1.35-9 3.55zM12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/>
+                        </svg>
+                    </div>
+
+                    <!-- Right Mini Panel (65% width) -->
+                    <div style="width: 65%; display: flex; flex-direction: column; justify-content: center; gap: 3px; box-sizing: border-box;">
+                        ${finalWinnersHTML}
+                    </div>
+                </div>
+
+                <!-- Mini Footer -->
+                <div style="display: flex; align-items: center; gap: 3px; width: 100%;">
+                    <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
+                    <span style="font-size: 4px; color: rgba(255, 255, 255, 0.45); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px;">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
+                </div>
+            </div>
+        `;
+    } else {
+        const rankAccentColors = {
+            1: '#fbbf24',
+            2: '#cbd5e1',
+            3: '#d97706'
+        };
+
+        const winnersHTML = sortedWinners.map((w, idx) => {
+            const rank = idx + 1;
+            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
+            const teamText = w.teamName || '—';
+            const accentColor = rankAccentColors[rank] || '#ffffff';
+
+            return `
+                <div style="display: flex; align-items: center; gap: 4px; padding: 4px 6px; background: rgba(255, 255, 255, 0.04); border: 0.5px solid rgba(255, 255, 255, 0.08); border-left: 2px solid ${accentColor}; border-radius: 5px; color: white; font-size: 5px; line-height: 1; text-align: left;">
+                    <span style="font-weight: 800; color: ${accentColor}; font-size: 6px; min-width: 8px; text-align: center;">#${rank}</span>
+                    <div style="display: flex; flex-direction: column; overflow: hidden;">
+                        <span style="font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; text-transform: uppercase;">${escapeHTML(nameText.toUpperCase())}</span>
+                        <span style="font-size: 4px; color: rgba(255,255,255,0.4); text-transform: uppercase;">${escapeHTML(teamText.toUpperCase())}</span>
                     </div>
                 </div>
             `;
         }).join('');
 
         return `
-            <div style="position: absolute; top: 15px; left: 10px; right: 10px; display: flex; flex-direction: column; gap: 2px; z-index: 2; line-height: 1.1; text-align: left;">
-                <span style="font-size: 5px; color: #fbbf24; text-transform: uppercase;">${escapeHTML(r.categoryName)}</span>
-                <div style="font-family: 'Cinzel', serif; font-size: 9px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(r.programName)}</div>
-                <div style="font-size: 4px; color: rgba(255,255,255,0.6);">RESULT ${resultNumber}</div>
-            </div>
-            <div style="position: absolute; bottom: 30px; left: 10px; right: 10px; display: flex; flex-direction: column; z-index: 2;">
-                ${winnersHTML}
-            </div>
-            <div style="position: absolute; bottom: 6px; left: 5px; right: 5px; text-align: center; font-size: 5px; color: rgba(255,255,255,0.6); z-index: 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                ${escapeHTML(madrasaName)}
+            <!-- Mini Dark Overlay & Blur -->
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
+            
+            <!-- Mini Liquid Glass Container -->
+            <div style="position: absolute; top: 10px; bottom: 10px; left: 10px; right: 10px; background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; z-index: 2; box-sizing: border-box;">
+                <div style="text-align: center; line-height: 1.1;">
+                    <div style="display: flex; justify-content: center; gap: 4px; align-items: center; margin-bottom: 2px;">
+                        <span style="font-size: 4px; color: #fbbf24; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">${escapeHTML(r.categoryName.toUpperCase())}</span>
+                        <span style="background: rgba(255,255,255,0.08); border: 0.25px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 1px 3px; font-size: 3.5px; font-weight: 700; color: white;">R${resultNumber}</span>
+                    </div>
+                    <div style="font-family: 'Cinzel', serif; font-size: 8px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(r.programName)}</div>
+                </div>
+                
+                <div style="display: flex; flex-direction: column; gap: 4px; margin: 4px 0;">
+                    ${winnersHTML}
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 3px; width: 100%;">
+                    <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
+                    <span style="font-size: 4px; color: rgba(255,255,255,0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px;">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
+                </div>
             </div>
         `;
     }
@@ -445,54 +580,97 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
     const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
 
     if (templateId === 2) {
-        const medalMap = { 1: '🥇 1st Place', 2: '🥈 2nd Place', 3: '🥉 3rd Place' };
-        const winnersHTML = sortedWinners.map((w, idx) => {
-            const rank = idx + 1;
-            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
-            const teamText = w.teamName || '—';
+        const w1 = sortedWinners[0];
+        const w2 = sortedWinners[1];
+        const w3 = sortedWinners[2];
 
-            return `
-                <div class="t2-card">
-                    <div class="t2-rank-badge">${medalMap[rank]}</div>
+        const name1 = w1 ? (isGroup ? (w1.studentName || 'TEAM A') : (w1.studentName || '—')) : '—';
+        const team1 = w1 ? (w1.teamName || '—') : '—';
+
+        const name2 = w2 ? (isGroup ? (w2.studentName || 'TEAM B') : (w2.studentName || '—')) : '—';
+        const team2 = w2 ? (w2.teamName || '—') : '—';
+
+        const name3 = w3 ? (isGroup ? (w3.studentName || 'TEAM C') : (w3.studentName || '—')) : '—';
+        const team3 = w3 ? (w3.teamName || '—') : '—';
+
+        const hasWinners = sortedWinners.length > 0;
+
+        const bentoGridHTML = hasWinners ? `
+            <div class="t2-bento-grid">
+                <!-- 1st Place Card -->
+                <div class="t2-card-bento t2-card-1st">
                     <div class="t2-details">
-                        <div class="t2-student">${escapeHTML(nameText.toUpperCase())}</div>
-                        <div class="t2-team">TEAM: ${escapeHTML(teamText.toUpperCase())}</div>
-                        <div class="t2-institute">INSTITUTE: ${escapeHTML(madrasaName.toUpperCase())}</div>
+                        <span style="color: #fbbf24; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block;">1ST STANDING</span>
+                        <div class="t2-student">${escapeHTML(name1.toUpperCase())}</div>
+                        <div class="t2-team">TEAM: ${escapeHTML(team1.toUpperCase())}</div>
+                    </div>
+                    <div class="t2-rank-large" style="color: rgba(251, 191, 36, 0.15);">01</div>
+                </div>
+
+                <!-- 2nd & 3rd Place Row -->
+                <div class="t2-bento-row">
+                    <!-- 2nd Place Card -->
+                    <div class="t2-card-bento t2-card-2nd">
+                        <div class="t2-rank-large" style="color: rgba(203, 213, 225, 0.15); position: absolute; right: 16px; top: 12px;">02</div>
+                        <div class="t2-details" style="margin-top: auto; z-index: 2;">
+                            <span style="color: #cbd5e1; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block;">2ND STANDING</span>
+                            <div class="t2-student" style="font-size: 15px;">${escapeHTML(name2.toUpperCase())}</div>
+                            <div class="t2-team" style="font-size: 10px;">TEAM: ${escapeHTML(team2.toUpperCase())}</div>
+                        </div>
+                    </div>
+
+                    <!-- 3rd Place Card -->
+                    <div class="t2-card-bento t2-card-3rd">
+                        <div class="t2-rank-large" style="color: rgba(217, 119, 6, 0.15); position: absolute; right: 16px; top: 12px;">03</div>
+                        <div class="t2-details" style="margin-top: auto; z-index: 2;">
+                            <span style="color: #fdba74; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block;">3RD STANDING</span>
+                            <div class="t2-student" style="font-size: 15px;">${escapeHTML(name3.toUpperCase())}</div>
+                            <div class="t2-team" style="font-size: 10px;">TEAM: ${escapeHTML(team3.toUpperCase())}</div>
+                        </div>
                     </div>
                 </div>
-            `;
-        }).join('');
-
-        const finalWinnersHTML = winnersHTML || `<div style="text-align:center;padding:2rem 1.5rem;color:rgba(255,255,255,0.4);font-style:italic;">No standings recorded for this event.</div>`;
+            </div>
+        ` : `
+            <div style="text-align:center;padding:2rem 1.5rem;color:rgba(255,255,255,0.4);font-style:italic;font-size:14px;width:100%;">
+                No standings recorded for this event.
+            </div>
+        `;
 
         return `
-            <div class="t2-header" style="position: absolute; top: 40px; left: 35px; right: 35px; text-align: center; display: flex; flex-direction: column; gap: 4px; z-index: 10;">
-                <div class="t2-program-title" style="font-family: 'Cinzel', serif; font-size: clamp(20px, 4.5vw, 32px); font-weight: 700; color: #ffffff; text-transform: uppercase; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">${escapeHTML(r.programName)}</div>
-                <div class="t2-category-title" style="font-size: 14px; font-weight: 600; color: #fbbf24; letter-spacing: 2px; text-transform: uppercase; text-shadow: 0 1px 2px rgba(0,0,0,0.4);">${escapeHTML(r.categoryName)}</div>
-                <div class="t2-result-num" style="font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.7); letter-spacing: 1.5px;">RESULT ${resultNumber}</div>
-            </div>
+            <div class="t2-container">
+                <div class="t2-header">
+                    <span class="t2-category-badge">${escapeHTML(r.categoryName.toUpperCase())}</span>
+                    <h1 class="t2-program-title">${escapeHTML(r.programName.toUpperCase())}</h1>
+                    <div class="t2-badge-row">
+                        <span class="t2-result-badge">RESULT ${resultNumber}</span>
+                    </div>
+                </div>
 
-            <div class="t2-card-list" style="position: absolute; bottom: 85px; left: 35px; right: 35px; display: flex; flex-direction: column; gap: 10px; z-index: 10;">
-                ${finalWinnersHTML}
-            </div>
+                ${bentoGridHTML}
 
-            <div class="poster-footer">
-                ${escapeHTML(madrasaName)}
+                <div class="t2-footer">
+                    <div class="t2-footer-line"></div>
+                    <span class="t2-footer-text">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <div class="t2-footer-line"></div>
+                </div>
             </div>
         `;
     } else if (templateId === 3) {
-        const ordinalMap = { 1: '1st Place', 2: '2nd Place', 3: '3rd Place' };
+        const ordinalMap = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
         const winnersHTML = sortedWinners.map((w, idx) => {
             const rank = idx + 1;
             const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
             const teamText = w.teamName || '—';
 
             return `
-                <div class="t3-winner-row" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.15); padding-bottom: 10px; margin-bottom: 8px;">
-                    <span class="t3-rank" style="font-family: 'Playfair Display', serif; font-size: 18px; font-style: italic; color: #fbbf24; font-weight: 600; min-width: 80px; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">${ordinalMap[rank]}</span>
-                    <div class="t3-winner-details" style="text-align: right; display: flex; flex-direction: column; gap: 1px;">
-                        <div class="t3-name" style="font-size: 16px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; text-shadow: 0 1px 2px rgba(0,0,0,0.4);">${escapeHTML(nameText.toUpperCase())}</div>
-                        <div class="t3-team" style="font-size: 12px; color: #cbd5e1; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">${escapeHTML(teamText.toUpperCase())}</div>
+                <div class="t3-row-editorial t3-rank-row-${rank}">
+                    <div class="t3-row-left">
+                        <span class="t3-rank-num-edit">0${rank}</span>
+                        <span class="t3-rank-label">${ordinalMap[rank]}</span>
+                    </div>
+                    <div class="t3-row-right">
+                        <span class="t3-student-name">${escapeHTML(nameText.toUpperCase())}</span>
+                        <span class="t3-team-name">${escapeHTML(teamText.toUpperCase())}</span>
                     </div>
                 </div>
             `;
@@ -501,114 +679,146 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
         const finalWinnersHTML = winnersHTML || `<div style="text-align:center;padding:2rem 1.5rem;color:rgba(255,255,255,0.4);font-style:italic;">No standings recorded for this event.</div>`;
 
         return `
-            <div class="t3-header" style="position: absolute; top: 40px; left: 35px; right: 35px; text-align: center; display: flex; flex-direction: column; gap: 4px; z-index: 10;">
-                <div class="t3-program" style="font-family: 'Cinzel', serif; font-size: clamp(22px, 5vw, 36px); font-weight: 800; color: #ffffff; line-height: 1.1; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">${escapeHTML(r.programName)}</div>
-                <div class="t3-category" style="font-size: 12px; color: #fbbf24; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; text-shadow: 0 1px 2px rgba(0,0,0,0.4);">${escapeHTML(r.categoryName)}</div>
-                <div class="t3-result-num" style="font-family: 'Playfair Display', serif; font-size: 18px; font-style: italic; color: rgba(255, 255, 255, 0.85); text-shadow: 0 1px 2px rgba(0,0,0,0.3); margin-top: 2px;">Result ${resultNumber}</div>
-            </div>
+            <div class="t3-container">
+                <div class="t3-header">
+                    <div class="t3-header-left">
+                        <span class="t3-official-label">OFFICIAL RESULTS STANDINGS</span>
+                        <h1 class="t3-program-title">${escapeHTML(r.programName.toUpperCase())}</h1>
+                        <span class="t3-category">${escapeHTML(r.categoryName.toUpperCase())}</span>
+                        <span class="t3-result-badge">RESULT ${resultNumber}</span>
+                    </div>
+                    <div class="t3-header-right">
+                        <svg class="t3-academic-icon" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 11.55C9.64 9.35 6.48 8 3 8v11c3.48 0 6.64 1.35 9 3.55 2.36-2.2 5.52-3.55 9-3.55V8c-3.48 0-6.64 1.35-9 3.55zM12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/>
+                        </svg>
+                        <div class="t3-vertical-labels">
+                            <span>COMPETITION</span>
+                            <span>EXCELLENCE</span>
+                            <span>ACHIEVEMENT</span>
+                        </div>
+                    </div>
+                </div>
 
-            <div class="t3-winners-list" style="position: absolute; bottom: 85px; left: 35px; right: 35px; display: flex; flex-direction: column; z-index: 10;">
-                ${finalWinnersHTML}
-            </div>
+                <div class="t3-winners-list">
+                    ${finalWinnersHTML}
+                </div>
 
-            <div class="poster-footer">
-                ${escapeHTML(madrasaName)}
+                <div class="t3-footer">
+                    <div class="t3-footer-line"></div>
+                    <span class="t3-footer-text">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <div class="t3-footer-line"></div>
+                </div>
             </div>
         `;
     } else if (templateId === 4) {
+        const ordinalMap = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
         const winnersHTML = sortedWinners.map((w, idx) => {
             const rank = idx + 1;
             const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
             const teamText = w.teamName || '—';
-            const rankGlow = rank === 1 ? 'color: #fbbf24; font-weight: 800;' : 'color: #ffffff;';
 
             return `
-                <div class="t4-table-row" style="display: grid; grid-template-columns: 60px 1fr 1fr; padding: 10px 12px; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
-                    <span class="t4-col-rank" style="font-weight: 800; font-size: 16px; ${rankGlow}">${rank}</span>
-                    <span class="t4-col-name" style="font-weight: 700; font-size: 13px; color: #ffffff; text-align: left; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 5px;">${escapeHTML(nameText)}</span>
-                    <span class="t4-col-team" style="font-size: 12px; color: #cbd5e1; font-weight: 600; text-align: left; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(teamText)}</span>
+                <div class="t4-rank-block t4-rank-${rank}">
+                    <div class="t4-rank-left">
+                        <span class="t4-rank-num">0${rank}</span>
+                        <span class="t4-rank-label">${ordinalMap[rank]}</span>
+                    </div>
+                    <div class="t4-rank-right">
+                        <span class="t4-student-name">${escapeHTML(nameText.toUpperCase())}</span>
+                        <span class="t4-team-name">${escapeHTML(teamText.toUpperCase())}</span>
+                    </div>
                 </div>
             `;
         }).join('');
 
-        const finalWinnersHTML = winnersHTML || `<div style="text-align:center;padding:2rem 1.5rem;color:rgba(255,255,255,0.4);font-style:italic;">No standings recorded for this event.</div>`;
+        const finalWinnersHTML = winnersHTML || `
+            <div style="text-align:center;padding:2rem 1.5rem;color:rgba(255,255,255,0.4);font-style:italic;">
+                No standings recorded for this event.
+            </div>
+        `;
 
         return `
-            <div class="t4-header" style="position: absolute; top: 40px; left: 35px; right: 35px; text-align: center; display: flex; flex-direction: column; gap: 2px; z-index: 10;">
-                <div class="t4-program" style="font-family: 'Cinzel', serif; font-size: clamp(20px, 4.5vw, 32px); font-weight: 700; color: #ffffff; text-transform: uppercase; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">${escapeHTML(r.programName)}</div>
-                <div class="t4-category" style="font-size: 13px; font-weight: 600; color: #fbbf24; letter-spacing: 2px; text-transform: uppercase; text-shadow: 0 1px 2px rgba(0,0,0,0.4);">${escapeHTML(r.categoryName)}</div>
-                <div class="t4-result-num" style="font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.7); letter-spacing: 1.5px; margin-top: 1px;">RESULT ${resultNumber}</div>
-            </div>
+            <div class="t4-container">
+                <div class="t4-split-content">
+                    
+                    <!-- Left Panel (35%) -->
+                    <div class="t4-left-panel">
+                        <div class="t4-left-header">
+                            <span class="t4-official-badge">OFFICIAL RESULT</span>
+                            <h1 class="t4-program-title">${escapeHTML(r.programName.toUpperCase())}</h1>
+                            <span class="t4-category">${escapeHTML(r.categoryName.toUpperCase())}</span>
+                            <span class="t4-result-badge">RESULT ${resultNumber}</span>
+                        </div>
+                        
+                        <div class="t4-academic-decor">
+                            <svg class="t4-academic-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 11.55C9.64 9.35 6.48 8 3 8v11c3.48 0 6.64 1.35 9 3.55 2.36-2.2 5.52-3.55 9-3.55V8c-3.48 0-6.64 1.35-9 3.55zM12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/>
+                            </svg>
+                            <div class="t4-vertical-labels">
+                                <span>COMPETITION</span>
+                                <span>EXCELLENCE</span>
+                                <span>ACHIEVEMENT</span>
+                            </div>
+                        </div>
+                    </div>
 
-            <div class="t4-leaderboard" style="position: absolute; bottom: 85px; left: 35px; right: 35px; background: rgba(255, 255, 255, 0.05); border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.1); overflow: hidden; z-index: 10;">
-                <div class="t4-table-header" style="display: grid; grid-template-columns: 60px 1fr 1fr; padding: 10px 12px; background: rgba(255, 255, 255, 0.12); font-size: 11px; font-weight: 800; letter-spacing: 0.5px; color: #fbbf24; border-bottom: 1px solid rgba(255, 255, 255, 0.15);">
-                    <span style="text-align: left;">RANK</span>
-                    <span style="text-align: left;">PARTICIPANT</span>
-                    <span style="text-align: left;">TEAM</span>
-                </div>
-                <div class="t4-rows">
-                    ${finalWinnersHTML}
-                </div>
-            </div>
+                    <!-- Right Panel (65%) -->
+                    <div class="t4-right-panel">
+                        ${finalWinnersHTML}
+                    </div>
 
-            <div class="poster-footer">
-                ${escapeHTML(madrasaName)}
+                </div>
+
+                <!-- Shared Footer at bottom -->
+                <div class="t4-footer">
+                    <div class="t4-footer-line"></div>
+                    <span class="t4-footer-text">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <div class="t4-footer-line"></div>
+                </div>
             </div>
         `;
     } else {
         const winnersHTML = sortedWinners.map((w, idx) => {
             const rank = idx + 1;
-            const rankClass = `rank-circle-${rank}`;
-
-            let detailsHTML = '';
-            if (isGroup) {
-                const teamNameText = w.teamName || '—';
-                const subgroupName = w.studentName || 'TEAM A';
-
-                detailsHTML = `
-                    <div class="team-main">
-                        ${escapeHTML(subgroupName.toUpperCase())}
-                    </div>
-                    <div class="team-subtitle">
-                        ${escapeHTML(teamNameText.toUpperCase())}
-                    </div>
-                `;
-            } else {
-                const studentNameText = w.studentName || '—';
-                const teamNameText = w.teamName || '—';
-                detailsHTML = `
-                    <h3>${escapeHTML(studentNameText.toUpperCase())}</h3>
-                    <p>${escapeHTML(teamNameText.toUpperCase())}</p>
-                `;
-            }
+            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
+            const teamText = w.teamName || '—';
 
             return `
-                <div class="winner-card">
-                    <div class="rank-circle ${rankClass}">
-                        ${rank}
-                    </div>
-                    <div style="display:flex; flex-direction:column;">
-                        ${detailsHTML}
+                <div class="t1-row t1-rank-${rank}">
+                    <div class="t1-rank-num">#${rank}</div>
+                    <div class="t1-details">
+                        <div class="t1-name">${escapeHTML(nameText.toUpperCase())}</div>
+                        <div class="t1-team">${escapeHTML(teamText.toUpperCase())}</div>
                     </div>
                 </div>
             `;
         }).join('');
 
-        const finalWinnersHTML = winnersHTML || `<div style="text-align:center;padding:2.5rem 1.5rem;color:rgba(255,255,255,0.4);font-style:italic;">No standings recorded for this event.</div>`;
+        const finalWinnersHTML = winnersHTML || `
+            <div style="text-align:center;padding:2rem 1.5rem;color:rgba(255,255,255,0.4);font-style:italic;font-size:14px;">
+                No standings recorded for this event.
+            </div>
+        `;
 
         return `
-            <div class="poster-header" style="position: absolute; top: 60px; left: 40px; right: 40px; display: flex; flex-direction: column; gap: 6px; z-index: 10;">
-                <span class="category">${escapeHTML(r.categoryName)}</span>
-                <div class="program">${escapeHTML(r.programName)}</div>
-                <div class="result-number">RESULT ${resultNumber}</div>
-            </div>
+            <div class="t1-container">
+                <div class="t1-header">
+                    <div class="t1-badge-row">
+                        <span class="t1-category">${escapeHTML(r.categoryName.toUpperCase())}</span>
+                        <span class="t1-result-badge">RESULT ${resultNumber}</span>
+                    </div>
+                    <h1 class="t1-title">${escapeHTML(r.programName.toUpperCase())}</h1>
+                </div>
 
-            <div class="p-winners-list" style="position: absolute; bottom: 85px; left: 40px; right: 40px; z-index: 10;">
-                ${finalWinnersHTML}
-            </div>
+                <div class="t1-list">
+                    ${finalWinnersHTML}
+                </div>
 
-            <div class="poster-footer">
-                ${escapeHTML(madrasaName)}
+                <div class="t1-footer">
+                    <div class="t1-footer-line"></div>
+                    <span class="t1-footer-text">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <div class="t1-footer-line"></div>
+                </div>
             </div>
         `;
     }
@@ -635,7 +845,7 @@ function renderSingleResult(r) {
     list.innerHTML = `
         <div class="poster-container" id="container-${r.id}">
             
-            <div class="result-poster" id="poster-${r.id}" style="background-image: url('../assets/poster-backgrounds/bg${bgId}.jpg')">
+            <div class="result-poster template-${templateId}" id="poster-${r.id}" style="background-image: url('../assets/poster-backgrounds/bg${bgId}.jpg')">
                 ${posterInnerHTML}
             </div>
 
@@ -825,306 +1035,670 @@ function generatePosterCanvas(r) {
 
     // Draw preloaded background
     const bgImg = preloadedBgs[bgId];
-    if (bgImg && bgImg.complete) {
-        ctx.drawImage(bgImg, 0, 0, 1200, 1500);
+    if (templateId === 1 || templateId === 2 || templateId === 3 || templateId === 4) {
+        ctx.save();
+        ctx.filter = 'blur(12px)';
+        if (bgImg && bgImg.complete) {
+            ctx.drawImage(bgImg, -40, -40, 1280, 1580);
+        } else {
+            const grad = ctx.createLinearGradient(0, 0, 1200, 1500);
+            grad.addColorStop(0, '#022c22');
+            grad.addColorStop(1, '#064e3b');
+            ctx.fillStyle = grad;
+            ctx.fillRect(-40, -40, 1280, 1580);
+        }
+        ctx.restore();
+
+        // Dark overlay depending on template
+        if (templateId === 3 || templateId === 4) {
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.70)';
+        } else {
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.65)';
+        }
+        ctx.fillRect(0, 0, 1200, 1500);
     } else {
-        // Fallback emerald-pine gradient if image load lags
-        const grad = ctx.createLinearGradient(0, 0, 1200, 1500);
-        grad.addColorStop(0, '#022c22');
-        grad.addColorStop(1, '#064e3b');
-        ctx.fillStyle = grad;
+        if (bgImg && bgImg.complete) {
+            ctx.drawImage(bgImg, 0, 0, 1200, 1500);
+        } else {
+            // Fallback emerald-pine gradient if image load lags
+            const grad = ctx.createLinearGradient(0, 0, 1200, 1500);
+            grad.addColorStop(0, '#022c22');
+            grad.addColorStop(1, '#064e3b');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 1200, 1500);
+        }
+
+        // Overlay dark subtle gradient for readability
+        const gradient = ctx.createLinearGradient(0, 0, 0, 1500);
+        gradient.addColorStop(0, 'rgba(0, 0, 0, 0.15)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0.45)');
+        ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, 1200, 1500);
     }
-
-    // Overlay dark subtle gradient for readability
-    const gradient = ctx.createLinearGradient(0, 0, 0, 1500);
-    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.15)');
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.45)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 1200, 1500);
 
     const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
 
     if (templateId === 2) {
-        // Template 2: Card-Based Winners Layout (separated premium cards)
-        // Header
+        // Template 2: Bento Grid Layout
+
+        // Category Name
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 88px "Cinzel", Georgia, serif';
-        ctx.fillText(programName, 600, 210);
-
         ctx.fillStyle = '#fbbf24';
-        ctx.font = '600 42px "Inter", sans-serif';
-        ctx.fillText(categoryName, 600, 280);
+        ctx.font = 'bold 36px "Inter", sans-serif';
+        ctx.fillText(categoryName, 600, 190);
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.font = '600 36px "Inter", sans-serif';
-        ctx.fillText(`RESULT ${resultNumber}`, 600, 340);
+        // Result Label glass pill badge
+        const badgeText = `RESULT ${resultNumber}`;
+        ctx.font = 'bold 30px "Inter", sans-serif';
+        const textWidth = ctx.measureText(badgeText).width;
+        const badgeW = textWidth + 40;
+        const badgeH = 54;
+        const badgeX = 600 - badgeW / 2;
+        const badgeY = 225;
 
-        // Cards
-        const startY = 440;
-        const rowHeight = 270;
-        const medalMap = { 0: '🥇 1ST PLACE', 1: '🥈 2ND PLACE', 2: '🥉 3RD PLACE' };
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.beginPath();
+        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 27);
+        ctx.fill();
 
-        for (let i = 0; i < sorted.length; i++) {
-            const w = sorted[i];
-            const y = startY + (i * rowHeight);
-
-            // Card body
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-            ctx.beginPath();
-            ctx.roundRect(100, y, 1000, 210, 45);
-            ctx.fill();
-
-            // Card border
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            // Rank Badge on left
-            ctx.textAlign = 'left';
-            ctx.fillStyle = '#fbbf24';
-            ctx.font = 'bold 36px "Inter", sans-serif';
-            ctx.fillText(medalMap[i], 140, y + 120);
-
-            // Separator line
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(420, y + 35);
-            ctx.lineTo(420, y + 175);
-            ctx.stroke();
-
-            // Details on right
-            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
-            const teamText = w.teamName || '—';
-
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 38px "Inter", sans-serif';
-            ctx.fillText(nameText.toUpperCase(), 455, y + 78);
-
-            ctx.fillStyle = '#cbd5e1';
-            ctx.font = '600 24px "Inter", sans-serif';
-            ctx.fillText(`TEAM: ${teamText.toUpperCase()}`, 455, y + 128);
-
-            ctx.fillStyle = '#fbbf24';
-            ctx.font = 'bold 20px "Inter", sans-serif';
-            ctx.fillText(`INSTITUTE: ${madrasaName}`, 455, y + 170);
-        }
-    } else if (templateId === 3) {
-        // Template 3: Editorial Layout
-        // Header
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 96px "Cinzel", Georgia, serif';
-        ctx.fillText(programName, 600, 220);
-
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = '600 42px "Inter", sans-serif';
-        ctx.fillText(categoryName, 600, 290);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.font = 'italic 48px "Playfair Display", Georgia, serif';
-        ctx.fillText(`Result ${resultNumber}`, 600, 360);
+        ctx.fillText(badgeText, 600, badgeY + 38);
 
-        // Vertical elements
-        const startY = 490;
-        const rowHeight = 240;
-        const ordinalMap = { 0: '1st Place', 1: '2nd Place', 2: '3rd Place' };
+        // Program Name
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 88px "Cinzel", Georgia, serif';
+        ctx.fillText(programName, 600, 395);
+
+        // Fetch top 3 winners details
+        const w1 = sorted[0];
+        const w2 = sorted[1];
+        const w3 = sorted[2];
+
+        const name1 = w1 ? (isGroup ? (w1.studentName || 'TEAM A') : (w1.studentName || '—')) : '—';
+        const team1 = w1 ? (w1.teamName || '—') : '—';
+
+        const name2 = w2 ? (isGroup ? (w2.studentName || 'TEAM B') : (w2.studentName || '—')) : '—';
+        const team2 = w2 ? (w2.teamName || '—') : '—';
+
+        const name3 = w3 ? (isGroup ? (w3.studentName || 'TEAM C') : (w3.studentName || '—')) : '—';
+        const team3 = w3 ? (w3.teamName || '—') : '—';
+
+        // 1st Place Card (Width 1000px, Height 260px, X = 100, Y = 490)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.beginPath();
+        ctx.roundRect(100, 490, 1000, 260, 56);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // 1st Place Left Highlight Bar
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.roundRect(100, 490, 16, 260, { tl: 56, bl: 56, tr: 0, br: 0 });
+        ctx.fill();
+
+        // 1st Place Details
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = 'bold 24px "Inter", sans-serif';
+        ctx.fillText("1ST STANDING", 160, 555);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 44px "Inter", sans-serif';
+        ctx.fillText(name1.toUpperCase(), 160, 620);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '600 28px "Inter", sans-serif';
+        ctx.fillText(`TEAM: ${team1.toUpperCase()}`, 160, 680);
+
+        // 1st Place Rank large transparent number
+        ctx.textAlign = 'right';
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.15)';
+        ctx.font = '900 120px "Inter", sans-serif';
+        ctx.fillText("01", 1040, 650);
+
+        // 2nd Place Card (Width 480px, Height 430px, X = 100, Y = 780)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.beginPath();
+        ctx.roundRect(100, 780, 480, 430, 48);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // 2nd Place Top Highlight Bar
+        ctx.fillStyle = '#cbd5e1';
+        ctx.beginPath();
+        ctx.roundRect(100, 780, 480, 12, { tl: 48, tr: 48, bl: 0, br: 0 });
+        ctx.fill();
+
+        // 2nd Place Rank large transparent number
+        ctx.textAlign = 'right';
+        ctx.fillStyle = 'rgba(203, 213, 225, 0.15)';
+        ctx.font = '900 110px "Inter", sans-serif';
+        ctx.fillText("02", 540, 920);
+
+        // 2nd Place Details
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = 'bold 22px "Inter", sans-serif';
+        ctx.fillText("2ND STANDING", 140, 1030);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 36px "Inter", sans-serif';
+        ctx.fillText(name2.toUpperCase(), 140, 1090);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '600 24px "Inter", sans-serif';
+        ctx.fillText(`TEAM: ${team2.toUpperCase()}`, 140, 1145);
+
+        // 3rd Place Card (Width 480px, Height 430px, X = 620, Y = 780)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.beginPath();
+        ctx.roundRect(620, 780, 480, 430, 48);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // 3rd Place Top Highlight Bar
+        ctx.fillStyle = '#d97706';
+        ctx.beginPath();
+        ctx.roundRect(620, 780, 480, 12, { tl: 48, tr: 48, bl: 0, br: 0 });
+        ctx.fill();
+
+        // 3rd Place Rank large transparent number
+        ctx.textAlign = 'right';
+        ctx.fillStyle = 'rgba(217, 119, 6, 0.15)';
+        ctx.font = '900 110px "Inter", sans-serif';
+        ctx.fillText("03", 1060, 920);
+
+        // 3rd Place Details
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#fdba74';
+        ctx.font = 'bold 22px "Inter", sans-serif';
+        ctx.fillText("3RD STANDING", 660, 1030);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 36px "Inter", sans-serif';
+        ctx.fillText(name3.toUpperCase(), 660, 1090);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '600 24px "Inter", sans-serif';
+        ctx.fillText(`TEAM: ${team3.toUpperCase()}`, 660, 1145);
+
+        // Centered Madrasa Footer Branding with divider lines
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 32px "Inter", sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        const footerText = madrasaName.toUpperCase();
+        const footerTextWidth = ctx.measureText(footerText).width;
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        ctx.moveTo(160, 1312);
+        ctx.lineTo(600 - (footerTextWidth / 2) - 30, 1312);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(600 + (footerTextWidth / 2) + 30, 1312);
+        ctx.lineTo(1040, 1312);
+        ctx.stroke();
+
+        ctx.fillText(footerText, 600, 1322);
+    } else if (templateId === 3) {
+        // Template 3: Editorial Layout
+        
+        // Left side texts
+        ctx.textAlign = 'left';
+        
+        // "OFFICIAL RESULTS STANDINGS"
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.font = 'bold 20px "Inter", sans-serif';
+        ctx.fillText("OFFICIAL RESULTS STANDINGS", 120, 160);
+
+        // Program Name
+        let progFontSize = 64;
+        ctx.font = `bold ${progFontSize}px "Cinzel", Georgia, serif`;
+        let progWidth = ctx.measureText(programName).width;
+        if (progWidth > 750) {
+            progFontSize = Math.floor(64 * (750 / progWidth));
+            if (progFontSize < 36) progFontSize = 36;
+            ctx.font = `bold ${progFontSize}px "Cinzel", Georgia, serif`;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(programName, 120, 240);
+
+        // Category Name
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = 'bold 26px "Inter", sans-serif';
+        ctx.fillText(categoryName, 120, 295);
+
+        // Result badge (rounded rectangle outline)
+        const badgeText = `RESULT ${resultNumber}`;
+        ctx.font = 'bold 22px "Inter", sans-serif';
+        const bTextWidth = ctx.measureText(badgeText).width;
+        const bX = 120;
+        const bY = 325;
+        const bW = bTextWidth + 30;
+        const bH = 44;
+        
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(bX, bY, bW, bH, 8);
+        ctx.stroke();
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillText(badgeText, bX + 15, bY + 30);
+
+        // Right side emblem (academic open book icon)
+        ctx.save();
+        ctx.fillStyle = '#fbbf24';
+        ctx.translate(1000, 110);
+        ctx.scale(2.5, 2.5);
+        const path = new Path2D("M12 11.55C9.64 9.35 6.48 8 3 8v11c3.48 0 6.64 1.35 9 3.55 2.36-2.2 5.52-3.55 9-3.55V8c-3.48 0-6.64 1.35-9 3.55zM12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z");
+        ctx.fill(path);
+        ctx.restore();
+
+        // Right side vertical labels
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.font = 'bold 15px "Inter", sans-serif';
+        ctx.fillText("COMPETITION", 1030, 210);
+        ctx.fillText("EXCELLENCE", 1030, 235);
+        ctx.fillText("ACHIEVEMENT", 1030, 260);
+
+        // Winner Rows
+        const startY = 480;
+        const rowHeight = 230;
+        const ordinalMap = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
+        const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
 
         for (let i = 0; i < sorted.length; i++) {
             const w = sorted[i];
             const y = startY + (i * rowHeight);
+            const rank = i + 1;
 
             // Draw thin divider line underneath except for last
             if (i < sorted.length - 1) {
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(120, y + 195);
-                ctx.lineTo(1080, y + 195);
+                ctx.moveTo(120, y + 180);
+                ctx.lineTo(1080, y + 180);
                 ctx.stroke();
             }
 
-            // Left Rank
+            // Left Rank details
             ctx.textAlign = 'left';
-            ctx.fillStyle = '#fbbf24';
-            ctx.font = 'italic 42px "Playfair Display", Georgia, serif';
-            ctx.fillText(ordinalMap[i], 120, y + 110);
+            ctx.fillStyle = rankColors[rank];
+            ctx.font = 'bold 90px "Inter", sans-serif';
+            ctx.fillText(`0${rank}`, 120, y + 90);
 
-            // Right Details
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.font = 'bold 18px "Inter", sans-serif';
+            ctx.fillText(ordinalMap[rank], 120, y + 135);
+
+            // Right Student & Team details
             const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
             const teamText = w.teamName || '—';
 
             ctx.textAlign = 'right';
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 42px "Inter", sans-serif';
-            ctx.fillText(nameText.toUpperCase(), 1080, y + 90);
+            ctx.font = 'bold 44px "Inter", sans-serif';
+            
+            let maxNameWidth = 650;
+            let finalName = nameText.toUpperCase();
+            if (ctx.measureText(finalName).width > maxNameWidth) {
+                while (ctx.measureText(finalName + '...').width > maxNameWidth && finalName.length > 0) {
+                    finalName = finalName.slice(0, -1);
+                }
+                finalName += '...';
+            }
+            ctx.fillText(finalName, 1080, y + 80);
 
-            ctx.fillStyle = '#cbd5e1';
-            ctx.font = '600 24px "Inter", sans-serif';
-            ctx.fillText(teamText.toUpperCase(), 1080, y + 140);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.font = '600 26px "Inter", sans-serif';
+            
+            let finalTeam = teamText.toUpperCase();
+            if (ctx.measureText(finalTeam).width > maxNameWidth) {
+                while (ctx.measureText(finalTeam + '...').width > maxNameWidth && finalTeam.length > 0) {
+                    finalTeam = finalTeam.slice(0, -1);
+                }
+                finalTeam += '...';
+            }
+            ctx.fillText(finalTeam, 1080, y + 130);
         }
-    } else if (templateId === 4) {
-        // Template 4: Leaderboard Layout (Sports style table)
-        // Header
+
+        // Draw Editorial Footer
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 88px "Cinzel", Georgia, serif';
-        ctx.fillText(programName, 600, 200);
+        ctx.font = 'bold 24px "Inter", sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        const footerText = madrasaName.toUpperCase();
+        const footerTextWidth = ctx.measureText(footerText).width;
 
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = '600 42px "Inter", sans-serif';
-        ctx.fillText(categoryName, 600, 270);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 2;
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.font = '600 34px "Inter", sans-serif';
-        ctx.fillText(`RESULT ${resultNumber}`, 600, 325);
-
-        // Leaderboard Table Outer Container Box
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
         ctx.beginPath();
-        ctx.roundRect(100, 410, 1000, 480, 32);
+        ctx.moveTo(120, 1370);
+        ctx.lineTo(600 - (footerTextWidth / 2) - 30, 1370);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(600 + (footerTextWidth / 2) + 30, 1370);
+        ctx.lineTo(1080, 1370);
+        ctx.stroke();
+
+        ctx.fillText(footerText, 600, 1380);
+    } else if (templateId === 4) {
+        // Template 4: Premium Split-Screen Dashboard Layout
+        
+        // Vertical split divider line at X = 480
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(480, 160);
+        ctx.lineTo(480, 1260);
+        ctx.stroke();
+
+        // Left Panel (X = 120)
+        ctx.textAlign = 'left';
+        
+        // "OFFICIAL RESULT" badge/header
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = 'bold 20px "Inter", sans-serif';
+        ctx.fillText("OFFICIAL RESULT", 120, 200);
+
+        // Program Name (Auto-wrap or scale down)
+        let progFontSize = 64;
+        ctx.font = `bold ${progFontSize}px "Cinzel", Georgia, serif`;
+        let progWidth = ctx.measureText(programName).width;
+        if (progWidth > 320) {
+            progFontSize = Math.floor(64 * (320 / progWidth));
+            if (progFontSize < 32) progFontSize = 32;
+            ctx.font = `bold ${progFontSize}px "Cinzel", Georgia, serif`;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(programName, 120, 280);
+
+        // Category Name
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = 'bold 26px "Inter", sans-serif';
+        ctx.fillText(categoryName, 120, 335);
+
+        // Result Badge (Outlined Box)
+        const badgeText = `RESULT ${resultNumber}`;
+        ctx.font = 'bold 22px "Inter", sans-serif';
+        const bTextWidth = ctx.measureText(badgeText).width;
+        const bX = 120;
+        const bY = 365;
+        const bW = bTextWidth + 30;
+        const bH = 44;
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(bX, bY, bW, bH, 8);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.fillText(badgeText, bX + 15, bY + 30);
+
+        // Left Panel Bottom Ornaments
+        // SVG Open-book icon at X = 120, Y = 1000
+        ctx.save();
+        ctx.fillStyle = '#fbbf24';
+        ctx.translate(120, 960);
+        ctx.scale(2.5, 2.5);
+        const path = new Path2D("M12 11.55C9.64 9.35 6.48 8 3 8v11c3.48 0 6.64 1.35 9 3.55 2.36-2.2 5.52-3.55 9-3.55V8c-3.48 0-6.64 1.35-9 3.55zM12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z");
+        ctx.fill(path);
+        ctx.restore();
+
+        // Stacked Vertical Labels
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.font = 'bold 15px "Inter", sans-serif';
+        ctx.fillText("COMPETITION", 120, 1070);
+        ctx.fillText("EXCELLENCE", 120, 1095);
+        ctx.fillText("ACHIEVEMENT", 120, 1120);
+
+        // Right Panel cards (X = 520 to 1080, Width = 560)
+        const startY = 360;
+        const rowHeight = 220;
+        const ordinalMap = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
+        const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
+
+        for (let i = 0; i < sorted.length; i++) {
+            const w = sorted[i];
+            const y = startY + (i * rowHeight);
+            const rank = i + 1;
+            const accentColor = rankColors[rank];
+
+            // Card container box background (Width = 560, Height = 180)
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.beginPath();
+            ctx.roundRect(520, y, 560, 180, 24);
+            ctx.fill();
+
+            // Card stroke/border
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Left colored highlight bar (Gold, Silver, Bronze)
+            ctx.fillStyle = accentColor;
+            ctx.beginPath();
+            ctx.roundRect(520, y, 10, 180, { tl: 24, bl: 24, tr: 0, br: 0 });
+            ctx.fill();
+
+            // Left text details: Rank Number & Label
+            ctx.textAlign = 'left';
+            ctx.fillStyle = accentColor;
+            ctx.font = 'bold 64px "Inter", sans-serif';
+            ctx.fillText(`0${rank}`, 560, y + 105);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.font = 'bold 16px "Inter", sans-serif';
+            ctx.fillText(ordinalMap[rank], 560, y + 140);
+
+            // Right text details: Participant Name & Team
+            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
+            const teamText = w.teamName || '—';
+
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 38px "Inter", sans-serif';
+            
+            let maxNameWidth = 320;
+            let finalName = nameText.toUpperCase();
+            if (ctx.measureText(finalName).width > maxNameWidth) {
+                while (ctx.measureText(finalName + '...').width > maxNameWidth && finalName.length > 0) {
+                    finalName = finalName.slice(0, -1);
+                }
+                finalName += '...';
+            }
+            ctx.fillText(finalName, 1040, y + 80);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.font = '600 24px "Inter", sans-serif';
+            
+            let finalTeam = teamText.toUpperCase();
+            if (ctx.measureText(finalTeam).width > maxNameWidth) {
+                while (ctx.measureText(finalTeam + '...').width > maxNameWidth && finalTeam.length > 0) {
+                    finalTeam = finalTeam.slice(0, -1);
+                }
+                finalTeam += '...';
+            }
+            ctx.fillText(finalTeam, 1040, y + 130);
+        }
+
+        // Centered shared footer at bottom
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 24px "Inter", sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        const footerText = madrasaName.toUpperCase();
+        const footerTextWidth = ctx.measureText(footerText).width;
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        ctx.moveTo(120, 1370);
+        ctx.lineTo(600 - (footerTextWidth / 2) - 30, 1370);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(600 + (footerTextWidth / 2) + 30, 1370);
+        ctx.lineTo(1080, 1370);
+        ctx.stroke();
+
+        ctx.fillText(footerText, 600, 1380);
+    } else {
+        // Template 1 (Redesigned Liquid Glass)
+        // Main Liquid Glass Container
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+        ctx.beginPath();
+        ctx.roundRect(80, 80, 1040, 1340, 80);
         ctx.fill();
 
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        // Table Header row background
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+        // Subtle top reflection gradient
+        const reflectGrad = ctx.createLinearGradient(80, 80, 1120, 750);
+        reflectGrad.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
+        reflectGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = reflectGrad;
         ctx.beginPath();
-        ctx.roundRect(100, 410, 1000, 95, { tl: 32, tr: 32, bl: 0, br: 0 });
+        ctx.roundRect(80, 80, 1040, 670, { tl: 80, tr: 80, bl: 0, br: 0 });
         ctx.fill();
 
-        // Table Header labels
-        ctx.textAlign = 'left';
+        // Category Name
+        ctx.textAlign = 'center';
         ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 30px "Inter", sans-serif';
-        ctx.fillText("RANK", 150, 470);
-        ctx.fillText("PARTICIPANT", 320, 470);
-        ctx.fillText("TEAM", 750, 470);
+        ctx.font = 'bold 36px "Inter", sans-serif';
+        ctx.fillText(categoryName, 600, 190);
 
-        // Table Rows
-        const startY = 505;
-        const rowHeight = 125;
+        // Result Label glass pill badge
+        const badgeText = `RESULT ${resultNumber}`;
+        ctx.font = 'bold 30px "Inter", sans-serif';
+        const textWidth = ctx.measureText(badgeText).width;
+        const badgeW = textWidth + 40;
+        const badgeH = 54;
+        const badgeX = 600 - badgeW / 2;
+        const badgeY = 225;
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.beginPath();
+        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 27);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.fillText(badgeText, 600, badgeY + 38);
+
+        // Program Name
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 88px "Cinzel", Georgia, serif';
+        ctx.fillText(programName, 600, 395);
+
+        // Ranking rows
+        const startY = 490;
+        const rowHeight = 220;
+        const rankAccentColors = {
+            0: '#fbbf24',
+            1: '#cbd5e1',
+            2: '#d97706'
+        };
 
         for (let i = 0; i < sorted.length; i++) {
             const w = sorted[i];
             const y = startY + (i * rowHeight);
+            const accentColor = rankAccentColors[i] || '#ffffff';
 
-            // Divider line
+            // Card background
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+            ctx.beginPath();
+            ctx.roundRect(160, y, 880, 180, 32);
+            ctx.fill();
+
+            // Card border
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
             ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(100, y);
-            ctx.lineTo(1100, y);
             ctx.stroke();
 
-            // Values
-            ctx.fillStyle = i === 0 ? '#fbbf24' : '#ffffff';
-            ctx.font = 'bold 36px "Inter", sans-serif';
-            ctx.fillText(`${i + 1}`, 150, y + 80);
+            // Left accent highlight bar
+            ctx.fillStyle = accentColor;
+            ctx.beginPath();
+            ctx.roundRect(160, y, 12, 180, { tl: 32, bl: 32, tr: 0, br: 0 });
+            ctx.fill();
 
+            // Rank Number text shadow & value
+            ctx.textAlign = 'center';
+            ctx.fillStyle = accentColor;
+            ctx.font = 'bold 64px "Inter", sans-serif';
+            ctx.fillText(`#${i + 1}`, 245, y + 112);
+
+            // Participant Name & Team
             const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
             const teamText = w.teamName || '—';
 
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 32px "Inter", sans-serif';
-            ctx.fillText(nameText.toUpperCase(), 320, y + 80);
-
-            ctx.fillStyle = '#cbd5e1';
-            ctx.font = '600 28px "Inter", sans-serif';
-            ctx.fillText(teamText.toUpperCase(), 750, y + 80);
-        }
-    } else {
-        // Template 1 (Current Design)
-        ctx.textAlign = 'left';
-        ctx.font = '600 52px "Inter", sans-serif';
-        ctx.fillStyle = '#fbbf24';
-        ctx.fillText(categoryName, 100, 180);
-
-        ctx.font = 'bold 128px "Cinzel", Georgia, serif';
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(programName, 100, 300);
-
-        ctx.font = '600 52px "Inter", sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.fillText(`RESULT ${resultNumber}`, 100, 380);
-
-        const startY = 480;
-        const rowHeight = 230;
-
-        for (let i = 0; i < sorted.length; i++) {
-            const w = sorted[i];
-            const y = startY + (i * rowHeight);
-
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-            ctx.beginPath();
-            ctx.roundRect(100, y, 1000, 170, 45);
-            ctx.fill();
-
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            if (i === 0) {
-                const goldGrad = ctx.createLinearGradient(135, y + 35, 235, y + 135);
-                goldGrad.addColorStop(0, '#FFE082');
-                goldGrad.addColorStop(1, '#FFB300');
-                ctx.fillStyle = goldGrad;
-            } else if (i === 1) {
-                const silverGrad = ctx.createLinearGradient(135, y + 35, 235, y + 135);
-                silverGrad.addColorStop(0, '#F1F5F9');
-                silverGrad.addColorStop(1, '#94A3B8');
-                ctx.fillStyle = silverGrad;
-            } else {
-                const bronzeGrad = ctx.createLinearGradient(135, y + 35, 235, y + 135);
-                bronzeGrad.addColorStop(0, '#FFEDD5');
-                bronzeGrad.addColorStop(1, '#D97706');
-                ctx.fillStyle = bronzeGrad;
-            }
-            ctx.beginPath();
-            ctx.arc(185, y + 85, 50, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.font = 'bold 42px "Inter", sans-serif';
-            ctx.fillStyle = '#000000';
-            ctx.textAlign = 'center';
-            ctx.fillText(`${i + 1}`, 185, y + 99);
-
             ctx.textAlign = 'left';
-            if (isGroup) {
-                const teamNameText = w ? w.teamName : '—';
-                const subgroupName = w ? (w.studentName || 'TEAM A') : '—';
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 42px "Inter", sans-serif';
+            ctx.fillText(nameText.toUpperCase(), 340, y + 80);
 
-                ctx.font = 'bold 38px "Inter", sans-serif';
-                ctx.fillStyle = '#ffffff';
-                ctx.fillText(subgroupName.toUpperCase(), 270, y + 72);
-
-                ctx.font = '600 24px "Inter", sans-serif';
-                ctx.fillStyle = '#D4A017';
-                ctx.fillText(teamNameText.toUpperCase(), 270, y + 122);
-            } else {
-                const studentNameText = w ? w.studentName : '—';
-                const teamNameText = w ? (w.teamName || '—') : '—';
-
-                ctx.font = 'bold 38px "Inter", sans-serif';
-                ctx.fillStyle = '#ffffff';
-                ctx.fillText(studentNameText.toUpperCase(), 270, y + 72);
-
-                ctx.font = '600 24px "Inter", sans-serif';
-                ctx.fillStyle = '#cbd5e1';
-                ctx.fillText(teamNameText.toUpperCase(), 270, y + 122);
-            }
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.font = '600 28px "Inter", sans-serif';
+            ctx.fillText(teamText.toUpperCase(), 340, y + 130);
         }
+
+        // Centered Madrasa Footer Branding with divider lines
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 32px "Inter", sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        const footerText = madrasaName.toUpperCase();
+        const footerTextWidth = ctx.measureText(footerText).width;
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        ctx.moveTo(160, 1312);
+        ctx.lineTo(600 - (footerTextWidth / 2) - 30, 1312);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(600 + (footerTextWidth / 2) + 30, 1312);
+        ctx.lineTo(1040, 1312);
+        ctx.stroke();
+
+        ctx.fillText(footerText, 600, 1322);
     }
 
-    // Centered Madrasa Footer Branding
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 44px "Inter", sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.fillText(madrasaName, 600, 1430);
+    // Centered Madrasa Footer Branding for other templates
+    if (templateId !== 1 && templateId !== 2 && templateId !== 3 && templateId !== 4) {
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 44px "Inter", sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.fillText(madrasaName, 600, 1430);
+    }
 
     return canvas;
 }

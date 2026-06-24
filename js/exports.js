@@ -1259,37 +1259,9 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
         const p = d.data();
         if (limitTeamId && p.teamId !== limitTeamId) return;
 
-        if (pType === 'general') {
-            if (p.type === 'group') {
-                const groups = Array.isArray(p.groups) ? p.groups : [];
-                groups.forEach(g => {
-                    const members = (g.members || []).map(m => {
-                        const resolvedStudent = studentMap[m.studentId];
-                        return {
-                            studentId: m.studentId || '',
-                            name: resolvedStudent ? resolvedStudent.name : (m.studentName || '—'),
-                            chestNumber: resolvedStudent ? resolvedStudent.chestNumber : '—'
-                        };
-                    });
-                    list.push({
-                        isGroup: true,
-                        name: g.name || p.teamName || 'Group',
-                        teamName: p.teamName || '',
-                        teamId: p.teamId || '',
-                        members: members
-                    });
-                });
-            } else {
-                const resolvedStudent = studentMap[p.studentId];
-                list.push({
-                    studentId: p.studentId || '',
-                    name: resolvedStudent ? resolvedStudent.name : (p.studentName || '—'),
-                    chestNumber: resolvedStudent ? resolvedStudent.chestNumber : (p.chestNumber || '—'),
-                    teamName: p.teamName || '—',
-                    teamId: p.teamId || ''
-                });
-            }
-        } else if (pType === 'group') {
+        const isGroupData = p.type === 'group' || Array.isArray(p.groups) || pType === 'group' || pType === 'team' || pType === 'team-based' || pType === 'special';
+
+        if (isGroupData) {
             const groups = Array.isArray(p.groups) ? p.groups : [];
             if (groups.length > 0) {
                 groups.forEach(g => {
@@ -1302,6 +1274,7 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
                         };
                     });
                     list.push({
+                        id: g.id || `${p.teamId || d.id}_${g.name || 'group'}`,
                         isGroup: true,
                         name: g.name || p.teamName || 'Group',
                         teamName: p.teamName || '',
@@ -1311,6 +1284,7 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
                 });
             } else {
                 list.push({
+                    id: p.teamId || d.id,
                     isGroup: true,
                     name: p.teamName || 'Team',
                     teamName: p.teamName || '',
@@ -2986,9 +2960,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                             <td style="padding:0.4rem 0.75rem;">
                                                 <div style="display:flex; flex-direction:column; gap:0.25rem;">
                                                     ${stu.prizes.map(p => {
-                        const icon = p.position === 'First' ? '🥇' : (p.position === 'Second' ? '🥈' : '🥉');
-                        return `<span style="font-size:0.78rem; font-weight:700; color:#1e293b;">${icon} ${window.escapeHTML(p.programName)} ➔ <strong>${p.position}</strong></span>`;
-                    }).join('')}
+                                                        const icon = p.position === 'First' ? '🥇' : (p.position === 'Second' ? '🥈' : '🥉');
+                                                        return `<span style="font-size:0.78rem; font-weight:700; color:#1e293b;">${icon} ${window.escapeHTML(p.programName)} ➔ <strong>${p.position}</strong></span>`;
+                                                    }).join('')}
                                                 </div>
                                             </td>
                                         </tr>
@@ -3018,20 +2992,47 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const prizes = [];
 
                     programs.forEach(p => {
-                        if (p.programType === 'group') return;
                         const pList = participantsMap[p.id] || [];
-                        const isPart = pList.some(part => part.studentId === studentId || part.name === stu.name);
+                        const isPart = pList.some(part => {
+                            if (part.isGroup === true || Array.isArray(part.members)) {
+                                if (part.members && part.members.length > 0) {
+                                    return part.members.some(m => m.studentId === studentId || m.name === stu.name);
+                                } else {
+                                    return stu.teamId && stu.teamId === part.teamId;
+                                }
+                            } else {
+                                return part.studentId === studentId || part.name === stu.name;
+                            }
+                        });
                         if (isPart) {
                             participations.push(p.programName);
                         }
                     });
 
                     filteredResults.forEach(r => {
-                        if (r.programType === 'group') return;
+                        const rIsGroup = r.programType === 'group' || r.registrationType === 'group' || r.type === 'Group';
                         const winners = Array.isArray(r.winners) ? r.winners : [];
                         winners.forEach(w => {
                             if (w.studentId === studentId || w.studentName === stu.name) {
                                 prizes.push(w.position);
+                            } else if (rIsGroup) {
+                                const pList = participantsMap[r.programId] || [];
+                                const matchingGroups = pList.filter(part => 
+                                    part.isGroup && 
+                                    (part.id === w.groupId || part.name === w.studentName || part.teamId === w.teamId)
+                                );
+                                matchingGroups.forEach(matchingGroup => {
+                                    if (matchingGroup.members && matchingGroup.members.length > 0) {
+                                        const isMember = matchingGroup.members.some(m => m.studentId === studentId || m.name === stu.name);
+                                        if (isMember) {
+                                            prizes.push(w.position);
+                                        }
+                                    } else {
+                                        if (stu.teamId && stu.teamId === matchingGroup.teamId) {
+                                            prizes.push(w.position);
+                                        }
+                                    }
+                                });
                             }
                         });
                     });
@@ -3039,8 +3040,13 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const hasMajorPrize = prizes.some(p => p === 'First' || p === 'Second');
                     if (hasMajorPrize) return;
 
-                    const hasThirdPrize = prizes.some(p => p === 'Third');
-                    const statusLabel = hasThirdPrize ? 'Third Prize Only' : 'No Prize';
+                    let statusLabel = '';
+                    if (participations.length === 0) {
+                        statusLabel = 'No Participation';
+                    } else {
+                        const hasThirdPrize = prizes.some(p => p === 'Third');
+                        statusLabel = hasThirdPrize ? 'Third Prize Only' : 'No Prize';
+                    }
 
                     studentDataList.push({
                         studentId: studentId,
@@ -3069,28 +3075,24 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     studentDataList.forEach(stu => {
                         const catId = stu.categoryId;
                         const catName = stu.categoryName;
-                        const status = stu.status;
                         const classId = stu.classId;
                         const className = stu.className;
 
                         if (!grouped[catId]) {
                             grouped[catId] = {
                                 name: catName,
-                                statuses: {
-                                    'No Prize': { name: '=== NO PRIZE ===', classes: {} },
-                                    'Third Prize Only': { name: '=== THIRD PRIZE ONLY ===', classes: {} }
-                                }
+                                classes: {}
                             };
                         }
 
-                        if (!grouped[catId].statuses[status].classes[classId]) {
-                            grouped[catId].statuses[status].classes[classId] = {
+                        if (!grouped[catId].classes[classId]) {
+                            grouped[catId].classes[classId] = {
                                 name: className,
                                 students: []
                             };
                         }
 
-                        grouped[catId].statuses[status].classes[classId].students.push(stu);
+                        grouped[catId].classes[classId].students.push(stu);
                     });
 
                     const sortedCatIds = Object.keys(grouped).sort((a, b) => grouped[a].name.localeCompare(grouped[b].name));
@@ -3098,17 +3100,19 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     sortedCatIds.forEach(catId => {
                         const cat = grouped[catId];
                         
+                        let noParticipationCount = 0;
                         let noPrizeCount = 0;
                         let thirdPrizeCount = 0;
                         
-                        Object.values(cat.statuses['No Prize'].classes).forEach(cls => {
-                            noPrizeCount += cls.students.length;
-                        });
-                        Object.values(cat.statuses['Third Prize Only'].classes).forEach(cls => {
-                            thirdPrizeCount += cls.students.length;
+                        Object.values(cat.classes).forEach(cls => {
+                            cls.students.forEach(s => {
+                                if (s.status === 'No Participation') noParticipationCount++;
+                                else if (s.status === 'No Prize') noPrizeCount++;
+                                else if (s.status === 'Third Prize Only') thirdPrizeCount++;
+                            });
                         });
                         
-                        const totalEligible = noPrizeCount + thirdPrizeCount;
+                        const totalEligible = noParticipationCount + noPrizeCount + thirdPrizeCount;
 
                         htmlContent += `
                             <div class="program-page-standard" style="margin-bottom: 2rem;">
@@ -3117,66 +3121,73 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                         <h2 style="color:#1e1b4b; margin:0; text-transform:uppercase; font-weight:900;">🏅 PARTICIPANTS WITHOUT MAJOR PRIZES</h2>
                                         <h3 style="color:#4338ca; margin-top:0.25rem; font-size:1.1rem; font-weight:700;">${window.escapeHTML(cat.name)}</h3>
                                     </div>
-                                    <div class="summary-section" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; padding:0.5rem 0.75rem; font-size:0.75rem; color:#334155; line-height:1.45; min-width:180px;">
+                                    <div class="summary-section" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; padding:0.5rem 0.75rem; font-size:0.75rem; color:#334155; line-height:1.45; min-width:200px;">
                                         <div style="font-weight:800; text-transform:uppercase; border-bottom:1.5px solid #cbd5e1; padding-bottom:0.2rem; margin-bottom:0.3rem; color:#1e1b4b;">Category Summary</div>
-                                        <div>No Prize Students: <strong>${noPrizeCount}</strong></div>
-                                        <div>Third Prize Only Students: <strong>${thirdPrizeCount}</strong></div>
+                                        <div>No Participation: <strong>${noParticipationCount}</strong></div>
+                                        <div>No Prize: <strong>${noPrizeCount}</strong></div>
+                                        <div>Third Prize Only: <strong>${thirdPrizeCount}</strong></div>
                                         <div style="font-weight:700; color:#4338ca; margin-top:0.25rem;">Total Eligible: <strong>${totalEligible}</strong></div>
                                     </div>
                                 </div>
                         `;
 
-                        ['No Prize', 'Third Prize Only'].forEach(statusKey => {
-                            const statusGroup = cat.statuses[statusKey];
-                            const sortedClassIds = Object.keys(statusGroup.classes).sort((a, b) => {
-                                const nameA = statusGroup.classes[a].name;
-                                const nameB = statusGroup.classes[b].name;
-                                return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+                        const sortedClassIds = Object.keys(cat.classes).sort((a, b) => {
+                            const nameA = cat.classes[a].name;
+                            const nameB = cat.classes[b].name;
+                            return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+                        });
+
+                        sortedClassIds.forEach(classId => {
+                            const cls = cat.classes[classId];
+                            
+                            const statusPriority = {
+                                'No Participation': 1,
+                                'No Prize': 2,
+                                'Third Prize Only': 3
+                            };
+                            const students = [...cls.students].sort((a, b) => {
+                                const pA = statusPriority[a.status] || 99;
+                                const pB = statusPriority[b.status] || 99;
+                                if (pA !== pB) return pA - pB;
+                                return a.name.localeCompare(b.name);
                             });
 
-                            if (sortedClassIds.length > 0) {
-                                htmlContent += `
-                                    <div style="margin-top:1.25rem; margin-bottom:0.5rem; border-bottom:1.5px dashed #4338ca; padding-bottom:0.25rem;">
-                                        <h3 style="color:#4338ca; font-size:0.95rem; font-weight:900; letter-spacing:0.04em;">${statusGroup.name}</h3>
-                                    </div>
-                                `;
+                            const statusColors = {
+                                'No Participation': '#64748b',
+                                'No Prize': '#475569',
+                                'Third Prize Only': '#b45309'
+                            };
 
-                                sortedClassIds.forEach(classId => {
-                                    const cls = statusGroup.classes[classId];
-                                    const students = [...cls.students].sort((a, b) => a.name.localeCompare(b.name));
-
-                                    htmlContent += `
-                                        <div style="margin-left:0.5rem; margin-top:0.75rem; margin-bottom:0.75rem; page-break-inside:avoid; break-inside:avoid;">
-                                            <h4 style="color:#1e1b4b; font-size:0.85rem; font-weight:800; margin-bottom:0.35rem;">Class: ${window.escapeHTML(cls.name)}</h4>
-                                            
-                                            <table class="report-table" style="margin-top:0; margin-bottom:0.5rem; width:100%;">
-                                                <thead>
-                                                    <tr>
-                                                        <th style="width:70px; text-align:center;">Chest No</th>
-                                                        <th>Student Name</th>
-                                                        <th>Team / House</th>
-                                                        <th style="width:80px; text-align:center;">Participations</th>
-                                                        <th style="width:130px; text-align:center;">Status</th>
-                                                        <th>Programs Participated</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    ${students.map(s => `
-                                                        <tr>
-                                                            <td style="text-align:center; font-weight:900; color:#0f172a;">${window.escapeHTML(s.chestNumber)}</td>
-                                                            <td style="font-weight:800; color:#1e1b4b;">${window.escapeHTML(s.name)}</td>
-                                                            <td style="font-weight:700; color:#475569;">${window.escapeHTML(s.teamName)}</td>
-                                                            <td style="text-align:center; font-weight:800; color:#4338ca;">${s.participationsCount}</td>
-                                                            <td style="text-align:center; font-weight:700; color:${s.status === 'No Prize' ? '#475569' : '#b45309'}; font-size:0.75rem;">${s.status}</td>
-                                                            <td style="font-size:0.72rem; color:#475569; font-weight:500;">${window.escapeHTML(s.participationsList.join(', ') || 'None')}</td>
-                                                        </tr>
-                                                    `).join('')}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    `;
-                                });
-                            }
+                            htmlContent += `
+                                <div style="margin-left:0.5rem; margin-top:0.75rem; margin-bottom:0.75rem; page-break-inside:avoid; break-inside:avoid;">
+                                    <h4 style="color:#1e1b4b; font-size:0.85rem; font-weight:800; margin-bottom:0.35rem;">Class: ${window.escapeHTML(cls.name)}</h4>
+                                    
+                                    <table class="report-table" style="margin-top:0; margin-bottom:0.5rem; width:100%;">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:70px; text-align:center;">Chest No</th>
+                                                <th>Student Name</th>
+                                                <th>Team / House</th>
+                                                <th style="width:80px; text-align:center;">Participations</th>
+                                                <th style="width:130px; text-align:center;">Status</th>
+                                                <th>Programs Participated</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${students.map(s => `
+                                                <tr>
+                                                    <td style="text-align:center; font-weight:900; color:#0f172a;">${window.escapeHTML(s.chestNumber)}</td>
+                                                    <td style="font-weight:800; color:#1e1b4b;">${window.escapeHTML(s.name)}</td>
+                                                    <td style="font-weight:700; color:#475569;">${window.escapeHTML(s.teamName)}</td>
+                                                    <td style="text-align:center; font-weight:800; color:#4338ca;">${s.participationsCount}</td>
+                                                    <td style="text-align:center; font-weight:700; color:${statusColors[s.status] || '#475569'}; font-size:0.75rem;">${s.status}</td>
+                                                    <td style="font-size:0.72rem; color:#475569; font-weight:500;">${window.escapeHTML(s.participationsList.join(', ') || 'None')}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            `;
                         });
 
                         htmlContent += `</div>`;
@@ -3810,20 +3821,47 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 const prizes = [];
 
                 programs.forEach(p => {
-                    if (p.programType === 'group') return;
                     const pList = participantsMap[p.id] || [];
-                    const isPart = pList.some(part => part.studentId === studentId || part.name === stu.name);
+                    const isPart = pList.some(part => {
+                        if (part.isGroup === true || Array.isArray(part.members)) {
+                            if (part.members && part.members.length > 0) {
+                                return part.members.some(m => m.studentId === studentId || m.name === stu.name);
+                            } else {
+                                return stu.teamId && stu.teamId === part.teamId;
+                            }
+                        } else {
+                            return part.studentId === studentId || part.name === stu.name;
+                        }
+                    });
                     if (isPart) {
                         participations.push(p.programName);
                     }
                 });
 
                 filteredResults.forEach(r => {
-                    if (r.programType === 'group') return;
+                    const rIsGroup = r.programType === 'group' || r.registrationType === 'group' || r.type === 'Group';
                     const winners = Array.isArray(r.winners) ? r.winners : [];
                     winners.forEach(w => {
                         if (w.studentId === studentId || w.studentName === stu.name) {
                             prizes.push(w.position);
+                        } else if (rIsGroup) {
+                            const pList = participantsMap[r.programId] || [];
+                            const matchingGroups = pList.filter(part => 
+                                part.isGroup && 
+                                (part.id === w.groupId || part.name === w.studentName || part.teamId === w.teamId)
+                            );
+                            matchingGroups.forEach(matchingGroup => {
+                                if (matchingGroup.members && matchingGroup.members.length > 0) {
+                                    const isMember = matchingGroup.members.some(m => m.studentId === studentId || m.name === stu.name);
+                                    if (isMember) {
+                                        prizes.push(w.position);
+                                    }
+                                } else {
+                                    if (stu.teamId && stu.teamId === matchingGroup.teamId) {
+                                        prizes.push(w.position);
+                                    }
+                                }
+                            });
                         }
                     });
                 });
@@ -3831,8 +3869,13 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 const hasMajorPrize = prizes.some(p => p === 'First' || p === 'Second');
                 if (hasMajorPrize) return;
 
-                const hasThirdPrize = prizes.some(p => p === 'Third');
-                const statusLabel = hasThirdPrize ? 'Third Prize Only' : 'No Prize';
+                let statusLabel = '';
+                if (participations.length === 0) {
+                    statusLabel = 'No Participation';
+                } else {
+                    const hasThirdPrize = prizes.some(p => p === 'Third');
+                    statusLabel = hasThirdPrize ? 'Third Prize Only' : 'No Prize';
+                }
 
                 studentDataList.push({
                     studentId: studentId,
@@ -3849,7 +3892,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 });
             });
 
-            // Sorting: Category ➔ Status (No Prize first) ➔ Class ➔ Student
+            // Sorting: Category ➔ Class ➔ Status Priority ➔ Student Name
             studentDataList.sort((a, b) => {
                 const catA = a.categoryName || '';
                 const catB = b.categoryName || '';
@@ -3861,15 +3904,19 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 const catCompare = catA.localeCompare(catB, undefined, { sensitivity: 'base' });
                 if (catCompare !== 0) return catCompare;
 
-                // Priority: No Prize first, then Third Prize Only
-                if (a.status !== b.status) {
-                    return a.status === 'No Prize' ? -1 : 1;
-                }
-
                 const classA = a.className || '';
                 const classB = b.className || '';
                 const classCompare = classA.localeCompare(classB, undefined, { numeric: true, sensitivity: 'base' });
                 if (classCompare !== 0) return classCompare;
+
+                const statusPriority = {
+                    'No Participation': 1,
+                    'No Prize': 2,
+                    'Third Prize Only': 3
+                };
+                const pA = statusPriority[a.status] || 99;
+                const pB = statusPriority[b.status] || 99;
+                if (pA !== pB) return pA - pB;
 
                 return a.name.localeCompare(b.name);
             });
