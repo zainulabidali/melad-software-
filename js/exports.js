@@ -2874,7 +2874,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const winnersList = Array.isArray(r.winners) ? r.winners : [];
                     winnersList.forEach(w => {
                         if (r.programType === 'group') return;
-                        
+
                         let resolvedStudent = null;
                         if (w.studentId && studentMap[w.studentId]) {
                             resolvedStudent = studentMap[w.studentId];
@@ -2914,7 +2914,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const sortedStudents = [...studentPrizes.values()].sort((a, b) => {
                         const catA = a.categoryName || '';
                         const catB = b.categoryName || '';
-                        
+
                         const idxA = allCategories.findIndex(c => c.name === catA);
                         const idxB = allCategories.findIndex(c => c.name === catB);
                         if (idxA !== -1 && idxB !== -1 && idxA !== idxB) {
@@ -2960,9 +2960,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                             <td style="padding:0.4rem 0.75rem;">
                                                 <div style="display:flex; flex-direction:column; gap:0.25rem;">
                                                     ${stu.prizes.map(p => {
-                                                        const icon = p.position === 'First' ? '🥇' : (p.position === 'Second' ? '🥈' : '🥉');
-                                                        return `<span style="font-size:0.78rem; font-weight:700; color:#1e293b;">${icon} ${window.escapeHTML(p.programName)} ➔ <strong>${p.position}</strong></span>`;
-                                                    }).join('')}
+                        const icon = p.position === 'First' ? '🥇' : (p.position === 'Second' ? '🥈' : '🥉');
+                        return `<span style="font-size:0.78rem; font-weight:700; color:#1e293b;">${icon} ${window.escapeHTML(p.programName)} ➔ <strong>${p.position}</strong></span>`;
+                    }).join('')}
                                                 </div>
                                             </td>
                                         </tr>
@@ -3017,8 +3017,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 prizes.push(w.position);
                             } else if (rIsGroup) {
                                 const pList = participantsMap[r.programId] || [];
-                                const matchingGroups = pList.filter(part => 
-                                    part.isGroup && 
+                                const matchingGroups = pList.filter(part =>
+                                    part.isGroup &&
                                     (part.id === w.groupId || part.name === w.studentName || part.teamId === w.teamId)
                                 );
                                 matchingGroups.forEach(matchingGroup => {
@@ -3096,14 +3096,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     });
 
                     const sortedCatIds = Object.keys(grouped).sort((a, b) => grouped[a].name.localeCompare(grouped[b].name));
-                    
+
                     sortedCatIds.forEach(catId => {
                         const cat = grouped[catId];
-                        
+
                         let noParticipationCount = 0;
                         let noPrizeCount = 0;
                         let thirdPrizeCount = 0;
-                        
+
                         Object.values(cat.classes).forEach(cls => {
                             cls.students.forEach(s => {
                                 if (s.status === 'No Participation') noParticipationCount++;
@@ -3111,7 +3111,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 else if (s.status === 'Third Prize Only') thirdPrizeCount++;
                             });
                         });
-                        
+
                         const totalEligible = noParticipationCount + noPrizeCount + thirdPrizeCount;
 
                         htmlContent += `
@@ -3139,7 +3139,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                         sortedClassIds.forEach(classId => {
                             const cls = cat.classes[classId];
-                            
+
                             const statusPriority = {
                                 'No Participation': 1,
                                 'No Prize': 2,
@@ -3724,7 +3724,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                         } else if (w.studentName) {
                             const found = Object.values(studentMap).find(s => s.name === w.studentName);
                             if (found) {
-                                            chestNumber = found.chestNumber || chestNumber;
+                                chestNumber = found.chestNumber || chestNumber;
                             }
                         }
                     }
@@ -3779,7 +3779,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             const sortedStudents = [...studentPrizes.values()].sort((a, b) => {
                 const catA = a.categoryName || '';
                 const catB = b.categoryName || '';
-                
+
                 const idxA = allCategories.findIndex(c => c.name === catA);
                 const idxB = allCategories.findIndex(c => c.name === catB);
                 if (idxA !== -1 && idxB !== -1 && idxA !== idxB) {
@@ -3846,8 +3846,8 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                             prizes.push(w.position);
                         } else if (rIsGroup) {
                             const pList = participantsMap[r.programId] || [];
-                            const matchingGroups = pList.filter(part => 
-                                part.isGroup && 
+                            const matchingGroups = pList.filter(part =>
+                                part.isGroup &&
                                 (part.id === w.groupId || part.name === w.studentName || part.teamId === w.teamId)
                             );
                             matchingGroups.forEach(matchingGroup => {

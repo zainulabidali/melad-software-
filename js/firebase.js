@@ -265,7 +265,7 @@ export async function migrateParticipantCounts(instituteId) {
     try {
         const progSnap = await getDocs(collection(db, "institutes", instituteId, "programs"));
         const batch = writeBatch(db);
-        
+
         for (const progDoc of progSnap.docs) {
             const progId = progDoc.id;
             const progData = progDoc.data();
@@ -305,7 +305,7 @@ export async function migrateTeamMemberCounts(instituteId) {
         const teamsSnap = await getDocs(collection(db, "institutes", instituteId, "teams"));
         const studentsSnap = await getDocs(collection(db, "institutes", instituteId, "students"));
         const batch = writeBatch(db);
-        
+
         const teamCounts = new Map();
         studentsSnap.forEach(s => {
             const data = s.data();
@@ -369,21 +369,21 @@ export function invalidateTeamsCache(instituteId) {
     window.cachedTeams = null;
     try {
         localStorage.removeItem(`melad_cached_teams_${instituteId}`);
-    } catch (e) {}
+    } catch (e) { }
 }
 
 export function invalidateCategoriesCache(instituteId) {
     window.cachedCategories = null;
     try {
         localStorage.removeItem(`melad_cached_categories_${instituteId}`);
-    } catch (e) {}
+    } catch (e) { }
 }
 
 export function invalidateProgramsCache(instituteId) {
     window.cachedPrograms = null;
     try {
         localStorage.removeItem(`melad_cached_programs_${instituteId}`);
-    } catch (e) {}
+    } catch (e) { }
 }
 
 export async function getCachedTeams(instituteId, forceRefresh = false) {
@@ -582,14 +582,14 @@ window.customConfirm = function (message, title = "Confirm Action", options = {}
     const iconBg = options.iconBg || (danger ? "rgba(239, 68, 68, 0.08)" : "rgba(79, 70, 229, 0.08)");
     const iconColor = options.iconColor || (danger ? "#ef4444" : "#4f46e5");
     const okBtnClass = danger ? "custom-dialog-btn-danger" : "custom-dialog-btn-primary";
-    
+
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.className = 'custom-modal-overlay';
-        
+
         const dialog = document.createElement('div');
         dialog.className = 'custom-modal-dialog';
-        
+
         dialog.innerHTML = `
             <div class="custom-modal-header">
                 <div class="custom-modal-icon" style="background: ${iconBg}; color: ${iconColor};">
@@ -605,18 +605,18 @@ window.customConfirm = function (message, title = "Confirm Action", options = {}
                 <button id="customConfirmOkBtn" class="custom-dialog-btn ${okBtnClass}">${okText}</button>
             </div>
         `;
-        
+
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
-        
+
         const originalOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
-        
+
         setTimeout(() => {
             overlay.style.opacity = '1';
             dialog.style.transform = 'scale(1)';
         }, 10);
-        
+
         const close = (result) => {
             overlay.style.opacity = '0';
             dialog.style.transform = 'scale(0.95)';
@@ -626,10 +626,10 @@ window.customConfirm = function (message, title = "Confirm Action", options = {}
                 resolve(result);
             }, 250);
         };
-        
+
         overlay.querySelector('#customConfirmCancelBtn').onclick = () => close(false);
         overlay.querySelector('#customConfirmOkBtn').onclick = () => close(true);
-        
+
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
                 document.removeEventListener('keydown', handleKeyDown);
@@ -645,14 +645,14 @@ window.customAlert = function (message, title = "Alert", options = {}) {
     const iconBg = options.iconBg || "rgba(79, 70, 229, 0.08)";
     const iconColor = options.iconColor || "#4f46e5";
     const buttonText = options.buttonText || "OK";
-    
+
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.className = 'custom-modal-overlay';
-        
+
         const dialog = document.createElement('div');
         dialog.className = 'custom-modal-dialog';
-        
+
         dialog.innerHTML = `
             <div class="custom-modal-header">
                 <div class="custom-modal-icon" style="background: ${iconBg}; color: ${iconColor};">
@@ -667,18 +667,18 @@ window.customAlert = function (message, title = "Alert", options = {}) {
                 <button id="customAlertOkBtn" class="custom-dialog-btn custom-dialog-btn-primary" style="width: 100%;">${buttonText}</button>
             </div>
         `;
-        
+
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
-        
+
         const originalOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
-        
+
         setTimeout(() => {
             overlay.style.opacity = '1';
             dialog.style.transform = 'scale(1)';
         }, 10);
-        
+
         const close = () => {
             overlay.style.opacity = '0';
             dialog.style.transform = 'scale(0.95)';
@@ -688,9 +688,9 @@ window.customAlert = function (message, title = "Alert", options = {}) {
                 resolve();
             }, 250);
         };
-        
+
         overlay.querySelector('#customAlertOkBtn').onclick = () => close();
-        
+
         const handleKeyDown = (e) => {
             if (e.key === 'Escape' || e.key === 'Enter') {
                 document.removeEventListener('keydown', handleKeyDown);
@@ -708,14 +708,14 @@ window.customPrompt = function (message, defaultValue = "", title = "Input Requi
     const iconBg = options.iconBg || "rgba(79, 70, 229, 0.08)";
     const iconColor = options.iconColor || "#4f46e5";
     const placeholder = options.placeholder || "Type here...";
-    
+
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.className = 'custom-modal-overlay';
-        
+
         const dialog = document.createElement('div');
         dialog.className = 'custom-modal-dialog';
-        
+
         dialog.innerHTML = `
             <div class="custom-modal-header">
                 <div class="custom-modal-icon" style="background: ${iconBg}; color: ${iconColor};">
@@ -732,24 +732,24 @@ window.customPrompt = function (message, defaultValue = "", title = "Input Requi
                 <button id="customPromptOkBtn" class="custom-dialog-btn custom-dialog-btn-primary">${okText}</button>
             </div>
         `;
-        
+
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
-        
+
         const inputEl = overlay.querySelector('#customPromptInput');
         inputEl.focus();
         if (defaultValue) {
             inputEl.setSelectionRange(0, defaultValue.length);
         }
-        
+
         const originalOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
-        
+
         setTimeout(() => {
             overlay.style.opacity = '1';
             dialog.style.transform = 'scale(1)';
         }, 10);
-        
+
         const close = (result) => {
             overlay.style.opacity = '0';
             dialog.style.transform = 'scale(0.95)';
@@ -759,16 +759,16 @@ window.customPrompt = function (message, defaultValue = "", title = "Input Requi
                 resolve(result);
             }, 250);
         };
-        
+
         overlay.querySelector('#customPromptCancelBtn').onclick = () => close(null);
         overlay.querySelector('#customPromptOkBtn').onclick = () => close(inputEl.value);
-        
+
         inputEl.onkeydown = (e) => {
             if (e.key === 'Enter') {
                 close(inputEl.value);
             }
         };
-        
+
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
                 document.removeEventListener('keydown', handleKeyDown);
@@ -781,10 +781,10 @@ window.customPrompt = function (message, defaultValue = "", title = "Input Requi
 
 window.handleError = function (error, context = "operation") {
     console.error(`Error during ${context}:`, error);
-    
+
     let friendlyMessage = "Something went wrong. Please try again.";
     let msg = (typeof error === 'string') ? error : (error?.message || '');
-    
+
     if (error && error.code) {
         switch (error.code) {
             case 'permission-denied':
@@ -820,7 +820,7 @@ window.handleError = function (error, context = "operation") {
             friendlyMessage = "Unable to delete student. Please try again.";
         }
     }
-    
+
     window.customAlert(friendlyMessage, "Error Occurred", {
         icon: "⚠️",
         iconBg: "rgba(239, 68, 68, 0.08)",
