@@ -829,5 +829,33 @@ window.handleError = function (error, context = "operation") {
     });
 };
 
+// Centralized Dense Ranking Calculation
+export function computeDenseRanking(items, getScoreFn, rankPropName = 'rank') {
+    if (!Array.isArray(items) || items.length === 0) return items;
+
+    // Sort descending strictly by score
+    items.sort((a, b) => {
+        const scoreA = getScoreFn(a) || 0;
+        const scoreB = getScoreFn(b) || 0;
+        return scoreB - scoreA;
+    });
+
+    let currentRank = 0;
+    let prevScore = null;
+
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const score = getScoreFn(item);
+
+        if (score !== prevScore) {
+            currentRank++;
+            prevScore = score;
+        }
+        item[rankPropName] = currentRank;
+    }
+    return items;
+}
+
+
 
 

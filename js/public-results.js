@@ -1,4 +1,4 @@
-import { db } from './firebase.js';
+import { db, computeDenseRanking } from './firebase.js';
 import {
     collection, doc, getDoc, onSnapshot, query, where
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -310,10 +310,9 @@ function setupFilters() {
 // Dynamic Poster HTML Layout Engines
 // ─────────────────────────────────────────────
 function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
-    const sortedWinners = [...(r.marksData || [])]
-        .filter(w => w.finalMark && w.finalMark > 0)
-        .sort((a, b) => (b.finalMark || 0) - (a.finalMark || 0))
-        .slice(0, 3);
+    const activeWinners = [...(r.marksData || [])].filter(w => w.finalMark && w.finalMark > 0);
+    computeDenseRanking(activeWinners, w => w.finalMark, 'rank');
+    const sortedWinners = activeWinners.slice(0, 3);
 
     const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
 
@@ -341,14 +340,14 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
                         <span style="font-size: 6px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(name1)}</span>
                         <span style="font-size: 4px; color: rgba(255,255,255,0.4); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(team1)}</span>
                     </div>
-                    <span style="font-size: 10px; font-weight: 900; color: rgba(251, 191, 36, 0.15); line-height: 1;">01</span>
+                    <span style="font-size: 10px; font-weight: 900; color: rgba(251, 191, 36, 0.15); line-height: 1;">${w1 ? String(w1.rank).padStart(2, '0') : '01'}</span>
                 </div>
 
                 <!-- 2nd & 3rd Row -->
                 <div style="display: flex; gap: 4px; width: 100%;">
                     <!-- 2nd Place Card -->
                     <div style="background: rgba(255, 255, 255, 0.05); border: 0.5px solid rgba(255, 255, 255, 0.1); border-top: 1.5px solid #cbd5e1; border-radius: 8px; padding: 4px 6px; width: calc(50% - 2px); display: flex; flex-direction: column; justify-content: space-between; position: relative; min-height: 28px; box-sizing: border-box;">
-                        <span style="font-size: 9px; font-weight: 900; color: rgba(203, 213, 225, 0.15); position: absolute; right: 4px; top: 2px; line-height: 1;">02</span>
+                        <span style="font-size: 9px; font-weight: 900; color: rgba(203, 213, 225, 0.15); position: absolute; right: 4px; top: 2px; line-height: 1;">${w2 ? String(w2.rank).padStart(2, '0') : '02'}</span>
                         <div style="display: flex; flex-direction: column; text-align: left; overflow: hidden; margin-top: auto; z-index: 2;">
                             <span style="font-size: 5px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(name2)}</span>
                             <span style="font-size: 3.5px; color: rgba(255,255,255,0.4); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(team2)}</span>
@@ -357,7 +356,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
                     <!-- 3rd Place Card -->
                     <div style="background: rgba(255, 255, 255, 0.05); border: 0.5px solid rgba(255, 255, 255, 0.1); border-top: 1.5px solid #d97706; border-radius: 8px; padding: 4px 6px; width: calc(50% - 2px); display: flex; flex-direction: column; justify-content: space-between; position: relative; min-height: 28px; box-sizing: border-box;">
-                        <span style="font-size: 9px; font-weight: 900; color: rgba(217, 119, 6, 0.15); position: absolute; right: 4px; top: 2px; line-height: 1;">03</span>
+                        <span style="font-size: 9px; font-weight: 900; color: rgba(217, 119, 6, 0.15); position: absolute; right: 4px; top: 2px; line-height: 1;">${w3 ? String(w3.rank).padStart(2, '0') : '03'}</span>
                         <div style="display: flex; flex-direction: column; text-align: left; overflow: hidden; margin-top: auto; z-index: 2;">
                             <span style="font-size: 5px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(name3)}</span>
                             <span style="font-size: 3.5px; color: rgba(255,255,255,0.4); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(team3)}</span>
@@ -393,19 +392,20 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
             </div>
         `;
     } else if (templateId === 3) {
-        const ordinalMap = { 1: '1ST', 2: '2ND', 3: '3RD' };
-        const winnersHTML = sortedWinners.map((w, idx) => {
-            const rank = idx + 1;
+        const rankLabels = { 1: '1ST', 2: '2ND', 3: '3RD' };
+        const winnersHTML = sortedWinners.map((w) => {
+            const rank = w.rank;
             const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
             const teamText = w.teamName || '—';
             const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
             const rankColor = rankColors[rank] || '#ffffff';
+            const rankLabel = rankLabels[rank] || `${rank}TH`;
 
             return `
                 <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 0.25px solid rgba(255,255,255,0.1); padding-bottom: 2px; box-sizing: border-box; width: 100%;">
                     <div style="display: flex; flex-direction: column; text-align: left; line-height: 1;">
-                        <span style="font-size: 5px; font-weight: 800; color: ${rankColor};">0${rank}</span>
-                        <span style="font-size: 3px; font-weight: 700; color: rgba(255,255,255,0.4); letter-spacing: 0.2px;">${ordinalMap[rank]}</span>
+                        <span style="font-size: 5px; font-weight: 800; color: ${rankColor};">${String(rank).padStart(2, '0')}</span>
+                        <span style="font-size: 3px; font-weight: 700; color: rgba(255,255,255,0.4); letter-spacing: 0.2px;">${rankLabel}</span>
                     </div>
                     <div style="display: flex; flex-direction: column; text-align: right; overflow: hidden; max-width: 60px; line-height: 1;">
                         <span style="font-size: 4.5px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(nameText)}</span>
@@ -456,19 +456,20 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
             </div>
         `;
     } else if (templateId === 4) {
-        const ordinalMap = { 1: '1ST', 2: '2ND', 3: '3RD' };
-        const winnersHTML = sortedWinners.map((w, idx) => {
-            const rank = idx + 1;
+        const rankLabels = { 1: '1ST', 2: '2ND', 3: '3RD' };
+        const winnersHTML = sortedWinners.map((w) => {
+            const rank = w.rank;
             const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
             const teamText = w.teamName || '—';
             const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
             const rankColor = rankColors[rank] || '#ffffff';
+            const rankLabel = rankLabels[rank] || `${rank}TH`;
 
             return `
                 <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.03); border: 0.25px solid rgba(255, 255, 255, 0.1); border-left: 1.5px solid ${rankColor}; border-radius: 4px; padding: 4px 6px; box-sizing: border-box; width: 100%;">
                     <div style="display: flex; flex-direction: column; text-align: left; line-height: 1;">
-                        <span style="font-size: 5px; font-weight: 800; color: ${rankColor};">0${rank}</span>
-                        <span style="font-size: 3px; font-weight: 700; color: rgba(255,255,255,0.45);">${ordinalMap[rank]}</span>
+                        <span style="font-size: 5px; font-weight: 800; color: ${rankColor};">${String(rank).padStart(2, '0')}</span>
+                        <span style="font-size: 3px; font-weight: 700; color: rgba(255,255,255,0.45);">${rankLabel}</span>
                     </div>
                     <div style="display: flex; flex-direction: column; text-align: right; overflow: hidden; max-width: 50px; line-height: 1;">
                         <span style="font-size: 4.5px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(nameText)}</span>
@@ -526,8 +527,8 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
             3: '#d97706'
         };
 
-        const winnersHTML = sortedWinners.map((w, idx) => {
-            const rank = idx + 1;
+        const winnersHTML = sortedWinners.map((w) => {
+            const rank = w.rank;
             const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
             const teamText = w.teamName || '—';
             const accentColor = rankAccentColors[rank] || '#ffffff';
@@ -572,12 +573,16 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
 }
 
 function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
-    const sortedWinners = [...(r.marksData || [])]
-        .filter(w => w.finalMark && w.finalMark > 0)
-        .sort((a, b) => (b.finalMark || 0) - (a.finalMark || 0))
-        .slice(0, 3);
+    const activeWinners = [...(r.marksData || [])].filter(w => w.finalMark && w.finalMark > 0);
+    computeDenseRanking(activeWinners, w => w.finalMark, 'rank');
+    const sortedWinners = activeWinners.slice(0, 3);
 
     const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
+
+    const ordinalLabel = (rank) => {
+        const labels = { 1: '1ST', 2: '2ND', 3: '3RD' };
+        return labels[rank] || `${rank}TH`;
+    };
 
     if (templateId === 2) {
         const w1 = sortedWinners[0];
@@ -600,20 +605,20 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
                 <!-- 1st Place Card -->
                 <div class="t2-card-bento t2-card-1st">
                     <div class="t2-details">
-                        <span style="color: #fbbf24; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block;">1ST STANDING</span>
+                        <span style="color: #fbbf24; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block;">${w1 ? ordinalLabel(w1.rank) : '1ST'} STANDING</span>
                         <div class="t2-student">${escapeHTML(name1.toUpperCase())}</div>
                         <div class="t2-team">TEAM: ${escapeHTML(team1.toUpperCase())}</div>
                     </div>
-                    <div class="t2-rank-large" style="color: rgba(251, 191, 36, 0.15);">01</div>
+                    <div class="t2-rank-large" style="color: rgba(251, 191, 36, 0.15);">${w1 ? String(w1.rank).padStart(2, '0') : '01'}</div>
                 </div>
 
                 <!-- 2nd & 3rd Place Row -->
                 <div class="t2-bento-row">
                     <!-- 2nd Place Card -->
                     <div class="t2-card-bento t2-card-2nd">
-                        <div class="t2-rank-large" style="color: rgba(203, 213, 225, 0.15); position: absolute; right: 16px; top: 12px;">02</div>
+                        <div class="t2-rank-large" style="color: rgba(203, 213, 225, 0.15); position: absolute; right: 16px; top: 12px;">${w2 ? String(w2.rank).padStart(2, '0') : '02'}</div>
                         <div class="t2-details" style="margin-top: auto; z-index: 2;">
-                            <span style="color: #cbd5e1; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block;">2ND STANDING</span>
+                            <span style="color: #cbd5e1; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block;">${w2 ? ordinalLabel(w2.rank) : '2ND'} STANDING</span>
                             <div class="t2-student" style="font-size: 15px;">${escapeHTML(name2.toUpperCase())}</div>
                             <div class="t2-team" style="font-size: 10px;">TEAM: ${escapeHTML(team2.toUpperCase())}</div>
                         </div>
@@ -621,9 +626,9 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
                     <!-- 3rd Place Card -->
                     <div class="t2-card-bento t2-card-3rd">
-                        <div class="t2-rank-large" style="color: rgba(217, 119, 6, 0.15); position: absolute; right: 16px; top: 12px;">03</div>
+                        <div class="t2-rank-large" style="color: rgba(217, 119, 6, 0.15); position: absolute; right: 16px; top: 12px;">${w3 ? String(w3.rank).padStart(2, '0') : '03'}</div>
                         <div class="t2-details" style="margin-top: auto; z-index: 2;">
-                            <span style="color: #fdba74; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block;">3RD STANDING</span>
+                            <span style="color: #fdba74; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block;">${w3 ? ordinalLabel(w3.rank) : '3RD'} STANDING</span>
                             <div class="t2-student" style="font-size: 15px;">${escapeHTML(name3.toUpperCase())}</div>
                             <div class="t2-team" style="font-size: 10px;">TEAM: ${escapeHTML(team3.toUpperCase())}</div>
                         </div>
@@ -656,17 +661,18 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
             </div>
         `;
     } else if (templateId === 3) {
-        const ordinalMap = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
-        const winnersHTML = sortedWinners.map((w, idx) => {
-            const rank = idx + 1;
+        const rankLabels = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
+        const winnersHTML = sortedWinners.map((w) => {
+            const rank = w.rank;
             const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
             const teamText = w.teamName || '—';
+            const rankLabel = rankLabels[rank] || `${rank}TH PLACE`;
 
             return `
-                <div class="t3-row-editorial t3-rank-row-${rank}">
+                <div class="t3-row-editorial t3-rank-row-${rank <= 3 ? rank : 3}">
                     <div class="t3-row-left">
-                        <span class="t3-rank-num-edit">0${rank}</span>
-                        <span class="t3-rank-label">${ordinalMap[rank]}</span>
+                        <span class="t3-rank-num-edit">${String(rank).padStart(2, '0')}</span>
+                        <span class="t3-rank-label">${rankLabel}</span>
                     </div>
                     <div class="t3-row-right">
                         <span class="t3-student-name">${escapeHTML(nameText.toUpperCase())}</span>
@@ -711,17 +717,18 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
             </div>
         `;
     } else if (templateId === 4) {
-        const ordinalMap = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
-        const winnersHTML = sortedWinners.map((w, idx) => {
-            const rank = idx + 1;
+        const rankLabels = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
+        const winnersHTML = sortedWinners.map((w) => {
+            const rank = w.rank;
             const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
             const teamText = w.teamName || '—';
+            const rankLabel = rankLabels[rank] || `${rank}TH PLACE`;
 
             return `
-                <div class="t4-rank-block t4-rank-${rank}">
+                <div class="t4-rank-block t4-rank-${rank <= 3 ? rank : 3}">
                     <div class="t4-rank-left">
-                        <span class="t4-rank-num">0${rank}</span>
-                        <span class="t4-rank-label">${ordinalMap[rank]}</span>
+                        <span class="t4-rank-num">${String(rank).padStart(2, '0')}</span>
+                        <span class="t4-rank-label">${rankLabel}</span>
                     </div>
                     <div class="t4-rank-right">
                         <span class="t4-student-name">${escapeHTML(nameText.toUpperCase())}</span>
@@ -778,13 +785,13 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
             </div>
         `;
     } else {
-        const winnersHTML = sortedWinners.map((w, idx) => {
-            const rank = idx + 1;
+        const winnersHTML = sortedWinners.map((w) => {
+            const rank = w.rank;
             const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
             const teamText = w.teamName || '—';
 
             return `
-                <div class="t1-row t1-rank-${rank}">
+                <div class="t1-row t1-rank-${rank <= 3 ? rank : 3}">
                     <div class="t1-rank-num">#${rank}</div>
                     <div class="t1-details">
                         <div class="t1-name">${escapeHTML(nameText.toUpperCase())}</div>
@@ -1021,11 +1028,15 @@ function generatePosterCanvas(r) {
 
     const resultNumber = sortedPublished.findIndex(x => x.id === r.id) + 1;
 
-    // Fetch top 3 winners
-    const sorted = [...(r.marksData || [])]
-        .filter(w => w.finalMark && w.finalMark > 0)
-        .sort((a, b) => (b.finalMark || 0) - (a.finalMark || 0))
-        .slice(0, 3);
+    // Fetch top 3 winners using dense ranking
+    const activeWinners = [...(r.marksData || [])].filter(w => w.finalMark && w.finalMark > 0);
+    computeDenseRanking(activeWinners, w => w.finalMark, 'rank');
+    const sorted = activeWinners.slice(0, 3);
+
+    const ordinalLabel = (rank) => {
+        const labels = { 1: '1ST', 2: '2ND', 3: '3RD' };
+        return labels[rank] || `${rank}TH`;
+    };
 
     // Create high-res off-screen canvas (1200x1500 for exact 4:5 aspect ratio)
     const canvas = document.createElement('canvas');
@@ -1147,7 +1158,7 @@ function generatePosterCanvas(r) {
         ctx.textAlign = 'left';
         ctx.fillStyle = '#fbbf24';
         ctx.font = 'bold 24px "Inter", sans-serif';
-        ctx.fillText("1ST STANDING", 160, 555);
+        ctx.fillText(`${w1 ? ordinalLabel(w1.rank) : '1ST'} STANDING`, 160, 555);
 
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 44px "Inter", sans-serif';
@@ -1161,7 +1172,7 @@ function generatePosterCanvas(r) {
         ctx.textAlign = 'right';
         ctx.fillStyle = 'rgba(251, 191, 36, 0.15)';
         ctx.font = '900 120px "Inter", sans-serif';
-        ctx.fillText("01", 1040, 650);
+        ctx.fillText(w1 ? String(w1.rank).padStart(2, '0') : "01", 1040, 650);
 
         // 2nd Place Card (Width 480px, Height 430px, X = 100, Y = 780)
         ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
@@ -1183,13 +1194,13 @@ function generatePosterCanvas(r) {
         ctx.textAlign = 'right';
         ctx.fillStyle = 'rgba(203, 213, 225, 0.15)';
         ctx.font = '900 110px "Inter", sans-serif';
-        ctx.fillText("02", 540, 920);
+        ctx.fillText(w2 ? String(w2.rank).padStart(2, '0') : "02", 540, 920);
 
         // 2nd Place Details
         ctx.textAlign = 'left';
         ctx.fillStyle = '#cbd5e1';
         ctx.font = 'bold 22px "Inter", sans-serif';
-        ctx.fillText("2ND STANDING", 140, 1030);
+        ctx.fillText(`${w2 ? ordinalLabel(w2.rank) : '2ND'} STANDING`, 140, 1030);
 
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 36px "Inter", sans-serif';
@@ -1219,13 +1230,13 @@ function generatePosterCanvas(r) {
         ctx.textAlign = 'right';
         ctx.fillStyle = 'rgba(217, 119, 6, 0.15)';
         ctx.font = '900 110px "Inter", sans-serif';
-        ctx.fillText("03", 1060, 920);
+        ctx.fillText(w3 ? String(w3.rank).padStart(2, '0') : "03", 1060, 920);
 
         // 3rd Place Details
         ctx.textAlign = 'left';
         ctx.fillStyle = '#fdba74';
         ctx.font = 'bold 22px "Inter", sans-serif';
-        ctx.fillText("3RD STANDING", 660, 1030);
+        ctx.fillText(`${w3 ? ordinalLabel(w3.rank) : '3RD'} STANDING`, 660, 1030);
 
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 36px "Inter", sans-serif';
@@ -1477,14 +1488,14 @@ function generatePosterCanvas(r) {
         // Right Panel cards (X = 520 to 1080, Width = 560)
         const startY = 360;
         const rowHeight = 220;
-        const ordinalMap = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
+        const rankLabels = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
         const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
 
         for (let i = 0; i < sorted.length; i++) {
             const w = sorted[i];
             const y = startY + (i * rowHeight);
-            const rank = i + 1;
-            const accentColor = rankColors[rank];
+            const rank = w.rank;
+            const accentColor = rankColors[rank] || '#ffffff';
 
             // Card container box background (Width = 560, Height = 180)
             ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
@@ -1729,19 +1740,39 @@ function sharePosterContent(cardId) {
 
     const madrasaName = instituteDetails?.name || "Madrasa Results";
 
-    // Fetch top 3 winners
-    const sorted = [...(r.marksData || [])]
-        .filter(w => w.finalMark && w.finalMark > 0)
-        .sort((a, b) => (b.finalMark || 0) - (a.finalMark || 0))
-        .slice(0, 3);
+    // Fetch top 3 winners using dense ranking
+    const activeWinners = [...(r.marksData || [])].filter(w => w.finalMark && w.finalMark > 0);
+    computeDenseRanking(activeWinners, w => w.finalMark, 'rank');
+    const sorted = activeWinners.slice(0, 3);
 
     const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
-    const w1 = sorted[0] ? `${isGroup ? sorted[0].teamName : sorted[0].studentName} (${isGroup ? 'Group' : sorted[0].teamName})` : '—';
-    const w2 = sorted[1] ? `${isGroup ? sorted[1].teamName : sorted[1].studentName} (${isGroup ? 'Group' : sorted[1].teamName})` : '—';
-    const w3 = sorted[2] ? `${isGroup ? sorted[2].teamName : sorted[2].studentName} (${isGroup ? 'Group' : sorted[2].teamName})` : '—';
+
+    const formatWinner = (w) => {
+        if (!w) return '—';
+        const namePart = isGroup ? w.studentName : w.studentName;
+        const teamPart = isGroup ? 'Group' : w.teamName;
+        return `${namePart} (${teamPart})`;
+    };
+
+    const ordinalLabel = (rank) => {
+        const labels = { 1: '1st', 2: '2nd', 3: '3rd' };
+        return labels[rank] || `${rank}th`;
+    };
+
+    const w1 = sorted[0] ? formatWinner(sorted[0]) : '—';
+    const w2 = sorted[1] ? formatWinner(sorted[1]) : '—';
+    const w3 = sorted[2] ? formatWinner(sorted[2]) : '—';
+
+    const r1Label = sorted[0] ? ordinalLabel(sorted[0].rank) : '1st';
+    const r2Label = sorted[1] ? ordinalLabel(sorted[1].rank) : '2nd';
+    const r3Label = sorted[2] ? ordinalLabel(sorted[2].rank) : '3rd';
+
+    const medal1 = sorted[0] && sorted[0].rank === 1 ? '🥇' : (sorted[0] && sorted[0].rank === 2 ? '🥈' : (sorted[0] && sorted[0].rank === 3 ? '🥉' : '🏅'));
+    const medal2 = sorted[1] && sorted[1].rank === 1 ? '🥇' : (sorted[1] && sorted[1].rank === 2 ? '🥈' : (sorted[1] && sorted[1].rank === 3 ? '🥉' : '🏅'));
+    const medal3 = sorted[2] && sorted[2].rank === 1 ? '🥇' : (sorted[2] && sorted[2].rank === 2 ? '🥈' : (sorted[2] && sorted[2].rank === 3 ? '🥉' : '🏅'));
 
     const portalUrl = window.location.href;
-    const shareText = `🏆 *${r.programName.toUpperCase()}* Result Published!\n\n🕌 *${madrasaName}*\n🏷️ Category: *${r.categoryName}*\n\n🥇 *1st:* ${w1}\n🥈 *2nd:* ${w2}\n🥉 *3rd:* ${w3}\n\n👉 Check official standings on the portal:\n${portalUrl}`;
+    const shareText = `🏆 *${r.programName.toUpperCase()}* Result Published!\n\n🕌 *${madrasaName}*\n🏷️ Category: *${r.categoryName}*\n\n${medal1} *${r1Label}:* ${w1}\n${medal2} *${r2Label}:* ${w2}\n${medal3} *${r3Label}:* ${w3}\n\n👉 Check official standings on the portal:\n${portalUrl}`;
 
     // Helper function for clipboard text copy fallback
     const copyToClipboardFallback = () => {

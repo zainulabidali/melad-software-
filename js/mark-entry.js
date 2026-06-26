@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms } from './firebase.js';
+import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, computeDenseRanking } from './firebase.js';
 import {
     collection, getDocs, doc, getDoc, setDoc, onSnapshot, serverTimestamp, writeBatch
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -840,18 +840,10 @@ function recalculateSpreadsheet(judgesCount) {
         });
     });
 
-    // Ranks calculation (dense or competition)
+    // Ranks calculation (dense) using the centralized helper
     // Ranks apply to rows that have at least some scores
     const activeRows = rows.filter(r => r.hasScores);
-    activeRows.sort((a, b) => b.finalMark - a.finalMark);
-
-    for (let i = 0; i < activeRows.length; i++) {
-        if (i > 0 && activeRows[i].finalMark === activeRows[i - 1].finalMark) {
-            activeRows[i].rank = activeRows[i - 1].rank;
-        } else {
-            activeRows[i].rank = i + 1; // Standard competition ranking
-        }
-    }
+    computeDenseRanking(activeRows, r => r.finalMark, 'rank');
 
     // Render cells in real time
     rows.forEach(r => {
@@ -975,16 +967,9 @@ async function persistMarks(prog, judges, isSubmit) {
         });
     });
 
-    // Re-apply ranks accurately
+    // Re-apply dense ranks accurately using the centralized helper
     const activeRows = sortedRows.filter(r => r.hasScores);
-    activeRows.sort((a, b) => b.finalMark - a.finalMark);
-    for (let i = 0; i < activeRows.length; i++) {
-        if (i > 0 && activeRows[i].finalMark === activeRows[i - 1].finalMark) {
-            activeRows[i].rank = activeRows[i - 1].rank;
-        } else {
-            activeRows[i].rank = i + 1;
-        }
-    }
+    computeDenseRanking(activeRows, r => r.finalMark, 'rank');
 
     // Build final marksData payload
     sortedRows.forEach(r => {

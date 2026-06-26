@@ -1,4 +1,4 @@
-import { db } from './firebase.js';
+import { db, computeDenseRanking } from './firebase.js';
 import {
     collection, getDocs, onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -192,17 +192,23 @@ async function loadStaticData() {
         const teamSnap = await getDocs(collection(db, "institutes", instId, "teams"));
         allTeams = teamSnap.docs.map(d => ({ id: d.id, name: d.data().name }));
 
+        const teamMap = new Map();
+        allTeams.forEach(t => teamMap.set(t.id, t.name));
+
         // Students lookup mapping cache
         const stuSnap = await getDocs(collection(db, "institutes", instId, "students"));
         stuSnap.forEach(d => {
             const data = d.data();
+            const resolvedTeamName = data.teamName && data.teamName !== '—' && data.teamName !== 'undefined' && data.teamName !== 'null'
+                ? data.teamName
+                : (data.teamId ? (teamMap.get(data.teamId) || 'No Team') : 'No Team');
             studentLookupMap.set(d.id, {
                 studentId: d.id,
                 studentName: data.name || '—',
                 chestNumber: data.chestNumber || '—',
                 gender: data.gender || 'Mixed',
                 teamId: data.teamId || '',
-                teamName: data.teamName || '—',
+                teamName: resolvedTeamName,
                 categoryId: data.categoryId || '',
                 categoryName: data.categoryName || 'General'
             });
@@ -255,16 +261,26 @@ function recalculateScorers(publishedResults) {
             let stu = studentLookupMap.get(stuId);
             if (!stu) {
                 // Double Fallback for legacy registration maps
+                const matchedTeam = allTeams.find(t => t.id === (item.teamId || ''));
+                const resolvedTeamName = item.teamName && item.teamName !== '—' && item.teamName !== 'undefined' && item.teamName !== 'null'
+                    ? item.teamName
+                    : (matchedTeam ? matchedTeam.name : 'No Team');
                 stu = {
                     studentId: stuId,
                     studentName: item.studentName || '—',
                     chestNumber: item.chestNumber || '—',
                     gender: item.gender || r.genderCategory || 'Mixed',
                     teamId: item.teamId || '',
-                    teamName: item.teamName || '—',
+                    teamName: resolvedTeamName,
                     categoryId: r.categoryId || '',
                     categoryName: r.categoryName || 'General'
                 };
+            } else {
+                // Self-healing check: if teamName is empty/placeholder in stu cache, resolve it
+                if (!stu.teamName || stu.teamName === '—' || stu.teamName === 'undefined' || stu.teamName === 'null') {
+                    const matchedTeam = allTeams.find(t => t.id === (stu.teamId || ''));
+                    stu.teamName = matchedTeam ? matchedTeam.name : 'No Team';
+                }
             }
 
             // Resolve chestNumber with absolute fallback (PART 4 & PART 5)
@@ -435,25 +451,10 @@ function renderContendersList() {
     });
 
     // Compute active standard competition ranks handling ties
-    for (let i = 0; i < filtered.length; i++) {
-        const item = filtered[i];
-        const pts = filters.stage === 'Stage' ? item.stagePoints 
-                   : (filters.stage === 'Off Stage' ? item.offStagePoints : item.totalPoints);
-        
-        if (i > 0) {
-            const prev = filtered[i - 1];
-            const prevPts = filters.stage === 'Stage' ? prev.stagePoints 
-                           : (filters.stage === 'Off Stage' ? prev.offStagePoints : prev.totalPoints);
-            
-            if (pts === prevPts) {
-                item.rank = prev.rank;
-            } else {
-                item.rank = i + 1;
-            }
-        } else {
-            item.rank = 1;
-        }
-    }
+    computeDenseRanking(filtered, item => {
+        return filters.stage === 'Stage' ? item.stagePoints 
+             : (filters.stage === 'Off Stage' ? item.offStagePoints : item.totalPoints);
+    }, 'rank');
 
     container.innerHTML = `
         <table style="width:100%; border-collapse:collapse; min-width:700px; font-size:0.82rem; color:#1e293b;">

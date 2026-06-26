@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata } from './firebase.js';
+import { db, updateDashboardMetadata, computeDenseRanking } from './firebase.js';
 import {
     collection, doc, getDocs, onSnapshot, serverTimestamp, updateDoc, deleteDoc, writeBatch
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -286,22 +286,24 @@ function renderResultsView() {
         }
     });
 
-    const sortedTeams = [...teamPoints.entries()].sort((a, b) => b[1] - a[1]);
+    const teamsArray = [...teamPoints.entries()].map(([name, points]) => ({ name, points }));
+    computeDenseRanking(teamsArray, t => t.points, 'rank');
     const leaderboardBody = document.getElementById('resLeaderboardBody');
     
     if (leaderboardBody) {
-        if (sortedTeams.length === 0) {
+        if (teamsArray.length === 0) {
             leaderboardBody.innerHTML = `<tr><td colspan="2" style="text-align:center; padding:1.25rem; color:#94a3b8;">No published points yet.</td></tr>`;
         } else {
-            leaderboardBody.innerHTML = sortedTeams.map(([name, points], idx) => {
-                const medalStyle = idx === 0 ? '🏆 ' : (idx === 1 ? '🥈 ' : (idx === 2 ? '🥉 ' : ''));
+            leaderboardBody.innerHTML = teamsArray.map(item => {
+                const rank = item.rank;
+                const medalStyle = rank === 1 ? '🏆 ' : (rank === 2 ? '🥈 ' : (rank === 3 ? '🥉 ' : `#${rank} `));
                 return `
                     <tr style="border-bottom:1px solid #f1f5f9; hover:background:#f8fafc;">
                         <td style="padding:0.6rem 0.5rem; font-weight:700; color:#1e293b; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                            ${medalStyle}${window.escapeHTML(name)}
+                            ${medalStyle}${window.escapeHTML(item.name)}
                         </td>
                         <td style="padding:0.6rem 0.5rem; text-align:right; font-weight:800; color:#4338ca;">
-                            ${points} pts
+                            ${item.points} pts
                         </td>
                     </tr>
                 `;
@@ -521,20 +523,15 @@ function openResultDetailPopup(r) {
         return markB - markA;
     });
 
-    // Compute rendered ranks dynamically (handling standard competition ties)
-    for (let i = 0; i < sortedData.length; i++) {
-        const item = sortedData[i];
-        const hasScore = item.finalMark !== undefined && item.finalMark > 0;
-        if (hasScore) {
-            if (i > 0 && item.finalMark === sortedData[i - 1].finalMark) {
-                item.renderedRank = sortedData[i - 1].renderedRank;
-            } else {
-                item.renderedRank = i + 1;
-            }
-        } else {
+    // Compute rendered ranks dynamically (handling standard competition ties) using the centralized helper
+    const scoredData = sortedData.filter(item => item.finalMark !== undefined && item.finalMark > 0);
+    computeDenseRanking(scoredData, item => item.finalMark, 'renderedRank');
+
+    sortedData.forEach(item => {
+        if (!(item.finalMark !== undefined && item.finalMark > 0)) {
             item.renderedRank = null;
         }
-    }
+    });
 
     let tableRowsHTML = '';
     if (sortedData.length === 0) {
