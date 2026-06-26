@@ -125,7 +125,7 @@ export async function initMarkEntryView(container, topActions) {
                     display: grid !important;
                     grid-template-columns: 1fr 1fr !important;
                     gap: 6px !important;
-                    width: 100% !important;
+                    width: 100% !important; 
                 }
                 .me-toolbar-mobile .form-input, .me-toolbar-mobile select {
                     height: 32px !important;
