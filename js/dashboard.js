@@ -14,6 +14,7 @@ import { initMarkEntryView } from './mark-entry.js';
 import { initJudgesView } from './judges.js';
 import { initExportsView } from './exports.js';
 import { initTopScorersView } from './top-scorers.js';
+import { initScheduleView } from './schedule.js';
 import { initSettingsView } from './settings.js';
 
 // Global state
@@ -47,6 +48,7 @@ const views = {
     'results': initResultsView,
     'exports': initExportsView,
     'top-scorers': initTopScorersView,
+    'schedule': initScheduleView,
     'settings': initSettingsView,
     'participants-workflow': (container, topActions) => {
         const payload = window.__participantsWorkflowPayload || {};
@@ -384,7 +386,8 @@ function navigateTo(viewName) {
         'mark-entry': 'Mark Entry',
         'results': 'Results',
         'exports': 'Exports',
-        'top-scorers': 'Top Scorers'
+        'top-scorers': 'Top Scorers',
+        'schedule': 'Schedule Management'
     };
 
     document.getElementById('pageTitle').textContent = titles[viewName] || 'Dashboard';

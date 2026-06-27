@@ -285,6 +285,28 @@ match /institutes/{instituteId} {
   }
 
   // -----------------------------
+  // SCHEDULES
+  // -----------------------------
+
+  match /schedules/{scheduleId} {
+
+    allow read, create, update, delete:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
+  }
+
+  // -----------------------------
+  // STAGES
+  // -----------------------------
+
+  match /stages/{stageId} {
+
+    allow read, create, update, delete:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin();
+  }
+
+  // -----------------------------
   // TOP SCORERS
   // -----------------------------
 

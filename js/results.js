@@ -209,6 +209,8 @@ async function loadResultsViewData() {
         unsubscribeResults = onSnapshot(resultsRef, (snapshot) => {
             allResults = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
             renderResultsView();
+        }, (err) => {
+            console.error("Results snapshot listener error:", err);
         });
 
     } catch (err) {
