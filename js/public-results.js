@@ -9,6 +9,12 @@ import {
 let allResults = [];
 let instId = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('instId');
 let instituteDetails = null;
+let eventConfig = null;
+let currentDisplayedResult = null;
+
+function getEffectiveEventName() {
+    return eventConfig?.eventName || instituteDetails?.name || "Results Portal";
+}
 
 // Tracks the selected background style (1, 2, 3, or 4) per card result ID
 const cardBgMap = {};
@@ -74,21 +80,25 @@ async function init() {
             return;
         }
 
-        // Custom Event settings resolution with self-healing fallback (SECTION 2 Event Customization)
-        let displayEventName = instituteDetails.name || "Results Portal";
-        try {
-            const configSnap = await getDoc(doc(db, "institutes", instId, "metadata", "eventConfig"));
+        // Real-time Event settings resolution with self-healing fallback
+        const configRef = doc(db, "institutes", instId, "metadata", "eventConfig");
+        onSnapshot(configRef, (configSnap) => {
             if (configSnap.exists()) {
-                const configData = configSnap.data();
-                if (configData.eventName) {
-                    displayEventName = configData.eventName;
-                }
+                eventConfig = configSnap.data();
+            } else {
+                eventConfig = null;
             }
-        } catch (e) {
-            console.warn("Public results custom event settings bypassed: read restricted, falling back to name.");
-        }
-
-        document.getElementById('madrasaName').textContent = displayEventName;
+            const displayEventName = getEffectiveEventName();
+            const headerEl = document.getElementById('madrasaName');
+            if (headerEl) {
+                headerEl.textContent = displayEventName;
+            }
+            if (currentDisplayedResult) {
+                renderSingleResult(currentDisplayedResult);
+            }
+        }, (e) => {
+            console.warn("Public results custom event settings bypassed: read restricted, falling back to name.", e);
+        });
 
         // 2. Setup Real-time Firestore Listeners on Results (Strictly Published results only)
         const resultsRef = collection(db, "institutes", instId, "results");
@@ -378,7 +388,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
             <div style="position: absolute; top: 10px; bottom: 10px; left: 10px; right: 10px; background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; z-index: 2; box-sizing: border-box;">
                 <div style="text-align: center; line-height: 1.1;">
                     <span style="font-size: 4px; color: #fbbf24; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px;">${escapeHTML(r.categoryName.toUpperCase())}</span>
-                    <div style="font-family: 'Cinzel', serif; font-size: 8px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(r.programName)}</div>
+                    <div style="font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; font-size: 6.5px; font-weight: 800; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(r.programName)}</div>
                     <div style="display: inline-block; background: rgba(255,255,255,0.08); border: 0.25px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 1px 3px; font-size: 3.5px; font-weight: 700; color: white; margin-top: 2px;">RESULT ${resultNumber}</div>
                 </div>
 
@@ -432,7 +442,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
                     <div style="display: flex; flex-direction: column; text-align: left; max-width: 70px; line-height: 1;">
                         <span style="font-size: 3px; font-weight: 700; color: rgba(255, 255, 255, 0.45); letter-spacing: 0.5px;">STANDINGS</span>
-                        <div style="font-family: 'Cinzel', serif; font-size: 6px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; margin-top: 1px;">${escapeHTML(r.programName)}</div>
+                        <div style="font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; font-size: 5px; font-weight: 800; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; margin-top: 1px;">${escapeHTML(r.programName)}</div>
                         <span style="font-size: 3.5px; font-weight: 700; color: #fbbf24; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 1px;">${escapeHTML(r.categoryName)}</span>
                     </div>
                     <div style="display: flex; flex-direction: column; align-items: center; gap: 1px;">
@@ -497,7 +507,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
                     <div style="width: 35%; display: flex; flex-direction: column; justify-content: space-between; border-right: 0.25px solid rgba(255, 255, 255, 0.15); padding-right: 4px; box-sizing: border-box; text-align: left; line-height: 1.1;">
                         <div>
                             <span style="font-size: 3px; font-weight: 700; color: rgba(255, 255, 255, 0.45); letter-spacing: 0.3px; display: block;">OFFICIAL RESULT</span>
-                            <div style="font-family: 'Cinzel', serif; font-size: 6px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; margin-top: 1px;">${escapeHTML(r.programName)}</div>
+                            <div style="font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; font-size: 5px; font-weight: 800; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; margin-top: 1px;">${escapeHTML(r.programName)}</div>
                             <span style="font-size: 3.5px; font-weight: 700; color: #fbbf24; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 1px; display: block;">${escapeHTML(r.categoryName)}</span>
                             <div style="display: inline-block; border: 0.25px solid rgba(255, 255, 255, 0.25); border-radius: 2px; padding: 1px 3px; font-size: 3px; font-weight: 800; color: rgba(255, 255, 255, 0.85); letter-spacing: 0.5px; text-transform: uppercase; margin-top: 2px;">R-${resultNumber}</div>
                         </div>
@@ -555,7 +565,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
                         <span style="font-size: 4px; color: #fbbf24; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">${escapeHTML(r.categoryName.toUpperCase())}</span>
                         <span style="background: rgba(255,255,255,0.08); border: 0.25px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 1px 3px; font-size: 3.5px; font-weight: 700; color: white;">R${resultNumber}</span>
                     </div>
-                    <div style="font-family: 'Cinzel', serif; font-size: 8px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(r.programName)}</div>
+                    <div style="font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; font-size: 6.5px; font-weight: 800; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(r.programName)}</div>
                 </div>
                 
                 <div style="display: flex; flex-direction: column; gap: 4px; margin: 4px 0;">
@@ -832,6 +842,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 }
 
 function renderSingleResult(r) {
+    currentDisplayedResult = r;
     const list = document.getElementById('resultsList');
     if (!list) return;
 
@@ -845,7 +856,7 @@ function renderSingleResult(r) {
     });
 
     const resultNumber = sortedPublished.findIndex(x => x.id === r.id) + 1;
-    const madrasaName = instituteDetails?.name || "Madrasa Results Portal";
+    const madrasaName = getEffectiveEventName();
 
     const posterInnerHTML = getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName);
 
@@ -1015,7 +1026,7 @@ function renderEmpty(title, msg) {
 function generatePosterCanvas(r) {
     const bgId = cardBgMap[r.id] || 1;
     const templateId = cardTemplateMap[r.id] || 1;
-    const madrasaName = (instituteDetails?.name || "Madrasa Results Portal").toUpperCase();
+    const madrasaName = getEffectiveEventName().toUpperCase();
     const programName = (r.programName || "Program Standing").toUpperCase();
     const categoryName = (r.categoryName || "General Category").toUpperCase();
 
@@ -1037,6 +1048,8 @@ function generatePosterCanvas(r) {
         const labels = { 1: '1ST', 2: '2ND', 3: '3RD' };
         return labels[rank] || `${rank}TH`;
     };
+
+    const ordinalMap = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
 
     // Create high-res off-screen canvas (1200x1500 for exact 4:5 aspect ratio)
     const canvas = document.createElement('canvas');
@@ -1121,7 +1134,14 @@ function generatePosterCanvas(r) {
 
         // Program Name
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 88px "Cinzel", Georgia, serif';
+        let progFontSize = 56;
+        ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
+        let progWidth = ctx.measureText(programName).width;
+        if (progWidth > 880) {
+            progFontSize = Math.floor(56 * (880 / progWidth));
+            if (progFontSize < 32) progFontSize = 32;
+            ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
+        }
         ctx.fillText(programName, 600, 395);
 
         // Fetch top 3 winners details
@@ -1279,13 +1299,13 @@ function generatePosterCanvas(r) {
         ctx.fillText("OFFICIAL RESULTS STANDINGS", 120, 160);
 
         // Program Name
-        let progFontSize = 64;
-        ctx.font = `bold ${progFontSize}px "Cinzel", Georgia, serif`;
+        let progFontSize = 48;
+        ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
         let progWidth = ctx.measureText(programName).width;
         if (progWidth > 750) {
-            progFontSize = Math.floor(64 * (750 / progWidth));
-            if (progFontSize < 36) progFontSize = 36;
-            ctx.font = `bold ${progFontSize}px "Cinzel", Georgia, serif`;
+            progFontSize = Math.floor(48 * (750 / progWidth));
+            if (progFontSize < 28) progFontSize = 28;
+            ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
         }
         ctx.fillStyle = '#ffffff';
         ctx.fillText(programName, 120, 240);
@@ -1333,7 +1353,6 @@ function generatePosterCanvas(r) {
         // Winner Rows
         const startY = 480;
         const rowHeight = 230;
-        const ordinalMap = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
         const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
 
         for (let i = 0; i < sorted.length; i++) {
@@ -1433,13 +1452,13 @@ function generatePosterCanvas(r) {
         ctx.fillText("OFFICIAL RESULT", 120, 200);
 
         // Program Name (Auto-wrap or scale down)
-        let progFontSize = 64;
-        ctx.font = `bold ${progFontSize}px "Cinzel", Georgia, serif`;
+        let progFontSize = 44;
+        ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
         let progWidth = ctx.measureText(programName).width;
         if (progWidth > 320) {
-            progFontSize = Math.floor(64 * (320 / progWidth));
-            if (progFontSize < 32) progFontSize = 32;
-            ctx.font = `bold ${progFontSize}px "Cinzel", Georgia, serif`;
+            progFontSize = Math.floor(44 * (320 / progWidth));
+            if (progFontSize < 24) progFontSize = 24;
+            ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
         }
         ctx.fillStyle = '#ffffff';
         ctx.fillText(programName, 120, 280);
@@ -1626,7 +1645,14 @@ function generatePosterCanvas(r) {
 
         // Program Name
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 88px "Cinzel", Georgia, serif';
+        let progFontSize = 56;
+        ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
+        let progWidth = ctx.measureText(programName).width;
+        if (progWidth > 880) {
+            progFontSize = Math.floor(56 * (880 / progWidth));
+            if (progFontSize < 32) progFontSize = 32;
+            ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
+        }
         ctx.fillText(programName, 600, 395);
 
         // Ranking rows
@@ -1738,7 +1764,7 @@ function sharePosterContent(cardId) {
     const r = allResults.find(x => x.id === cardId);
     if (!r) return;
 
-    const madrasaName = instituteDetails?.name || "Madrasa Results";
+    const madrasaName = getEffectiveEventName();
 
     // Fetch top 3 winners using dense ranking
     const activeWinners = [...(r.marksData || [])].filter(w => w.finalMark && w.finalMark > 0);
