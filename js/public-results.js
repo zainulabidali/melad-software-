@@ -403,7 +403,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
         return `
             <!-- Mini Dark Overlay & Blur -->
-            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.50); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
 
             <!-- Mini Bento Container -->
             <div style="position: absolute; top: 10px; bottom: 10px; left: 10px; right: 10px; background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; z-index: 2; box-sizing: border-box;">
@@ -454,7 +454,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
         return `
             <!-- Mini Dark Overlay & Blur -->
-            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
 
             <!-- Mini Editorial Container -->
             <div style="position: absolute; top: 8px; bottom: 8px; left: 8px; right: 8px; display: flex; flex-direction: column; justify-content: space-between; z-index: 2; box-sizing: border-box;">
@@ -518,7 +518,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
         return `
             <!-- Mini Dark Overlay & Blur -->
-            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
 
             <!-- Mini Split Screen Container -->
             <div style="position: absolute; top: 8px; bottom: 8px; left: 8px; right: 8px; display: flex; flex-direction: column; justify-content: space-between; z-index: 2; box-sizing: border-box;">
@@ -577,7 +577,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
         return `
             <!-- Mini Dark Overlay & Blur -->
-            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.50); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
             
             <!-- Mini Liquid Glass Container -->
             <div style="position: absolute; top: 10px; bottom: 10px; left: 10px; right: 10px; background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; z-index: 2; box-sizing: border-box;">
@@ -738,7 +738,6 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
                 ${brandHeaderHTML}
                 <div class="t3-header">
                     <div class="t3-header-left">
-                        <span class="t3-official-label">OFFICIAL RESULTS STANDINGS</span>
                         <h1 class="t3-program-title">${escapeHTML(r.programName.toUpperCase())}</h1>
                         <span class="t3-category">${escapeHTML(r.categoryName.toUpperCase())}</span>
                         <span class="t3-result-badge">RESULT ${resultNumber}</span>
@@ -793,7 +792,6 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
                     <!-- Left Panel (35%) -->
                     <div class="t4-left-panel">
                         <div class="t4-left-header">
-                            <span class="t4-official-badge">OFFICIAL RESULT</span>
                             <h1 class="t4-program-title">${escapeHTML(r.programName.toUpperCase())}</h1>
                             <span class="t4-category">${escapeHTML(r.categoryName.toUpperCase())}</span>
                             <span class="t4-result-badge">RESULT ${resultNumber}</span>
@@ -1054,917 +1052,113 @@ function renderEmpty(title, msg) {
     `;
 }
 
-function drawCanvasBrandHeader(ctx, eventName, eventTagline, logoImg, topY = 50) {
-    let currY = topY;
-    ctx.textAlign = 'center';
-
-    if (logoImg && logoImg.complete) {
-        const maxDim = 80;
-        let w = logoImg.width || maxDim;
-        let h = logoImg.height || maxDim;
-        const ratio = Math.min(maxDim / w, maxDim / h, 1);
-        w = Math.round(w * ratio);
-        h = Math.round(h * ratio);
-        ctx.drawImage(logoImg, 600 - w / 2, currY, w, h);
-        currY += h + 12;
-    }
-
-    // Event Name (Large bold, auto scaling)
-    ctx.textBaseline = 'top';
-    ctx.fillStyle = '#ffffff';
-    let evFontSize = 34;
-    ctx.font = `800 ${evFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
-    let evWidth = ctx.measureText(eventName.toUpperCase()).width;
-    if (evWidth > 1000) {
-        evFontSize = Math.floor(34 * (1000 / evWidth));
-        if (evFontSize < 20) evFontSize = 20;
-        ctx.font = `800 ${evFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
-    }
-    ctx.fillText(eventName.toUpperCase(), 600, currY);
-    currY += evFontSize + 10;
-
-    // Event Tagline
-    if (eventTagline) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        let taglineFontSize = 18;
-        ctx.font = `italic 500 ${taglineFontSize}px "Inter", "Noto Sans Malayalam", sans-serif`;
-        let taglineWidth = ctx.measureText(eventTagline).width;
-        if (taglineWidth > 950) {
-            taglineFontSize = Math.floor(18 * (950 / taglineWidth));
-            if (taglineFontSize < 12) taglineFontSize = 12;
-            ctx.font = `italic 500 ${taglineFontSize}px "Inter", "Noto Sans Malayalam", sans-serif`;
-        }
-        ctx.fillText(eventTagline, 600, currY);
-        currY += taglineFontSize + 12;
-    } else {
-        currY += 6;
-    }
-    return currY;
-}
-
 // ─────────────────────────────────────────────
-// Unified Off-screen 4:5 Aspect Ratio Canvas Drawer
+// Unified Off-screen High-Res (1200x1500) DOM Capture Drawer
 // ─────────────────────────────────────────────
-function generatePosterCanvas(r) {
+async function generatePosterCanvas(r) {
+    if (typeof html2canvas === 'undefined') {
+        console.error('html2canvas library is not loaded');
+        return null;
+    }
+
     const bgId = cardBgMap[r.id] || 1;
     const templateId = cardTemplateMap[r.id] || 1;
-    const displayEventName = (eventConfig?.eventName || getEffectiveEventName()).toUpperCase();
-    const displayMadrasaName = (eventConfig?.madrasaName || getEffectiveEventName()).toUpperCase();
-    const displayEventTagline = eventConfig?.eventTagline || "";
-    const programName = (r.programName || "Program Standing").toUpperCase();
-    const categoryName = (r.categoryName || "General Category").toUpperCase();
 
-    // Sort all published results chronologically by publication time ascending to get index order number
-    const sortedPublished = [...allResults].sort((a, b) => {
-        const timeA = a.publishedAt?.seconds || 0;
-        const timeB = b.publishedAt?.seconds || 0;
-        return timeA - timeB;
-    });
+    // Locate on-screen poster element or create temporary element
+    let posterEl = document.getElementById(`poster-${r.id}`);
+    let tempContainer = null;
 
-    const resultNumber = sortedPublished.findIndex(x => x.id === r.id) + 1;
+    if (!posterEl) {
+        const sortedPublished = [...allResults].sort((a, b) => (a.publishedAt?.seconds || 0) - (b.publishedAt?.seconds || 0));
+        const resultNumber = sortedPublished.findIndex(x => x.id === r.id) + 1;
+        const madrasaName = getEffectiveEventName();
+        const posterInnerHTML = getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName);
 
-    // Fetch top 3 winners using dense ranking
-    const activeWinners = [...(r.marksData || [])].filter(w => w.finalMark && w.finalMark > 0);
-    computeDenseRanking(activeWinners, w => w.finalMark, 'rank');
-    const sorted = activeWinners.slice(0, 3);
-
-    const ordinalLabel = (rank) => {
-        const labels = { 1: '1ST', 2: '2ND', 3: '3RD' };
-        return labels[rank] || `${rank}TH`;
-    };
-
-    const ordinalMap = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
-
-    // Create high-res off-screen canvas (1200x1500 for exact 4:5 aspect ratio)
-    const canvas = document.createElement('canvas');
-    canvas.width = 1200;
-    canvas.height = 1500;
-    const ctx = canvas.getContext('2d');
-
-    // Draw preloaded background
-    const bgImg = preloadedBgs[bgId];
-    if (templateId === 1 || templateId === 2 || templateId === 3 || templateId === 4) {
-        ctx.save();
-        ctx.filter = 'blur(12px)';
-        if (bgImg && bgImg.complete) {
-            ctx.drawImage(bgImg, -40, -40, 1280, 1580);
-        } else {
-            const grad = ctx.createLinearGradient(0, 0, 1200, 1500);
-            grad.addColorStop(0, '#022c22');
-            grad.addColorStop(1, '#064e3b');
-            ctx.fillStyle = grad;
-            ctx.fillRect(-40, -40, 1280, 1580);
-        }
-        ctx.restore();
-
-        // Dark overlay depending on template
-        if (templateId === 3 || templateId === 4) {
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.70)';
-        } else {
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.65)';
-        }
-        ctx.fillRect(0, 0, 1200, 1500);
-    } else {
-        if (bgImg && bgImg.complete) {
-            ctx.drawImage(bgImg, 0, 0, 1200, 1500);
-        } else {
-            // Fallback emerald-pine gradient if image load lags
-            const grad = ctx.createLinearGradient(0, 0, 1200, 1500);
-            grad.addColorStop(0, '#022c22');
-            grad.addColorStop(1, '#064e3b');
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, 1200, 1500);
-        }
-
-        // Overlay dark subtle gradient for readability
-        const gradient = ctx.createLinearGradient(0, 0, 0, 1500);
-        gradient.addColorStop(0, 'rgba(0, 0, 0, 0.15)');
-        gradient.addColorStop(1, 'rgba(0, 0, 0, 0.45)');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 1200, 1500);
+        tempContainer = document.createElement('div');
+        tempContainer.style.position = 'fixed';
+        tempContainer.style.left = '-9999px';
+        tempContainer.style.top = '-9999px';
+        tempContainer.style.width = '450px';
+        tempContainer.style.height = '562.5px';
+        tempContainer.style.zIndex = '-9999';
+        tempContainer.innerHTML = `<div class="result-poster template-${templateId}" style="width:450px; height:562.5px; background-image: url('../assets/poster-backgrounds/bg${bgId}.jpg')">${posterInnerHTML}</div>`;
+        document.body.appendChild(tempContainer);
+        posterEl = tempContainer.firstElementChild;
     }
 
-    const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
+    // Create fixed-size 450x562.5 rendering target clone to guarantee exact 4:5 proportions and scaling
+    const captureWrapper = document.createElement('div');
+    captureWrapper.style.position = 'fixed';
+    captureWrapper.style.left = '-9999px';
+    captureWrapper.style.top = '-9999px';
+    captureWrapper.style.width = '450px';
+    captureWrapper.style.height = '562.5px';
+    captureWrapper.style.zIndex = '-9999';
 
-    if (templateId === 2) {
-        // Template 2: Bento Grid Layout
-        let currY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 45);
+    const clonedPoster = posterEl.cloneNode(true);
+    clonedPoster.style.width = '450px';
+    clonedPoster.style.height = '562.5px';
+    clonedPoster.style.transform = 'none';
+    clonedPoster.style.margin = '0';
+    clonedPoster.style.boxShadow = 'none';
 
-        // Category Name
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 28px "Inter", sans-serif';
-        ctx.fillText(categoryName, 600, currY);
-        currY += 36;
+    captureWrapper.appendChild(clonedPoster);
+    document.body.appendChild(captureWrapper);
 
-        // Result Label glass pill badge
-        const badgeText = `RESULT ${resultNumber}`;
-        ctx.font = 'bold 24px "Inter", sans-serif';
-        const textWidth = ctx.measureText(badgeText).width;
-        const badgeW = textWidth + 36;
-        const badgeH = 44;
-        const badgeX = 600 - badgeW / 2;
-        const badgeY = currY;
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-        ctx.beginPath();
-        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 22);
-        ctx.fill();
-
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(badgeText, 600, badgeY + badgeH / 2);
-        currY += badgeH + 16;
-
-        // Program Name
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.fillStyle = '#ffffff';
-        let progFontSize = 46;
-        ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
-        let progWidth = ctx.measureText(programName).width;
-        if (progWidth > 900) {
-            progFontSize = Math.floor(46 * (900 / progWidth));
-            if (progFontSize < 26) progFontSize = 26;
-            ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
-        }
-        ctx.fillText(programName, 600, currY);
-
-        // Fetch top 3 winners details
-        const w1 = sorted[0];
-        const w2 = sorted[1];
-        const w3 = sorted[2];
-
-        const name1 = w1 ? (isGroup ? (w1.studentName || 'TEAM A') : (w1.studentName || '—')) : '—';
-        const team1 = w1 ? (w1.teamName || '—') : '—';
-
-        const name2 = w2 ? (isGroup ? (w2.studentName || 'TEAM B') : (w2.studentName || '—')) : '—';
-        const team2 = w2 ? (w2.teamName || '—') : '—';
-
-        const name3 = w3 ? (isGroup ? (w3.studentName || 'TEAM C') : (w3.studentName || '—')) : '—';
-        const team3 = w3 ? (w3.teamName || '—') : '—';
-
-        // 1st Place Card (Width 1000px, Height 260px, X = 100, Y = 490)
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-        ctx.beginPath();
-        ctx.roundRect(100, 490, 1000, 260, 56);
-        ctx.fill();
-
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // 1st Place Left Highlight Bar
-        ctx.fillStyle = '#fbbf24';
-        ctx.beginPath();
-        ctx.roundRect(100, 490, 16, 260, { tl: 56, bl: 56, tr: 0, br: 0 });
-        ctx.fill();
-
-        // 1st Place Details
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 24px "Inter", sans-serif';
-        ctx.fillText(`${w1 ? ordinalLabel(w1.rank) : '1ST'} STANDING`, 160, 555);
-
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 44px "Inter", sans-serif';
-        ctx.fillText(name1.toUpperCase(), 160, 620);
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '600 28px "Inter", sans-serif';
-        ctx.fillText(`TEAM: ${team1.toUpperCase()}`, 160, 680);
-
-        // 1st Place Rank large transparent number
-        ctx.textAlign = 'right';
-        ctx.fillStyle = 'rgba(251, 191, 36, 0.15)';
-        ctx.font = '900 120px "Inter", sans-serif';
-        ctx.fillText(w1 ? String(w1.rank).padStart(2, '0') : "01", 1040, 650);
-
-        // 2nd Place Card (Width 480px, Height 430px, X = 100, Y = 780)
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-        ctx.beginPath();
-        ctx.roundRect(100, 780, 480, 430, 48);
-        ctx.fill();
-
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // 2nd Place Top Highlight Bar
-        ctx.fillStyle = '#cbd5e1';
-        ctx.beginPath();
-        ctx.roundRect(100, 780, 480, 12, { tl: 48, tr: 48, bl: 0, br: 0 });
-        ctx.fill();
-
-        // 2nd Place Rank large transparent number
-        ctx.textAlign = 'right';
-        ctx.fillStyle = 'rgba(203, 213, 225, 0.15)';
-        ctx.font = '900 110px "Inter", sans-serif';
-        ctx.fillText(w2 ? String(w2.rank).padStart(2, '0') : "02", 540, 920);
-
-        // 2nd Place Details
-        ctx.textAlign = 'left';
-        ctx.fillStyle = '#cbd5e1';
-        ctx.font = 'bold 22px "Inter", sans-serif';
-        ctx.fillText(`${w2 ? ordinalLabel(w2.rank) : '2ND'} STANDING`, 140, 1030);
-
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 36px "Inter", sans-serif';
-        ctx.fillText(name2.toUpperCase(), 140, 1090);
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '600 24px "Inter", sans-serif';
-        ctx.fillText(`TEAM: ${team2.toUpperCase()}`, 140, 1145);
-
-        // 3rd Place Card (Width 480px, Height 430px, X = 620, Y = 780)
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-        ctx.beginPath();
-        ctx.roundRect(620, 780, 480, 430, 48);
-        ctx.fill();
-
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // 3rd Place Top Highlight Bar
-        ctx.fillStyle = '#d97706';
-        ctx.beginPath();
-        ctx.roundRect(620, 780, 480, 12, { tl: 48, tr: 48, bl: 0, br: 0 });
-        ctx.fill();
-
-        // 3rd Place Rank large transparent number
-        ctx.textAlign = 'right';
-        ctx.fillStyle = 'rgba(217, 119, 6, 0.15)';
-        ctx.font = '900 110px "Inter", sans-serif';
-        ctx.fillText(w3 ? String(w3.rank).padStart(2, '0') : "03", 1060, 920);
-
-        // 3rd Place Details
-        ctx.textAlign = 'left';
-        ctx.fillStyle = '#fdba74';
-        ctx.font = 'bold 22px "Inter", sans-serif';
-        ctx.fillText(`${w3 ? ordinalLabel(w3.rank) : '3RD'} STANDING`, 660, 1030);
-
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 36px "Inter", sans-serif';
-        ctx.fillText(name3.toUpperCase(), 660, 1090);
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '600 24px "Inter", sans-serif';
-        ctx.fillText(`TEAM: ${team3.toUpperCase()}`, 660, 1145);
-
-        // Centered Madrasa Footer Branding with divider lines
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
-        let footerFontSize = 30;
-        ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
-        const footerText = displayMadrasaName;
-        let footerTextWidth = ctx.measureText(footerText).width;
-        if (footerTextWidth > 800) {
-            footerFontSize = Math.floor(30 * (800 / footerTextWidth));
-            if (footerFontSize < 18) footerFontSize = 18;
-            ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
-            footerTextWidth = ctx.measureText(footerText).width;
+    try {
+        // Ensure fonts and images are fully loaded before capture
+        if (document.fonts && document.fonts.ready) {
+            await document.fonts.ready;
         }
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-        ctx.lineWidth = 2;
+        const images = Array.from(clonedPoster.querySelectorAll('img'));
+        await Promise.all(images.map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(resolve => {
+                img.onload = resolve;
+                img.onerror = resolve;
+            });
+        }));
 
-        ctx.beginPath();
-        ctx.moveTo(160, 1312);
-        ctx.lineTo(600 - (footerTextWidth / 2) - 30, 1312);
-        ctx.stroke();
+        // Render high-resolution canvas at 1200x1500 (450 * 2.6666667 = 1200)
+        const scaleFactor = 1200 / 450;
+        const canvas = await html2canvas(clonedPoster, {
+            scale: scaleFactor,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: null,
+            logging: false,
+            scrollX: 0,
+            scrollY: 0
+        });
 
-        ctx.beginPath();
-        ctx.moveTo(600 + (footerTextWidth / 2) + 30, 1312);
-        ctx.lineTo(1040, 1312);
-        ctx.stroke();
-
-        ctx.fillText(footerText, 600, 1322);
-    } else if (templateId === 3) {
-        // Template 3: Editorial Layout
-        let headerBottomY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 45);
-        let currY = Math.max(headerBottomY + 10, 220);
-
-        // Left side texts
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-
-        // "OFFICIAL RESULTS STANDINGS"
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-        ctx.font = 'bold 20px "Inter", sans-serif';
-        ctx.fillText("OFFICIAL RESULTS STANDINGS", 120, currY);
-        currY += 32;
-
-        // Program Name
-        let progFontSize = 44;
-        ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
-        let progWidth = ctx.measureText(programName).width;
-        if (progWidth > 750) {
-            progFontSize = Math.floor(44 * (750 / progWidth));
-            if (progFontSize < 26) progFontSize = 26;
-            ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
+        return canvas;
+    } catch (err) {
+        console.error("Poster capture failed:", err);
+        return null;
+    } finally {
+        if (captureWrapper && captureWrapper.parentNode) {
+            document.body.removeChild(captureWrapper);
         }
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(programName, 120, currY);
-        currY += 52;
-
-        // Category Name
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 26px "Inter", sans-serif';
-        ctx.fillText(categoryName, 120, currY);
-        currY += 36;
-
-        // Result badge (rounded rectangle outline)
-        const badgeText = `RESULT ${resultNumber}`;
-        ctx.font = 'bold 22px "Inter", sans-serif';
-        const bTextWidth = ctx.measureText(badgeText).width;
-        const bX = 120;
-        const bY = currY;
-        const bW = bTextWidth + 30;
-        const bH = 42;
-
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.roundRect(bX, bY, bW, bH, 8);
-        ctx.stroke();
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(badgeText, bX + 15, bY + bH / 2);
-
-        // Right side emblem (academic open book icon)
-        ctx.save();
-        ctx.fillStyle = '#fbbf24';
-        ctx.translate(1000, 170);
-        ctx.scale(2.5, 2.5);
-        const path = new Path2D("M12 11.55C9.64 9.35 6.48 8 3 8v11c3.48 0 6.64 1.35 9 3.55 2.36-2.2 5.52-3.55 9-3.55V8c-3.48 0-6.64 1.35-9 3.55zM12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z");
-        ctx.fill(path);
-        ctx.restore();
-
-        // Right side vertical labels
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-        ctx.font = 'bold 15px "Inter", sans-serif';
-        ctx.fillText("COMPETITION", 1030, 270);
-        ctx.fillText("EXCELLENCE", 1030, 295);
-        ctx.fillText("ACHIEVEMENT", 1030, 320);
-
-        // Winner Rows
-        const startY = 500;
-        const rowHeight = 220;
-        const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
-
-        for (let i = 0; i < sorted.length; i++) {
-            const w = sorted[i];
-            const y = startY + (i * rowHeight);
-            const rank = i + 1;
-
-            // Draw thin divider line underneath except for last
-            if (i < sorted.length - 1) {
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(120, y + 180);
-                ctx.lineTo(1080, y + 180);
-                ctx.stroke();
-            }
-
-            // Left Rank details
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'alphabetic';
-            ctx.fillStyle = rankColors[rank];
-            ctx.font = 'bold 90px "Inter", sans-serif';
-            ctx.fillText(`0${rank}`, 120, y + 90);
-
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-            ctx.font = 'bold 18px "Inter", sans-serif';
-            ctx.fillText(ordinalMap[rank], 120, y + 135);
-
-            // Right Student & Team details
-            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
-            const teamText = w.teamName || '—';
-
-            ctx.textAlign = 'right';
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 44px "Inter", sans-serif';
-
-            let maxNameWidth = 650;
-            let finalName = nameText.toUpperCase();
-            if (ctx.measureText(finalName).width > maxNameWidth) {
-                while (ctx.measureText(finalName + '...').width > maxNameWidth && finalName.length > 0) {
-                    finalName = finalName.slice(0, -1);
-                }
-                finalName += '...';
-            }
-            ctx.fillText(finalName, 1080, y + 80);
-
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.font = '600 26px "Inter", sans-serif';
-
-            let finalTeam = teamText.toUpperCase();
-            if (ctx.measureText(finalTeam).width > maxNameWidth) {
-                while (ctx.measureText(finalTeam + '...').width > maxNameWidth && finalTeam.length > 0) {
-                    finalTeam = finalTeam.slice(0, -1);
-                }
-                finalTeam += '...';
-            }
-            ctx.fillText(finalTeam, 1080, y + 130);
+        if (tempContainer && tempContainer.parentNode) {
+            document.body.removeChild(tempContainer);
         }
-
-        // Draw Editorial Footer
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
-        let footerFontSize = 24;
-        ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
-        const footerText = displayMadrasaName;
-        let footerTextWidth = ctx.measureText(footerText).width;
-        if (footerTextWidth > 800) {
-            footerFontSize = Math.floor(24 * (800 / footerTextWidth));
-            if (footerFontSize < 16) footerFontSize = 16;
-            ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
-            footerTextWidth = ctx.measureText(footerText).width;
-        }
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.lineWidth = 2;
-
-        ctx.beginPath();
-        ctx.moveTo(120, 1370);
-        ctx.lineTo(600 - (footerTextWidth / 2) - 30, 1370);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(600 + (footerTextWidth / 2) + 30, 1370);
-        ctx.lineTo(1080, 1370);
-        ctx.stroke();
-
-        ctx.fillText(footerText, 600, 1380);
-    } else if (templateId === 4) {
-        // Template 4: Premium Split-Screen Dashboard Layout
-        let headerBottomY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 45);
-
-        // Vertical split divider line at X = 480
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(480, headerBottomY + 10);
-        ctx.lineTo(480, 1260);
-        ctx.stroke();
-
-        let currY = Math.max(headerBottomY + 15, 220);
-
-        // Left Panel (X = 120)
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-
-        // "OFFICIAL RESULT" badge/header
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = 'bold 20px "Inter", sans-serif';
-        ctx.fillText("OFFICIAL RESULT", 120, currY);
-        currY += 32;
-
-        // Program Name (Auto-wrap or scale down)
-        let progFontSize = 42;
-        ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
-        let progWidth = ctx.measureText(programName).width;
-        if (progWidth > 320) {
-            progFontSize = Math.floor(42 * (320 / progWidth));
-            if (progFontSize < 22) progFontSize = 22;
-            ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
-        }
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(programName, 120, currY);
-        currY += 50;
-
-        // Category Name
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 24px "Inter", sans-serif';
-        ctx.fillText(categoryName, 120, currY);
-        currY += 36;
-
-        // Result Badge (Outlined Box)
-        const badgeText = `RESULT ${resultNumber}`;
-        ctx.font = 'bold 20px "Inter", sans-serif';
-        const bTextWidth = ctx.measureText(badgeText).width;
-        const bX = 120;
-        const bY = currY;
-        const bW = bTextWidth + 26;
-        const bH = 40;
-
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.roundRect(bX, bY, bW, bH, 8);
-        ctx.stroke();
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(badgeText, bX + 13, bY + bH / 2);
-
-        // Left Panel Bottom Ornaments
-        // SVG Open-book icon at X = 120, Y = 1000
-        ctx.save();
-        ctx.fillStyle = '#fbbf24';
-        ctx.translate(120, 960);
-        ctx.scale(2.5, 2.5);
-        const path = new Path2D("M12 11.55C9.64 9.35 6.48 8 3 8v11c3.48 0 6.64 1.35 9 3.55 2.36-2.2 5.52-3.55 9-3.55V8c-3.48 0-6.64 1.35-9 3.55zM12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z");
-        ctx.fill(path);
-        ctx.restore();
-
-        // Stacked Vertical Labels
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-        ctx.font = 'bold 15px "Inter", sans-serif';
-        ctx.fillText("COMPETITION", 120, 1070);
-        ctx.fillText("EXCELLENCE", 120, 1095);
-        ctx.fillText("ACHIEVEMENT", 120, 1120);
-
-        // Right Panel cards (X = 520 to 1080, Width = 560)
-        const startY = 360;
-        const rowHeight = 220;
-        const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
-
-        for (let i = 0; i < sorted.length; i++) {
-            const w = sorted[i];
-            const y = startY + (i * rowHeight);
-            const rank = w.rank;
-            const accentColor = rankColors[rank] || '#ffffff';
-
-            // Card container box background (Width = 560, Height = 180)
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
-            ctx.beginPath();
-            ctx.roundRect(520, y, 560, 180, 24);
-            ctx.fill();
-
-            // Card stroke/border
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Left colored highlight bar (Gold, Silver, Bronze)
-            ctx.fillStyle = accentColor;
-            ctx.beginPath();
-            ctx.roundRect(520, y, 10, 180, { tl: 24, bl: 24, tr: 0, br: 0 });
-            ctx.fill();
-
-            // Left text details: Rank Number & Label
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'alphabetic';
-            ctx.fillStyle = accentColor;
-            ctx.font = 'bold 64px "Inter", sans-serif';
-            ctx.fillText(`0${rank}`, 560, y + 105);
-
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-            ctx.font = 'bold 16px "Inter", sans-serif';
-            ctx.fillText(ordinalMap[rank], 560, y + 140);
-
-            // Right text details: Participant Name & Team
-            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
-            const teamText = w.teamName || '—';
-
-            ctx.textAlign = 'right';
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 38px "Inter", sans-serif';
-
-            let maxNameWidth = 320;
-            let finalName = nameText.toUpperCase();
-            if (ctx.measureText(finalName).width > maxNameWidth) {
-                while (ctx.measureText(finalName + '...').width > maxNameWidth && finalName.length > 0) {
-                    finalName = finalName.slice(0, -1);
-                }
-                finalName += '...';
-            }
-            ctx.fillText(finalName, 1040, y + 80);
-
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.font = '600 24px "Inter", sans-serif';
-
-            let finalTeam = teamText.toUpperCase();
-            if (ctx.measureText(finalTeam).width > maxNameWidth) {
-                while (ctx.measureText(finalTeam + '...').width > maxNameWidth && finalTeam.length > 0) {
-                    finalTeam = finalTeam.slice(0, -1);
-                }
-                finalTeam += '...';
-            }
-            ctx.fillText(finalTeam, 1040, y + 130);
-        }
-
-        // Centered shared footer at bottom
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
-        let footerFontSize = 24;
-        ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
-        const footerText = displayMadrasaName;
-        let footerTextWidth = ctx.measureText(footerText).width;
-        if (footerTextWidth > 800) {
-            footerFontSize = Math.floor(24 * (800 / footerTextWidth));
-            if (footerFontSize < 16) footerFontSize = 16;
-            ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
-            footerTextWidth = ctx.measureText(footerText).width;
-        }
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.lineWidth = 2;
-
-        ctx.beginPath();
-        ctx.moveTo(120, 1370);
-        ctx.lineTo(600 - (footerTextWidth / 2) - 30, 1370);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(600 + (footerTextWidth / 2) + 30, 1370);
-        ctx.lineTo(1080, 1370);
-        ctx.stroke();
-
-        ctx.fillText(footerText, 600, 1380);
-    } else {
-        // Template 1 (Redesigned — Reference Layout)
-        // Main Liquid Glass Container
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
-        ctx.beginPath();
-        ctx.roundRect(80, 80, 1040, 1340, 80);
-        ctx.fill();
-
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-
-        // Subtle top reflection
-        const reflectGrad = ctx.createLinearGradient(80, 80, 1120, 750);
-        reflectGrad.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
-        reflectGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        ctx.fillStyle = reflectGrad;
-        ctx.beginPath();
-        ctx.roundRect(80, 80, 1040, 670, { tl: 80, tr: 80, bl: 0, br: 0 });
-        ctx.fill();
-
-        // ── BRAND HEADER: Logo Left + Event Name Right (Row Layout) ──
-        const headerPadX = 160;
-        let headerY = 130;
-        const logoSize = 110;
-
-        // Draw logo if available
-        if (cachedLogoImg && cachedLogoImg.complete) {
-            const lw = cachedLogoImg.width || logoSize;
-            const lh = cachedLogoImg.height || logoSize;
-            const ratio = Math.min(logoSize / lw, logoSize / lh, 1);
-            const dw = Math.round(lw * ratio);
-            const dh = Math.round(lh * ratio);
-            ctx.drawImage(cachedLogoImg, headerPadX, headerY, dw, dh);
-        }
-
-        // Event Name in gold to the right of logo
-        const textX = headerPadX + logoSize + 28;
-        const maxTextW = 1120 - textX - 40;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        let evFontSize = 42;
-        ctx.font = `700 ${evFontSize}px "Cinzel", "Inter", serif`;
-        while (ctx.measureText(displayEventName).width > maxTextW && evFontSize > 22) {
-            evFontSize -= 2;
-            ctx.font = `700 ${evFontSize}px "Cinzel", "Inter", serif`;
-        }
-        ctx.fillStyle = '#f7df8a';
-        ctx.shadowColor = 'rgba(247, 223, 138, 0.3)';
-        ctx.shadowBlur = 18;
-        ctx.fillText(displayEventName, textX, headerY + 4);
-        ctx.shadowBlur = 0;
-
-        // Tagline below event name
-        let afterNameY = headerY + evFontSize + 10;
-        if (displayEventTagline) {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-            ctx.font = `italic 400 22px "Inter", "Noto Sans Malayalam", sans-serif`;
-            ctx.fillText(displayEventTagline, textX, afterNameY);
-            afterNameY += 34;
-        }
-
-        // Horizontal divider under brand header
-        const dividerY = Math.max(headerY + logoSize + 20, afterNameY + 10);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(headerPadX, dividerY);
-        ctx.lineTo(1120 - (headerPadX - 80), dividerY);
-        ctx.stroke();
-
-        let currY = dividerY + 36;
-
-        // ── SPLIT CONTENT HEADER: Category+Program LEFT | Vertical divider | RESULT number RIGHT ──
-        const contentLeft = headerPadX;
-        const contentRight = 1120 - (headerPadX - 80);
-        const splitX = 820; // vertical divider x position
-
-        // Category name (left side, gold, small caps)
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 26px "Inter", sans-serif';
-        ctx.fillText(categoryName, contentLeft, currY);
-        currY += 38;
-
-        // Program name (left side, white, large)
-        let progFontSize = 52;
-        ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
-        while (ctx.measureText(programName).width > (splitX - contentLeft - 20) && progFontSize > 28) {
-            progFontSize -= 2;
-            ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
-        }
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(programName, contentLeft, currY);
-        const programNameBottom = currY + progFontSize + 10;
-
-        // Vertical divider between program and result number
-        const vDivTop = dividerY + 24;
-        const vDivBot = programNameBottom + 10;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(splitX, vDivTop);
-        ctx.lineTo(splitX, vDivBot);
-        ctx.stroke();
-
-        // RESULT label (right side, small, white)
-        const rightCenterX = splitX + (contentRight - splitX) / 2;
-        const resultLabelY = dividerY + 28;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.font = 'bold 22px "Inter", sans-serif';
-        ctx.fillText('RESULT', rightCenterX, resultLabelY);
-
-        // Big gold result number (right side)
-        ctx.font = '900 150px "Inter", sans-serif';
-        ctx.fillStyle = '#f7df8a';
-        ctx.shadowColor = 'rgba(247, 223, 138, 0.2)';
-        ctx.shadowBlur = 20;
-        ctx.textBaseline = 'top';
-        ctx.fillText(String(resultNumber).padStart(2, '0'), rightCenterX, resultLabelY + 30);
-        ctx.shadowBlur = 0;
-
-        // ── RANKING ROWS ──
-        const startY = Math.max(programNameBottom + 40, vDivBot + 30);
-        const rowHeight = 210;
-        const rankAccentColors = {
-            0: '#fbbf24',
-            1: '#cbd5e1',
-            2: '#d97706'
-        };
-
-        for (let i = 0; i < sorted.length; i++) {
-            const w = sorted[i];
-            const y = startY + (i * rowHeight);
-            const accentColor = rankAccentColors[i] || '#ffffff';
-
-            // Card background
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
-            ctx.beginPath();
-            ctx.roundRect(160, y, 880, 175, 32);
-            ctx.fill();
-
-            // Card border
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Left accent bar
-            ctx.fillStyle = accentColor;
-            ctx.beginPath();
-            ctx.roundRect(160, y, 12, 175, { tl: 32, bl: 32, tr: 0, br: 0 });
-            ctx.fill();
-
-            // Rank number
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'alphabetic';
-            ctx.fillStyle = accentColor;
-            ctx.font = 'bold 60px "Inter", sans-serif';
-            ctx.fillText(`#${i + 1}`, 245, y + 108);
-
-            // Participant Name & Team
-            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
-            const teamText = w.teamName || '—';
-
-            ctx.textAlign = 'left';
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 40px "Inter", sans-serif';
-            ctx.fillText(nameText.toUpperCase(), 340, y + 78);
-
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.font = '600 26px "Inter", sans-serif';
-            ctx.fillText(teamText.toUpperCase(), 340, y + 126);
-        }
-
-        // Footer with divider lines
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
-        let footerFontSize = 32;
-        ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
-        const footerText = displayMadrasaName;
-        let footerTextWidth = ctx.measureText(footerText).width;
-        if (footerTextWidth > 800) {
-            footerFontSize = Math.floor(32 * (800 / footerTextWidth));
-            if (footerFontSize < 18) footerFontSize = 18;
-            ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
-            footerTextWidth = ctx.measureText(footerText).width;
-        }
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-        ctx.lineWidth = 2;
-
-        ctx.beginPath();
-        ctx.moveTo(160, 1312);
-        ctx.lineTo(600 - (footerTextWidth / 2) - 30, 1312);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(600 + (footerTextWidth / 2) + 30, 1312);
-        ctx.lineTo(1040, 1312);
-        ctx.stroke();
-
-        ctx.fillText(footerText, 600, 1322);
     }
-
-    // Centered Madrasa Footer Branding for other templates
-    if (templateId !== 1 && templateId !== 2 && templateId !== 3 && templateId !== 4) {
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
-        let footerFontSize = 44;
-        ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
-        const footerText = displayMadrasaName;
-        let footerTextWidth = ctx.measureText(footerText).width;
-        if (footerTextWidth > 1000) {
-            footerFontSize = Math.floor(44 * (1000 / footerTextWidth));
-            if (footerFontSize < 20) footerFontSize = 20;
-            ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
-        }
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.fillText(footerText, 600, 1430);
-    }
-
-    return canvas;
 }
 
 // ─────────────────────────────────────────────
 // Poster Image Direct Download
 // ─────────────────────────────────────────────
-function downloadPosterAsImage(cardId) {
+async function downloadPosterAsImage(cardId) {
     const r = allResults.find(x => x.id === cardId);
     if (!r) return;
 
-    const canvas = generatePosterCanvas(r);
+    showToast("Generating image download...");
+    const canvas = await generatePosterCanvas(r);
+    if (!canvas) {
+        showToast("⚠️ Image download failed. Please try again.");
+        return;
+    }
 
     // Trigger standard browser download handler
     const link = document.createElement('a');
@@ -1977,7 +1171,7 @@ function downloadPosterAsImage(cardId) {
 // ─────────────────────────────────────────────
 // Native Web Share API or Clipboard Fallsharing
 // ─────────────────────────────────────────────
-function sharePosterContent(cardId) {
+async function sharePosterContent(cardId) {
     const r = allResults.find(x => x.id === cardId);
     if (!r) return;
 
@@ -2032,7 +1226,11 @@ function sharePosterContent(cardId) {
     };
 
     // Generate image canvas
-    const canvas = generatePosterCanvas(r);
+    const canvas = await generatePosterCanvas(r);
+    if (!canvas) {
+        copyToClipboardFallback();
+        return;
+    }
 
     // Attempt direct image file sharing through Web Share API if supported
     if (navigator.canShare && navigator.share) {
