@@ -1295,40 +1295,52 @@
             border-radius: 32px 32px 0 0;
         }
 
+        /* ── Template 1: Horizontal Brand Header ── */
         .poster-brand-header {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             align-items: center;
-            justify-content: center;
-            text-align: center;
+            gap: 14px;
             width: 100%;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
         }
         .poster-brand-logo-wrap {
-            max-width: 65px;
-            max-height: 65px;
-            margin-bottom: 6px;
+            width: 62px;
+            height: 62px;
+            flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         .poster-brand-logo {
             max-width: 100%;
-            max-height: 65px;
+            max-height: 62px;
             object-fit: contain;
             filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
         }
+        .poster-brand-text-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            text-align: left;
+            overflow: hidden;
+            flex: 1;
+        }
         .poster-brand-event-name {
-            font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-            font-size: clamp(14px, 2.8vw, 19px);
-            font-weight: 800;
-            color: #ffffff;
-            letter-spacing: 1.2px;
+            font-family: 'Cinzel', 'Plus Jakarta Sans', serif;
+            font-size: clamp(13px, 2.6vw, 18px);
+            font-weight: 700;
+            color: #f7df8a;
+            letter-spacing: 1px;
             text-transform: uppercase;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
-            margin-bottom: 3px;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.45), 0 0 14px rgba(255,215,120,0.2);
+            margin-bottom: 2px;
             word-break: break-word;
-            max-width: 95%;
+            max-width: 100%;
+            line-height: 1.2;
         }
         .poster-brand-madrasa-name {
             font-family: 'Inter', sans-serif;
@@ -1344,28 +1356,52 @@
         }
         .poster-brand-tagline {
             font-family: 'Inter', sans-serif;
-            font-size: clamp(9px, 1.8vw, 11px);
-            font-weight: 500;
-            color: rgba(255, 255, 255, 0.85);
-            letter-spacing: 0.8px;
+            font-size: clamp(9px, 1.8vw, 10px);
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.75);
+            letter-spacing: 0.5px;
             font-style: italic;
-            max-width: 90%;
+            max-width: 100%;
             line-height: 1.3;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
         }
 
+        /* ── Template 1: Split Content Header (category+program left | result number right) ── */
         .t1-header {
             display: flex;
-            flex-direction: column;
-            gap: 6px;
-            align-items: center;
-            text-align: center;
+            flex-direction: row;
+            align-items: stretch;
             width: 100%;
+            gap: 0;
+            margin-bottom: 4px;
         }
-
+        .t1-header-left {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            flex: 1;
+            padding-right: 16px;
+            text-align: left;
+        }
+        .t1-header-divider {
+            width: 1px;
+            background: rgba(255, 255, 255, 0.18);
+            flex-shrink: 0;
+            align-self: stretch;
+        }
+        .t1-header-right {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding-left: 16px;
+            flex-shrink: 0;
+            min-width: 80px;
+        }
         .t1-badge-row {
             display: flex;
-            justify-content: center;
+            justify-content: flex-start;
             align-items: center;
             gap: 12px;
             margin-bottom: 2px;
@@ -1377,8 +1413,25 @@
             color: #fbbf24;
             letter-spacing: 2.5px;
             text-transform: uppercase;
+            margin-bottom: 4px;
         }
 
+        .t1-result-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.85);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+        .t1-result-number {
+            font-size: clamp(52px, 10vw, 70px);
+            font-weight: 900;
+            color: #f7df8a;
+            line-height: 1;
+            font-family: 'Inter', sans-serif;
+            text-shadow: 0 0 18px rgba(247, 223, 138, 0.25);
+        }
         .t1-result-badge {
             background: rgba(255, 255, 255, 0.08);
             backdrop-filter: blur(8px);
@@ -1398,9 +1451,9 @@
             font-size: clamp(16px, 3.2vw, 22px);
             font-weight: 800;
             color: #ffffff;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
             margin: 0;
-            line-height: 1.25;
+            line-height: 1.2;
             text-transform: uppercase;
             text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }

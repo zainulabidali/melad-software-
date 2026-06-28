@@ -625,8 +625,10 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
     const brandHeaderHTML = `
         <div class="poster-brand-header">
             ${brandLogoHTML}
-            <div class="poster-brand-event-name">${escapeHTML(displayEventName.toUpperCase())}</div>
-            ${brandTaglineHTML}
+            <div class="poster-brand-text-wrap">
+                <div class="poster-brand-event-name">${escapeHTML(displayEventName.toUpperCase())}</div>
+                ${brandTaglineHTML}
+            </div>
         </div>
     `;
 
@@ -842,11 +844,15 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
             <div class="t1-container">
                 ${brandHeaderHTML}
                 <div class="t1-header">
-                    <div class="t1-badge-row">
+                    <div class="t1-header-left">
                         <span class="t1-category">${escapeHTML(r.categoryName.toUpperCase())}</span>
-                        <span class="t1-result-badge">RESULT ${resultNumber}</span>
+                        <h1 class="t1-title">${escapeHTML(r.programName.toUpperCase())}</h1>
                     </div>
-                    <h1 class="t1-title">${escapeHTML(r.programName.toUpperCase())}</h1>
+                    <div class="t1-header-divider"></div>
+                    <div class="t1-header-right">
+                        <span class="t1-result-label">RESULT</span>
+                        <span class="t1-result-number">${String(resultNumber).padStart(2, '0')}</span>
+                    </div>
                 </div>
 
                 <div class="t1-list">
@@ -1724,7 +1730,7 @@ function generatePosterCanvas(r) {
 
         ctx.fillText(footerText, 600, 1380);
     } else {
-        // Template 1 (Redesigned Liquid Glass)
+        // Template 1 (Redesigned — Reference Layout)
         // Main Liquid Glass Container
         ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
         ctx.beginPath();
@@ -1735,7 +1741,7 @@ function generatePosterCanvas(r) {
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        // Subtle top reflection gradient
+        // Subtle top reflection
         const reflectGrad = ctx.createLinearGradient(80, 80, 1120, 750);
         reflectGrad.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
         reflectGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
@@ -1744,56 +1750,113 @@ function generatePosterCanvas(r) {
         ctx.roundRect(80, 80, 1040, 670, { tl: 80, tr: 80, bl: 0, br: 0 });
         ctx.fill();
 
-        let currY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 110);
+        // ── BRAND HEADER: Logo Left + Event Name Right (Row Layout) ──
+        const headerPadX = 160;
+        let headerY = 130;
+        const logoSize = 110;
 
-        // Category Name
-        ctx.textAlign = 'center';
+        // Draw logo if available
+        if (cachedLogoImg && cachedLogoImg.complete) {
+            const lw = cachedLogoImg.width || logoSize;
+            const lh = cachedLogoImg.height || logoSize;
+            const ratio = Math.min(logoSize / lw, logoSize / lh, 1);
+            const dw = Math.round(lw * ratio);
+            const dh = Math.round(lh * ratio);
+            ctx.drawImage(cachedLogoImg, headerPadX, headerY, dw, dh);
+        }
+
+        // Event Name in gold to the right of logo
+        const textX = headerPadX + logoSize + 28;
+        const maxTextW = 1120 - textX - 40;
+        ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 28px "Inter", sans-serif';
-        ctx.fillText(categoryName, 600, currY);
-        currY += 36;
+        let evFontSize = 42;
+        ctx.font = `700 ${evFontSize}px "Cinzel", "Inter", serif`;
+        while (ctx.measureText(displayEventName).width > maxTextW && evFontSize > 22) {
+            evFontSize -= 2;
+            ctx.font = `700 ${evFontSize}px "Cinzel", "Inter", serif`;
+        }
+        ctx.fillStyle = '#f7df8a';
+        ctx.shadowColor = 'rgba(247, 223, 138, 0.3)';
+        ctx.shadowBlur = 18;
+        ctx.fillText(displayEventName, textX, headerY + 4);
+        ctx.shadowBlur = 0;
 
-        // Result Label glass pill badge
-        const badgeText = `RESULT ${resultNumber}`;
-        ctx.font = 'bold 24px "Inter", sans-serif';
-        const textWidth = ctx.measureText(badgeText).width;
-        const badgeW = textWidth + 36;
-        const badgeH = 44;
-        const badgeX = 600 - badgeW / 2;
-        const badgeY = currY;
+        // Tagline below event name
+        let afterNameY = headerY + evFontSize + 10;
+        if (displayEventTagline) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+            ctx.font = `italic 400 22px "Inter", "Noto Sans Malayalam", sans-serif`;
+            ctx.fillText(displayEventTagline, textX, afterNameY);
+            afterNameY += 34;
+        }
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-        ctx.beginPath();
-        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 22);
-        ctx.fill();
-
+        // Horizontal divider under brand header
+        const dividerY = Math.max(headerY + logoSize + 20, afterNameY + 10);
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
         ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(headerPadX, dividerY);
+        ctx.lineTo(1120 - (headerPadX - 80), dividerY);
         ctx.stroke();
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(badgeText, 600, badgeY + badgeH / 2);
-        currY += badgeH + 16;
+        let currY = dividerY + 36;
 
-        // Program Name
-        ctx.textAlign = 'center';
+        // ── SPLIT CONTENT HEADER: Category+Program LEFT | Vertical divider | RESULT number RIGHT ──
+        const contentLeft = headerPadX;
+        const contentRight = 1120 - (headerPadX - 80);
+        const splitX = 820; // vertical divider x position
+
+        // Category name (left side, gold, small caps)
+        ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        ctx.fillStyle = '#ffffff';
-        let progFontSize = 46;
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = 'bold 26px "Inter", sans-serif';
+        ctx.fillText(categoryName, contentLeft, currY);
+        currY += 38;
+
+        // Program name (left side, white, large)
+        let progFontSize = 52;
         ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
-        let progWidth = ctx.measureText(programName).width;
-        if (progWidth > 880) {
-            progFontSize = Math.floor(46 * (880 / progWidth));
-            if (progFontSize < 28) progFontSize = 28;
+        while (ctx.measureText(programName).width > (splitX - contentLeft - 20) && progFontSize > 28) {
+            progFontSize -= 2;
             ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
         }
-        ctx.fillText(programName, 600, currY);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(programName, contentLeft, currY);
+        const programNameBottom = currY + progFontSize + 10;
 
-        // Ranking rows
-        const startY = 490;
-        const rowHeight = 220;
+        // Vertical divider between program and result number
+        const vDivTop = dividerY + 24;
+        const vDivBot = programNameBottom + 10;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(splitX, vDivTop);
+        ctx.lineTo(splitX, vDivBot);
+        ctx.stroke();
+
+        // RESULT label (right side, small, white)
+        const rightCenterX = splitX + (contentRight - splitX) / 2;
+        const resultLabelY = dividerY + 28;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.font = 'bold 22px "Inter", sans-serif';
+        ctx.fillText('RESULT', rightCenterX, resultLabelY);
+
+        // Big gold result number (right side)
+        ctx.font = '900 150px "Inter", sans-serif';
+        ctx.fillStyle = '#f7df8a';
+        ctx.shadowColor = 'rgba(247, 223, 138, 0.2)';
+        ctx.shadowBlur = 20;
+        ctx.textBaseline = 'top';
+        ctx.fillText(String(resultNumber).padStart(2, '0'), rightCenterX, resultLabelY + 30);
+        ctx.shadowBlur = 0;
+
+        // ── RANKING ROWS ──
+        const startY = Math.max(programNameBottom + 40, vDivBot + 30);
+        const rowHeight = 210;
         const rankAccentColors = {
             0: '#fbbf24',
             1: '#cbd5e1',
@@ -1808,7 +1871,7 @@ function generatePosterCanvas(r) {
             // Card background
             ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
             ctx.beginPath();
-            ctx.roundRect(160, y, 880, 180, 32);
+            ctx.roundRect(160, y, 880, 175, 32);
             ctx.fill();
 
             // Card border
@@ -1816,18 +1879,18 @@ function generatePosterCanvas(r) {
             ctx.lineWidth = 2;
             ctx.stroke();
 
-            // Left accent highlight bar
+            // Left accent bar
             ctx.fillStyle = accentColor;
             ctx.beginPath();
-            ctx.roundRect(160, y, 12, 180, { tl: 32, bl: 32, tr: 0, br: 0 });
+            ctx.roundRect(160, y, 12, 175, { tl: 32, bl: 32, tr: 0, br: 0 });
             ctx.fill();
 
-            // Rank Number text shadow & value
+            // Rank number
             ctx.textAlign = 'center';
             ctx.textBaseline = 'alphabetic';
             ctx.fillStyle = accentColor;
-            ctx.font = 'bold 64px "Inter", sans-serif';
-            ctx.fillText(`#${i + 1}`, 245, y + 112);
+            ctx.font = 'bold 60px "Inter", sans-serif';
+            ctx.fillText(`#${i + 1}`, 245, y + 108);
 
             // Participant Name & Team
             const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
@@ -1835,15 +1898,15 @@ function generatePosterCanvas(r) {
 
             ctx.textAlign = 'left';
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 42px "Inter", sans-serif';
-            ctx.fillText(nameText.toUpperCase(), 340, y + 80);
+            ctx.font = 'bold 40px "Inter", sans-serif';
+            ctx.fillText(nameText.toUpperCase(), 340, y + 78);
 
             ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.font = '600 28px "Inter", sans-serif';
-            ctx.fillText(teamText.toUpperCase(), 340, y + 130);
+            ctx.font = '600 26px "Inter", sans-serif';
+            ctx.fillText(teamText.toUpperCase(), 340, y + 126);
         }
 
-        // Centered Madrasa Footer Branding with divider lines
+        // Footer with divider lines
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
         let footerFontSize = 32;
