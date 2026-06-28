@@ -11,6 +11,8 @@ let instId = new URLSearchParams(window.location.search).get('id') || new URLSea
 let instituteDetails = null;
 let eventConfig = null;
 let currentDisplayedResult = null;
+let cachedLogoImg = null;
+let cachedLogoSrc = null;
 
 function getEffectiveEventName() {
     return eventConfig?.eventName || instituteDetails?.name || "Results Portal";
@@ -88,6 +90,25 @@ async function init() {
             } else {
                 eventConfig = null;
             }
+
+            if (eventConfig?.eventLogo) {
+                if (cachedLogoSrc !== eventConfig.eventLogo) {
+                    cachedLogoSrc = eventConfig.eventLogo;
+                    const img = new Image();
+                    img.onload = () => {
+                        cachedLogoImg = img;
+                        if (currentDisplayedResult) {
+                            renderSingleResult(currentDisplayedResult);
+                        }
+                    };
+                    img.src = eventConfig.eventLogo;
+                    cachedLogoImg = img;
+                }
+            } else {
+                cachedLogoImg = null;
+                cachedLogoSrc = null;
+            }
+
             const displayEventName = getEffectiveEventName();
             const headerEl = document.getElementById('madrasaName');
             if (headerEl) {
@@ -594,6 +615,20 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
         return labels[rank] || `${rank}TH`;
     };
 
+    const displayEventName = eventConfig?.eventName || madrasaName || "Results Portal";
+    const displayEventTagline = eventConfig?.eventTagline || "";
+    const displayEventLogo = eventConfig?.eventLogo || null;
+
+    const brandLogoHTML = displayEventLogo ? `<div class="poster-brand-logo-wrap"><img src="${displayEventLogo}" alt="Logo" class="poster-brand-logo" /></div>` : '';
+    const brandTaglineHTML = displayEventTagline ? `<div class="poster-brand-tagline">${escapeHTML(displayEventTagline)}</div>` : '';
+    const brandHeaderHTML = `
+        <div class="poster-brand-header">
+            ${brandLogoHTML}
+            <div class="poster-brand-name">${escapeHTML(displayEventName.toUpperCase())}</div>
+            ${brandTaglineHTML}
+        </div>
+    `;
+
     if (templateId === 2) {
         const w1 = sortedWinners[0];
         const w2 = sortedWinners[1];
@@ -653,6 +688,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
         return `
             <div class="t2-container">
+                ${brandHeaderHTML}
                 <div class="t2-header">
                     <span class="t2-category-badge">${escapeHTML(r.categoryName.toUpperCase())}</span>
                     <h1 class="t2-program-title">${escapeHTML(r.programName.toUpperCase())}</h1>
@@ -665,7 +701,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
                 <div class="t2-footer">
                     <div class="t2-footer-line"></div>
-                    <span class="t2-footer-text">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <span class="t2-footer-text">${escapeHTML(displayEventName.toUpperCase())}</span>
                     <div class="t2-footer-line"></div>
                 </div>
             </div>
@@ -696,6 +732,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
         return `
             <div class="t3-container">
+                ${brandHeaderHTML}
                 <div class="t3-header">
                     <div class="t3-header-left">
                         <span class="t3-official-label">OFFICIAL RESULTS STANDINGS</span>
@@ -703,16 +740,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
                         <span class="t3-category">${escapeHTML(r.categoryName.toUpperCase())}</span>
                         <span class="t3-result-badge">RESULT ${resultNumber}</span>
                     </div>
-                    <div class="t3-header-right">
-                        <svg class="t3-academic-icon" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 11.55C9.64 9.35 6.48 8 3 8v11c3.48 0 6.64 1.35 9 3.55 2.36-2.2 5.52-3.55 9-3.55V8c-3.48 0-6.64 1.35-9 3.55zM12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/>
-                        </svg>
-                        <div class="t3-vertical-labels">
-                            <span>COMPETITION</span>
-                            <span>EXCELLENCE</span>
-                            <span>ACHIEVEMENT</span>
-                        </div>
-                    </div>
+                   
                 </div>
 
                 <div class="t3-winners-list">
@@ -721,7 +749,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
                 <div class="t3-footer">
                     <div class="t3-footer-line"></div>
-                    <span class="t3-footer-text">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <span class="t3-footer-text">${escapeHTML(displayEventName.toUpperCase())}</span>
                     <div class="t3-footer-line"></div>
                 </div>
             </div>
@@ -756,6 +784,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
         return `
             <div class="t4-container">
+                ${brandHeaderHTML}
                 <div class="t4-split-content">
                     
                     <!-- Left Panel (35%) -->
@@ -767,16 +796,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
                             <span class="t4-result-badge">RESULT ${resultNumber}</span>
                         </div>
                         
-                        <div class="t4-academic-decor">
-                            <svg class="t4-academic-icon" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 11.55C9.64 9.35 6.48 8 3 8v11c3.48 0 6.64 1.35 9 3.55 2.36-2.2 5.52-3.55 9-3.55V8c-3.48 0-6.64 1.35-9 3.55zM12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/>
-                            </svg>
-                            <div class="t4-vertical-labels">
-                                <span>COMPETITION</span>
-                                <span>EXCELLENCE</span>
-                                <span>ACHIEVEMENT</span>
-                            </div>
-                        </div>
+                        
                     </div>
 
                     <!-- Right Panel (65%) -->
@@ -789,7 +809,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
                 <!-- Shared Footer at bottom -->
                 <div class="t4-footer">
                     <div class="t4-footer-line"></div>
-                    <span class="t4-footer-text">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <span class="t4-footer-text">${escapeHTML(displayEventName.toUpperCase())}</span>
                     <div class="t4-footer-line"></div>
                 </div>
             </div>
@@ -819,6 +839,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
         return `
             <div class="t1-container">
+                ${brandHeaderHTML}
                 <div class="t1-header">
                     <div class="t1-badge-row">
                         <span class="t1-category">${escapeHTML(r.categoryName.toUpperCase())}</span>
@@ -833,7 +854,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
                 <div class="t1-footer">
                     <div class="t1-footer-line"></div>
-                    <span class="t1-footer-text">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <span class="t1-footer-text">${escapeHTML(displayEventName.toUpperCase())}</span>
                     <div class="t1-footer-line"></div>
                 </div>
             </div>
@@ -912,7 +933,7 @@ function renderSingleResult(r) {
             <!-- Balanced Actions Buttons Row -->
             <div class="poster-actions">
                 <button class="btn-action-primary btn-download" data-id="${r.id}">📥 Download Image</button>
-                <button class="btn-action-secondary btn-share" data-id="${r.id}">📤 Share Image</button>
+               
             </div>
 
         </div>
@@ -991,13 +1012,19 @@ function renderSingleResult(r) {
     });
 
     // Wire Card Actions
-    document.querySelector('.btn-download').onclick = () => {
-        downloadPosterAsImage(r.id);
-    };
+    const btnDownload = document.querySelector('.btn-download');
+    if (btnDownload) {
+        btnDownload.onclick = () => {
+            downloadPosterAsImage(r.id);
+        };
+    }
 
-    document.querySelector('.btn-share').onclick = () => {
-        sharePosterContent(r.id);
-    };
+    const btnShare = document.querySelector('.btn-share');
+    if (btnShare) {
+        btnShare.onclick = () => {
+            sharePosterContent(r.id);
+        };
+    }
 }
 
 function renderError(title, msg) {
@@ -1020,13 +1047,53 @@ function renderEmpty(title, msg) {
     `;
 }
 
+function drawCanvasBrandHeader(ctx, eventName, eventTagline, logoImg, topY = 60) {
+    let currY = topY;
+    ctx.textAlign = 'center';
+    
+    if (logoImg && logoImg.complete) {
+        const maxDim = 80;
+        let w = logoImg.width || maxDim;
+        let h = logoImg.height || maxDim;
+        const ratio = Math.min(maxDim / w, maxDim / h, 1);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+        ctx.drawImage(logoImg, 600 - w / 2, currY, w, h);
+        currY += h + 14;
+    }
+
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 32px "Plus Jakarta Sans", "Inter", sans-serif';
+    ctx.fillText(eventName.toUpperCase(), 600, currY);
+    currY += 40;
+
+    if (eventTagline) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        let taglineFontSize = 20;
+        ctx.font = `italic 500 ${taglineFontSize}px "Inter", "Noto Sans Malayalam", sans-serif`;
+        let taglineWidth = ctx.measureText(eventTagline).width;
+        if (taglineWidth > 900) {
+            taglineFontSize = Math.floor(20 * (900 / taglineWidth));
+            if (taglineFontSize < 13) taglineFontSize = 13;
+            ctx.font = `italic 500 ${taglineFontSize}px "Inter", "Noto Sans Malayalam", sans-serif`;
+        }
+        ctx.fillText(eventTagline, 600, currY);
+        currY += 32;
+    } else {
+        currY += 8;
+    }
+    return currY;
+}
+
 // ─────────────────────────────────────────────
 // Unified Off-screen 4:5 Aspect Ratio Canvas Drawer
 // ─────────────────────────────────────────────
 function generatePosterCanvas(r) {
     const bgId = cardBgMap[r.id] || 1;
     const templateId = cardTemplateMap[r.id] || 1;
-    const madrasaName = getEffectiveEventName().toUpperCase();
+    const displayEventName = (eventConfig?.eventName || getEffectiveEventName()).toUpperCase();
+    const displayEventTagline = eventConfig?.eventTagline || "";
     const programName = (r.programName || "Program Standing").toUpperCase();
     const categoryName = (r.categoryName || "General Category").toUpperCase();
 
@@ -1104,25 +1171,28 @@ function generatePosterCanvas(r) {
 
     if (templateId === 2) {
         // Template 2: Bento Grid Layout
+        let currY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 50);
 
         // Category Name
         ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
         ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 36px "Inter", sans-serif';
-        ctx.fillText(categoryName, 600, 190);
+        ctx.font = 'bold 28px "Inter", sans-serif';
+        ctx.fillText(categoryName, 600, currY);
+        currY += 36;
 
         // Result Label glass pill badge
         const badgeText = `RESULT ${resultNumber}`;
-        ctx.font = 'bold 30px "Inter", sans-serif';
+        ctx.font = 'bold 24px "Inter", sans-serif';
         const textWidth = ctx.measureText(badgeText).width;
-        const badgeW = textWidth + 40;
-        const badgeH = 54;
+        const badgeW = textWidth + 36;
+        const badgeH = 44;
         const badgeX = 600 - badgeW / 2;
-        const badgeY = 225;
+        const badgeY = currY;
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
         ctx.beginPath();
-        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 27);
+        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 22);
         ctx.fill();
 
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
@@ -1130,19 +1200,23 @@ function generatePosterCanvas(r) {
         ctx.stroke();
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.fillText(badgeText, 600, badgeY + 38);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(badgeText, 600, badgeY + badgeH / 2);
+        currY += badgeH + 16;
 
         // Program Name
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
         ctx.fillStyle = '#ffffff';
-        let progFontSize = 56;
+        let progFontSize = 46;
         ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
         let progWidth = ctx.measureText(programName).width;
-        if (progWidth > 880) {
-            progFontSize = Math.floor(56 * (880 / progWidth));
-            if (progFontSize < 32) progFontSize = 32;
+        if (progWidth > 900) {
+            progFontSize = Math.floor(46 * (900 / progWidth));
+            if (progFontSize < 26) progFontSize = 26;
             ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
         }
-        ctx.fillText(programName, 600, 395);
+        ctx.fillText(programName, 600, currY);
 
         // Fetch top 3 winners details
         const w1 = sorted[0];
@@ -1176,6 +1250,7 @@ function generatePosterCanvas(r) {
 
         // 1st Place Details
         ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = '#fbbf24';
         ctx.font = 'bold 24px "Inter", sans-serif';
         ctx.fillText(`${w1 ? ordinalLabel(w1.rank) : '1ST'} STANDING`, 160, 555);
@@ -1270,7 +1345,7 @@ function generatePosterCanvas(r) {
         ctx.textAlign = 'center';
         ctx.font = 'bold 32px "Inter", sans-serif';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        const footerText = madrasaName.toUpperCase();
+        const footerText = displayEventName;
         const footerTextWidth = ctx.measureText(footerText).width;
 
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
@@ -1289,40 +1364,46 @@ function generatePosterCanvas(r) {
         ctx.fillText(footerText, 600, 1322);
     } else if (templateId === 3) {
         // Template 3: Editorial Layout
+        let headerBottomY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 50);
+        let currY = Math.max(headerBottomY + 10, 210);
         
         // Left side texts
         ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
         
         // "OFFICIAL RESULTS STANDINGS"
         ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
         ctx.font = 'bold 20px "Inter", sans-serif';
-        ctx.fillText("OFFICIAL RESULTS STANDINGS", 120, 160);
+        ctx.fillText("OFFICIAL RESULTS STANDINGS", 120, currY);
+        currY += 32;
 
         // Program Name
-        let progFontSize = 48;
+        let progFontSize = 44;
         ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
         let progWidth = ctx.measureText(programName).width;
         if (progWidth > 750) {
-            progFontSize = Math.floor(48 * (750 / progWidth));
-            if (progFontSize < 28) progFontSize = 28;
+            progFontSize = Math.floor(44 * (750 / progWidth));
+            if (progFontSize < 26) progFontSize = 26;
             ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
         }
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(programName, 120, 240);
+        ctx.fillText(programName, 120, currY);
+        currY += 52;
 
         // Category Name
         ctx.fillStyle = '#fbbf24';
         ctx.font = 'bold 26px "Inter", sans-serif';
-        ctx.fillText(categoryName, 120, 295);
+        ctx.fillText(categoryName, 120, currY);
+        currY += 36;
 
         // Result badge (rounded rectangle outline)
         const badgeText = `RESULT ${resultNumber}`;
         ctx.font = 'bold 22px "Inter", sans-serif';
         const bTextWidth = ctx.measureText(badgeText).width;
         const bX = 120;
-        const bY = 325;
+        const bY = currY;
         const bW = bTextWidth + 30;
-        const bH = 44;
+        const bH = 42;
         
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.lineWidth = 2;
@@ -1331,12 +1412,13 @@ function generatePosterCanvas(r) {
         ctx.stroke();
         
         ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.fillText(badgeText, bX + 15, bY + 30);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(badgeText, bX + 15, bY + bH / 2);
 
         // Right side emblem (academic open book icon)
         ctx.save();
         ctx.fillStyle = '#fbbf24';
-        ctx.translate(1000, 110);
+        ctx.translate(1000, 170);
         ctx.scale(2.5, 2.5);
         const path = new Path2D("M12 11.55C9.64 9.35 6.48 8 3 8v11c3.48 0 6.64 1.35 9 3.55 2.36-2.2 5.52-3.55 9-3.55V8c-3.48 0-6.64 1.35-9 3.55zM12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z");
         ctx.fill(path);
@@ -1344,15 +1426,16 @@ function generatePosterCanvas(r) {
 
         // Right side vertical labels
         ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
         ctx.font = 'bold 15px "Inter", sans-serif';
-        ctx.fillText("COMPETITION", 1030, 210);
-        ctx.fillText("EXCELLENCE", 1030, 235);
-        ctx.fillText("ACHIEVEMENT", 1030, 260);
+        ctx.fillText("COMPETITION", 1030, 270);
+        ctx.fillText("EXCELLENCE", 1030, 295);
+        ctx.fillText("ACHIEVEMENT", 1030, 320);
 
         // Winner Rows
-        const startY = 480;
-        const rowHeight = 230;
+        const startY = 500;
+        const rowHeight = 220;
         const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
 
         for (let i = 0; i < sorted.length; i++) {
@@ -1372,6 +1455,7 @@ function generatePosterCanvas(r) {
 
             // Left Rank details
             ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
             ctx.fillStyle = rankColors[rank];
             ctx.font = 'bold 90px "Inter", sans-serif';
             ctx.fillText(`0${rank}`, 120, y + 90);
@@ -1415,7 +1499,7 @@ function generatePosterCanvas(r) {
         ctx.textAlign = 'center';
         ctx.font = 'bold 24px "Inter", sans-serif';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-        const footerText = madrasaName.toUpperCase();
+        const footerText = displayEventName;
         const footerTextWidth = ctx.measureText(footerText).width;
 
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
@@ -1434,48 +1518,55 @@ function generatePosterCanvas(r) {
         ctx.fillText(footerText, 600, 1380);
     } else if (templateId === 4) {
         // Template 4: Premium Split-Screen Dashboard Layout
-        
+        let headerBottomY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 50);
+
         // Vertical split divider line at X = 480
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(480, 160);
+        ctx.moveTo(480, headerBottomY + 10);
         ctx.lineTo(480, 1260);
         ctx.stroke();
 
+        let currY = Math.max(headerBottomY + 15, 210);
+
         // Left Panel (X = 120)
         ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
         
         // "OFFICIAL RESULT" badge/header
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.font = 'bold 20px "Inter", sans-serif';
-        ctx.fillText("OFFICIAL RESULT", 120, 200);
+        ctx.fillText("OFFICIAL RESULT", 120, currY);
+        currY += 32;
 
         // Program Name (Auto-wrap or scale down)
-        let progFontSize = 44;
+        let progFontSize = 42;
         ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
         let progWidth = ctx.measureText(programName).width;
         if (progWidth > 320) {
-            progFontSize = Math.floor(44 * (320 / progWidth));
-            if (progFontSize < 24) progFontSize = 24;
+            progFontSize = Math.floor(42 * (320 / progWidth));
+            if (progFontSize < 22) progFontSize = 22;
             ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
         }
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(programName, 120, 280);
+        ctx.fillText(programName, 120, currY);
+        currY += 50;
 
         // Category Name
         ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 26px "Inter", sans-serif';
-        ctx.fillText(categoryName, 120, 335);
+        ctx.font = 'bold 24px "Inter", sans-serif';
+        ctx.fillText(categoryName, 120, currY);
+        currY += 36;
 
         // Result Badge (Outlined Box)
         const badgeText = `RESULT ${resultNumber}`;
-        ctx.font = 'bold 22px "Inter", sans-serif';
+        ctx.font = 'bold 20px "Inter", sans-serif';
         const bTextWidth = ctx.measureText(badgeText).width;
         const bX = 120;
-        const bY = 365;
-        const bW = bTextWidth + 30;
-        const bH = 44;
+        const bY = currY;
+        const bW = bTextWidth + 26;
+        const bH = 40;
 
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
         ctx.lineWidth = 2;
@@ -1484,7 +1575,8 @@ function generatePosterCanvas(r) {
         ctx.stroke();
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.fillText(badgeText, bX + 15, bY + 30);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(badgeText, bX + 13, bY + bH / 2);
 
         // Left Panel Bottom Ornaments
         // SVG Open-book icon at X = 120, Y = 1000
@@ -1498,6 +1590,7 @@ function generatePosterCanvas(r) {
 
         // Stacked Vertical Labels
         ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
         ctx.font = 'bold 15px "Inter", sans-serif';
         ctx.fillText("COMPETITION", 120, 1070);
@@ -1507,7 +1600,6 @@ function generatePosterCanvas(r) {
         // Right Panel cards (X = 520 to 1080, Width = 560)
         const startY = 360;
         const rowHeight = 220;
-        const rankLabels = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
         const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
 
         for (let i = 0; i < sorted.length; i++) {
@@ -1535,6 +1627,7 @@ function generatePosterCanvas(r) {
 
             // Left text details: Rank Number & Label
             ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
             ctx.fillStyle = accentColor;
             ctx.font = 'bold 64px "Inter", sans-serif';
             ctx.fillText(`0${rank}`, 560, y + 105);
@@ -1578,7 +1671,7 @@ function generatePosterCanvas(r) {
         ctx.textAlign = 'center';
         ctx.font = 'bold 24px "Inter", sans-serif';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-        const footerText = madrasaName.toUpperCase();
+        const footerText = displayEventName;
         const footerTextWidth = ctx.measureText(footerText).width;
 
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
@@ -1616,24 +1709,28 @@ function generatePosterCanvas(r) {
         ctx.roundRect(80, 80, 1040, 670, { tl: 80, tr: 80, bl: 0, br: 0 });
         ctx.fill();
 
+        let currY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 110);
+
         // Category Name
         ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
         ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 36px "Inter", sans-serif';
-        ctx.fillText(categoryName, 600, 190);
+        ctx.font = 'bold 28px "Inter", sans-serif';
+        ctx.fillText(categoryName, 600, currY);
+        currY += 36;
 
         // Result Label glass pill badge
         const badgeText = `RESULT ${resultNumber}`;
-        ctx.font = 'bold 30px "Inter", sans-serif';
+        ctx.font = 'bold 24px "Inter", sans-serif';
         const textWidth = ctx.measureText(badgeText).width;
-        const badgeW = textWidth + 40;
-        const badgeH = 54;
+        const badgeW = textWidth + 36;
+        const badgeH = 44;
         const badgeX = 600 - badgeW / 2;
-        const badgeY = 225;
+        const badgeY = currY;
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
         ctx.beginPath();
-        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 27);
+        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 22);
         ctx.fill();
 
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
@@ -1641,19 +1738,23 @@ function generatePosterCanvas(r) {
         ctx.stroke();
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.fillText(badgeText, 600, badgeY + 38);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(badgeText, 600, badgeY + badgeH / 2);
+        currY += badgeH + 16;
 
         // Program Name
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
         ctx.fillStyle = '#ffffff';
-        let progFontSize = 56;
+        let progFontSize = 46;
         ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
         let progWidth = ctx.measureText(programName).width;
         if (progWidth > 880) {
-            progFontSize = Math.floor(56 * (880 / progWidth));
-            if (progFontSize < 32) progFontSize = 32;
+            progFontSize = Math.floor(46 * (880 / progWidth));
+            if (progFontSize < 28) progFontSize = 28;
             ctx.font = `800 ${progFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
         }
-        ctx.fillText(programName, 600, 395);
+        ctx.fillText(programName, 600, currY);
 
         // Ranking rows
         const startY = 490;
@@ -1688,6 +1789,7 @@ function generatePosterCanvas(r) {
 
             // Rank Number text shadow & value
             ctx.textAlign = 'center';
+            ctx.textBaseline = 'alphabetic';
             ctx.fillStyle = accentColor;
             ctx.font = 'bold 64px "Inter", sans-serif';
             ctx.fillText(`#${i + 1}`, 245, y + 112);
@@ -1708,9 +1810,10 @@ function generatePosterCanvas(r) {
 
         // Centered Madrasa Footer Branding with divider lines
         ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
         ctx.font = 'bold 32px "Inter", sans-serif';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        const footerText = madrasaName.toUpperCase();
+        const footerText = displayEventName;
         const footerTextWidth = ctx.measureText(footerText).width;
 
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
@@ -1734,7 +1837,7 @@ function generatePosterCanvas(r) {
         ctx.textAlign = 'center';
         ctx.font = 'bold 44px "Inter", sans-serif';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.fillText(madrasaName, 600, 1430);
+        ctx.fillText(displayEventName, 600, 1430);
     }
 
     return canvas;

@@ -325,7 +325,9 @@ match /institutes/{instituteId} {
 
   match /metadata/{docId} {
 
-    allow read, write:
+    allow read: if true;
+
+    allow write:
     if isInstituteAdmin(instituteId)
     || isSuperAdmin();
   }

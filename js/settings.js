@@ -9,6 +9,8 @@ import {
 let localConfig = {};
 let recoveryBinItems = [];
 let activeResetType = null; // 'results' | 'registrations' | 'event' | 'factory'
+let selectedLogoBase64 = null;
+let isLogoRemoved = false;
 
 // ─────────────────────────────────────────────
 // Initialization
@@ -43,6 +45,8 @@ export async function initSettingsView(container, topActions) {
 // ─────────────────────────────────────────────
 async function loadEventConfig() {
     const instId = window.currentInstituteId;
+    selectedLogoBase64 = null;
+    isLogoRemoved = false;
     try {
         const configSnap = await getDoc(doc(db, "institutes", instId, "metadata", "eventConfig"));
         if (configSnap.exists()) {
@@ -51,6 +55,7 @@ async function loadEventConfig() {
             localConfig = {
                 eventName: window.currentInstituteDetails?.name || '',
                 eventTagline: '',
+                eventLogo: null,
                 eventDescription: '',
                 eventLocation: '',
                 eventVenue: '',
@@ -67,9 +72,18 @@ async function loadEventConfig() {
 
 async function saveEventConfig() {
     const instId = window.currentInstituteId;
+
+    let logoValue = localConfig.eventLogo || null;
+    if (isLogoRemoved) {
+        logoValue = null;
+    } else if (selectedLogoBase64) {
+        logoValue = selectedLogoBase64;
+    }
+
     const configData = {
         eventName: document.getElementById('setEventName').value.trim(),
         eventTagline: document.getElementById('setEventTagline').value.trim(),
+        eventLogo: logoValue,
         eventDescription: document.getElementById('setEventDesc').value.trim(),
         eventLocation: document.getElementById('setEventLocation').value.trim(),
         eventVenue: document.getElementById('setEventVenue').value.trim(),
@@ -83,8 +97,18 @@ async function saveEventConfig() {
     try {
         await setDoc(doc(db, "institutes", instId, "metadata", "eventConfig"), configData);
         localConfig = configData;
+        selectedLogoBase64 = null;
+        isLogoRemoved = false;
         window.currentEventDetails = configData;
         
+        // Update UI state buttons
+        const btnRemoveLogo = document.getElementById('btnRemoveLogo');
+        const btnUploadLogo = document.getElementById('btnUploadLogo');
+        if (btnRemoveLogo && btnUploadLogo) {
+            btnRemoveLogo.style.display = configData.eventLogo ? 'inline-block' : 'none';
+            btnUploadLogo.textContent = configData.eventLogo ? 'Replace Logo' : 'Upload PNG Logo';
+        }
+
         // Dynamic propagation: update header name instantly
         const headerEl = document.getElementById('instituteNameHeader');
         if (headerEl) {
@@ -158,6 +182,23 @@ function renderSettingsLayout(container) {
                     <div class="form-group-compact">
                         <label class="form-label-compact">Event Tagline</label>
                         <input type="text" id="setEventTagline" class="form-input-compact" placeholder="e.g. Inspiring Excellence Through Competition" value="${window.escapeHTML(localConfig.eventTagline || '')}" />
+                    </div>
+
+                    <div class="form-group-compact">
+                        <label class="form-label-compact">Event Logo (PNG format, transparent background preferred, max 2MB)</label>
+                        <div style="display:flex; align-items:center; gap:1rem; margin-top:0.35rem; background:#f8fafc; padding:0.75rem; border:1px dashed #cbd5e1; border-radius:8px;">
+                            <div id="eventLogoPreviewContainer" style="width:70px; height:70px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; flex-shrink:0;">
+                                ${localConfig.eventLogo ? `<img id="eventLogoPreviewImg" src="${localConfig.eventLogo}" style="max-width:100%; max-height:100%; object-fit:contain;" />` : `<span id="eventLogoPlaceholder" style="font-size:0.7rem; color:#94a3b8; text-align:center; padding:2px;">No Logo</span>`}
+                            </div>
+                            <div style="display:flex; flex-direction:column; gap:0.4rem; flex:1;">
+                                <input type="file" id="setEventLogo" accept="image/png" style="display:none;" />
+                                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                                    <button type="button" id="btnUploadLogo" class="btn btn-secondary btn-sm" style="font-weight:700;">${localConfig.eventLogo ? 'Replace Logo' : 'Upload PNG Logo'}</button>
+                                    <button type="button" id="btnRemoveLogo" class="btn btn-danger btn-sm" style="font-weight:700; ${localConfig.eventLogo ? '' : 'display:none;'}">Remove Logo</button>
+                                </div>
+                                <span style="font-size:0.7rem; color:#64748b;">Accepts PNG only (max 2MB)</span>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-group-compact">
@@ -378,6 +419,62 @@ function renderRecoveryBinList() {
 function bindFormEvents() {
     const form = document.getElementById('eventSettingsForm');
     const resetBtn = document.getElementById('btnResetSettingsForm');
+    const logoInput = document.getElementById('setEventLogo');
+    const uploadBtn = document.getElementById('btnUploadLogo');
+    const removeBtn = document.getElementById('btnRemoveLogo');
+    const previewContainer = document.getElementById('eventLogoPreviewContainer');
+
+    if (uploadBtn && logoInput) {
+        uploadBtn.onclick = () => logoInput.click();
+    }
+
+    if (logoInput) {
+        logoInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Validate file format (PNG only)
+            if (file.type !== 'image/png' && !file.name.toLowerCase().endsWith('.png')) {
+                showToast("❌ Please select a valid PNG image file.");
+                logoInput.value = '';
+                return;
+            }
+
+            // Validate file size (Max 2MB)
+            if (file.size > 2 * 1024 * 1024) {
+                showToast("❌ Logo file size must be less than 2MB.");
+                logoInput.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                selectedLogoBase64 = evt.target.result;
+                isLogoRemoved = false;
+                if (previewContainer) {
+                    previewContainer.innerHTML = `<img id="eventLogoPreviewImg" src="${selectedLogoBase64}" style="max-width:100%; max-height:100%; object-fit:contain;" />`;
+                }
+                if (removeBtn) removeBtn.style.display = 'inline-block';
+                if (uploadBtn) uploadBtn.textContent = 'Replace Logo';
+                showToast("✓ Logo selected! Click 'Save Changes' to apply.");
+            };
+            reader.readAsDataURL(file);
+        };
+    }
+
+    if (removeBtn) {
+        removeBtn.onclick = () => {
+            selectedLogoBase64 = null;
+            isLogoRemoved = true;
+            if (logoInput) logoInput.value = '';
+            if (previewContainer) {
+                previewContainer.innerHTML = `<span id="eventLogoPlaceholder" style="font-size:0.7rem; color:#94a3b8; text-align:center; padding:2px;">No Logo</span>`;
+            }
+            removeBtn.style.display = 'none';
+            if (uploadBtn) uploadBtn.textContent = 'Upload PNG Logo';
+            showToast("Logo removed from preview. Click 'Save Changes' to confirm.");
+        };
+    }
 
     if (form) {
         form.onsubmit = async (e) => {
@@ -398,6 +495,13 @@ function bindFormEvents() {
             document.getElementById('setEventEndDate').value = localConfig.eventEndDate || '';
             document.getElementById('setOrganizerName').value = localConfig.organizerName || '';
             document.getElementById('setContactNumber').value = localConfig.contactNumber || '';
+
+            if (previewContainer) {
+                previewContainer.innerHTML = localConfig.eventLogo ? `<img id="eventLogoPreviewImg" src="${localConfig.eventLogo}" style="max-width:100%; max-height:100%; object-fit:contain;" />` : `<span id="eventLogoPlaceholder" style="font-size:0.7rem; color:#94a3b8; text-align:center; padding:2px;">No Logo</span>`;
+            }
+            if (removeBtn) removeBtn.style.display = localConfig.eventLogo ? 'inline-block' : 'none';
+            if (uploadBtn) uploadBtn.textContent = localConfig.eventLogo ? 'Replace Logo' : 'Upload PNG Logo';
+
             showToast("Form reset to currently saved configuration!");
         };
     }
