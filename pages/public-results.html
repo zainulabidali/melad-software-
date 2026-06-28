@@ -1302,7 +1302,7 @@
             justify-content: center;
             text-align: center;
             width: 100%;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
         }
         .poster-brand-logo-wrap {
             max-width: 65px;
@@ -1318,15 +1318,29 @@
             object-fit: contain;
             filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
         }
-        .poster-brand-name {
+        .poster-brand-event-name {
             font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-            font-size: clamp(13px, 2.5vw, 17px);
+            font-size: clamp(14px, 2.8vw, 19px);
             font-weight: 800;
             color: #ffffff;
-            letter-spacing: 1.5px;
+            letter-spacing: 1.2px;
             text-transform: uppercase;
             text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
-            margin-bottom: 2px;
+            margin-bottom: 3px;
+            word-break: break-word;
+            max-width: 95%;
+        }
+        .poster-brand-madrasa-name {
+            font-family: 'Inter', sans-serif;
+            font-size: clamp(11px, 2.2vw, 14px);
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.9);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            margin-bottom: 3px;
+            word-break: break-word;
+            max-width: 95%;
         }
         .poster-brand-tagline {
             font-family: 'Inter', sans-serif;
@@ -2398,7 +2412,7 @@
         style="position:fixed;top:0;left:0;width:100%;height:100%;background:#f4f6f5;display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity 0.4s;">
         <div style="text-align:center;">
             <div class="header-logo" style="font-size:3.5rem;">🕌</div>
-            <p style="color:#064e3b;font-size:1.1rem;font-weight:700;margin:0.5rem 0 0 0;">Verifying Credentials...</p>
+            <p style="color:#064e3b;font-size:1.1rem;font-weight:700;margin:0.5rem 0 0 0;">Loading...</p>
             <p style="color:#64748b;font-size:0.8rem;font-weight:500;margin-top:0.25rem;">Loading Madrasa published
                 results...</p>
         </div>

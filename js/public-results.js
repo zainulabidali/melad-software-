@@ -71,11 +71,11 @@ async function init() {
         }
 
         instituteDetails = { id: instSnap.id, ...instSnap.data() };
-        
+
         // Timezone-safe UTC absolute timestamp comparison (Option B)
         const expiryDateObj = instituteDetails.expiryDate?.toDate?.() || (instituteDetails.expiryDate ? new Date(instituteDetails.expiryDate) : null);
         const isExpired = expiryDateObj && (new Date().getTime() > expiryDateObj.getTime());
-        
+
         if (isExpired || instituteDetails.status === 'deactivated' || instituteDetails.status === 'inactive') {
             renderError("Subscription Expired", "This results portal has been suspended because the institute's subscription has expired or is deactivated.");
             hideOverlay();
@@ -233,37 +233,37 @@ function setupFilters() {
 
     // Load categories dynamically
     const categories = [...new Set(allResults.map(r => r.categoryName))].sort();
-    
+
     const populateCategories = () => {
         catPanel.innerHTML = '';
         categories.forEach(c => {
             const isSelected = c === selectedCategory;
             const item = document.createElement('div');
             item.className = `glass-select-item ${isSelected ? 'selected' : ''}`;
-            
+
             let checkHTML = '';
             if (isSelected) {
                 checkHTML = `<span class="glass-select-check">✓</span>`;
             }
-            
+
             item.innerHTML = `
                 <span>${escapeHTML(c)}</span>
                 ${checkHTML}
             `;
-            
+
             item.onclick = (e) => {
                 e.stopPropagation();
                 selectedCategory = c;
                 catText.textContent = c;
                 catText.classList.remove('placeholder');
                 catContainer.classList.remove('open');
-                
+
                 // Reset program
                 selectedProgram = "";
                 progText.textContent = "Select Program";
                 progText.classList.add('placeholder');
                 progContainer.classList.remove('disabled');
-                
+
                 // Re-populate categories & populate programs
                 populateCategories();
                 populatePrograms();
@@ -287,7 +287,7 @@ function setupFilters() {
             const isSelected = p === selectedProgram;
             const item = document.createElement('div');
             item.className = `glass-select-item ${isSelected ? 'selected' : ''}`;
-            
+
             let checkHTML = '';
             if (isSelected) {
                 checkHTML = `<span class="glass-select-check">✓</span>`;
@@ -304,7 +304,7 @@ function setupFilters() {
                 progText.textContent = p;
                 progText.classList.remove('placeholder');
                 progContainer.classList.remove('open');
-                
+
                 // Re-populate programs
                 populatePrograms();
             };
@@ -616,6 +616,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
     };
 
     const displayEventName = eventConfig?.eventName || madrasaName || "Results Portal";
+    const displayMadrasaName = eventConfig?.madrasaName || madrasaName || "";
     const displayEventTagline = eventConfig?.eventTagline || "";
     const displayEventLogo = eventConfig?.eventLogo || null;
 
@@ -624,7 +625,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
     const brandHeaderHTML = `
         <div class="poster-brand-header">
             ${brandLogoHTML}
-            <div class="poster-brand-name">${escapeHTML(displayEventName.toUpperCase())}</div>
+            <div class="poster-brand-event-name">${escapeHTML(displayEventName.toUpperCase())}</div>
             ${brandTaglineHTML}
         </div>
     `;
@@ -701,7 +702,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
                 <div class="t2-footer">
                     <div class="t2-footer-line"></div>
-                    <span class="t2-footer-text">${escapeHTML(displayEventName.toUpperCase())}</span>
+                    <span class="t2-footer-text">${escapeHTML(displayMadrasaName.toUpperCase())}</span>
                     <div class="t2-footer-line"></div>
                 </div>
             </div>
@@ -749,7 +750,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
                 <div class="t3-footer">
                     <div class="t3-footer-line"></div>
-                    <span class="t3-footer-text">${escapeHTML(displayEventName.toUpperCase())}</span>
+                    <span class="t3-footer-text">${escapeHTML(displayMadrasaName.toUpperCase())}</span>
                     <div class="t3-footer-line"></div>
                 </div>
             </div>
@@ -809,7 +810,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
                 <!-- Shared Footer at bottom -->
                 <div class="t4-footer">
                     <div class="t4-footer-line"></div>
-                    <span class="t4-footer-text">${escapeHTML(displayEventName.toUpperCase())}</span>
+                    <span class="t4-footer-text">${escapeHTML(displayMadrasaName.toUpperCase())}</span>
                     <div class="t4-footer-line"></div>
                 </div>
             </div>
@@ -854,7 +855,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
                 <div class="t1-footer">
                     <div class="t1-footer-line"></div>
-                    <span class="t1-footer-text">${escapeHTML(displayEventName.toUpperCase())}</span>
+                    <span class="t1-footer-text">${escapeHTML(displayMadrasaName.toUpperCase())}</span>
                     <div class="t1-footer-line"></div>
                 </div>
             </div>
@@ -943,7 +944,7 @@ function renderSingleResult(r) {
     document.querySelector('.btn-change-template').onclick = () => {
         const modal = document.getElementById('templateModal');
         const grid = document.getElementById('templateGrid');
-        
+
         const templates = [
             { id: 1, name: 'Template 1 (Current)' },
             { id: 2, name: 'Template 2 (Cards)' },
@@ -1047,10 +1048,10 @@ function renderEmpty(title, msg) {
     `;
 }
 
-function drawCanvasBrandHeader(ctx, eventName, eventTagline, logoImg, topY = 60) {
+function drawCanvasBrandHeader(ctx, eventName, eventTagline, logoImg, topY = 50) {
     let currY = topY;
     ctx.textAlign = 'center';
-    
+
     if (logoImg && logoImg.complete) {
         const maxDim = 80;
         let w = logoImg.width || maxDim;
@@ -1059,29 +1060,38 @@ function drawCanvasBrandHeader(ctx, eventName, eventTagline, logoImg, topY = 60)
         w = Math.round(w * ratio);
         h = Math.round(h * ratio);
         ctx.drawImage(logoImg, 600 - w / 2, currY, w, h);
-        currY += h + 14;
+        currY += h + 12;
     }
 
+    // Event Name (Large bold, auto scaling)
     ctx.textBaseline = 'top';
     ctx.fillStyle = '#ffffff';
-    ctx.font = '800 32px "Plus Jakarta Sans", "Inter", sans-serif';
+    let evFontSize = 34;
+    ctx.font = `800 ${evFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
+    let evWidth = ctx.measureText(eventName.toUpperCase()).width;
+    if (evWidth > 1000) {
+        evFontSize = Math.floor(34 * (1000 / evWidth));
+        if (evFontSize < 20) evFontSize = 20;
+        ctx.font = `800 ${evFontSize}px "Plus Jakarta Sans", "Inter", sans-serif`;
+    }
     ctx.fillText(eventName.toUpperCase(), 600, currY);
-    currY += 40;
+    currY += evFontSize + 10;
 
+    // Event Tagline
     if (eventTagline) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        let taglineFontSize = 20;
+        let taglineFontSize = 18;
         ctx.font = `italic 500 ${taglineFontSize}px "Inter", "Noto Sans Malayalam", sans-serif`;
         let taglineWidth = ctx.measureText(eventTagline).width;
-        if (taglineWidth > 900) {
-            taglineFontSize = Math.floor(20 * (900 / taglineWidth));
-            if (taglineFontSize < 13) taglineFontSize = 13;
+        if (taglineWidth > 950) {
+            taglineFontSize = Math.floor(18 * (950 / taglineWidth));
+            if (taglineFontSize < 12) taglineFontSize = 12;
             ctx.font = `italic 500 ${taglineFontSize}px "Inter", "Noto Sans Malayalam", sans-serif`;
         }
         ctx.fillText(eventTagline, 600, currY);
-        currY += 32;
+        currY += taglineFontSize + 12;
     } else {
-        currY += 8;
+        currY += 6;
     }
     return currY;
 }
@@ -1093,6 +1103,7 @@ function generatePosterCanvas(r) {
     const bgId = cardBgMap[r.id] || 1;
     const templateId = cardTemplateMap[r.id] || 1;
     const displayEventName = (eventConfig?.eventName || getEffectiveEventName()).toUpperCase();
+    const displayMadrasaName = (eventConfig?.madrasaName || getEffectiveEventName()).toUpperCase();
     const displayEventTagline = eventConfig?.eventTagline || "";
     const programName = (r.programName || "Program Standing").toUpperCase();
     const categoryName = (r.categoryName || "General Category").toUpperCase();
@@ -1171,7 +1182,7 @@ function generatePosterCanvas(r) {
 
     if (templateId === 2) {
         // Template 2: Bento Grid Layout
-        let currY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 50);
+        let currY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 45);
 
         // Category Name
         ctx.textAlign = 'center';
@@ -1343,11 +1354,19 @@ function generatePosterCanvas(r) {
 
         // Centered Madrasa Footer Branding with divider lines
         ctx.textAlign = 'center';
-        ctx.font = 'bold 32px "Inter", sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        const footerText = displayEventName;
-        const footerTextWidth = ctx.measureText(footerText).width;
+        ctx.textBaseline = 'alphabetic';
+        let footerFontSize = 30;
+        ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
+        const footerText = displayMadrasaName;
+        let footerTextWidth = ctx.measureText(footerText).width;
+        if (footerTextWidth > 800) {
+            footerFontSize = Math.floor(30 * (800 / footerTextWidth));
+            if (footerFontSize < 18) footerFontSize = 18;
+            ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
+            footerTextWidth = ctx.measureText(footerText).width;
+        }
 
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
         ctx.lineWidth = 2;
 
@@ -1364,13 +1383,13 @@ function generatePosterCanvas(r) {
         ctx.fillText(footerText, 600, 1322);
     } else if (templateId === 3) {
         // Template 3: Editorial Layout
-        let headerBottomY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 50);
-        let currY = Math.max(headerBottomY + 10, 210);
-        
+        let headerBottomY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 45);
+        let currY = Math.max(headerBottomY + 10, 220);
+
         // Left side texts
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        
+
         // "OFFICIAL RESULTS STANDINGS"
         ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
         ctx.font = 'bold 20px "Inter", sans-serif';
@@ -1404,13 +1423,13 @@ function generatePosterCanvas(r) {
         const bY = currY;
         const bW = bTextWidth + 30;
         const bH = 42;
-        
+
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.roundRect(bX, bY, bW, bH, 8);
         ctx.stroke();
-        
+
         ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
         ctx.textBaseline = 'middle';
         ctx.fillText(badgeText, bX + 15, bY + bH / 2);
@@ -1471,7 +1490,7 @@ function generatePosterCanvas(r) {
             ctx.textAlign = 'right';
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 44px "Inter", sans-serif';
-            
+
             let maxNameWidth = 650;
             let finalName = nameText.toUpperCase();
             if (ctx.measureText(finalName).width > maxNameWidth) {
@@ -1484,7 +1503,7 @@ function generatePosterCanvas(r) {
 
             ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
             ctx.font = '600 26px "Inter", sans-serif';
-            
+
             let finalTeam = teamText.toUpperCase();
             if (ctx.measureText(finalTeam).width > maxNameWidth) {
                 while (ctx.measureText(finalTeam + '...').width > maxNameWidth && finalTeam.length > 0) {
@@ -1497,11 +1516,19 @@ function generatePosterCanvas(r) {
 
         // Draw Editorial Footer
         ctx.textAlign = 'center';
-        ctx.font = 'bold 24px "Inter", sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-        const footerText = displayEventName;
-        const footerTextWidth = ctx.measureText(footerText).width;
+        ctx.textBaseline = 'alphabetic';
+        let footerFontSize = 24;
+        ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
+        const footerText = displayMadrasaName;
+        let footerTextWidth = ctx.measureText(footerText).width;
+        if (footerTextWidth > 800) {
+            footerFontSize = Math.floor(24 * (800 / footerTextWidth));
+            if (footerFontSize < 16) footerFontSize = 16;
+            ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
+            footerTextWidth = ctx.measureText(footerText).width;
+        }
 
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
         ctx.lineWidth = 2;
 
@@ -1518,7 +1545,7 @@ function generatePosterCanvas(r) {
         ctx.fillText(footerText, 600, 1380);
     } else if (templateId === 4) {
         // Template 4: Premium Split-Screen Dashboard Layout
-        let headerBottomY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 50);
+        let headerBottomY = drawCanvasBrandHeader(ctx, displayEventName, displayEventTagline, cachedLogoImg, 45);
 
         // Vertical split divider line at X = 480
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
@@ -1528,12 +1555,12 @@ function generatePosterCanvas(r) {
         ctx.lineTo(480, 1260);
         ctx.stroke();
 
-        let currY = Math.max(headerBottomY + 15, 210);
+        let currY = Math.max(headerBottomY + 15, 220);
 
         // Left Panel (X = 120)
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        
+
         // "OFFICIAL RESULT" badge/header
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.font = 'bold 20px "Inter", sans-serif';
@@ -1643,7 +1670,7 @@ function generatePosterCanvas(r) {
             ctx.textAlign = 'right';
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 38px "Inter", sans-serif';
-            
+
             let maxNameWidth = 320;
             let finalName = nameText.toUpperCase();
             if (ctx.measureText(finalName).width > maxNameWidth) {
@@ -1656,7 +1683,7 @@ function generatePosterCanvas(r) {
 
             ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
             ctx.font = '600 24px "Inter", sans-serif';
-            
+
             let finalTeam = teamText.toUpperCase();
             if (ctx.measureText(finalTeam).width > maxNameWidth) {
                 while (ctx.measureText(finalTeam + '...').width > maxNameWidth && finalTeam.length > 0) {
@@ -1669,11 +1696,19 @@ function generatePosterCanvas(r) {
 
         // Centered shared footer at bottom
         ctx.textAlign = 'center';
-        ctx.font = 'bold 24px "Inter", sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-        const footerText = displayEventName;
-        const footerTextWidth = ctx.measureText(footerText).width;
+        ctx.textBaseline = 'alphabetic';
+        let footerFontSize = 24;
+        ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
+        const footerText = displayMadrasaName;
+        let footerTextWidth = ctx.measureText(footerText).width;
+        if (footerTextWidth > 800) {
+            footerFontSize = Math.floor(24 * (800 / footerTextWidth));
+            if (footerFontSize < 16) footerFontSize = 16;
+            ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
+            footerTextWidth = ctx.measureText(footerText).width;
+        }
 
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
         ctx.lineWidth = 2;
 
@@ -1811,11 +1846,18 @@ function generatePosterCanvas(r) {
         // Centered Madrasa Footer Branding with divider lines
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
-        ctx.font = 'bold 32px "Inter", sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        const footerText = displayEventName;
-        const footerTextWidth = ctx.measureText(footerText).width;
+        let footerFontSize = 32;
+        ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
+        const footerText = displayMadrasaName;
+        let footerTextWidth = ctx.measureText(footerText).width;
+        if (footerTextWidth > 800) {
+            footerFontSize = Math.floor(32 * (800 / footerTextWidth));
+            if (footerFontSize < 18) footerFontSize = 18;
+            ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
+            footerTextWidth = ctx.measureText(footerText).width;
+        }
 
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
         ctx.lineWidth = 2;
 
@@ -1835,9 +1877,18 @@ function generatePosterCanvas(r) {
     // Centered Madrasa Footer Branding for other templates
     if (templateId !== 1 && templateId !== 2 && templateId !== 3 && templateId !== 4) {
         ctx.textAlign = 'center';
-        ctx.font = 'bold 44px "Inter", sans-serif';
+        ctx.textBaseline = 'alphabetic';
+        let footerFontSize = 44;
+        ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
+        const footerText = displayMadrasaName;
+        let footerTextWidth = ctx.measureText(footerText).width;
+        if (footerTextWidth > 1000) {
+            footerFontSize = Math.floor(44 * (1000 / footerTextWidth));
+            if (footerFontSize < 20) footerFontSize = 20;
+            ctx.font = `bold ${footerFontSize}px "Inter", sans-serif`;
+        }
         ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.fillText(displayEventName, 600, 1430);
+        ctx.fillText(footerText, 600, 1430);
     }
 
     return canvas;

@@ -54,6 +54,7 @@ async function loadEventConfig() {
         } else {
             localConfig = {
                 eventName: window.currentInstituteDetails?.name || '',
+                madrasaName: window.currentInstituteDetails?.name || '',
                 eventTagline: '',
                 eventLogo: null,
                 eventDescription: '',
@@ -82,6 +83,7 @@ async function saveEventConfig() {
 
     const configData = {
         eventName: document.getElementById('setEventName').value.trim(),
+        madrasaName: document.getElementById('setMadrasaName').value.trim(),
         eventTagline: document.getElementById('setEventTagline').value.trim(),
         eventLogo: logoValue,
         eventDescription: document.getElementById('setEventDesc').value.trim(),
@@ -112,7 +114,12 @@ async function saveEventConfig() {
         // Dynamic propagation: update header name instantly
         const headerEl = document.getElementById('instituteNameHeader');
         if (headerEl) {
-            headerEl.textContent = configData.eventName || window.currentInstituteDetails?.name || 'Admin Portal';
+            const evName = configData.eventName || window.currentInstituteDetails?.name || 'Admin Portal';
+            const madName = configData.madrasaName || '';
+            headerEl.innerHTML = `
+                <div style="font-size:1.1rem; font-weight:800; color:#ffffff; line-height:1.2;">${window.escapeHTML(evName)}</div>
+                ${madName ? `<div style="font-size:0.75rem; font-weight:600; color:rgba(255,255,255,0.7); margin-top:2px;">${window.escapeHTML(madName)}</div>` : ''}
+            `;
         }
         
         showToast("✓ Event configuration saved successfully!");
@@ -176,7 +183,12 @@ function renderSettingsLayout(container) {
                 <form id="eventSettingsForm" style="display:flex; flex-direction:column; gap:1rem;">
                     <div class="form-group-compact">
                         <label class="form-label-compact">Event Name *</label>
-                        <input type="text" id="setEventName" class="form-input-compact" required placeholder="e.g. Melad Fest 2026" value="${window.escapeHTML(localConfig.eventName || '')}" />
+                        <input type="text" id="setEventName" class="form-input-compact" required placeholder="e.g. സാഹിത്യോത്സവ് 2026" value="${window.escapeHTML(localConfig.eventName || '')}" />
+                    </div>
+
+                    <div class="form-group-compact">
+                        <label class="form-label-compact">Madrasa Name *</label>
+                        <input type="text" id="setMadrasaName" class="form-input-compact" required placeholder="e.g. FRM CHEROOR KOTTA MADRASA" value="${window.escapeHTML(localConfig.madrasaName || window.currentInstituteDetails?.name || '')}" />
                     </div>
 
                     <div class="form-group-compact">

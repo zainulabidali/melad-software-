@@ -178,135 +178,495 @@ window.submitForm = async function () {
 // ─────────────────────────────────────────────
 // Load & Display Institutes
 // ─────────────────────────────────────────────
+// Load & Display Institutes (State & Reactive Pipeline)
+// ─────────────────────────────────────────────
 let allInstitutes = [];
+let currentPage = 1;
+let pageSize = 10;
+let searchQuery = '';
+let selectedStatus = 'all';
+let selectedType = 'all';
+let selectedDistrict = 'all';
+let currentSort = 'date_desc';
+let isControlsInitialized = false;
+
+function initInstitutesControls() {
+    if (isControlsInitialized) return;
+    isControlsInitialized = true;
+
+    const searchInput = document.getElementById('instSearchInput');
+    const statusFilter = document.getElementById('instStatusFilter');
+    const typeFilter = document.getElementById('instTypeFilter');
+    const districtFilter = document.getElementById('instDistrictFilter');
+    const sortSelect = document.getElementById('instSortSelect');
+    const pageSizeSelect = document.getElementById('pageSizeSelect');
+    const resetBtn = document.getElementById('resetFiltersBtn');
+
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value.trim().toLowerCase();
+            currentPage = 1;
+            applyFiltersAndRender();
+        });
+    }
+
+    if (statusFilter) {
+        statusFilter.addEventListener('change', (e) => {
+            selectedStatus = e.target.value;
+            currentPage = 1;
+            applyFiltersAndRender();
+        });
+    }
+
+    if (typeFilter) {
+        typeFilter.addEventListener('change', (e) => {
+            selectedType = e.target.value;
+            currentPage = 1;
+            applyFiltersAndRender();
+        });
+    }
+
+    if (districtFilter) {
+        districtFilter.addEventListener('change', (e) => {
+            selectedDistrict = e.target.value;
+            currentPage = 1;
+            applyFiltersAndRender();
+        });
+    }
+
+    if (sortSelect) {
+        sortSelect.addEventListener('change', (e) => {
+            currentSort = e.target.value;
+            applyFiltersAndRender();
+        });
+    }
+
+    if (pageSizeSelect) {
+        pageSizeSelect.addEventListener('change', (e) => {
+            pageSize = parseInt(e.target.value) || 10;
+            currentPage = 1;
+            applyFiltersAndRender();
+        });
+    }
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            searchQuery = '';
+            selectedStatus = 'all';
+            selectedType = 'all';
+            selectedDistrict = 'all';
+            currentSort = 'date_desc';
+            currentPage = 1;
+
+            if (searchInput) searchInput.value = '';
+            if (statusFilter) statusFilter.value = 'all';
+            if (typeFilter) typeFilter.value = 'all';
+            if (districtFilter) districtFilter.value = 'all';
+            if (sortSelect) sortSelect.value = 'date_desc';
+
+            applyFiltersAndRender();
+        });
+    }
+
+    // Header click sort handlers
+    document.querySelectorAll('.inst-table-th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+            const sortKey = th.getAttribute('data-sort');
+            if (sortKey === 'name') {
+                currentSort = currentSort === 'name_asc' ? 'name_desc' : 'name_asc';
+            } else if (sortKey === 'district') {
+                currentSort = currentSort === 'district_asc' ? 'district_desc' : 'district_asc';
+            } else if (sortKey === 'status') {
+                currentSort = currentSort === 'status_asc' ? 'status_desc' : 'status_asc';
+            } else if (sortKey === 'expiry') {
+                currentSort = currentSort === 'expiry_asc' ? 'expiry_desc' : 'expiry_asc';
+            }
+            if (sortSelect) sortSelect.value = currentSort;
+            applyFiltersAndRender();
+        });
+    });
+
+    // Modal close triggers for View Modal
+    const viewModal = document.getElementById('viewModal');
+    const closeViewModalBtn = document.getElementById('closeViewModalBtn');
+    const closeViewModalFooterBtn = document.getElementById('closeViewModalFooterBtn');
+    
+    const hideViewModal = () => viewModal && viewModal.classList.add('hidden');
+    if (closeViewModalBtn) closeViewModalBtn.addEventListener('click', hideViewModal);
+    if (closeViewModalFooterBtn) closeViewModalFooterBtn.addEventListener('click', hideViewModal);
+}
+
+function updateDistrictFilterOptions() {
+    const districtFilter = document.getElementById('instDistrictFilter');
+    if (!districtFilter) return;
+
+    const districts = new Set();
+    allInstitutes.forEach(inst => {
+        const place = inst.teacherPlace;
+        if (place && place !== '—') {
+            districts.add(place.trim());
+        }
+    });
+
+    const currentVal = districtFilter.value;
+    districtFilter.innerHTML = '<option value="all">All Districts</option>';
+    Array.from(districts).sort().forEach(dist => {
+        const opt = document.createElement('option');
+        opt.value = dist;
+        opt.textContent = dist;
+        districtFilter.appendChild(opt);
+    });
+
+    if (Array.from(districts).includes(currentVal)) {
+        districtFilter.value = currentVal;
+    } else {
+        districtFilter.value = 'all';
+        selectedDistrict = 'all';
+    }
+}
 
 function loadInstitutes() {
-    const grid = document.getElementById('institutesGrid');
+    initInstitutesControls();
     const loader = document.getElementById('institutesLoader');
-    loader.classList.remove('hidden');
+    if (loader) loader.classList.remove('hidden');
 
     onSnapshot(collection(db, "institutes"), (snapshot) => {
-        grid.innerHTML = '';
-        loader.classList.add('hidden');
+        if (loader) loader.classList.add('hidden');
         allInstitutes = [];
-
-        if (snapshot.empty) {
-            grid.innerHTML = `
-                <div class="empty-state" style="grid-column: 1 / -1; margin-top:2rem;">
-                    <div class="empty-state-icon">🏢</div>
-                    <h3>No Institutes Found</h3>
-                    <p>Click "Add Institute" to get started.</p>
-                </div>
-            `;
-            return;
-        }
 
         snapshot.forEach((docSnap) => {
             const inst = docSnap.data();
             const instId = docSnap.id;
-            allInstitutes.push({ id: instId, name: inst.name || inst.instituteName, ...inst });
 
-            const card = document.createElement('div');
-            card.className = 'glass-card';
             const status = inst.status || 'active';
             const expiryDateObj = inst.expiryDate?.toDate?.();
             const isExpired = expiryDateObj && (new Date().getTime() > expiryDateObj.getTime());
 
-            // Auto-deactivate status in database to self-heal
+            // Self-heal expired institutes status in Firestore
             if (isExpired && status === 'active') {
                 updateDoc(doc(db, "institutes", instId), { status: "deactivated" }).catch(err => {
                     console.error("Auto-deactivation error for expired institute:", err);
                 });
             }
 
-            let badgeClass = status === 'active' ? 'badge-active' : 'badge-inactive';
-            let statusLabel = status === 'active' ? 'Active' : (status === 'deactivated' ? 'Deactivated' : 'Inactive');
-
-            if (isExpired) {
-                badgeClass = 'badge-inactive'; // Red badge highlight
-                statusLabel = 'Expired';
-            }
-            const expiryStr = expiryDateObj ? expiryDateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No Expiry';
-            const expiryRawStr = expiryDateObj ? expiryDateObj.toISOString().split('T')[0] : '';
-
-            // Backward compatibility for old manual entries
-            const instName = inst.instituteName || inst.name || 'Unnamed Institute';
-            const instType = inst.instituteType || inst.type || 'General';
-            const teacherName = inst.teacherName || '—';
-            const teacherPhone = inst.teacherPhone || '—';
-            const teacherPlace = inst.teacherPlace || '—';
-            const teacherEmail = inst.teacherEmail || '—';
-
-            card.innerHTML = `
-                <div class="card-header">
-                    <div>
-                        <span class="card-type-tag">${escapeHTML(instType)}</span>
-                        <h3 class="card-title">${escapeHTML(instName)}</h3>
-                    </div>
-                    <span class="badge ${badgeClass}">${statusLabel}</span>
-                </div>
-                <div class="card-body">
-                    <div class="card-info-item">
-                        <span class="card-info-icon">👤</span>
-                        <div class="card-info-text">
-                            <span class="card-info-label">Registered Teacher</span>
-                            <span class="card-info-val">${escapeHTML(teacherName)}</span>
-                        </div>
-                    </div>
-                    <div class="card-info-item">
-                        <span class="card-info-icon">✉️</span>
-                        <div class="card-info-text">
-                            <span class="card-info-label">Teacher Email</span>
-                            <span class="card-info-val"><a href="mailto:${escapeHTML(teacherEmail)}" style="color: var(--primary-color); font-weight: 600;">${escapeHTML(teacherEmail)}</a></span>
-                        </div>
-                    </div>
-                    <div class="card-info-item">
-                        <span class="card-info-icon">📞</span>
-                        <div class="card-info-text">
-                            <span class="card-info-label">Teacher Phone</span>
-                            <span class="card-info-val">${escapeHTML(teacherPhone)}</span>
-                        </div>
-                    </div>
-                    <div class="card-info-item">
-                        <span class="card-info-icon">📍</span>
-                        <div class="card-info-text">
-                            <span class="card-info-label">Teacher Place</span>
-                            <span class="card-info-val">${escapeHTML(teacherPlace)}</span>
-                        </div>
-                    </div>
-                    <div class="card-info-item">
-                        <span class="card-info-icon">📅</span>
-                        <div class="card-info-text">
-                            <span class="card-info-label">Expiry Date</span>
-                            <span class="card-info-val" style="color: #4338ca;">${expiryStr}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-actions" style="flex-wrap: wrap; gap: 0.5rem;">
-                    <button class="btn btn-secondary btn-sm edit-inst-btn" data-id="${instId}" data-all='${JSON.stringify({ name: instName, type: instType, expiryDate: expiryRawStr }).replace(/'/g, "&#39;")}'>✏️ Edit</button>
-                    <button class="btn btn-secondary btn-sm toggle-status-btn" data-id="${instId}" data-status="${status}">
-                        ${status === 'active' ? '⏸ Deactivate' : '▶ Activate'}
-                    </button>
-                    <button class="btn btn-danger btn-sm delete-inst-btn" data-id="${instId}">🗑 Delete</button>
-                </div>
-            `;
-            grid.appendChild(card);
+            allInstitutes.push({
+                id: instId,
+                name: inst.instituteName || inst.name || 'Unnamed Institute',
+                type: inst.instituteType || inst.type || 'Madrasa',
+                teacherName: inst.teacherName || '—',
+                teacherPhone: inst.teacherPhone || '—',
+                teacherPlace: inst.teacherPlace || inst.district || inst.address || '—',
+                teacherEmail: inst.teacherEmail || '—',
+                status: status,
+                isExpired: isExpired,
+                expiryDate: expiryDateObj,
+                createdAt: inst.createdAt?.toDate?.() || inst.approvedAt?.toDate?.() || new Date(0),
+                raw: inst
+            });
         });
 
-        document.querySelectorAll('.edit-inst-btn').forEach(btn => {
-            btn.addEventListener('click', openEditInstituteModal);
-        });
-        document.querySelectorAll('.delete-inst-btn').forEach(btn => {
-            btn.addEventListener('click', deleteInstitute);
-        });
-        document.querySelectorAll('.toggle-status-btn').forEach(btn => {
-            btn.addEventListener('click', toggleStatus);
-        });
+        updateDistrictFilterOptions();
+        applyFiltersAndRender();
     }, (error) => {
         console.error("Error loading institutes:", error);
-        loader.classList.add('hidden');
+        if (loader) loader.classList.add('hidden');
         showToast("Failed to load institutes.", "error");
     });
+}
+
+function applyFiltersAndRender() {
+    const tableBody = document.getElementById('institutesTableBody');
+    const countInfo = document.getElementById('instCountInfo');
+    const resetBtn = document.getElementById('resetFiltersBtn');
+    const pageInfoText = document.getElementById('pageInfoText');
+    const paginationControls = document.getElementById('paginationControls');
+
+    if (!tableBody) return;
+
+    // 1. Filter
+    let filtered = allInstitutes.filter(inst => {
+        // Search Filter
+        if (searchQuery) {
+            const q = searchQuery;
+            const matchName = inst.name.toLowerCase().includes(q);
+            const matchType = inst.type.toLowerCase().includes(q);
+            const matchPhone = inst.teacherPhone.toLowerCase().includes(q);
+            const matchEmail = inst.teacherEmail.toLowerCase().includes(q);
+            const matchPlace = inst.teacherPlace.toLowerCase().includes(q);
+            const matchTeacher = inst.teacherName.toLowerCase().includes(q);
+            if (!matchName && !matchType && !matchPhone && !matchEmail && !matchPlace && !matchTeacher) {
+                return false;
+            }
+        }
+
+        // Status Filter
+        if (selectedStatus !== 'all') {
+            if (selectedStatus === 'expired' && !inst.isExpired) return false;
+            if (selectedStatus === 'active' && (inst.status !== 'active' || inst.isExpired)) return false;
+            if (selectedStatus === 'deactivated' && inst.status !== 'deactivated') return false;
+        }
+
+        // Type Filter
+        if (selectedType !== 'all' && inst.type !== selectedType) return false;
+
+        // District Filter
+        if (selectedDistrict !== 'all' && inst.teacherPlace !== selectedDistrict) return false;
+
+        return true;
+    });
+
+    // Show / Hide reset button
+    const isFiltered = searchQuery || selectedStatus !== 'all' || selectedType !== 'all' || selectedDistrict !== 'all' || currentSort !== 'date_desc';
+    if (resetBtn) resetBtn.classList.toggle('hidden', !isFiltered);
+
+    // Update stats text
+    if (countInfo) {
+        countInfo.textContent = `Showing ${filtered.length} of ${allInstitutes.length} institutes`;
+    }
+
+    // 2. Sort
+    filtered.sort((a, b) => {
+        if (currentSort === 'name_asc') return a.name.localeCompare(b.name);
+        if (currentSort === 'name_desc') return b.name.localeCompare(a.name);
+        if (currentSort === 'district_asc') return a.teacherPlace.localeCompare(b.teacherPlace);
+        if (currentSort === 'district_desc') return b.teacherPlace.localeCompare(a.teacherPlace);
+        if (currentSort === 'status_asc') return a.status.localeCompare(b.status);
+        if (currentSort === 'status_desc') return b.status.localeCompare(a.status);
+        if (currentSort === 'date_asc') return a.createdAt - b.createdAt;
+        if (currentSort === 'date_desc') return b.createdAt - a.createdAt;
+        if (currentSort === 'expiry_asc') {
+            const timeA = a.expiryDate ? a.expiryDate.getTime() : Infinity;
+            const timeB = b.expiryDate ? b.expiryDate.getTime() : Infinity;
+            return timeA - timeB;
+        }
+        if (currentSort === 'expiry_desc') {
+            const timeA = a.expiryDate ? a.expiryDate.getTime() : 0;
+            const timeB = b.expiryDate ? b.expiryDate.getTime() : 0;
+            return timeB - timeA;
+        }
+        return 0;
+    });
+
+    // 3. Pagination calculation
+    const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    const startIndex = (currentPage - 1) * pageSize;
+    const paginatedItems = filtered.slice(startIndex, startIndex + pageSize);
+
+    // Render Table Rows
+    tableBody.innerHTML = '';
+    if (filtered.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 3rem 1rem;">
+                    <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
+                    <h4 style="margin: 0; font-size: 1.1rem; color: #334155; font-weight: 700;">No matching institutes found</h4>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: #64748b;">Try adjusting your search terms or filters.</p>
+                </td>
+            </tr>
+        `;
+    } else {
+        paginatedItems.forEach(inst => {
+            const tr = document.createElement('tr');
+            
+            let badgeClass = inst.status === 'active' ? 'badge-active' : 'badge-inactive';
+            let statusLabel = inst.status === 'active' ? 'Active' : 'Inactive';
+
+            if (inst.isExpired) {
+                badgeClass = 'badge-expired';
+                statusLabel = 'Expired';
+            }
+
+            const expiryStr = inst.expiryDate ? inst.expiryDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No Expiry';
+            const expiryRawStr = inst.expiryDate ? inst.expiryDate.toISOString().split('T')[0] : '';
+
+            tr.innerHTML = `
+                <td>
+                    <div>
+                        <div class="inst-row-title">${escapeHTML(inst.name)}</div>
+                        <span class="inst-type-badge">${escapeHTML(inst.type)}</span>
+                    </div>
+                </td>
+                <td>
+                    <span style="font-weight: 600; color: #334155;">📍 ${escapeHTML(inst.teacherPlace)}</span>
+                </td>
+                <td>
+                    <span style="font-weight: 600; color: #475569;">📞 ${escapeHTML(inst.teacherPhone)}</span>
+                </td>
+                <td>
+                    <span class="badge ${badgeClass}">${statusLabel}</span>
+                </td>
+                <td>
+                    <span style="font-weight: 600; color: #4338ca;">📅 ${expiryStr}</span>
+                </td>
+                <td style="text-align: right;">
+                    <div style="display: flex; gap: 0.35rem; justify-content: flex-end; flex-wrap: wrap;">
+                        <button class="btn-action btn-action-view view-inst-btn" data-id="${inst.id}">👁️ View</button>
+                        <button class="btn-action btn-action-edit edit-inst-btn" data-id="${inst.id}" data-all='${JSON.stringify({ name: inst.name, type: inst.type, expiryDate: expiryRawStr }).replace(/'/g, "&#39;")}'>✏️ Edit</button>
+                        <button class="btn-action btn-action-toggle ${inst.status === 'active' ? 'deactivate' : ''} toggle-status-btn" data-id="${inst.id}" data-status="${inst.status}">
+                            ${inst.status === 'active' ? '⏸ Deactivate' : '▶ Activate'}
+                        </button>
+                        <button class="btn-action btn-action-delete delete-inst-btn" data-id="${inst.id}">🗑 Delete</button>
+                    </div>
+                </td>
+            `;
+            tableBody.appendChild(tr);
+        });
+    }
+
+    // Render Pagination Controls
+    if (pageInfoText) {
+        pageInfoText.textContent = `Page ${currentPage} of ${totalPages}`;
+    }
+
+    if (paginationControls) {
+        paginationControls.innerHTML = '';
+        
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'page-btn';
+        prevBtn.textContent = '◀';
+        prevBtn.disabled = currentPage === 1;
+        prevBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                applyFiltersAndRender();
+            }
+        });
+        paginationControls.appendChild(prevBtn);
+
+        // Max 5 page numbers
+        let startPage = Math.max(1, currentPage - 2);
+        let endPage = Math.min(totalPages, startPage + 4);
+        if (endPage - startPage < 4) {
+            startPage = Math.max(1, endPage - 4);
+        }
+
+        for (let p = startPage; p <= endPage; p++) {
+            const pBtn = document.createElement('button');
+            pBtn.className = `page-btn ${p === currentPage ? 'active' : ''}`;
+            pBtn.textContent = p;
+            pBtn.addEventListener('click', () => {
+                currentPage = p;
+                applyFiltersAndRender();
+            });
+            paginationControls.appendChild(pBtn);
+        }
+
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'page-btn';
+        nextBtn.textContent = '▶';
+        nextBtn.disabled = currentPage === totalPages;
+        nextBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                applyFiltersAndRender();
+            }
+        });
+        paginationControls.appendChild(nextBtn);
+    }
+
+    // Re-bind actions
+    document.querySelectorAll('.view-inst-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const instId = e.target.closest('.view-inst-btn').getAttribute('data-id');
+            openViewInstituteModal(instId);
+        });
+    });
+    document.querySelectorAll('.edit-inst-btn').forEach(btn => {
+        btn.addEventListener('click', openEditInstituteModal);
+    });
+    document.querySelectorAll('.delete-inst-btn').forEach(btn => {
+        btn.addEventListener('click', deleteInstitute);
+    });
+    document.querySelectorAll('.toggle-status-btn').forEach(btn => {
+        btn.addEventListener('click', toggleStatus);
+    });
+}
+
+function openViewInstituteModal(instId) {
+    const inst = allInstitutes.find(item => item.id === instId);
+    if (!inst) return;
+
+    const viewModal = document.getElementById('viewModal');
+    const viewBody = document.getElementById('viewModalBody');
+    const quickEditBtn = document.getElementById('viewEditQuickBtn');
+    if (!viewModal || !viewBody) return;
+
+    let badgeClass = inst.status === 'active' ? 'badge-active' : 'badge-inactive';
+    let statusLabel = inst.status === 'active' ? 'Active' : 'Inactive';
+    if (inst.isExpired) {
+        badgeClass = 'badge-expired';
+        statusLabel = 'Expired';
+    }
+
+    const expiryStr = inst.expiryDate ? inst.expiryDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'No Expiry Set';
+    const createdStr = inst.createdAt ? inst.createdAt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
+    const initial = inst.name ? inst.name[0].toUpperCase() : '🏢';
+
+    viewBody.innerHTML = `
+        <div class="details-header-card">
+            <div class="details-avatar">${escapeHTML(initial)}</div>
+            <div>
+                <span class="inst-type-badge">${escapeHTML(inst.type)}</span>
+                <h2 style="font-size: 1.35rem; font-weight: 800; margin: 4px 0 0 0; color: #0f172a; font-family: 'Outfit', sans-serif;">${escapeHTML(inst.name)}</h2>
+            </div>
+        </div>
+        <div class="details-grid">
+            <div class="details-field">
+                <span class="details-label">🏫 Institute / Madrasa Name</span>
+                <span class="details-val">${escapeHTML(inst.name)}</span>
+            </div>
+            <div class="details-field">
+                <span class="details-label">📍 Location / District / Address</span>
+                <span class="details-val">${escapeHTML(inst.teacherPlace)}</span>
+            </div>
+            <div class="details-field">
+                <span class="details-label">👤 Registered Teacher / Admin</span>
+                <span class="details-val">${escapeHTML(inst.teacherName)}</span>
+            </div>
+            <div class="details-field">
+                <span class="details-label">📞 Contact Phone Number</span>
+                <span class="details-val">${escapeHTML(inst.teacherPhone)}</span>
+            </div>
+            <div class="details-field">
+                <span class="details-label">✉️ Email Address</span>
+                <span class="details-val"><a href="mailto:${escapeHTML(inst.teacherEmail)}" style="color: #6366f1; font-weight: 700;">${escapeHTML(inst.teacherEmail)}</a></span>
+            </div>
+            <div class="details-field">
+                <span class="details-label">📅 Registration Date</span>
+                <span class="details-val">${createdStr}</span>
+            </div>
+            <div class="details-field">
+                <span class="details-label">⏳ Subscription Expiry</span>
+                <span class="details-val" style="color: #4338ca;">${expiryStr}</span>
+            </div>
+            <div class="details-field">
+                <span class="details-label">🛡️ Current Status</span>
+                <span class="details-val"><span class="badge ${badgeClass}">${statusLabel}</span></span>
+            </div>
+        </div>
+    `;
+
+    if (quickEditBtn) {
+        quickEditBtn.onclick = () => {
+            viewModal.classList.add('hidden');
+            const expiryRawStr = inst.expiryDate ? inst.expiryDate.toISOString().split('T')[0] : '';
+            openEditInstituteModal({
+                target: {
+                    closest: () => null,
+                    getAttribute: (attr) => {
+                        if (attr === 'data-id') return inst.id;
+                        if (attr === 'data-all') return JSON.stringify({ name: inst.name, type: inst.type, expiryDate: expiryRawStr });
+                        return null;
+                    }
+                }
+            });
+        };
+    }
+
+    viewModal.classList.remove('hidden');
 }
 
 async function toggleStatus(e) {
@@ -343,8 +703,9 @@ document.getElementById('closeEditModalBtn').addEventListener('click', hideEditM
 document.getElementById('cancelEditModalBtn').addEventListener('click', hideEditModal);
 
 function openEditInstituteModal(e) {
-    const instId = e.target.getAttribute('data-id');
-    const data = JSON.parse(e.target.getAttribute('data-all'));
+    const btn = (e.target.closest && e.target.closest('.edit-inst-btn')) || e.target;
+    const instId = btn.getAttribute('data-id');
+    const data = JSON.parse(btn.getAttribute('data-all'));
 
     document.getElementById('editInstId').value = instId;
     document.getElementById('editName').value = data.name;
@@ -398,7 +759,8 @@ document.getElementById('updateInstituteBtn').addEventListener('click', async ()
 });
 
 async function deleteInstitute(e) {
-    const instId = e.target.getAttribute('data-id');
+    const btn = (e.target.closest && e.target.closest('.delete-inst-btn')) || e.target;
+    const instId = btn.getAttribute('data-id');
     const confirmed = await window.customConfirm("Are you sure you want to delete this institute? This action cannot be undone.");
     if (!confirmed) return;
 

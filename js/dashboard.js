@@ -122,13 +122,14 @@ onAuthStateChanged(auth, async (user) => {
                         return;
                     }
 
-                    let instName = instData.name || instData.instituteName || 'Admin Portal';
-                    if (window.currentEventDetails && window.currentEventDetails.eventName) {
-                        instName = window.currentEventDetails.eventName;
-                    }
                     const headerEl = document.getElementById('instituteNameHeader');
                     if (headerEl) {
-                        headerEl.textContent = instName;
+                        const evName = window.currentEventDetails?.eventName || instData.name || instData.instituteName || 'Admin Portal';
+                        const madName = window.currentEventDetails?.madrasaName || instData.name || '';
+                        headerEl.innerHTML = `
+                            <div style="font-size:1.1rem; font-weight:800; color:#ffffff; line-height:1.2; letter-spacing:0.5px;">${evName}</div>
+                            ${madName ? `<div style="font-size:0.75rem; font-weight:600; color:rgba(255,255,255,0.7); margin-top:2px; letter-spacing:0.5px;">${madName}</div>` : ''}
+                        `;
                     }
 
                     // Keep cache synchronized and fresh in real time
@@ -147,8 +148,14 @@ onAuthStateChanged(auth, async (user) => {
                             if (configSnap.exists()) {
                                 window.currentEventDetails = configSnap.data();
                                 const eventName = window.currentEventDetails.eventName || window.currentInstituteDetails?.name || 'Admin Portal';
+                                const madrasaName = window.currentEventDetails.madrasaName || window.currentInstituteDetails?.name || '';
                                 const headerEl = document.getElementById('instituteNameHeader');
-                                if (headerEl) headerEl.textContent = eventName;
+                                if (headerEl) {
+                                    headerEl.innerHTML = `
+                                        <div style="font-size:1.1rem; font-weight:800; color:#ffffff; line-height:1.2; letter-spacing:0.5px;">${eventName}</div>
+                                        ${madrasaName ? `<div style="font-size:0.75rem; font-weight:600; color:rgba(255,255,255,0.7); margin-top:2px; letter-spacing:0.5px;">${madrasaName}</div>` : ''}
+                                    `;
+                                }
                             }
                         });
 
