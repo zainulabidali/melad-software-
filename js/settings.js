@@ -183,7 +183,7 @@ function renderSettingsLayout(container) {
                 <form id="eventSettingsForm" style="display:flex; flex-direction:column; gap:1rem;">
                     <div class="form-group-compact">
                         <label class="form-label-compact">Event Name *</label>
-                        <input type="text" id="setEventName" class="form-input-compact" required placeholder="e.g. സാഹിത്യോത്സവ് 2026" value="${window.escapeHTML(localConfig.eventName || '')}" />
+                        <input type="text" id="setEventName" class="form-input-compact" required placeholder="e.g. I love Madeena " value="${window.escapeHTML(localConfig.eventName || '')}" />
                     </div>
 
                     <div class="form-group-compact">
