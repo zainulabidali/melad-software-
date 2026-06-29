@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Redirecting...</title>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token') || '';
+        const parts = token.split('_');
+        const instId = parts[0] || '';
+        window.location.href = './public-mark-entry.html' + (instId ? '?instituteId=' + instId : '');
+    </script>
+</head>
+<body>
+    <p>Redirecting to Mark Entry Portal...</p>
+</body>
+</html>

@@ -56,11 +56,49 @@ const views = {
     }
 };
 
+// Standalone Mode Helper
+async function initStandaloneMode(instId) {
+    window.currentInstituteId = instId;
+    document.body.classList.add('standalone-mode');
+    
+    try {
+        const instRef = doc(db, "institutes", instId);
+        onSnapshot(instRef, (instSnap) => {
+            if (instSnap.exists()) {
+                const instData = instSnap.data();
+                window.currentInstituteDetails = instData;
+                const headerEl = document.getElementById('instituteNameHeader');
+                if (headerEl) {
+                    const evName = instData.name || instData.instituteName || 'Mark Entry Portal';
+                    headerEl.innerHTML = `<div style="font-size:1.1rem; font-weight:800; color:#ffffff; line-height:1.2;">${evName} — Mark Entry</div>`;
+                }
+            }
+        });
+    } catch(e) { console.error(e); }
+
+    document.body.style.display = 'flex';
+    document.body.classList.remove('hidden');
+    setupNavigation();
+    navigateTo('mark-entry');
+}
+
 // Auth Guard
 onAuthStateChanged(auth, async (user) => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isStandalone = urlParams.get('mode') === 'standalone' || urlParams.get('standalone') === 'true';
+    const standaloneInstId = urlParams.get('instituteId') || urlParams.get('instId');
+
     if (!user) {
+        if (isStandalone && standaloneInstId) {
+            initStandaloneMode(standaloneInstId);
+            return;
+        }
         window.location.href = '../pages/login.html';
         return;
+    }
+
+    if (isStandalone && standaloneInstId) {
+        document.body.classList.add('standalone-mode');
     }
 
     try {
@@ -164,7 +202,11 @@ onAuthStateChanged(auth, async (user) => {
 
                         setupNavigation();
                         // Default View
-                        navigateTo('dashboard');
+                        if (document.body.classList.contains('standalone-mode')) {
+                            navigateTo('mark-entry');
+                        } else {
+                            navigateTo('dashboard');
+                        }
                     }
                 } else {
                     // Institute was deleted
@@ -384,7 +426,7 @@ function navigateTo(viewName) {
     // Titles Mapping
     const titles = {
         'dashboard': 'Dashboard Overview',
-        'teams': 'Manage Teams',
+        'teams': 'Teams & Categories',
         'categories': 'Manage Categories & Classes',
         'students': 'Student Directory',
         'add-student': 'Register Students (Bulk)',

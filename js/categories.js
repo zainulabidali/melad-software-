@@ -36,6 +36,7 @@ export function initCategoriesView(container, topActions) {
     localPrograms = [];
 
     topActions.innerHTML = `
+        <button class="btn btn-secondary" id="btnBackToTeams" style="margin-right: 0.5rem; font-weight:600;">← Back to Teams</button>
         <button class="btn btn-primary" id="btnCreateCategory">+ Add Category</button>
     `;
 
@@ -54,6 +55,7 @@ export function initCategoriesView(container, topActions) {
         </div>
     `;
 
+    document.getElementById('btnBackToTeams')?.addEventListener('click', () => window.navigateTo('teams'));
     document.getElementById('btnCreateCategory').addEventListener('click', () => openCategoryModal());
 
     // Scroll handler to close fixed menus when scrolling to prevent floating drifts

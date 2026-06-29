@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Redirecting to Mark Entry...</title>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const instId = urlParams.get('instituteId') || urlParams.get('id') || urlParams.get('token') || '';
+        window.location.href = './admin-dashboard.html?mode=standalone&instituteId=' + instId;
+    </script>
+</head>
+<body>
+    <p>Redirecting to Mark Entry...</p>
+</body>
+</html>

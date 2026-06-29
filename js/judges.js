@@ -31,7 +31,8 @@ export async function initJudgesView(container, topActions) {
 
     topActions.innerHTML = `
         <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
-            <input type="text" id="judgeSearchInput" class="form-input" placeholder="Search judge..." style="width:250px;" />
+            <button class="btn btn-secondary" id="btnBackToMarkEntry" style="font-weight:600;">← Back to Mark Entry</button>
+            <input type="text" id="judgeSearchInput" class="form-input" placeholder="Search judge..." style="width:220px;" />
             <button class="btn btn-primary" id="btnAddJudge">+ Add Judge</button>
         </div>
     `;
@@ -44,6 +45,7 @@ export async function initJudgesView(container, topActions) {
 
     const searchInput = document.getElementById('judgeSearchInput');
     const addBtn = document.getElementById('btnAddJudge');
+    document.getElementById('btnBackToMarkEntry')?.addEventListener('click', () => window.navigateTo('mark-entry'));
 
     searchInput.oninput = (e) => {
         judgesFilter.search = e.target.value.toLowerCase().trim();

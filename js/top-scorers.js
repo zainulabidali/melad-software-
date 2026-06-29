@@ -41,8 +41,10 @@ export async function initTopScorersView(container, topActions) {
     studentLookupMap.clear();
     computedScorers = [];
 
-    // Clear topactions as we do not need action buttons there
-    topActions.innerHTML = '';
+    topActions.innerHTML = `
+        <button class="btn btn-secondary" id="btnBackToResults" style="font-weight:600;">← Back to Results</button>
+    `;
+    document.getElementById('btnBackToResults')?.addEventListener('click', () => window.navigateTo('results'));
 
     // Load Filters Options
     await loadStaticData();

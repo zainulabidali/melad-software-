@@ -138,24 +138,23 @@ export async function initStudentsView(container, topActions) {
             </div>
             <div class="students-header-right filter-bar-scrollable">
                 <div class="search-input-wrapper">
-                    <span class="search-icon">🔍</span>
                     <input type="text" id="stuSearchInput" class="form-input search-input-premium" placeholder="Search student..." />
                 </div>
                 <select id="stuCatSelect" class="form-input select-premium" style="width: 170px;">
-                    <option value="">Select Category...</option>
+                    <option value="">Select Category..</option>
                 </select>
                 <select id="stuClassSelect" class="form-input select-premium" style="width: 150px;" disabled>
                     <option value="">Select Class...</option>
                 </select>
                 <select id="stuTeamSelect" class="form-input select-premium" style="width: 170px;">
-                    <option value="">All Teams (Filter)</option>
+                    <option value="">All Teams</option>
                 </select>
                 <select id="stuGenderSelect" class="form-input select-premium" style="width: 170px;">
-                    <option value="">All Students (Default)</option>
+                    <option value="">All Students </option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                 </select>
-                <button class="btn btn-secondary" id="btnImportExcel" style="display:flex; align-items:center; gap:0.25rem;">📊 Import Excel</button>
+                <button class="btn btn-secondary" id="btnImportExcel" style="display:flex; align-items:center; gap:0.25rem;"> Import Excel</button>
                 <button class="btn btn-primary" id="btnAddStudents">+ Student</button>
             </div>
         </div>

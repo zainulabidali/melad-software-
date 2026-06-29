@@ -1616,6 +1616,39 @@
         padding: 0 !important;
         margin: 0 !important;
     }
+
+    /* Students Directory Mobile Responsive Top Action Bar Grid */
+    .students-view-header {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 1rem !important;
+        align-items: stretch !important;
+    }
+    .students-header-right {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 0.65rem !important;
+        width: 100% !important;
+        overflow-x: visible !important;
+    }
+    .students-header-right > * {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        margin: 0 !important;
+    }
+    .students-header-right #btnAddStudents {
+        grid-column: 1 / -1 !important;
+        width: 100% !important;
+        padding: 0.75rem 1rem !important;
+        font-size: 0.95rem !important;
+        font-weight: 700 !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        margin-top: 0.25rem !important;
+        border-radius: 8px !important;
+    }
 }
 
 /* ════════════════ Manage Programs SaaS Styling ════════════════ */

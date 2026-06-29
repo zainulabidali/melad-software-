@@ -685,7 +685,7 @@ function openProgramsDropdown(btn) {
 
     dropdown.innerHTML = `
         <button class="dropdown-item btn-view-parts" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#475569; text-align:left; cursor:pointer;">
-            👥 Participants
+            👥 Add Students
         </button>
         <button class="dropdown-item btn-edit-prog" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#475569; text-align:left; cursor:pointer;">
             ✏️ Edit Program

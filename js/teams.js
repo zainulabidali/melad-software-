@@ -29,8 +29,9 @@ export function initTeamsView(container, topActions) {
     localTeams = [];
     localStudents = [];
 
-    // Right-aligned header action button
+    // Right-aligned header action buttons
     topActions.innerHTML = `
+        <button class="btn btn-secondary" id="btnGoCategories" style="margin-right: 0.5rem; font-weight:600;">🏷️ Categories / Classes</button>
         <button class="btn btn-primary" id="btnCreateTeam">+ Create Team</button>
     `;
 
@@ -39,7 +40,7 @@ export function initTeamsView(container, topActions) {
         <div class="teams-view-header">
             <div>
                 <h2 class="teams-view-heading">Manage Teams</h2>
-                <p class="teams-view-subtitle">Create and manage competition teams</p>
+                <p class="teams-view-subtitle">Create and manage competition teams and categories</p>
             </div>
         </div>
         
@@ -54,10 +55,9 @@ export function initTeamsView(container, topActions) {
         </div>
     `;
 
-    // Bind create click
-    document
-        .getElementById("btnCreateTeam")
-        .addEventListener("click", () => openTeamModal());
+    // Bind navigation and create clicks
+    document.getElementById("btnGoCategories")?.addEventListener("click", () => window.navigateTo("categories"));
+    document.getElementById("btnCreateTeam")?.addEventListener("click", () => openTeamModal());
 
     // Scroll handler to close fixed menus when scrolling to prevent floating drifts
     window.addEventListener('scroll', () => {

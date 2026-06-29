@@ -267,10 +267,38 @@ export async function initMarkEntryView(container, topActions) {
     `;
 
     container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
+            <div>
+                <h2 class="teams-view-heading" style="font-size:1.25rem; font-weight:700; margin:0; color:#0f172a;">Program Mark Entry</h2>
+            </div>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                <button class="btn btn-secondary" id="btnCopySharedLink" style="font-weight:700;">🔗 Copy Shared Link</button>
+                <button class="btn btn-primary" id="btnGoJudges" style="font-weight:700;">🧑‍⚖️ Judges Management</button>
+            </div>
+        </div>
         <div class="me-table-container" id="markEntryGrid">
             <div class="loader-container"><div class="spinner"></div></div>
         </div>
     `;
+
+    document.getElementById('btnGoJudges')?.addEventListener('click', () => window.navigateTo('judges'));
+    document.getElementById('btnCopySharedLink')?.addEventListener('click', () => {
+        const instId = window.currentInstituteId || '';
+        const origin = window.location.origin;
+        const pathname = window.location.pathname;
+        let basePath = pathname.substring(0, pathname.lastIndexOf('/') + 1);
+        const link = `${origin}${basePath}admin-dashboard.html?mode=standalone&instituteId=${instId}`;
+        
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(link).then(() => {
+                window.showToast("Shared Mark Entry Link copied to clipboard!", "success");
+            }).catch(() => {
+                prompt("Copy Shared Mark Entry Link:", link);
+            });
+        } else {
+            prompt("Copy Shared Mark Entry Link:", link);
+        }
+    });
 
     // Wire filter listeners (Sync desktop <-> mobile)
     const inputs = [
@@ -656,8 +684,9 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
 
     // Dynamic Columns count
     const judgeHeadersHTML = judges.map((name, i) => `
-        <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; text-transform:uppercase; color:#475569;">
-            ${window.escapeHTML(name)}
+        <th style="padding:0.6rem 0.75rem; border:1px solid #cbd5e1; text-align:center; color:#1e293b;">
+            <div style="font-size:0.85rem; font-weight:700; color:#0f172a; line-height:1.2;">${window.escapeHTML(name)}</div>
+            <div style="font-size:0.72rem; font-weight:600; color:#64748b; margin-top:0.15rem; text-transform:uppercase; letter-spacing:0.3px;">Judge ${i + 1}</div>
         </th>`).join('');
 
     const rowsHTML = participants.map((p, idx) => {

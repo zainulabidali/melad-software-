@@ -86,7 +86,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
       <!-- Header -->
       <div class="pw-sticky-header">
         <div class="pw-header-left">
-          <div class="pw-breadcrumb">Admin Panel · Programs · Participants</div>
+          <div class="pw-breadcrumb">Admin Panel · Programs · Add Students</div>
           <div class="pw-title-row">
             <h2 class="pw-title">👥 ${window.escapeHTML(progName)}</h2>
             <div class="pw-header-badges">
@@ -133,9 +133,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
               </div>
               <div class="pw-filter-scroll" id="pwFilterPills">
                 <button class="pw-filter-pill is-active" data-filter="all">All</button>
-                <button class="pw-filter-pill" data-filter="eligible">Eligible</button>
-                <button class="pw-filter-pill" data-filter="assigned">Assigned</button>
-                <button class="pw-filter-pill" data-filter="unassigned">Unassigned</button>
+                <button class="pw-filter-pill" data-filter="eligible">Available</button>
                 <button class="pw-filter-pill" data-filter="selected">Selected</button>
               </div>
             </div>
@@ -159,16 +157,6 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 <div class="pw-panel-title">
                   <span>👥 Selection Buffer</span>
                   <span class="pw-badge-compact pw-badge-registered" id="pwSelectedCountBadge">0</span>
-                </div>
-                
-                <!-- Bulk Actions -->
-                <div class="pw-bulk-actions">
-                  <span>Bulk:</span>
-                  <div style="display:flex; gap:0.25rem;">
-                    <button class="pw-bulk-btn" id="pwSelectAllVisibleBtn">Select All</button>
-                    <button class="pw-bulk-btn" id="pwInvertSelectionBtn">Invert</button>
-                    <button class="pw-bulk-btn" id="pwClearSelectionBtn">Clear</button>
-                  </div>
                 </div>
                 
                 <!-- Selected chips preview list -->
@@ -198,21 +186,6 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 <!-- Conflicting warnings alert container -->
                 <div class="pw-alert-container" id="pwAlertContainer"></div>
               </div>
-
-              <!-- Quick Group Reuse (For group event only) -->
-              ${isGroupEvent ? `
-                <div class="pw-group-reuse">
-                  <span class="pw-group-reuse-label">⚡ Quick Group Reuse</span>
-                  <div class="pw-reuse-actions">
-                    <select id="pwCopyGroupSelect" class="pw-select-compact">
-                      <option value="">Copy members from existing group...</option>
-                    </select>
-                    <button class="btn btn-secondary" id="pwDuplicatePrevGroupBtn" style="font-size: 0.72rem; font-weight: 700; padding: 0.45rem 0.6rem; border: 1px solid var(--pw-border); border-radius: var(--pw-radius-sm); display: flex; align-items: center; justify-content: center; gap: 0.25rem;">
-                      🗂 Duplicate Last Group
-                    </button>
-                  </div>
-                </div>
-              ` : ''}
             </div>
             
             <div class="pw-panel-footer">
@@ -934,18 +907,11 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && groups.some(g => g.members?.some(m => m.studentId === s.id)));
                 return !isAssigned;
             });
-        } else if (activeFilter === 'assigned') {
+        } else if (activeFilter === 'selected') {
             filtered = filtered.filter(s => {
                 const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && groups.some(g => g.members?.some(m => m.studentId === s.id)));
-                return isAssigned;
+                return isAssigned || selectedStudentIds.has(s.id);
             });
-        } else if (activeFilter === 'unassigned') {
-            filtered = filtered.filter(s => {
-                const hasOtherRegs = registrationsMap.has(s.id) && registrationsMap.get(s.id).size > 0;
-                return !hasOtherRegs;
-            });
-        } else if (activeFilter === 'selected') {
-            filtered = filtered.filter(s => selectedStudentIds.has(s.id));
         }
 
         studentsFiltered = filtered;
