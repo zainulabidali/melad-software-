@@ -107,10 +107,33 @@ onAuthStateChanged(auth, async (user) => {
         if (!isValid) return;
 
         const userProfile = await getUserProfile(user.uid);
-        if (userProfile && userProfile.role === 'admin') {
-            window.currentInstituteId = userProfile.instituteId;
+        const impersonatedId = sessionStorage.getItem('impersonatedInstituteId');
+        const isImpersonating = userProfile && userProfile.role === 'super_admin' && sessionStorage.getItem('superAdminImpersonating') === 'true' && impersonatedId;
+
+        if (userProfile && (userProfile.role === 'admin' || isImpersonating)) {
+            window.currentInstituteId = isImpersonating ? impersonatedId : userProfile.instituteId;
             let isInitialized = false;
             let unsubEventConfig = null;
+
+            // Show impersonation banner if active
+            if (isImpersonating) {
+                const banner = document.getElementById('impersonationBanner');
+                if (banner) {
+                    banner.classList.remove('hidden');
+                    const nameEl = document.getElementById('impersonatedInstName');
+                    if (nameEl) nameEl.textContent = sessionStorage.getItem('impersonatedInstituteName') || 'Institute';
+                }
+                const returnBtn = document.getElementById('returnToSuperAdminBtn');
+                if (returnBtn) {
+                    returnBtn.onclick = (e) => {
+                        e.preventDefault();
+                        sessionStorage.removeItem('impersonatedInstituteId');
+                        sessionStorage.removeItem('impersonatedInstituteName');
+                        sessionStorage.removeItem('superAdminImpersonating');
+                        window.location.href = './super-admin.html';
+                    };
+                }
+            }
 
             // Listen to Institute status and check expiry real-time to detect instant deactivation
             const instRef = doc(db, "institutes", window.currentInstituteId);
@@ -129,6 +152,11 @@ onAuthStateChanged(auth, async (user) => {
                             await updateDoc(instRef, { status: "deactivated" }).catch(e => { });
                         }
 
+                        if (isImpersonating) {
+                            window.customAlert ? window.customAlert("This institute's subscription has expired.", "Subscription Expired") : alert("This institute's subscription has expired.");
+                            return;
+                        }
+
                         // Clean up all snapshot listeners
                         dbUnsubscribes.forEach(unsub => {
                             try { unsub(); } catch (e) { }
@@ -145,6 +173,11 @@ onAuthStateChanged(auth, async (user) => {
                     }
 
                     if (instData.status === 'deactivated' || instData.status === 'inactive') {
+                        if (isImpersonating) {
+                            window.customAlert ? window.customAlert("This institute is currently deactivated.", "Institute Deactivated") : alert("This institute is currently deactivated.");
+                            return;
+                        }
+
                         // Clean up all snapshot listeners
                         dbUnsubscribes.forEach(unsub => {
                             try { unsub(); } catch (e) { }
@@ -210,6 +243,11 @@ onAuthStateChanged(auth, async (user) => {
                     }
                 } else {
                     // Institute was deleted
+                    if (isImpersonating) {
+                        window.customAlert ? window.customAlert("This institute was deleted.", "Deleted") : alert("This institute was deleted.");
+                        return;
+                    }
+
                     dbUnsubscribes.forEach(unsub => {
                         try { unsub(); } catch (e) { }
                     });
@@ -222,6 +260,10 @@ onAuthStateChanged(auth, async (user) => {
                 }
             }, async (error) => {
                 console.error("Institute realtime listener error:", error);
+                if (isImpersonating) {
+                    window.customAlert ? window.customAlert("Realtime listener error: " + error.message, "Error") : alert("Realtime listener error: " + error.message);
+                    return;
+                }
                 // Fail-safe: if rules block us (due to active expiry in rule), sign out
                 dbUnsubscribes.forEach(unsub => {
                     try { unsub(); } catch (e) { }

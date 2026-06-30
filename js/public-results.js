@@ -7,6 +7,9 @@ import {
 // State & Helpers
 // ─────────────────────────────────────────────
 let allResults = [];
+let allPrograms = [];
+let allTeams = [];
+let previousTeamPoints = {};
 let instId = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('instId');
 let instituteDetails = null;
 let eventConfig = null;
@@ -16,6 +19,367 @@ let cachedLogoSrc = null;
 
 function getEffectiveEventName() {
     return eventConfig?.eventName || instituteDetails?.name || "Results Portal";
+}
+
+function updateHeroHeader() {
+    const headerEventName = document.getElementById('headerEventName');
+    const headerEventTagline = document.getElementById('headerEventTagline');
+    const headerMadrasaName = document.getElementById('headerMadrasaName');
+    const headerEventLocation = document.getElementById('headerEventLocation');
+    const headerEventDate = document.getElementById('headerEventDate');
+    const headerOrganizerName = document.getElementById('headerOrganizerName');
+    const headerLogo = document.getElementById('headerLogo');
+    const headerLogoFallback = document.getElementById('headerLogoFallback');
+    
+    const metaMadrasa = document.getElementById('metaMadrasa');
+    const metaLocation = document.getElementById('metaLocation');
+    const metaDate = document.getElementById('metaDate');
+    const metaOrganizer = document.getElementById('metaOrganizer');
+
+    const displayEventName = eventConfig?.eventName || instituteDetails?.name || "Results Portal";
+    const displayMadrasaName = eventConfig?.madrasaName || instituteDetails?.name || "";
+    const displayEventTagline = eventConfig?.eventTagline || "";
+    const displayEventLocation = eventConfig?.eventLocation || "";
+    const displayOrganizerName = eventConfig?.organizerName || "";
+    const displayEventLogo = eventConfig?.eventLogo || null;
+
+    // Date formatting helper
+    let displayEventDate = "";
+    if (eventConfig?.eventStartDate) {
+        const start = new Date(eventConfig.eventStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        if (eventConfig?.eventEndDate && eventConfig.eventEndDate !== eventConfig.eventStartDate) {
+            const end = new Date(eventConfig.eventEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            displayEventDate = `${start} - ${end}`;
+        } else {
+            displayEventDate = start;
+        }
+    }
+
+    if (headerEventName) headerEventName.textContent = displayEventName.toUpperCase();
+    
+    if (headerEventTagline) {
+        if (displayEventTagline) {
+            headerEventTagline.textContent = displayEventTagline;
+            headerEventTagline.style.display = 'block';
+        } else {
+            headerEventTagline.style.display = 'none';
+        }
+    }
+
+    // Bind metadata tags
+    if (headerMadrasaName && displayMadrasaName) {
+        headerMadrasaName.textContent = displayMadrasaName;
+        if (metaMadrasa) metaMadrasa.style.display = 'flex';
+    } else if (metaMadrasa) {
+        metaMadrasa.style.display = 'none';
+    }
+
+    if (headerEventLocation && displayEventLocation) {
+        headerEventLocation.textContent = displayEventLocation;
+        if (metaLocation) metaLocation.style.display = 'flex';
+    } else if (metaLocation) {
+        metaLocation.style.display = 'none';
+    }
+
+    if (headerEventDate && displayEventDate) {
+        headerEventDate.textContent = displayEventDate;
+        if (metaDate) metaDate.style.display = 'flex';
+    } else if (metaDate) {
+        metaDate.style.display = 'none';
+    }
+
+    if (headerOrganizerName && displayOrganizerName) {
+        headerOrganizerName.textContent = displayOrganizerName;
+        if (metaOrganizer) metaOrganizer.style.display = 'flex';
+    } else if (metaOrganizer) {
+        metaOrganizer.style.display = 'none';
+    }
+
+    // Logo image or fallback
+    if (headerLogo && headerLogoFallback) {
+        if (displayEventLogo) {
+            headerLogo.src = displayEventLogo;
+            headerLogo.style.display = 'block';
+            headerLogoFallback.style.display = 'none';
+        } else {
+            headerLogo.style.display = 'none';
+            headerLogoFallback.style.display = 'block';
+        }
+    }
+
+    // Populate Mobile-Only Header Concurrently
+    const mobHeaderEventName = document.getElementById('mobHeaderEventName');
+    const mobHeaderMadrasaName = document.getElementById('mobHeaderMadrasaName');
+    const mobHeaderEventLocation = document.getElementById('mobHeaderEventLocation');
+    const mobHeaderLogo = document.getElementById('mobHeaderLogo');
+    const mobHeaderLogoFallback = document.getElementById('mobHeaderLogoFallback');
+
+    if (mobHeaderEventName) mobHeaderEventName.textContent = displayEventName.toUpperCase();
+    if (mobHeaderMadrasaName) mobHeaderMadrasaName.textContent = displayMadrasaName || "COMPETITION";
+    if (mobHeaderEventLocation) mobHeaderEventLocation.textContent = displayEventLocation || "";
+
+    if (mobHeaderLogo && mobHeaderLogoFallback) {
+        if (displayEventLogo) {
+            mobHeaderLogo.src = displayEventLogo;
+            mobHeaderLogo.style.display = 'block';
+            mobHeaderLogoFallback.style.display = 'none';
+        } else {
+            mobHeaderLogo.style.display = 'none';
+            mobHeaderLogoFallback.style.display = 'block';
+        }
+    }
+}
+
+function updateTeamChampionship() {
+    const leaderboardContainer = document.getElementById('teamLeaderboardContainer');
+    const podiumContainer = document.getElementById('teamPodiumContainer');
+    const championshipSection = document.getElementById('teamChampionshipSection');
+    
+    if (!leaderboardContainer || !podiumContainer || !championshipSection) return;
+
+    // 1. Calculate points per team
+    const teamPoints = new Map();
+    
+    // Initialize points for all registered teams
+    allTeams.forEach(t => {
+        if (t.name) {
+            teamPoints.set(t.name.trim(), 0);
+        }
+    });
+
+    allResults.forEach(r => {
+        // Only count published results that are not disabled
+        if (r.status === 'published' && r.publicDisabled !== true) {
+            const prog = allPrograms.find(p => p.id === r.programId);
+            if (prog && prog.leaderboardEnabled === false) return;
+
+            if (Array.isArray(r.marksData) && r.marksData.length > 0) {
+                r.marksData.forEach(w => {
+                    if (w.teamName && w.totalPoints > 0) {
+                        const tName = w.teamName.trim();
+                        const current = teamPoints.get(tName) || 0;
+                        teamPoints.set(tName, current + (w.totalPoints || 0));
+                    }
+                });
+            } else if (Array.isArray(r.winners)) {
+                r.winners.forEach(w => {
+                    if (w.teamName) {
+                        const tName = w.teamName.trim();
+                        const current = teamPoints.get(tName) || 0;
+                        teamPoints.set(tName, current + (w.marks || 0));
+                    }
+                });
+            }
+        }
+    });
+
+    // Convert Map to array
+    let teamsArray = [...teamPoints.entries()].map(([name, points]) => ({ name, points }));
+    
+    // Sort and rank
+    teamsArray.sort((a, b) => b.points - a.points);
+    computeDenseRanking(teamsArray, t => t.points, 'rank');
+
+    // Show championship section if no poster is currently being displayed
+    const resultsList = document.getElementById('resultsList');
+    const mobResultsList = document.getElementById('mobResultsList');
+    const mobChampionshipSection = document.getElementById('mobChampionshipSection');
+    
+    if (!currentDisplayedResult) {
+        championshipSection.style.display = 'flex';
+        if (mobChampionshipSection) mobChampionshipSection.style.display = 'flex';
+        resultsList.style.display = 'none';
+        if (mobResultsList) mobResultsList.style.display = 'none';
+    }
+
+    if (teamsArray.length === 0) {
+        podiumContainer.innerHTML = '';
+        leaderboardContainer.innerHTML = `
+            <div style="text-align:center; padding:3rem; color:#64748b; font-style:italic; font-weight:500; width: 100%;">
+                No team points have been published yet.
+            </div>
+        `;
+        const mobLeaderboardContainer = document.getElementById('mobLeaderboardContainer');
+        if (mobLeaderboardContainer) {
+            mobLeaderboardContainer.innerHTML = `
+                <div style="text-align:center; padding:2rem 1rem; color:#64748b; font-style:italic; font-weight:600; width: 100%;">
+                    No team points have been published yet.
+                </div>
+            `;
+        }
+        return;
+    }
+
+    // Split into podium (top 3) and leaderboard list (r >= 4)
+    const podiumTeams = teamsArray.filter(t => t.rank <= 3);
+    const listTeams = teamsArray.filter(t => t.rank > 3);
+
+    // 2. Render Top 3 Podium
+    podiumContainer.innerHTML = podiumTeams.map((t) => {
+        const rank = t.rank;
+        let cardModifier = '';
+        let rankBadgeClass = '';
+        let rankContent = '';
+        let crownHTML = '';
+
+        if (rank === 1) {
+            cardModifier = 'podium-card-1st';
+            rankBadgeClass = 'podium-rank-1st';
+            rankContent = '🥇';
+            crownHTML = '<span class="podium-crown">👑</span>';
+        } else if (rank === 2) {
+            cardModifier = 'podium-card-2nd';
+            rankBadgeClass = 'podium-rank-2nd';
+            rankContent = '🥈';
+        } else if (rank === 3) {
+            cardModifier = 'podium-card-3rd';
+            rankBadgeClass = 'podium-rank-3rd';
+            rankContent = '🥉';
+        }
+
+        const prevPoints = previousTeamPoints[t.name] || 0;
+
+        return `
+            <div class="podium-card ${cardModifier}" style="opacity: 1;">
+                <div class="podium-rank-circle ${rankBadgeClass}">
+                    ${crownHTML}
+                    ${rankContent}
+                </div>
+                <div class="podium-team-title">${escapeHTML(t.name)}</div>
+                <div class="podium-points" id="cnt-${t.name.replace(/\s+/g, '_')}" data-target="${t.points}" data-start="${prevPoints}">
+                    ${prevPoints}
+                </div>
+                <div class="podium-points-label">points</div>
+            </div>
+        `;
+    }).join('');
+
+    // 3. Render remaining teams list (rank >= 4)
+    const maxPoints = Math.max(...teamsArray.map(t => t.points), 1);
+    
+    if (listTeams.length === 0) {
+        leaderboardContainer.innerHTML = '';
+    } else {
+        leaderboardContainer.innerHTML = listTeams.map((t, index) => {
+            const pct = Math.min((t.points / maxPoints) * 100, 100);
+            const prevPoints = previousTeamPoints[t.name] || 0;
+            const animationDelay = `${index * 60}ms`;
+
+            return `
+                <div class="championship-card" style="animation-delay: ${animationDelay}; opacity: 1;">
+                    <div class="team-info">
+                        <div class="rank-badge rank-badge-other">
+                            #${t.rank}
+                        </div>
+                        <div class="team-details-wrap">
+                            <span class="team-title">${escapeHTML(t.name)}</span>
+                        </div>
+                    </div>
+                    <div class="points-section">
+                        <div class="progress-container">
+                            <div class="progress-fill" style="width: ${pct}%"></div>
+                        </div>
+                        <div class="points-display" id="cnt-${t.name.replace(/\s+/g, '_')}" data-target="${t.points}" data-start="${prevPoints}">
+                            ${prevPoints} pts
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // 4. Render Mobile Horizontal Leaderboard
+    const mobileLeaderboardContainer = document.getElementById('mobLeaderboardContainer');
+    if (mobileLeaderboardContainer) {
+        const teamColors = [
+            'linear-gradient(90deg, #fbbf24, #d97706)', // Gold/Orange (1st)
+            'linear-gradient(90deg, #94a3b8, #475569)', // Silver/Slate (2nd)
+            'linear-gradient(90deg, #fdba74, #c2410c)', // Bronze/Red (3rd)
+            'linear-gradient(90deg, #3b82f6, #1d4ed8)', // Blue
+            'linear-gradient(90deg, #10b981, #047857)', // Emerald
+            'linear-gradient(90deg, #8b5cf6, #6d28d9)', // Violet
+            'linear-gradient(90deg, #ec4899, #be185d)', // Pink
+            'linear-gradient(90deg, #06b6d4, #0891b2)', // Cyan
+            'linear-gradient(90deg, #6366f1, #4f46e5)', // Indigo
+            'linear-gradient(90deg, #14b8a6, #0f766e)'  // Teal
+        ];
+
+        mobileLeaderboardContainer.innerHTML = teamsArray.map((t, index) => {
+            const rank = t.rank;
+            let rankClass = '';
+            let rankBadgeText = `${rank}`;
+            if (rank === 1) { rankClass = 'rank-1st'; rankBadgeText = '🥇'; }
+            else if (rank === 2) { rankClass = 'rank-2nd'; rankBadgeText = '🥈'; }
+            else if (rank === 3) { rankClass = 'rank-3rd'; rankBadgeText = '🥉'; }
+
+            const pct = Math.min((t.points / maxPoints) * 100, 100);
+            const prevPoints = previousTeamPoints[t.name] || 0;
+            const accentColor = teamColors[index % teamColors.length];
+            const animationDelay = `${index * 60}ms`;
+
+            return `
+                <div class="app-scoreboard-row" style="animation-delay: ${animationDelay}; opacity: 1;">
+                    <div class="app-scoreboard-meta">
+                        <div class="app-team-name-wrap">
+                            <span class="app-rank-badge ${rankClass}">${rankBadgeText}</span>
+                            <span>${escapeHTML(t.name)}</span>
+                        </div>
+                        <div class="app-team-points" id="cnt-mob-${t.name.replace(/\s+/g, '_')}" data-target="${t.points}" data-start="${prevPoints}">
+                            ${prevPoints} Points
+                        </div>
+                    </div>
+                    <div class="app-progress-track">
+                        <div class="app-progress-bar" style="width: ${pct}%; background: ${accentColor};"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // 5. Animate point counters from start value to target value for ALL teams
+    teamsArray.forEach(t => {
+        // Desktop counter
+        const elId = `cnt-${t.name.replace(/\s+/g, '_')}`;
+        const el = document.getElementById(elId);
+        if (el) {
+            const start = parseInt(el.dataset.start, 10) || 0;
+            const target = parseInt(el.dataset.target, 10) || 0;
+            const isPodium = t.rank <= 3;
+            animateCounterValue(el, start, target, 1200, isPodium, " pts");
+        }
+
+        // Mobile counter
+        const elMobId = `cnt-mob-${t.name.replace(/\s+/g, '_')}`;
+        const elMob = document.getElementById(elMobId);
+        if (elMob) {
+            const start = parseInt(elMob.dataset.start, 10) || 0;
+            const target = parseInt(elMob.dataset.target, 10) || 0;
+            animateCounterValue(elMob, start, target, 1200, false, " Points");
+        }
+        
+        // Save current points as previous points for next update
+        previousTeamPoints[t.name] = t.points;
+    });
+}
+
+function animateCounterValue(element, start, end, duration, isPodium = false, suffix = " pts") {
+    if (start === end) {
+        element.textContent = isPodium ? end : `${end}${suffix}`;
+        return;
+    }
+    const range = end - start;
+    let current = start;
+    const increment = end > start ? 1 : -1;
+    const stepTime = Math.max(Math.abs(Math.floor(duration / Math.abs(range))), 15);
+    
+    const timer = setInterval(() => {
+        current += Math.ceil(Math.abs(range) / 20) * increment;
+        if ((increment === 1 && current >= end) || (increment === -1 && current <= end)) {
+            current = end;
+            clearInterval(timer);
+        }
+        element.textContent = isPodium ? current : `${current}${suffix}`;
+    }, stepTime);
 }
 
 // Tracks the selected background style (1, 2, 3, or 4) per card result ID
@@ -51,6 +415,18 @@ function showToast(msg) {
     t.textContent = msg;
     t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function normalizeCategoryName(name) {
+    if (!name) return "";
+    const cleaned = name.trim().replace(/\s+/g, ' ');
+    return cleaned.split(' ').map(word => {
+        if (!word) return "";
+        return word.split('-').map(subWord => {
+            if (!subWord) return "";
+            return subWord.charAt(0).toUpperCase() + subWord.slice(1).toLowerCase();
+        }).join('-');
+    }).join(' ');
 }
 
 // ─────────────────────────────────────────────
@@ -109,16 +485,31 @@ async function init() {
                 cachedLogoSrc = null;
             }
 
-            const displayEventName = getEffectiveEventName();
-            const headerEl = document.getElementById('madrasaName');
-            if (headerEl) {
-                headerEl.textContent = displayEventName;
-            }
+            updateHeroHeader();
+
             if (currentDisplayedResult) {
                 renderSingleResult(currentDisplayedResult);
             }
         }, (e) => {
             console.warn("Public results custom event settings bypassed: read restricted, falling back to name.", e);
+        });
+
+        // Setup real-time listener for programs to check leaderboard status
+        const programsRef = collection(db, "institutes", instId, "programs");
+        onSnapshot(programsRef, (snap) => {
+            allPrograms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            updateTeamChampionship();
+        }, (err) => {
+            console.warn("Programs listener error:", err);
+        });
+
+        // Setup real-time listener for teams to get their names
+        const teamsRef = collection(db, "institutes", instId, "teams");
+        onSnapshot(teamsRef, (snap) => {
+            allTeams = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            updateTeamChampionship();
+        }, (err) => {
+            console.warn("Teams listener error:", err);
         });
 
         // 2. Setup Real-time Firestore Listeners on Results (Strictly Published results only)
@@ -130,7 +521,13 @@ async function init() {
 
         onSnapshot(publishedQuery, (snapshot) => {
             const published = snapshot.docs
-                .map(d => ({ id: d.id, ...d.data() }))
+                .map(d => {
+                    const data = d.data();
+                    if (data.categoryName) {
+                        data.categoryName = normalizeCategoryName(data.categoryName);
+                    }
+                    return { id: d.id, ...data };
+                })
                 .filter(r => r.publicDisabled !== true);
 
             // Sort by published timestamp descending for base listing
@@ -154,7 +551,12 @@ async function init() {
             setupFilters();
 
             document.getElementById('filterBar').style.display = 'flex';
+            const mobFilterBar = document.getElementById('mobFilterBar');
+            if (mobFilterBar) mobFilterBar.style.display = 'flex';
             hideOverlay();
+            
+            // Re-render Team Championship Leaderboard
+            updateTeamChampionship();
         }, (err) => {
             console.error("Standings snapshot error:", err);
             renderError("Access Denied", "Unable to establish database connection.");
@@ -194,6 +596,21 @@ function setupFilters() {
     const progText = document.getElementById('progSelectedVal');
     const progPanel = document.getElementById('progSelectPanel');
 
+    // Mobile Selectors
+    const mobCatTrigger = document.getElementById('mobCatSelectTrigger');
+    const mobCatText = document.getElementById('mobCatSelectedVal');
+    const mobCatSheet = document.getElementById('mobCatBottomSheet');
+    const mobCatOverlay = document.getElementById('mobCatOverlay');
+    const mobCatCloseBtn = document.getElementById('mobCatCloseBtn');
+    const mobCatList = document.getElementById('mobCatOptionsList');
+
+    const mobProgTrigger = document.getElementById('mobProgSelectTrigger');
+    const mobProgText = document.getElementById('mobProgSelectedVal');
+    const mobProgSheet = document.getElementById('mobProgBottomSheet');
+    const mobProgOverlay = document.getElementById('mobProgOverlay');
+    const mobProgCloseBtn = document.getElementById('mobProgCloseBtn');
+    const mobProgList = document.getElementById('mobProgOptionsList');
+
     // Reset options
     selectedCategory = "";
     selectedProgram = "";
@@ -203,6 +620,18 @@ function setupFilters() {
     progText.classList.add('placeholder');
     progContainer.classList.add('disabled');
 
+    if (mobCatText) {
+        mobCatText.textContent = "Select Category";
+        mobCatText.style.color = '';
+    }
+    if (mobProgText) {
+        mobProgText.textContent = "Select Program";
+        mobProgText.style.color = '';
+    }
+    if (mobProgTrigger) {
+        mobProgTrigger.classList.add('disabled');
+    }
+
     // Helper to toggle panel open/close
     const togglePanel = (container) => {
         const isOpen = container.classList.contains('open');
@@ -211,6 +640,17 @@ function setupFilters() {
         if (!isOpen) {
             container.classList.add('open');
         }
+    };
+
+    // Mobile Bottom Sheet Helpers
+    const openBottomSheet = (sheet) => {
+        sheet.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    };
+
+    const closeBottomSheet = (sheet) => {
+        sheet.classList.remove('open');
+        document.body.style.overflow = '';
     };
 
     // Global click listener to close panels when clicking outside
@@ -231,52 +671,111 @@ function setupFilters() {
         togglePanel(progContainer);
     };
 
+    if (mobCatTrigger && mobCatSheet) {
+        mobCatTrigger.onclick = () => openBottomSheet(mobCatSheet);
+        mobCatOverlay.onclick = () => closeBottomSheet(mobCatSheet);
+        mobCatCloseBtn.onclick = () => closeBottomSheet(mobCatSheet);
+    }
+
+    if (mobProgTrigger && mobProgSheet) {
+        mobProgTrigger.onclick = () => {
+            if (mobProgTrigger.classList.contains('disabled')) return;
+            openBottomSheet(mobProgSheet);
+        };
+        mobProgOverlay.onclick = () => closeBottomSheet(mobProgSheet);
+        mobProgCloseBtn.onclick = () => closeBottomSheet(mobProgSheet);
+    }
+
     // Load categories dynamically
     const categories = [...new Set(allResults.map(r => r.categoryName))].sort();
 
+    const selectCategory = (c) => {
+        selectedCategory = c;
+        
+        // Update Desktop
+        catText.textContent = c;
+        catText.classList.remove('placeholder');
+        catContainer.classList.remove('open');
+
+        // Update Mobile
+        if (mobCatText) {
+            mobCatText.textContent = c;
+            mobCatText.style.color = '#0f172a';
+        }
+
+        // Reset program
+        selectedProgram = "";
+        progText.textContent = "Select Program";
+        progText.classList.add('placeholder');
+        progContainer.classList.remove('disabled');
+
+        if (mobProgText) {
+            mobProgText.textContent = "Select Program";
+            mobProgText.style.color = '';
+        }
+        if (mobProgTrigger) {
+            mobProgTrigger.classList.remove('disabled');
+        }
+
+        populateCategories();
+        populatePrograms();
+    };
+
+    const selectProgram = (p) => {
+        selectedProgram = p;
+
+        // Desktop
+        progText.textContent = p;
+        progText.classList.remove('placeholder');
+        progContainer.classList.remove('open');
+
+        // Mobile
+        if (mobProgText) {
+            mobProgText.textContent = p;
+            mobProgText.style.color = '#0f172a';
+        }
+
+        populatePrograms();
+    };
+
     const populateCategories = () => {
         catPanel.innerHTML = '';
+        if (mobCatList) mobCatList.innerHTML = '';
+
         categories.forEach(c => {
             const isSelected = c === selectedCategory;
+            
+            // Desktop
             const item = document.createElement('div');
             item.className = `glass-select-item ${isSelected ? 'selected' : ''}`;
-
-            let checkHTML = '';
-            if (isSelected) {
-                checkHTML = `<span class="glass-select-check">✓</span>`;
-            }
-
-            item.innerHTML = `
-                <span>${escapeHTML(c)}</span>
-                ${checkHTML}
-            `;
-
+            let checkHTML = isSelected ? `<span class="glass-select-check">✓</span>` : '';
+            item.innerHTML = `<span>${escapeHTML(c)}</span>${checkHTML}`;
             item.onclick = (e) => {
                 e.stopPropagation();
-                selectedCategory = c;
-                catText.textContent = c;
-                catText.classList.remove('placeholder');
-                catContainer.classList.remove('open');
-
-                // Reset program
-                selectedProgram = "";
-                progText.textContent = "Select Program";
-                progText.classList.add('placeholder');
-                progContainer.classList.remove('disabled');
-
-                // Re-populate categories & populate programs
-                populateCategories();
-                populatePrograms();
+                selectCategory(c);
             };
             catPanel.appendChild(item);
+
+            // Mobile
+            if (mobCatList) {
+                const mobItem = document.createElement('div');
+                mobItem.className = `bottom-sheet-item ${isSelected ? 'selected' : ''}`;
+                let mobCheckHTML = isSelected ? `<span class="bottom-sheet-check">✓</span>` : '';
+                mobItem.innerHTML = `<span>${escapeHTML(c)}</span>${mobCheckHTML}`;
+                mobItem.onclick = () => {
+                    selectCategory(c);
+                    closeBottomSheet(mobCatSheet);
+                };
+                mobCatList.appendChild(mobItem);
+            }
         });
     };
 
     const populatePrograms = () => {
         progPanel.innerHTML = '';
+        if (mobProgList) mobProgList.innerHTML = '';
         if (!selectedCategory) return;
 
-        // Load only programs under that category
         const programs = [...new Set(
             allResults
                 .filter(r => r.categoryName === selectedCategory)
@@ -285,53 +784,91 @@ function setupFilters() {
 
         programs.forEach(p => {
             const isSelected = p === selectedProgram;
+            
+            // Desktop
             const item = document.createElement('div');
             item.className = `glass-select-item ${isSelected ? 'selected' : ''}`;
-
-            let checkHTML = '';
-            if (isSelected) {
-                checkHTML = `<span class="glass-select-check">✓</span>`;
-            }
-
-            item.innerHTML = `
-                <span>${escapeHTML(p)}</span>
-                ${checkHTML}
-            `;
-
+            let checkHTML = isSelected ? `<span class="glass-select-check">✓</span>` : '';
+            item.innerHTML = `<span>${escapeHTML(p)}</span>${checkHTML}`;
             item.onclick = (e) => {
                 e.stopPropagation();
-                selectedProgram = p;
-                progText.textContent = p;
-                progText.classList.remove('placeholder');
-                progContainer.classList.remove('open');
-
-                // Re-populate programs
-                populatePrograms();
+                selectProgram(p);
             };
             progPanel.appendChild(item);
+
+            // Mobile
+            if (mobProgList) {
+                const mobItem = document.createElement('div');
+                mobItem.className = `bottom-sheet-item ${isSelected ? 'selected' : ''}`;
+                let mobCheckHTML = isSelected ? `<span class="bottom-sheet-check">✓</span>` : '';
+                mobItem.innerHTML = `<span>${escapeHTML(p)}</span>${mobCheckHTML}`;
+                mobItem.onclick = () => {
+                    selectProgram(p);
+                    closeBottomSheet(mobProgSheet);
+                };
+                mobProgList.appendChild(mobItem);
+            }
         });
     };
 
     // Populate category dropdown initially
     populateCategories();
 
-    // Handle Search click workflow
-    document.getElementById('btnFilterSearch').onclick = () => {
+    // Unified Search execution
+    const executeSearch = (btn) => {
+        if (btn.classList.contains('loading')) return;
+
         if (!selectedCategory || !selectedProgram) {
             showToast("⚠️ Please select both Category and Program!");
             return;
         }
 
-        // Query the single matching result
-        const currentResult = allResults.find(r => r.categoryName === selectedCategory && r.programName === selectedProgram);
-        if (!currentResult) {
-            renderEmpty("Result Not Found", "The requested program standings have not been published yet.");
-            return;
-        }
+        // Add ripple visual effect
+        const rect = btn.getBoundingClientRect();
+        const circle = document.createElement('span');
+        circle.style.position = 'absolute';
+        circle.style.background = 'rgba(255,255,255,0.35)';
+        circle.style.borderRadius = '50%';
+        circle.style.pointerEvents = 'none';
+        circle.style.width = circle.style.height = '120px';
+        circle.style.left = `${btn.clientWidth / 2 - 60}px`;
+        circle.style.top = `${btn.clientHeight / 2 - 60}px`;
+        circle.style.transform = 'scale(0)';
+        circle.style.animation = 'ripple 0.6s linear';
+        btn.appendChild(circle);
+        setTimeout(() => circle.remove(), 600);
 
-        // Generate Result Poster
-        renderSingleResult(currentResult);
+        // Add loading state
+        const originalText = btn.innerHTML;
+        btn.innerHTML = `<span>⏳ Searching...</span>`;
+        btn.classList.add('loading');
+
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.classList.remove('loading');
+
+            // Query result
+            const currentResult = allResults.find(r => r.categoryName === selectedCategory && r.programName === selectedProgram);
+            if (!currentResult) {
+                renderEmpty("Result Not Found", "The requested program standings have not been published yet.");
+                return;
+            }
+
+            renderSingleResult(currentResult);
+        }, 400);
     };
+
+    // Bind triggers
+    document.getElementById('btnFilterSearch').onclick = (e) => {
+        executeSearch(e.currentTarget);
+    };
+
+    const mobBtnSearch = document.getElementById('mobBtnFilterSearch');
+    if (mobBtnSearch) {
+        mobBtnSearch.onclick = (e) => {
+            executeSearch(e.currentTarget);
+        };
+    }
 }
 
 // ─────────────────────────────────────────────
@@ -620,7 +1157,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
     const displayEventTagline = eventConfig?.eventTagline || "";
     const displayEventLogo = eventConfig?.eventLogo || null;
 
-    const brandLogoHTML = displayEventLogo ? `<div class="poster-brand-logo-wrap"><img src="${displayEventLogo}" alt="Logo" class="poster-brand-logo" /></div>` : '';
+    const brandLogoHTML = displayEventLogo ? `<div class="poster-brand-logo-wrap"><img src="${displayEventLogo}" alt="Logo" class="poster-brand-logo" crossorigin="anonymous" /></div>` : '';
     const brandTaglineHTML = displayEventTagline ? `<div class="poster-brand-tagline">${escapeHTML(displayEventTagline)}</div>` : '';
     const brandHeaderHTML = `
         <div class="poster-brand-header">
@@ -870,7 +1407,27 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 function renderSingleResult(r) {
     currentDisplayedResult = r;
     const list = document.getElementById('resultsList');
+    const mobList = document.getElementById('mobResultsList');
+    const mobPosterRoot = document.getElementById('mobPosterRoot');
     if (!list) return;
+
+    // Hide Team Championship dashboard
+    const championshipSection = document.getElementById('teamChampionshipSection');
+    if (championshipSection) {
+        championshipSection.style.display = 'none';
+    }
+    const mobChampionshipSection = document.getElementById('mobChampionshipSection');
+    if (mobChampionshipSection) {
+        mobChampionshipSection.style.display = 'none';
+    }
+
+    // Reveal lists
+    list.style.display = 'block';
+    list.className = 'poster-animate-entry';
+    if (mobList) {
+        mobList.style.display = 'flex';
+        mobList.className = 'app-results-container poster-animate-entry';
+    }
 
     const bgId = cardBgMap[r.id] || 1;
     const templateId = cardTemplateMap[r.id] || 1;
@@ -886,7 +1443,7 @@ function renderSingleResult(r) {
 
     const posterInnerHTML = getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName);
 
-    list.innerHTML = `
+    const combinedHTML = `
         <div class="poster-container" id="container-${r.id}">
             
             <div class="result-poster template-${templateId}" id="poster-${r.id}" style="background-image: url('../assets/poster-backgrounds/bg${bgId}.jpg')">
@@ -894,7 +1451,7 @@ function renderSingleResult(r) {
             </div>
 
             <!-- Dynamic Template Selection Picker -->
-            <div class="template-picker-card" style="background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border: 1px solid rgba(16, 120, 80, 0.15); border-radius: 28px; padding: 24px 20px; margin: 30px auto 10px auto; max-width: 450px; width: 100%; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.04); box-sizing: border-box; text-align: center;">
+            <div class="template-picker-card" style="background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border: 1px solid rgba(16, 120, 80, 0.15); border-radius: 28px; padding: 24px 20px; margin: 30px auto 10px auto; max-width: 500px; width: 100%; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.04); box-sizing: border-box; text-align: center;">
                 <button type="button" class="btn-action-primary btn-change-template" data-id="${r.id}" style="width: 100%; padding: 14px; border-radius: 18px; font-weight: 800; font-size: 15px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">📐 Change Template</button>
             </div>
 
@@ -936,51 +1493,58 @@ function renderSingleResult(r) {
             </div>
 
             <!-- Balanced Actions Buttons Row -->
-            <div class="poster-actions">
-                <button class="btn-action-primary btn-download" data-id="${r.id}">📥 Download Image</button>
-               
+            <div class="poster-actions" style="margin-top: clamp(20px, 4vw, 30px); display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 500px; margin-inline: auto; box-sizing: border-box;">
+                <button class="btn-action-primary btn-download" data-id="${r.id}" style="width: 100%; padding: 14px; border-radius: 18px; font-weight: 800; font-size: 15px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">📥 Download Poster Image</button>
+                <button type="button" class="btn-action-secondary btn-back-leaderboard" style="width: 100%; padding: 14px; border-radius: 18px; font-weight: 800; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">🏆 View Live Standings</button>
             </div>
 
         </div>
     `;
 
+    list.innerHTML = combinedHTML;
+    if (mobPosterRoot) {
+        mobPosterRoot.innerHTML = combinedHTML;
+    }
+
     // Wire template modal trigger
-    document.querySelector('.btn-change-template').onclick = () => {
-        const modal = document.getElementById('templateModal');
-        const grid = document.getElementById('templateGrid');
+    document.querySelectorAll('.btn-change-template').forEach(btn => {
+        btn.onclick = () => {
+            const modal = document.getElementById('templateModal');
+            const grid = document.getElementById('templateGrid');
 
-        const templates = [
-            { id: 1, name: 'Template 1 (Current)' },
-            { id: 2, name: 'Template 2 (Cards)' },
-            { id: 3, name: 'Template 3 (Editorial)' },
-            { id: 4, name: 'Template 4 (Leaderboard)' }
-        ];
+            const templates = [
+                { id: 1, name: 'Template 1 (Current)' },
+                { id: 2, name: 'Template 2 (Cards)' },
+                { id: 3, name: 'Template 3 (Editorial)' },
+                { id: 4, name: 'Template 4 (Leaderboard)' }
+            ];
 
-        grid.innerHTML = templates.map(t => {
-            const isActive = t.id === templateId;
-            const miniPosterHTML = getMiniPosterHTML(r, bgId, t.id, resultNumber, madrasaName);
-            return `
-                <div class="template-option-card ${isActive ? 'active' : ''}" data-template="${t.id}">
-                    <div class="mini-poster-preview" style="background-image: url('../assets/poster-backgrounds/bg${bgId}.jpg')">
-                        ${miniPosterHTML}
+            grid.innerHTML = templates.map(t => {
+                const isActive = t.id === templateId;
+                const miniPosterHTML = getMiniPosterHTML(r, bgId, t.id, resultNumber, madrasaName);
+                return `
+                    <div class="template-option-card ${isActive ? 'active' : ''}" data-template="${t.id}">
+                        <div class="mini-poster-preview" style="background-image: url('../assets/poster-backgrounds/bg${bgId}.jpg')">
+                            ${miniPosterHTML}
+                        </div>
+                        <span class="template-option-title">${t.name}</span>
                     </div>
-                    <span class="template-option-title">${t.name}</span>
-                </div>
-            `;
-        }).join('');
+                `;
+            }).join('');
 
-        modal.classList.add('show');
+            modal.classList.add('show');
 
-        // Wire selections
-        grid.querySelectorAll('.template-option-card').forEach(card => {
-            card.onclick = (e) => {
-                const selectedTplId = parseInt(e.currentTarget.dataset.template, 10);
-                cardTemplateMap[r.id] = selectedTplId;
-                modal.classList.remove('show');
-                renderSingleResult(r);
-            };
-        });
-    };
+            // Wire selections
+            grid.querySelectorAll('.template-option-card').forEach(card => {
+                card.onclick = (e) => {
+                    const selectedTplId = parseInt(e.currentTarget.dataset.template, 10);
+                    cardTemplateMap[r.id] = selectedTplId;
+                    modal.classList.remove('show');
+                    renderSingleResult(r);
+                };
+            });
+        };
+    });
 
     // Close Modal handler
     document.getElementById('closeTemplateModalBtn').onclick = () => {
@@ -1001,55 +1565,173 @@ function renderSingleResult(r) {
 
             cardBgMap[cardId] = bgNum;
 
-            const posterEl = document.getElementById(`poster-${cardId}`);
-            if (posterEl) {
+            document.querySelectorAll(`[id="poster-${cardId}"]`).forEach(posterEl => {
                 posterEl.style.backgroundImage = `url('../assets/poster-backgrounds/bg${bgNum}.jpg')`;
-            }
+            });
 
-            const containerEl = document.getElementById(`container-${cardId}`);
-            if (containerEl) {
+            document.querySelectorAll(`[id="container-${cardId}"]`).forEach(containerEl => {
                 containerEl.querySelectorAll('.thumb').forEach(b => {
                     b.classList.remove('active');
+                    if (parseInt(b.dataset.bg, 10) === bgNum) {
+                        b.classList.add('active');
+                    }
                 });
-                e.currentTarget.classList.add('active');
-            }
+            });
         };
     });
 
     // Wire Card Actions
-    const btnDownload = document.querySelector('.btn-download');
-    if (btnDownload) {
-        btnDownload.onclick = () => {
+    document.querySelectorAll('.btn-download').forEach(btn => {
+        btn.onclick = () => {
             downloadPosterAsImage(r.id);
         };
-    }
+    });
 
-    const btnShare = document.querySelector('.btn-share');
-    if (btnShare) {
-        btnShare.onclick = () => {
-            sharePosterContent(r.id);
-        };
+    const goBackToStandings = () => {
+        currentDisplayedResult = null;
+        list.style.display = 'none';
+        if (mobList) mobList.style.display = 'none';
+        if (championshipSection) {
+            championshipSection.style.display = 'flex';
+        }
+        if (mobChampionshipSection) {
+            mobChampionshipSection.style.display = 'flex';
+        }
+        updateTeamChampionship();
+    };
+
+    document.querySelectorAll('.btn-back-leaderboard').forEach(btn => {
+        btn.onclick = goBackToStandings;
+    });
+
+    const mobBtnBack = document.getElementById('mobBtnBackToStandings');
+    if (mobBtnBack) {
+        mobBtnBack.onclick = goBackToStandings;
     }
 }
 
 function renderError(title, msg) {
-    document.getElementById('resultsList').innerHTML = `
-        <div class="empty-state">
-            <div class="empty-icon">❌</div>
-            <h2 style="color:#dc2626; margin-bottom:0.5rem; font-family:'Playfair Display', serif;">${escapeHTML(title)}</h2>
-            <p>${escapeHTML(msg)}</p>
+    const championshipSection = document.getElementById('teamChampionshipSection');
+    if (championshipSection) championshipSection.style.display = 'none';
+    const mobChampionshipSection = document.getElementById('mobChampionshipSection');
+    if (mobChampionshipSection) mobChampionshipSection.style.display = 'none';
+
+    const list = document.getElementById('resultsList');
+    const mobList = document.getElementById('mobResultsList');
+    const mobPosterRoot = document.getElementById('mobPosterRoot');
+
+    const emptyHTML = `
+        <div class="empty-state" style="text-align: center; padding: 3rem 1.5rem; max-width: 500px; margin: 30px auto; background: rgba(255,255,255,0.85); border-radius: 28px; border: 1px solid rgba(220,38,38,0.15); box-shadow: 0 15px 35px rgba(0,0,0,0.02);">
+            <div class="empty-icon" style="font-size: 3rem; margin-bottom: 1rem;">❌</div>
+            <h2 style="color:#dc2626; margin-bottom:0.5rem; font-family:'Playfair Display', serif; font-weight:700;">${escapeHTML(title)}</h2>
+            <p style="color:#64748b; font-weight:500; margin-bottom: 1.5rem;">${escapeHTML(msg)}</p>
+            <button type="button" class="btn-action-secondary btn-back-leaderboard" style="width: 100%; padding: 14px; border-radius: 18px; font-weight: 800; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">🏆 View Live Standings</button>
         </div>
     `;
+
+    if (list) {
+        list.style.display = 'block';
+        list.className = 'poster-animate-entry';
+        list.innerHTML = emptyHTML;
+    }
+    if (mobList && mobPosterRoot) {
+        mobList.style.display = 'flex';
+        mobList.className = 'app-results-container poster-animate-entry';
+        mobPosterRoot.innerHTML = emptyHTML;
+    }
+
+    const wireBackClicks = () => {
+        currentDisplayedResult = null;
+        if (list) list.style.display = 'none';
+        if (mobList) mobList.style.display = 'none';
+        if (championshipSection) championshipSection.style.display = 'flex';
+        if (mobChampionshipSection) mobChampionshipSection.style.display = 'flex';
+        updateTeamChampionship();
+    };
+
+    document.querySelectorAll('.btn-back-leaderboard').forEach(btn => {
+        btn.onclick = wireBackClicks;
+    });
+    const mobBtnBackToStandings = document.getElementById('mobBtnBackToStandings');
+    if (mobBtnBackToStandings) mobBtnBackToStandings.onclick = wireBackClicks;
 }
 
 function renderEmpty(title, msg) {
-    document.getElementById('resultsList').innerHTML = `
-        <div class="empty-state">
-            <div class="empty-icon">🔍</div>
-            <h3 style="font-family:'Playfair Display', serif;">${escapeHTML(title)}</h3>
-            <p>${escapeHTML(msg)}</p>
+    const championshipSection = document.getElementById('teamChampionshipSection');
+    if (championshipSection) championshipSection.style.display = 'none';
+    const mobChampionshipSection = document.getElementById('mobChampionshipSection');
+    if (mobChampionshipSection) mobChampionshipSection.style.display = 'none';
+
+    const list = document.getElementById('resultsList');
+    const mobList = document.getElementById('mobResultsList');
+    const mobPosterRoot = document.getElementById('mobPosterRoot');
+
+    const emptyHTML = `
+        <div class="empty-state" style="text-align: center; padding: 3rem 1.5rem; max-width: 500px; margin: 30px auto; background: rgba(255,255,255,0.85); border-radius: 28px; border: 1px solid rgba(16,120,80,0.12); box-shadow: 0 15px 35px rgba(0,0,0,0.02);">
+            <div class="empty-icon" style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
+            <h3 style="font-family:'Playfair Display', serif; font-weight:700; color:#064e3b; margin-bottom:0.5rem;">${escapeHTML(title)}</h3>
+            <p style="color:#64748b; font-weight:500; margin-bottom: 1.5rem;">${escapeHTML(msg)}</p>
+            <button type="button" class="btn-action-secondary btn-back-leaderboard" style="width: 100%; padding: 14px; border-radius: 18px; font-weight: 800; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">🏆 View Live Standings</button>
         </div>
     `;
+
+    if (list) {
+        list.style.display = 'block';
+        list.className = 'poster-animate-entry';
+        list.innerHTML = emptyHTML;
+    }
+    if (mobList && mobPosterRoot) {
+        mobList.style.display = 'flex';
+        mobList.className = 'app-results-container poster-animate-entry';
+        mobPosterRoot.innerHTML = emptyHTML;
+    }
+
+    const wireBackClicks = () => {
+        currentDisplayedResult = null;
+        if (list) list.style.display = 'none';
+        if (mobList) mobList.style.display = 'none';
+        if (championshipSection) championshipSection.style.display = 'flex';
+        if (mobChampionshipSection) mobChampionshipSection.style.display = 'flex';
+        updateTeamChampionship();
+    };
+
+    document.querySelectorAll('.btn-back-leaderboard').forEach(btn => {
+        btn.onclick = wireBackClicks;
+    });
+    const mobBtnBackToStandings = document.getElementById('mobBtnBackToStandings');
+    if (mobBtnBackToStandings) mobBtnBackToStandings.onclick = wireBackClicks;
+}
+
+// Helper to pre-blur background image via canvas 2D context filter
+async function getBlurredBgDataUrl(bgUrl) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = 450;
+                canvas.height = 562.5;
+                const ctx = canvas.getContext('2d');
+                
+                // Native canvas blur filter
+                ctx.filter = 'blur(12px)';
+                // Render with a bleed margin to avoid edge bleeding
+                const bleed = 24;
+                ctx.drawImage(img, -bleed, -bleed, canvas.width + bleed * 2, canvas.height + bleed * 2);
+                
+                resolve(canvas.toDataURL('image/jpeg', 0.95));
+            } catch (err) {
+                console.error("Canvas blur failed, falling back to raw background URL:", err);
+                resolve(bgUrl);
+            }
+        };
+        img.onerror = (err) => {
+            console.error("Failed to load background image for blur:", err);
+            resolve(bgUrl);
+        };
+        img.src = bgUrl;
+    });
 }
 
 // ─────────────────────────────────────────────
@@ -1063,73 +1745,246 @@ async function generatePosterCanvas(r) {
 
     const bgId = cardBgMap[r.id] || 1;
     const templateId = cardTemplateMap[r.id] || 1;
+    const bgUrl = `../assets/poster-backgrounds/bg${bgId}.jpg`;
 
-    // Locate on-screen poster element or create temporary element
-    let posterEl = document.getElementById(`poster-${r.id}`);
-    let tempContainer = null;
+    // 1. Generate the blurred background data URL
+    const blurredBgDataUrl = await getBlurredBgDataUrl(bgUrl);
 
-    if (!posterEl) {
-        const sortedPublished = [...allResults].sort((a, b) => (a.publishedAt?.seconds || 0) - (b.publishedAt?.seconds || 0));
-        const resultNumber = sortedPublished.findIndex(x => x.id === r.id) + 1;
-        const madrasaName = getEffectiveEventName();
-        const posterInnerHTML = getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName);
+    // 2. Fetch/Generate the poster inner HTML
+    const sortedPublished = [...allResults].sort((a, b) => (a.publishedAt?.seconds || 0) - (b.publishedAt?.seconds || 0));
+    const resultNumber = sortedPublished.findIndex(x => x.id === r.id) + 1;
+    const madrasaName = getEffectiveEventName();
+    const posterInnerHTML = getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName);
 
-        tempContainer = document.createElement('div');
-        tempContainer.style.position = 'fixed';
-        tempContainer.style.left = '-9999px';
-        tempContainer.style.top = '-9999px';
-        tempContainer.style.width = '450px';
-        tempContainer.style.height = '562.5px';
-        tempContainer.style.zIndex = '-9999';
-        tempContainer.innerHTML = `<div class="result-poster template-${templateId}" style="width:450px; height:562.5px; background-image: url('../assets/poster-backgrounds/bg${bgId}.jpg')">${posterInnerHTML}</div>`;
-        document.body.appendChild(tempContainer);
-        posterEl = tempContainer.firstElementChild;
-    }
+    // 3. Create isolated iframe rendering environment
+    const iframe = document.createElement('iframe');
+    // Hide iframe securely but do NOT use display:none or visibility:hidden because the browser may optimize layout out
+    iframe.style.position = 'fixed';
+    iframe.style.left = '-9999px';
+    iframe.style.top = '-9999px';
+    iframe.style.width = '1200px'; // Set large desktop viewport size to avoid mobile media queries
+    iframe.style.height = '1500px';
+    iframe.style.border = 'none';
+    iframe.style.zIndex = '-9999';
+    document.body.appendChild(iframe);
 
-    // Create fixed-size 450x562.5 rendering target clone to guarantee exact 4:5 proportions and scaling
-    const captureWrapper = document.createElement('div');
-    captureWrapper.style.position = 'fixed';
-    captureWrapper.style.left = '-9999px';
-    captureWrapper.style.top = '-9999px';
-    captureWrapper.style.width = '450px';
-    captureWrapper.style.height = '562.5px';
-    captureWrapper.style.zIndex = '-9999';
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write('<!DOCTYPE html><html><head></head><body style="margin:0;padding:0;overflow:hidden;background:transparent;"></body></html>');
+    iframeDoc.close();
 
-    const clonedPoster = posterEl.cloneNode(true);
-    clonedPoster.style.width = '450px';
-    clonedPoster.style.height = '562.5px';
-    clonedPoster.style.transform = 'none';
-    clonedPoster.style.margin = '0';
-    clonedPoster.style.boxShadow = 'none';
+    // 4. Set base tag in iframe head to resolve relative URLs from the host page path
+    const baseEl = iframeDoc.createElement('base');
+    baseEl.href = window.location.href;
+    iframeDoc.head.appendChild(baseEl);
 
-    captureWrapper.appendChild(clonedPoster);
-    document.body.appendChild(captureWrapper);
+    // 5. Clone host page style sheets into the iframe
+    document.querySelectorAll('link[rel="stylesheet"], style').forEach(el => {
+        iframeDoc.head.appendChild(el.cloneNode(true));
+    });
 
-    try {
-        // Ensure fonts and images are fully loaded before capture
-        if (document.fonts && document.fonts.ready) {
-            await document.fonts.ready;
+    // 6. Append an override style block to the iframe head:
+    // - Disable pseudo elements (::before/::after) for html2canvas-capture to prevent createPattern errors
+    // - Force exact desktop dimensions and layouts to prevent mobile viewport squishing inside the iframe
+    const overrideStyle = iframeDoc.createElement('style');
+    overrideStyle.textContent = `
+        /* Force desktop scale dimensions inside the capture iframe */
+        .result-poster.html2canvas-capture {
+            width: 450px !important;
+            height: 562.5px !important;
+            max-width: none !important;
+            max-height: none !important;
+            min-width: 450px !important;
+            min-height: 562.5px !important;
+            transform: none !important;
         }
 
-        const images = Array.from(clonedPoster.querySelectorAll('img'));
+        /* Override template responsive rules to keep desktop proportions */
+        .t1-container {
+            top: 24px !important;
+            bottom: 24px !important;
+            left: 24px !important;
+            right: 24px !important;
+            padding: 24px !important;
+            border-radius: 32px !important;
+        }
+        .t1-title {
+            font-size: 22px !important;
+        }
+        .t1-row {
+            padding: 16px !important;
+            border-radius: 20px !important;
+            gap: 16px !important;
+        }
+        .t1-rank-num {
+            font-size: 26px !important;
+            min-width: 42px !important;
+        }
+        .t1-name {
+            font-size: 15px !important;
+        }
+        .t1-team {
+            font-size: 11px !important;
+        }
+
+        .t2-container {
+            top: 24px !important;
+            bottom: 24px !important;
+            left: 24px !important;
+            right: 24px !important;
+        }
+        .t2-program-title {
+            font-size: 22px !important;
+        }
+        .t2-bento-row {
+            flex-direction: row !important;
+            gap: 12px !important;
+        }
+        .t2-card-2nd, .t2-card-3rd {
+            width: calc(50% - 6px) !important;
+            min-height: 120px !important;
+            padding: 16px 20px !important;
+            border-radius: 24px !important;
+        }
+        .t2-card-1st {
+            padding: 16px 20px !important;
+            border-radius: 28px !important;
+            min-height: 110px !important;
+        }
+        .t2-student {
+            font-size: 16px !important;
+        }
+        .t2-rank-large {
+            font-size: 48px !important;
+        }
+
+        .t3-container {
+            top: 36px !important;
+            bottom: 36px !important;
+            left: 36px !important;
+            right: 36px !important;
+        }
+        .t3-program-title {
+            font-size: 24px !important;
+        }
+
+        .t4-container {
+            top: 24px !important;
+            bottom: 24px !important;
+            left: 24px !important;
+            right: 24px !important;
+        }
+        .t4-split-content {
+            flex-direction: row !important;
+            gap: 24px !important;
+        }
+        .t4-left-panel {
+            width: 35% !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.15) !important;
+            border-bottom: none !important;
+            padding-right: 16px !important;
+            padding-bottom: 0 !important;
+        }
+        .t4-right-panel {
+            width: 65% !important;
+            gap: 16px !important;
+        }
+        .t4-academic-decor {
+            display: flex !important;
+        }
+        .t4-rank-block {
+            padding: 16px 20px !important;
+            border-radius: 16px !important;
+        }
+        .t4-rank-num {
+            font-size: 32px !important;
+        }
+
+        /* Force solid background colors on decorative footer lines inside iframe to bypass 0-width linear-gradient pattern rendering bugs in html2canvas */
+        .t1-footer-line, .t2-footer-line, .t3-footer-line, .t4-footer-line {
+            background: rgba(255, 255, 255, 0.15) !important;
+            height: 1px !important;
+        }
+
+        /* Disable all pseudo elements to avoid html2canvas 0-size canvas pattern bugs */
+        .html2canvas-capture::before,
+        .html2canvas-capture::after,
+        .html2canvas-capture *::before,
+        .html2canvas-capture *::after {
+            display: none !important;
+            content: none !important;
+            background: none !important;
+            background-image: none !important;
+        }
+    `;
+    iframeDoc.head.appendChild(overrideStyle);
+
+    // 7. Create the poster target inside the iframe body
+    const posterInIframe = iframeDoc.createElement('div');
+    posterInIframe.className = `result-poster template-${templateId} html2canvas-capture`;
+    posterInIframe.style.width = '450px';
+    posterInIframe.style.height = '562.5px';
+    posterInIframe.style.position = 'relative';
+    posterInIframe.style.overflow = 'hidden';
+    posterInIframe.style.margin = '0';
+    posterInIframe.style.boxShadow = 'none';
+    posterInIframe.style.transform = 'none';
+    posterInIframe.style.backgroundImage = 'none'; // We replace it with explicit img/div layers
+
+    // Decide overlay opacity/color
+    const overlayColor = (templateId === 3 || templateId === 4) ? 'rgba(15, 23, 42, 0.55)' : 'rgba(15, 23, 42, 0.50)';
+
+    // Insert blurred background layer, overlay layer, and original content
+    posterInIframe.innerHTML = `
+        <img class="h2c-blur-bg" src="${blurredBgDataUrl}" style="position: absolute; top: -20px; left: -20px; right: -20px; bottom: -20px; width: calc(100% + 40px); height: calc(100% + 40px); object-fit: cover; z-index: 0; pointer-events: none;" crossorigin="anonymous" />
+        <div class="h2c-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: ${overlayColor}; z-index: 1; pointer-events: none;"></div>
+        ${posterInnerHTML}
+    `;
+
+    iframeDoc.body.appendChild(posterInIframe);
+
+    try {
+        // 8. Wait for fonts inside the iframe to be ready
+        if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
+            await iframe.contentWindow.document.fonts.ready;
+        }
+
+        // 9. Wait for all img elements in the iframe to load
+        const images = Array.from(posterInIframe.querySelectorAll('img'));
         await Promise.all(images.map(img => {
-            if (img.complete) return Promise.resolve();
             return new Promise(resolve => {
-                img.onload = resolve;
-                img.onerror = resolve;
+                if (img.complete) {
+                    if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+                        // Fallback/sanitize if failed
+                        img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+                    }
+                    resolve();
+                } else {
+                    img.onload = () => resolve();
+                    img.onerror = () => {
+                        img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+                        resolve();
+                    };
+                }
             });
         }));
 
-        // Render high-resolution canvas at 1200x1500 (450 * 2.6666667 = 1200)
+        // 10. Wait for CSS and layout calculations to stabilize via requestAnimationFrame and small timeout
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await new Promise(resolve => setTimeout(resolve, 350));
+
+        // 11. Run html2canvas on the poster element inside the iframe
         const scaleFactor = 1200 / 450;
-        const canvas = await html2canvas(clonedPoster, {
+        const canvas = await html2canvas(posterInIframe, {
             scale: scaleFactor,
             useCORS: true,
-            allowTaint: true,
+            allowTaint: false,
             backgroundColor: null,
             logging: false,
             scrollX: 0,
-            scrollY: 0
+            scrollY: 0,
+            width: 450,
+            height: 562.5
         });
 
         return canvas;
@@ -1137,11 +1992,9 @@ async function generatePosterCanvas(r) {
         console.error("Poster capture failed:", err);
         return null;
     } finally {
-        if (captureWrapper && captureWrapper.parentNode) {
-            document.body.removeChild(captureWrapper);
-        }
-        if (tempContainer && tempContainer.parentNode) {
-            document.body.removeChild(tempContainer);
+        // Clean up iframe
+        if (iframe && iframe.parentNode) {
+            document.body.removeChild(iframe);
         }
     }
 }

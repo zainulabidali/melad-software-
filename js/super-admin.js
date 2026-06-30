@@ -1,4 +1,4 @@
-import { app, auth, db } from './firebase.js';
+import { app, auth, db, updateDashboardMetadata } from './firebase.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 import {
     doc, getDoc, collection, addDoc, deleteDoc, onSnapshot,
@@ -280,6 +280,8 @@ function initInstitutesControls() {
                 currentSort = currentSort === 'status_asc' ? 'status_desc' : 'status_asc';
             } else if (sortKey === 'expiry') {
                 currentSort = currentSort === 'expiry_asc' ? 'expiry_desc' : 'expiry_asc';
+            } else if (sortKey === 'date_desc') {
+                currentSort = currentSort === 'date_desc' ? 'date_asc' : 'date_desc';
             }
             if (sortSelect) sortSelect.value = currentSort;
             applyFiltersAndRender();
@@ -481,34 +483,44 @@ function applyFiltersAndRender() {
 
             const expiryStr = inst.expiryDate ? inst.expiryDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No Expiry';
             const expiryRawStr = inst.expiryDate ? inst.expiryDate.toISOString().split('T')[0] : '';
+            const createdStr = inst.createdAt && inst.createdAt.getTime() > 0 ? inst.createdAt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 
             tr.innerHTML = `
                 <td>
                     <div>
                         <div class="inst-row-title">${escapeHTML(inst.name)}</div>
-                        <span class="inst-type-badge">${escapeHTML(inst.type)}</span>
+                        <div style="font-size: 0.75rem; color: #64748b; font-weight: 600; margin-top: 2px;">
+                            Code: <code style="background: #f1f5f9; padding: 2px 4px; border-radius: 4px; font-family: monospace;">${escapeHTML(inst.id)}</code>
+                        </div>
                     </div>
                 </td>
                 <td>
                     <span style="font-weight: 600; color: #334155;">📍 ${escapeHTML(inst.teacherPlace)}</span>
                 </td>
                 <td>
-                    <span style="font-weight: 600; color: #475569;">📞 ${escapeHTML(inst.teacherPhone)}</span>
+                    <span style="font-weight: 600; color: #475569;">✉️ <a href="mailto:${escapeHTML(inst.teacherEmail)}" style="color: #6366f1;">${escapeHTML(inst.teacherEmail)}</a></span>
                 </td>
                 <td>
-                    <span class="badge ${badgeClass}">${statusLabel}</span>
+                    <span style="font-weight: 600; color: #475569;">📅 ${createdStr}</span>
                 </td>
                 <td>
                     <span style="font-weight: 600; color: #4338ca;">📅 ${expiryStr}</span>
                 </td>
+                <td>
+                    <span class="badge ${badgeClass}">${statusLabel}</span>
+                </td>
                 <td style="text-align: right;">
-                    <div style="display: flex; gap: 0.35rem; justify-content: flex-end; flex-wrap: wrap;">
-                        <button class="btn-action btn-action-view view-inst-btn" data-id="${inst.id}">👁️ View</button>
-                        <button class="btn-action btn-action-edit edit-inst-btn" data-id="${inst.id}" data-all='${JSON.stringify({ name: inst.name, type: inst.type, expiryDate: expiryRawStr }).replace(/'/g, "&#39;")}'>✏️ Edit</button>
-                        <button class="btn-action btn-action-toggle ${inst.status === 'active' ? 'deactivate' : ''} toggle-status-btn" data-id="${inst.id}" data-status="${inst.status}">
-                            ${inst.status === 'active' ? '⏸ Deactivate' : '▶ Activate'}
-                        </button>
-                        <button class="btn-action btn-action-delete delete-inst-btn" data-id="${inst.id}">🗑 Delete</button>
+                    <div class="action-dropdown">
+                        <button class="dropdown-trigger" aria-label="Actions">⋮</button>
+                        <div class="dropdown-menu">
+                            <button class="dropdown-item view-inst-btn" data-id="${inst.id}">👁️ View Details</button>
+                            <button class="dropdown-item edit-inst-btn" data-id="${inst.id}" data-all='${JSON.stringify({ name: inst.name, type: inst.type, expiryDate: expiryRawStr }).replace(/'/g, "&#39;")}'>✏️ Edit Institute</button>
+                            <button class="dropdown-item login-inst-btn" data-id="${inst.id}" data-name="${escapeHTML(inst.name)}">🔑 Login as Admin</button>
+                            <button class="dropdown-item toggle-status-btn" data-id="${inst.id}" data-status="${inst.status}">
+                                ${inst.status === 'active' ? '⏸ Deactivate' : '▶ Activate'}
+                            </button>
+                            <button class="dropdown-item delete-inst-btn text-danger" data-id="${inst.id}">🗑 Delete</button>
+                        </div>
                     </div>
                 </td>
             `;
@@ -568,24 +580,73 @@ function applyFiltersAndRender() {
     }
 
     // Re-bind actions
+    document.querySelectorAll('.dropdown-trigger').forEach(trigger => {
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const parent = e.target.closest('.action-dropdown');
+            const menu = parent.querySelector('.dropdown-menu');
+            
+            // Close any other open dropdowns
+            document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+                if (m !== menu) m.classList.remove('show');
+            });
+
+            menu.classList.toggle('show');
+        });
+    });
+
     document.querySelectorAll('.view-inst-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.target.closest('.dropdown-menu')?.classList.remove('show');
             const instId = e.target.closest('.view-inst-btn').getAttribute('data-id');
             openViewInstituteModal(instId);
         });
     });
     document.querySelectorAll('.edit-inst-btn').forEach(btn => {
-        btn.addEventListener('click', openEditInstituteModal);
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.target.closest('.dropdown-menu')?.classList.remove('show');
+            openEditInstituteModal(e);
+        });
+    });
+    document.querySelectorAll('.login-inst-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.target.closest('.dropdown-menu')?.classList.remove('show');
+            const targetBtn = e.target.closest('.login-inst-btn');
+            const instId = targetBtn.getAttribute('data-id');
+            const instName = targetBtn.getAttribute('data-name');
+            loginAsAdmin(instId, instName);
+        });
     });
     document.querySelectorAll('.delete-inst-btn').forEach(btn => {
-        btn.addEventListener('click', deleteInstitute);
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.target.closest('.dropdown-menu')?.classList.remove('show');
+            deleteInstitute(e);
+        });
     });
     document.querySelectorAll('.toggle-status-btn').forEach(btn => {
-        btn.addEventListener('click', toggleStatus);
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.target.closest('.dropdown-menu')?.classList.remove('show');
+            toggleStatus(e);
+        });
     });
+
+    // Global listener for closing dropdowns when clicking outside
+    if (!window.hasGlobalDropdownListener) {
+        window.hasGlobalDropdownListener = true;
+        window.addEventListener('click', () => {
+            document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+                menu.classList.remove('show');
+            });
+        });
+    }
 }
 
-function openViewInstituteModal(instId) {
+async function openViewInstituteModal(instId) {
     const inst = allInstitutes.find(item => item.id === instId);
     if (!inst) return;
 
@@ -606,45 +667,129 @@ function openViewInstituteModal(instId) {
     const initial = inst.name ? inst.name[0].toUpperCase() : '🏢';
 
     viewBody.innerHTML = `
-        <div class="details-header-card">
-            <div class="details-avatar">${escapeHTML(initial)}</div>
-            <div>
-                <span class="inst-type-badge">${escapeHTML(inst.type)}</span>
-                <h2 style="font-size: 1.35rem; font-weight: 800; margin: 4px 0 0 0; color: #0f172a; font-family: 'Outfit', sans-serif;">${escapeHTML(inst.name)}</h2>
+        <div class="view-details-container" style="display: flex; flex-direction: column; gap: 1.5rem;">
+            
+            <!-- Header banner -->
+            <div class="details-header-card" style="display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; padding: 1.25rem; background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-radius: 16px; border: 1px solid #e2e8f0; margin-bottom: 0;">
+                <div style="display: flex; align-items: center; gap: 1.25rem;">
+                    <div class="details-avatar" style="width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 800; flex-shrink: 0; box-shadow: 0 8px 20px rgba(99, 102, 241, 0.25);">${escapeHTML(initial)}</div>
+                    <div>
+                        <span class="inst-type-badge" style="font-size: 0.68rem; font-weight: 800; padding: 0.15rem 0.45rem; border-radius: 6px; background: #e0e7ff; color: #4338ca; text-transform: uppercase; letter-spacing: 0.04em;">${escapeHTML(inst.type)}</span>
+                        <h2 style="font-size: 1.35rem; font-weight: 800; margin: 4px 0 0 0; color: #0f172a; font-family: 'Outfit', sans-serif;">${escapeHTML(inst.name)}</h2>
+                    </div>
+                </div>
+                <div>
+                    <span class="badge ${badgeClass}" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; font-weight: 700;">${statusLabel}</span>
+                </div>
             </div>
-        </div>
-        <div class="details-grid">
-            <div class="details-field">
-                <span class="details-label">🏫 Institute / Madrasa Name</span>
-                <span class="details-val">${escapeHTML(inst.name)}</span>
-            </div>
-            <div class="details-field">
-                <span class="details-label">📍 Location / District / Address</span>
-                <span class="details-val">${escapeHTML(inst.teacherPlace)}</span>
-            </div>
-            <div class="details-field">
-                <span class="details-label">👤 Registered Teacher / Admin</span>
-                <span class="details-val">${escapeHTML(inst.teacherName)}</span>
-            </div>
-            <div class="details-field">
-                <span class="details-label">📞 Contact Phone Number</span>
-                <span class="details-val">${escapeHTML(inst.teacherPhone)}</span>
-            </div>
-            <div class="details-field">
-                <span class="details-label">✉️ Email Address</span>
-                <span class="details-val"><a href="mailto:${escapeHTML(inst.teacherEmail)}" style="color: #6366f1; font-weight: 700;">${escapeHTML(inst.teacherEmail)}</a></span>
-            </div>
-            <div class="details-field">
-                <span class="details-label">📅 Registration Date</span>
-                <span class="details-val">${createdStr}</span>
-            </div>
-            <div class="details-field">
-                <span class="details-label">⏳ Subscription Expiry</span>
-                <span class="details-val" style="color: #4338ca;">${expiryStr}</span>
-            </div>
-            <div class="details-field">
-                <span class="details-label">🛡️ Current Status</span>
-                <span class="details-val"><span class="badge ${badgeClass}">${statusLabel}</span></span>
+
+            <!-- Section Cards Grid -->
+            <div class="details-grid-layout" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem;">
+                
+                <!-- Card 1: Institute Information -->
+                <div class="details-section-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+                    <h3 style="margin: 0; font-size: 1rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; font-family: 'Outfit', sans-serif;">
+                        <span>🏫</span> Institute Information
+                    </h3>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 0.5rem; align-items: center;">
+                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Name</span>
+                            <span style="font-size: 0.875rem; color: #1e293b; font-weight: 700; text-align: right;">${escapeHTML(inst.name)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 0.5rem; align-items: center;">
+                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Institute Code</span>
+                            <code style="font-size: 0.8rem; color: #4338ca; font-weight: 700; background: #f5f3ff; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${escapeHTML(inst.id)}</code>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 0.5rem; align-items: center;">
+                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Address / Location</span>
+                            <span style="font-size: 0.875rem; color: #1e293b; font-weight: 700; text-align: right;">${escapeHTML(inst.teacherPlace)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Type</span>
+                            <span style="font-size: 0.875rem; color: #475569; font-weight: 700;">${escapeHTML(inst.type)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Administrator Details -->
+                <div class="details-section-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+                    <h3 style="margin: 0; font-size: 1rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; font-family: 'Outfit', sans-serif;">
+                        <span>👤</span> Administrator
+                    </h3>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 0.5rem; align-items: center;">
+                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Admin Name</span>
+                            <span style="font-size: 0.875rem; color: #1e293b; font-weight: 700; text-align: right;">${escapeHTML(inst.teacherName)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 0.5rem; align-items: center;">
+                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Email</span>
+                            <span style="font-size: 0.875rem; color: #1e293b; font-weight: 700; text-align: right;"><a href="mailto:${escapeHTML(inst.teacherEmail)}" style="color: #6366f1;">${escapeHTML(inst.teacherEmail)}</a></span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Phone Number</span>
+                            <span style="font-size: 0.875rem; color: #1e293b; font-weight: 700; text-align: right;">${escapeHTML(inst.teacherPhone)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3: Subscription & Plan -->
+                <div class="details-section-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+                    <h3 style="margin: 0; font-size: 1rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; font-family: 'Outfit', sans-serif;">
+                        <span>📅</span> Subscription
+                    </h3>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 0.5rem; align-items: center;">
+                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Registration Date</span>
+                            <span style="font-size: 0.875rem; color: #1e293b; font-weight: 700;">${createdStr}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 0.5rem; align-items: center;">
+                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Expiry Date</span>
+                            <span style="font-size: 0.875rem; color: #e11d48; font-weight: 700;">${expiryStr}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 0.5rem; align-items: center;">
+                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Status</span>
+                            <span class="badge ${badgeClass}" style="font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 4px;">${statusLabel}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Plan Type</span>
+                            <span style="font-size: 0.875rem; color: #4f46e5; font-weight: 700;">${inst.expiryDate ? 'Annual Plan' : 'Trial Plan'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 4: Statistics (Responsive counts) -->
+                <div class="details-section-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+                    <h3 style="margin: 0; font-size: 1rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; font-family: 'Outfit', sans-serif;">
+                        <span>📊</span> Statistics
+                    </h3>
+                    <div id="modalStatsGrid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; text-align: center; height: 100%; align-content: center;">
+                        <div style="background: #f8fafc; padding: 0.6rem; border-radius: 10px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; justify-content: center; min-height: 52px;">
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #4f46e5; line-height: 1.1;" id="statStudents">⏳</div>
+                            <div style="font-size: 0.55rem; color: #64748b; font-weight: 700; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.02em;">Students</div>
+                        </div>
+                        <div style="background: #f8fafc; padding: 0.6rem; border-radius: 10px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; justify-content: center; min-height: 52px;">
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #0891b2; line-height: 1.1;" id="statPrograms">⏳</div>
+                            <div style="font-size: 0.55rem; color: #64748b; font-weight: 700; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.02em;">Programs</div>
+                        </div>
+                        <div style="background: #f8fafc; padding: 0.6rem; border-radius: 10px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; justify-content: center; min-height: 52px;">
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #059669; line-height: 1.1;" id="statJudges">⏳</div>
+                            <div style="font-size: 0.55rem; color: #64748b; font-weight: 700; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.02em;">Judges</div>
+                        </div>
+                        <div style="background: #f8fafc; padding: 0.6rem; border-radius: 10px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; justify-content: center; min-height: 52px;">
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #d97706; line-height: 1.1;" id="statTeams">⏳</div>
+                            <div style="font-size: 0.55rem; color: #64748b; font-weight: 700; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.02em;">Teams</div>
+                        </div>
+                        <div style="background: #f8fafc; padding: 0.6rem; border-radius: 10px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; justify-content: center; min-height: 52px;">
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #7c3aed; line-height: 1.1;" id="statCategories">⏳</div>
+                            <div style="font-size: 0.55rem; color: #64748b; font-weight: 700; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.02em;">Categories</div>
+                        </div>
+                        <div style="background: #f8fafc; padding: 0.6rem; border-radius: 10px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; justify-content: center; min-height: 52px;">
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #e11d48; line-height: 1.1;" id="statResults">⏳</div>
+                            <div style="font-size: 0.55rem; color: #64748b; font-weight: 700; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.02em;">Results</div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     `;
@@ -667,6 +812,45 @@ function openViewInstituteModal(instId) {
     }
 
     viewModal.classList.remove('hidden');
+
+    // Fetch counts from dashboard metadata
+    try {
+        const metaRef = doc(db, "institutes", instId, "metadata", "dashboard");
+        let metaSnap = await getDoc(metaRef);
+        
+        if (!metaSnap.exists()) {
+            // Self-heal/compute metadata on the fly if it hasn't been created yet
+            await updateDashboardMetadata(instId);
+            metaSnap = await getDoc(metaRef);
+        }
+
+        if (metaSnap.exists()) {
+            const meta = metaSnap.data();
+            document.getElementById('statStudents').textContent = meta.studentsCount ?? 0;
+            document.getElementById('statPrograms').textContent = meta.programsCount ?? 0;
+            document.getElementById('statJudges').textContent = meta.judgesCount ?? 0;
+            document.getElementById('statTeams').textContent = meta.teamsCount ?? 0;
+            document.getElementById('statCategories').textContent = meta.categoriesCount ?? 0;
+            document.getElementById('statResults').textContent = meta.publishedResultsCount ?? 0;
+        } else {
+            // Set fallback zero values if still unable to fetch
+            document.getElementById('statStudents').textContent = '0';
+            document.getElementById('statPrograms').textContent = '0';
+            document.getElementById('statJudges').textContent = '0';
+            document.getElementById('statTeams').textContent = '0';
+            document.getElementById('statCategories').textContent = '0';
+            document.getElementById('statResults').textContent = '0';
+        }
+    } catch (err) {
+        console.error("Error fetching stats metadata:", err);
+        // Set fallback error indicator
+        document.getElementById('statStudents').textContent = '?';
+        document.getElementById('statPrograms').textContent = '?';
+        document.getElementById('statJudges').textContent = '?';
+        document.getElementById('statTeams').textContent = '?';
+        document.getElementById('statCategories').textContent = '?';
+        document.getElementById('statResults').textContent = '?';
+    }
 }
 
 async function toggleStatus(e) {
@@ -692,6 +876,16 @@ async function toggleStatus(e) {
         btn.disabled = false;
         btn.innerHTML = originalText;
     }
+}
+
+function loginAsAdmin(instId, instName) {
+    sessionStorage.setItem('impersonatedInstituteId', instId);
+    sessionStorage.setItem('impersonatedInstituteName', instName);
+    sessionStorage.setItem('superAdminImpersonating', 'true');
+    showToast(`🔑 Switching to ${instName}...`);
+    setTimeout(() => {
+        window.location.href = './admin-dashboard.html';
+    }, 800);
 }
 
 // ─────────────────────────────────────────────

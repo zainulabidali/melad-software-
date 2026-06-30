@@ -36,6 +36,11 @@
         body.standalone-mode .dashboard-footer {
             margin-left: 0 !important;
         }
+        #returnToSuperAdminBtn:hover {
+            background: rgba(255, 255, 255, 0.35) !important;
+            border-color: #ffffff !important;
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 
@@ -119,6 +124,17 @@
     </aside>
 
     <main class="main-content">
+        <!-- Impersonation Banner (Super Admin Mode) -->
+        <div id="impersonationBanner" class="hidden" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 0.6rem 1.25rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; font-weight: 600; z-index: 1000; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.15); width: 100%; box-sizing: border-box; flex-wrap: wrap; gap: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.2rem;">👁️</span>
+                <span>Currently Viewing: <strong id="impersonatedInstName">[Institute Name]</strong> <span style="background: rgba(255,255,255,0.25); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.05em; margin-left: 4px; text-transform: uppercase;">Super Admin Mode</span></span>
+            </div>
+            <button id="returnToSuperAdminBtn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); border-radius: 8px; padding: 0.4rem 0.9rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; font-size: 0.8rem; font-family: 'Inter', sans-serif;">
+                ← Return to Super Admin
+            </button>
+        </div>
+
         <header class="topbar">
             <div class="topbar-left">
                 <button class="menu-btn" id="mobileMenuBtn" aria-label="Open Menu">☰</button>

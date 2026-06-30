@@ -81,6 +81,17 @@ export async function validateInstituteAccess(user) {
     if (!user) return false;
     
     try {
+        // Fast-path check: Super Admins bypass all constraints to prevent session clearing on expired/deactivated institutes
+        const cachedProfileStr = sessionStorage.getItem('melad_user_profile');
+        if (cachedProfileStr) {
+            try {
+                const cachedProfile = JSON.parse(cachedProfileStr);
+                if (cachedProfile && cachedProfile.role === 'super_admin') {
+                    return true;
+                }
+            } catch (e) {}
+        }
+
         const now = new Date().getTime();
         const cachedUid = sessionStorage.getItem('melad_auth_uid');
         const cachedValidTime = sessionStorage.getItem('melad_last_validated');

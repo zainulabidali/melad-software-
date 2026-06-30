@@ -2408,47 +2408,1407 @@
                 font-size: 16px;
             }
         }
+
+        /* ─────────────────────────────────────────────────────────────
+           REDESIGNED HERO HEADER (PREMIUM EVENT INTERFACE)
+           ───────────────────────────────────────────────────────────── */
+        .header-content-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(20px, 4vw, 40px);
+            width: 100%;
+            max-width: 1100px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 5;
+        }
+
+        .header-logo-container {
+            flex-shrink: 0;
+        }
+
+        .header-logo-circle {
+            width: clamp(90px, 12vw, 130px);
+            height: clamp(90px, 12vw, 130px);
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
+            border: 3px solid rgba(247, 223, 138, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: 
+                0 15px 35px rgba(0, 0, 0, 0.25),
+                0 0 25px rgba(247, 223, 138, 0.2);
+            position: relative;
+        }
+
+        .header-logo-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .header-logo-fallback {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            user-select: none;
+        }
+
+        .header-details-container {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        .event-name {
+            font-family: 'Cinzel', 'Playfair Display', serif;
+            font-weight: 800;
+            color: #f7df8a;
+            margin: 0 0 6px 0;
+            letter-spacing: 1px;
+            line-height: 1.15;
+            text-transform: uppercase;
+            text-shadow: 
+                0 2px 8px rgba(0, 0, 0, 0.5),
+                0 0 25px rgba(247, 223, 138, 0.35);
+            font-size: clamp(24px, 4vw, 48px);
+            word-break: break-word;
+            width: 100%;
+        }
+
+        .event-tagline {
+            font-family: 'Inter', sans-serif;
+            font-size: clamp(12px, 1.8vw, 16px);
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0 0 14px 0;
+            font-style: italic;
+            letter-spacing: 0.5px;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+            line-height: 1.3;
+        }
+
+        .event-meta-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .meta-item {
+            background: rgba(255, 255, 255, 0.07);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            padding: 6px 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: clamp(10px, 1.6vw, 13px);
+            color: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            font-weight: 500;
+        }
+
+        .meta-icon {
+            font-size: 14px;
+            opacity: 0.95;
+        }
+
+        .meta-text {
+            font-family: 'Inter', sans-serif;
+            letter-spacing: 0.3px;
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           CENTERED SEARCH CARD (OVERLAPPING & SINGLE-ROW DESKTOP)
+           ───────────────────────────────────────────────────────────── */
+        .filter-bar {
+            max-width: 900px !important;
+            margin: -45px auto 0 auto !important; /* Pull up to overlap Hero Header */
+            position: relative;
+            z-index: 20;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr auto !important; /* Single row by default */
+            gap: 16px !important;
+            align-items: center !important;
+            padding: 24px 30px !important;
+            background: rgba(255, 255, 255, 0.8) !important;
+            backdrop-filter: blur(25px) !important;
+            -webkit-backdrop-filter: blur(25px) !important;
+            border: 1px solid rgba(16, 120, 80, 0.12) !important;
+            border-radius: 28px !important;
+            box-shadow: 
+                0 25px 60px rgba(0, 0, 0, 0.05),
+                0 0 1px rgba(16, 120, 80, 0.1) !important;
+            box-sizing: border-box !important;
+        }
+
+        .filter-bar .glass-select-container {
+            width: 100% !important;
+            margin: 0 !important;
+        }
+
+        .filter-bar .glass-select-trigger {
+            height: 54px !important;
+            border-radius: 16px !important;
+            background: rgba(255, 255, 255, 0.85) !important;
+            border: 1px solid rgba(16, 120, 80, 0.15) !important;
+            padding: 0 20px !important;
+            font-size: 15px !important;
+            font-weight: 600 !important;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.02) !important;
+            transition: all 0.25s ease !important;
+        }
+
+        .filter-bar .glass-select-trigger:hover {
+            border-color: rgba(16, 120, 80, 0.3) !important;
+            background: #ffffff !important;
+        }
+
+        .filter-bar .btn-search {
+            width: 200px !important; /* Fixed width on desktop/tablet for side-by-side spacing */
+            height: 54px !important;
+            margin: 0 !important;
+            border-radius: 16px !important;
+            font-size: 16px !important;
+            font-weight: 800 !important;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, #059669, #047857) !important;
+            border: 1px solid rgba(255,255,255,0.08) !important;
+            box-shadow: 0 8px 24px rgba(5, 150, 105, 0.25) !important;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            position: relative;
+            overflow: hidden;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
+        }
+
+        .filter-bar .btn-search:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 12px 30px rgba(5, 150, 105, 0.35) !important;
+            background: linear-gradient(135deg, #047857, #065f46) !important;
+        }
+
+        .filter-bar .btn-search:active {
+            transform: translateY(0) scale(0.98) !important;
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           LIVE TEAM CHAMPIONSHIP DASHBOARD (TV DESIGN OPTIMIZED)
+           ───────────────────────────────────────────────────────────── */
+        .championship-section {
+            width: 100%;
+            max-width: 1100px;
+            margin: 40px auto 40px auto;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+            box-sizing: border-box;
+            animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            padding: 0 20px;
+        }
+
+        .championship-header {
+            text-align: center;
+        }
+
+        .championship-badge {
+            display: inline-block;
+            background: rgba(212, 175, 55, 0.08);
+            border: 1px solid rgba(212, 175, 55, 0.22);
+            border-radius: 99px;
+            padding: 6px 16px;
+            font-size: 11px;
+            font-weight: 800;
+            color: #b45309;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.01);
+        }
+
+        .championship-title {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(24px, 4vw, 36px);
+            font-weight: 700;
+            color: #064e3b;
+            margin: 8px 0 4px 0;
+        }
+
+        .championship-subtitle {
+            font-family: 'Inter', sans-serif;
+            font-size: clamp(12px, 1.8vw, 15px);
+            color: #475569;
+            margin: 0;
+            font-weight: 500;
+        }
+
+        /* 3D Sports Podium Ranks (Rank 1, 2, 3) */
+        .championship-podium {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 24px;
+            margin: 30px auto 20px auto;
+            width: 100%;
+            max-width: 950px;
+            box-sizing: border-box;
+        }
+
+        .podium-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border-radius: 28px;
+            padding: 24px;
+            box-shadow: 
+                0 15px 35px rgba(0, 0, 0, 0.02),
+                inset 0 1px 0 #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            width: 31%;
+            min-width: 220px;
+            box-sizing: border-box;
+            animation: cardFadeIn 0.5s ease-out forwards;
+            opacity: 0;
+        }
+
+        .podium-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.06);
+        }
+
+        .podium-card-1st {
+            height: 290px;
+            background: linear-gradient(135deg, rgba(254, 243, 199, 0.95), rgba(255, 251, 235, 0.98)) !important;
+            border: 2px solid rgba(251, 191, 36, 0.45) !important;
+            box-shadow: 
+                0 20px 45px rgba(217, 119, 6, 0.08),
+                inset 0 1px 0 rgba(255,255,255,0.6) !important;
+            z-index: 3;
+            order: 2; /* 1st is center */
+        }
+
+        .podium-card-2nd {
+            height: 250px;
+            background: linear-gradient(135deg, rgba(241, 245, 249, 0.95), rgba(248, 250, 252, 0.98)) !important;
+            border: 1.5px solid rgba(148, 163, 184, 0.35) !important;
+            z-index: 2;
+            order: 1; /* 2nd is left */
+        }
+
+        .podium-card-3rd {
+            height: 230px;
+            background: linear-gradient(135deg, rgba(255, 247, 237, 0.95), rgba(255, 251, 245, 0.98)) !important;
+            border: 1.5px solid rgba(217, 119, 6, 0.3) !important;
+            z-index: 1;
+            order: 3; /* 3rd is right */
+        }
+
+        .podium-rank-circle {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: 900;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+            margin-bottom: 12px;
+        }
+
+        .podium-rank-1st {
+            background: linear-gradient(135deg, #fbbf24, #d97706);
+            color: #ffffff;
+            border: 2px solid #fef3c7;
+        }
+
+        .podium-rank-2nd {
+            background: linear-gradient(135deg, #cbd5e1, #64748b);
+            color: #1e293b;
+            border: 2px solid #f1f5f9;
+        }
+
+        .podium-rank-3rd {
+            background: linear-gradient(135deg, #fdba74, #ea580c);
+            color: #ffffff;
+            border: 2px solid #fff7ed;
+        }
+
+        .podium-crown {
+            position: absolute;
+            top: -12px;
+            left: -8px;
+            font-size: 24px;
+            transform: rotate(-25deg);
+            filter: drop-shadow(0 2px 4px rgba(217, 119, 6, 0.35));
+            animation: crownFloat 2s ease-in-out infinite alternate;
+        }
+
+        .podium-team-title {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 850;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 10px 0;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+        }
+
+        .podium-points {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 2.3rem;
+            font-weight: 900;
+            color: #064e3b;
+            letter-spacing: -1px;
+            line-height: 1;
+            margin-top: 10px;
+        }
+
+        .podium-points-label {
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 800;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+
+        /* Lower ranks list layout */
+        .leaderboard-cards-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            max-width: 950px;
+            margin: 0 auto;
+        }
+
+        .championship-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(16, 120, 80, 0.08);
+            border-radius: 20px;
+            padding: 14px 24px;
+            box-shadow: 
+                0 10px 30px rgba(0, 0, 0, 0.015),
+                inset 0 1px 0 #ffffff;
+            box-sizing: border-box;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: cardFadeIn 0.5s ease-out forwards;
+            opacity: 0;
+        }
+
+        .championship-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(16, 120, 80, 0.18);
+            box-shadow: 0 12px 30px rgba(16, 120, 80, 0.04);
+        }
+
+        .team-info {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        .rank-badge {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            font-weight: 800;
+            position: relative;
+            flex-shrink: 0;
+            font-family: 'Inter', sans-serif;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.04);
+        }
+
+        .rank-badge-other {
+            background: rgba(16, 120, 80, 0.07);
+            color: #064e3b;
+            border: 1px solid rgba(16, 120, 80, 0.1);
+        }
+
+        .team-details-wrap {
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+            overflow: hidden;
+        }
+
+        .team-title {
+            font-family: 'Inter', sans-serif;
+            font-size: clamp(14px, 2.2vw, 17px);
+            font-weight: 800;
+            color: #0f172a;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .points-section {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-shrink: 0;
+        }
+
+        .progress-container {
+            width: clamp(120px, 18vw, 220px);
+            height: 8px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 99px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #059669, #10b981);
+            border-radius: 99px;
+            width: 0;
+            transition: width 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .points-display {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: clamp(15px, 2.5vw, 19px);
+            font-weight: 900;
+            color: #064e3b;
+            min-width: 90px;
+            text-align: right;
+            letter-spacing: -0.5px;
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           MODERN TWO-ROW BACKGROUND CARD SELECTOR GRID
+           ───────────────────────────────────────────────────────────── */
+        .bg-picker-card {
+            max-width: 500px !important;
+            margin: 25px auto 10px auto !important;
+            background: rgba(255, 255, 255, 0.85) !important;
+            backdrop-filter: blur(25px) !important;
+            border-radius: 28px !important;
+            border: 1px solid rgba(16, 120, 80, 0.12) !important;
+            padding: 24px 20px !important;
+            box-sizing: border-box;
+        }
+
+        .bg-picker-title {
+            color: #064e3b !important;
+            font-weight: 800 !important;
+            font-size: 12px !important;
+            letter-spacing: 2px !important;
+            background: rgba(16, 120, 80, 0.06) !important;
+            border: 1px solid rgba(16, 120, 80, 0.1) !important;
+        }
+
+        .thumbnail-list {
+            display: grid !important;
+            grid-template-columns: repeat(5, 1fr) !important;
+            grid-template-rows: repeat(2, auto) !important; /* 2-row grid */
+            gap: 16px !important;
+            overflow-x: visible !important;
+            padding: 8px 0 !important;
+        }
+
+        .thumb {
+            width: 100% !important;
+            height: auto !important;
+            aspect-ratio: 1.4 !important; /* rectangular modern card */
+            border-radius: 14px !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04) !important;
+            border: 2px solid transparent !important;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .thumb img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+            border-radius: 11px !important;
+            transition: transform 0.3s ease !important;
+        }
+
+        .thumb:hover img {
+            transform: scale(1.08) !important;
+        }
+
+        .thumb.active {
+            border-color: #fbbf24 !important;
+            box-shadow: 0 0 15px rgba(251, 191, 36, 0.35) !important;
+            transform: scale(1.03) !important;
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           MOBILE LIVE SCOREBOARD (COMPACT PROGRESS BARS)
+           ───────────────────────────────────────────────────────────── */
+        .mobile-leaderboard-list {
+            display: none;
+            width: 100%;
+            max-width: 440px;
+            margin: 15px auto 0 auto;
+            flex-direction: column;
+            gap: 18px;
+            box-sizing: border-box;
+            padding: 0 10px;
+        }
+
+        .mobile-leaderboard-row {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            gap: 6px;
+            box-sizing: border-box;
+            animation: cardFadeIn 0.4s ease-out forwards;
+            opacity: 0;
+        }
+
+        .mobile-leaderboard-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .mobile-team-name-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 800;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .mobile-rank-medal {
+            font-size: 15px;
+            display: inline-block;
+        }
+
+        .mobile-team-points {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 900;
+            color: #064e3b;
+        }
+
+        .mobile-progress-track {
+            width: 100%;
+            height: 12px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 99px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .mobile-progress-bar {
+            height: 100%;
+            border-radius: 99px;
+            width: 0;
+            transition: width 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           ANIMATION KEYFRAMES
+           ───────────────────────────────────────────────────────────── */
+        @keyframes slideUpFade {
+            from {
+                opacity: 0;
+                transform: translateY(24px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes cardFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(16px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes crownFloat {
+            0% {
+                transform: rotate(-25deg) translateY(0);
+            }
+            100% {
+                transform: rotate(-22deg) translateY(-4px);
+            }
+        }
+
+        .poster-animate-entry {
+            animation: posterScaleIn 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes posterScaleIn {
+            from {
+                opacity: 0;
+                transform: scale(0.92) translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        /* Responsive Layouts & TV/Mobile Leaderboard Toggles */
+        @media (max-width: 768px) {
+            .public-header {
+                padding: 16px 20px !important;
+                border-radius: 24px !important;
+                min-height: auto !important;
+            }
+            .header-content-wrapper {
+                flex-direction: row !important;
+                justify-content: flex-start !important;
+                align-items: center !important;
+                text-align: left !important;
+                gap: 16px !important;
+                width: 100%;
+            }
+            .header-logo-circle {
+                width: clamp(70px, 16vw, 90px) !important;
+                height: clamp(70px, 16vw, 90px) !important;
+                border-width: 2px !important;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+            }
+            .header-details-container {
+                align-items: flex-start !important;
+                text-align: left !important;
+            }
+            .event-name {
+                font-size: clamp(18px, 4.5vw, 24px) !important;
+                margin-bottom: 2px !important;
+                text-align: left !important;
+                text-shadow: none !important;
+            }
+            .event-tagline {
+                display: none !important;
+            }
+            .event-meta-grid {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 2px !important;
+            }
+            .meta-item {
+                background: none !important;
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                color: rgba(255, 255, 255, 0.8) !important;
+                font-size: clamp(11px, 2.8vw, 13px) !important;
+            }
+            .meta-icon {
+                display: none !important;
+            }
+            #metaDate, #metaOrganizer {
+                display: none !important;
+            }
+            .filter-bar {
+                max-width: 440px !important;
+                margin: -25px auto 0 auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 12px !important;
+                padding: 24px 20px !important;
+                border-radius: 24px !important;
+            }
+            .filter-bar .btn-search {
+                width: 100% !important;
+                height: 50px !important;
+                border-radius: 14px !important;
+            }
+            .championship-podium {
+                display: none !important;
+            }
+            .leaderboard-cards-grid {
+                display: none !important;
+            }
+            .mobile-leaderboard-list {
+                display: flex !important;
+            }
+            .thumbnail-list {
+                grid-template-columns: repeat(5, 1fr) !important;
+                gap: 8px !important;
+            }
+        }
+
+        @keyframes ripple {
+            to {
+                transform: scale(2.5);
+                opacity: 0;
+            }
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           VIEWPORT TOGGLES FOR LAYOUT SEPARATION
+           ───────────────────────────────────────────────────────────── */
+        .desktop-layout-wrap {
+            display: block;
+        }
+        .mobile-layout-wrap {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .desktop-layout-wrap {
+                display: none !important;
+            }
+            .mobile-layout-wrap {
+                display: flex !important;
+            }
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           NATIVE MOBILE APP STYLES (≤ 768px viewports)
+           ───────────────────────────────────────────────────────────── */
+        .mobile-layout-wrap {
+            flex-direction: column;
+            width: 100%;
+            max-width: 480px;
+            margin: 0 auto;
+            min-height: 100vh;
+            background: #f8fafc; /* iOS/Android light neutral background */
+            padding-bottom: 40px;
+            box-sizing: border-box;
+        }
+
+        /* App-Style Top Bar */
+        .app-header {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px;
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            gap: 12px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .app-header-logo-wrap {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #fbbf24;
+            box-shadow: 0 2px 6px rgba(251, 191, 36, 0.2);
+        }
+
+        .app-header-logo-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .app-header-logo-fallback {
+            font-size: 20px;
+        }
+
+        .app-header-text-wrap {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .app-event-name {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 15px;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 0;
+            line-height: 1.2;
+            text-transform: uppercase;
+        }
+
+        .app-header-meta {
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 600;
+            margin-top: 2px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .app-meta-sep {
+            color: #cbd5e1;
+        }
+
+        /* Premium Floating Search Card */
+        .app-search-card {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 20px;
+            margin: 16px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            border: 1px solid #f1f5f9;
+        }
+
+        .app-select-trigger {
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            height: 50px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        .app-select-trigger:active {
+            transform: scale(0.98);
+            background: #f1f5f9;
+        }
+
+        .app-select-trigger.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .app-select-icon {
+            font-size: 16px;
+            margin-right: 12px;
+        }
+
+        .app-select-value {
+            flex: 1;
+            font-size: 14px;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        .app-select-chevron {
+            font-size: 10px;
+            color: #94a3b8;
+        }
+
+        .app-btn-search {
+            height: 50px;
+            border: none;
+            background: linear-gradient(135deg, #059669, #047857);
+            color: #ffffff;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .app-btn-search:active {
+            transform: scale(0.97);
+            background: linear-gradient(135deg, #047857, #065f46);
+        }
+
+        /* Bottom Sheets */
+        .bottom-sheet {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1000;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .bottom-sheet.open {
+            display: flex;
+        }
+
+        .bottom-sheet-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.4);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .bottom-sheet.open .bottom-sheet-overlay {
+            opacity: 1;
+        }
+
+        .bottom-sheet-panel {
+            position: relative;
+            width: 100%;
+            max-width: 480px;
+            background: #ffffff;
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            padding: 16px 20px 32px 20px;
+            box-sizing: border-box;
+            transform: translateY(100%);
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.15);
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bottom-sheet.open .bottom-sheet-panel {
+            transform: translateY(0);
+        }
+
+        .bottom-sheet-drag-handle {
+            width: 36px;
+            height: 4px;
+            background: #cbd5e1;
+            border-radius: 2px;
+            margin: 0 auto 12px auto;
+        }
+
+        .bottom-sheet-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .bottom-sheet-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 0;
+        }
+
+        .bottom-sheet-close {
+            background: #f1f5f9;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 18px;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .bottom-sheet-body {
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding-right: 4px;
+        }
+
+        .bottom-sheet-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: #f8fafc;
+            color: #334155;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .bottom-sheet-item:active {
+            background: #cbd5e1;
+        }
+
+        .bottom-sheet-item.selected {
+            background: #ecfdf5;
+            color: #047857;
+            border: 1px solid #10b981;
+        }
+
+        .bottom-sheet-check {
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        /* Scoreboard Layout */
+        .app-championship-section {
+            padding: 0 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .app-championship-header {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .app-badge {
+            align-self: flex-start;
+            padding: 4px 8px;
+            background: #e2e8f0;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 800;
+            color: #475569;
+            letter-spacing: 0.5px;
+        }
+
+        .app-championship-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 0;
+        }
+
+        .app-scoreboard-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+            border: 1px solid #f1f5f9;
+        }
+
+        .app-scoreboard-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            animation: cardFadeIn 0.35s ease-out forwards;
+            opacity: 0;
+        }
+
+        .app-scoreboard-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .app-team-name-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 800;
+            color: #1e293b;
+            text-transform: uppercase;
+        }
+
+        .app-rank-badge {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 800;
+            color: #64748b;
+        }
+
+        .app-rank-badge.rank-1st {
+            background: #fef3c7;
+            color: #b45309;
+        }
+
+        .app-rank-badge.rank-2nd {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .app-rank-badge.rank-3rd {
+            background: #fff7ed;
+            color: #c2410c;
+        }
+
+        .app-team-points {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .app-progress-track {
+            width: 100%;
+            height: 10px;
+            background: #f1f5f9;
+            border-radius: 99px;
+            overflow: hidden;
+        }
+
+        .app-progress-bar {
+            height: 100%;
+            border-radius: 99px;
+            width: 0;
+            transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* Results Container */
+        .app-results-container {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .app-btn-back {
+            align-self: flex-start;
+            height: 40px;
+            border: none;
+            background: #ffffff;
+            color: #64748b;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 0 16px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s ease;
+        }
+
+        .app-btn-back:active {
+            background: #f8fafc;
+            transform: scale(0.98);
+        }
     </style>
 </head>
 
 <body>
     <div class="public-container">
-        <!-- Hero Header -->
-        <div class="public-header" id="headerSection">
-            <div class="header-glow"></div>
-            <h1 class="inst-name" id="madrasaName">Results Portal</h1>
-        </div>
-
-        <!-- Filter Bar -->
-        <div class="filter-bar" id="filterBar" style="display: none;">
-            <!-- Category Filter Custom Dropdown -->
-            <div class="glass-select-container" id="catFilterContainer">
-                <div class="glass-select-trigger" id="catSelectTrigger">
-                    <span class="glass-select-text" id="catSelectedVal">Select Category</span>
-                    <span class="glass-select-arrow">▼</span>
-                </div>
-                <div class="glass-select-panel" id="catSelectPanel">
-                    <!-- Dynamic List Items -->
+        <!-- Desktop/Tablet Presentation Wrapper -->
+        <div class="desktop-layout-wrap">
+            <!-- Hero Header -->
+            <div class="public-header" id="headerSection">
+                <div class="header-glow"></div>
+                <div class="star-particles"></div>
+                <div class="header-content-wrapper">
+                    <div class="header-logo-container">
+                        <div class="header-logo-circle">
+                            <img id="headerLogo" src="" alt="Logo" class="header-logo-img" style="display:none;" crossorigin="anonymous" />
+                            <span id="headerLogoFallback" class="header-logo-fallback">🕌</span>
+                        </div>
+                    </div>
+                    <div class="header-details-container">
+                        <h1 class="event-name" id="headerEventName">RESULTS PORTAL</h1>
+                        <p class="event-tagline" id="headerEventTagline" style="display:none;"></p>
+                        <div class="event-meta-grid">
+                            <div class="meta-item" id="metaMadrasa" style="display:none;">
+                                <span class="meta-icon">🏫</span>
+                                <span class="meta-text" id="headerMadrasaName"></span>
+                            </div>
+                            <div class="meta-item" id="metaLocation" style="display:none;">
+                                <span class="meta-icon">📍</span>
+                                <span class="meta-text" id="headerEventLocation"></span>
+                            </div>
+                            <div class="meta-item" id="metaDate" style="display:none;">
+                                <span class="meta-icon">📅</span>
+                                <span class="meta-text" id="headerEventDate"></span>
+                            </div>
+                            <div class="meta-item" id="metaOrganizer" style="display:none;">
+                                <span class="meta-icon">👤</span>
+                                <span class="meta-text" id="headerOrganizerName"></span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Program Filter Custom Dropdown -->
-            <div class="glass-select-container disabled" id="progFilterContainer">
-                <div class="glass-select-trigger" id="progSelectTrigger">
-                    <span class="glass-select-text" id="progSelectedVal">Select Program</span>
-                    <span class="glass-select-arrow">▼</span>
+            <!-- Filter Bar -->
+            <div class="filter-bar" id="filterBar" style="display: none;">
+                <!-- Category Filter Custom Dropdown -->
+                <div class="glass-select-container" id="catFilterContainer">
+                    <div class="glass-select-trigger" id="catSelectTrigger">
+                        <span class="glass-select-text" id="catSelectedVal">Select Category</span>
+                        <span class="glass-select-arrow">▼</span>
+                    </div>
+                    <div class="glass-select-panel" id="catSelectPanel">
+                        <!-- Dynamic List Items -->
+                    </div>
                 </div>
-                <div class="glass-select-panel" id="progSelectPanel">
-                    <!-- Dynamic List Items -->
+
+                <!-- Program Filter Custom Dropdown -->
+                <div class="glass-select-container disabled" id="progFilterContainer">
+                    <div class="glass-select-trigger" id="progSelectTrigger">
+                        <span class="glass-select-text" id="progSelectedVal">Select Program</span>
+                        <span class="glass-select-arrow">▼</span>
+                    </div>
+                    <div class="glass-select-panel" id="progSelectPanel">
+                        <!-- Dynamic List Items -->
+                    </div>
+                </div>
+
+                <button type="button" class="btn-search" id="btnFilterSearch">🔍 Search Result</button>
+            </div>
+
+            <!-- Live Team Championship Dashboard -->
+            <div id="teamChampionshipSection" class="championship-section" style="display: none;">
+                <div class="championship-header">
+                    <span class="championship-badge">🏆 EVENT STANDINGS</span>
+                    <h2 class="championship-title">Live Team Championship</h2>
+                    <p class="championship-subtitle">Real-time point tallies across all programs</p>
+                </div>
+                
+                <!-- Staggered 3D Podium for Top 3 Ranks -->
+                <div id="teamPodiumContainer" class="championship-podium">
+                    <!-- Top 3 podium cards rendered dynamically -->
+                </div>
+
+                <!-- Lower ranking team list -->
+                <div id="teamLeaderboardContainer" class="leaderboard-cards-grid">
+                    <!-- Remaining team lists rendered dynamically -->
                 </div>
             </div>
 
-            <button type="button" class="btn-search" id="btnFilterSearch">Search</button>
+            <!-- Results Grid -->
+            <div id="resultsList" style="display: none;"></div>
         </div>
 
+        <!-- Redesigned Mobile-First Native App Layout (Hidden on Desktop) -->
+        <div class="mobile-layout-wrap">
+            <!-- App-style Header -->
+            <div class="app-header">
+                <div class="app-header-logo-wrap">
+                    <img id="mobHeaderLogo" src="" alt="Logo" class="app-header-logo-img" style="display:none;" crossorigin="anonymous" />
+                    <span id="mobHeaderLogoFallback" class="app-header-logo-fallback">🕌</span>
+                </div>
+                <div class="app-header-text-wrap">
+                    <h1 class="app-event-name" id="mobHeaderEventName">RESULTS PORTAL</h1>
+                    <div class="app-header-meta">
+                        <span id="mobHeaderMadrasaName"></span>
+                        <span class="app-meta-sep">•</span>
+                        <span id="mobHeaderEventLocation"></span>
+                    </div>
+                </div>
+            </div>
 
-        <!-- Results Grid -->
-        <div id="resultsList"></div>
+            <!-- Floating Premium Search Card -->
+            <div class="app-search-card" id="mobFilterBar" style="display: none;">
+                <div class="app-select-trigger" id="mobCatSelectTrigger">
+                    <span class="app-select-icon">📁</span>
+                    <span class="app-select-value" id="mobCatSelectedVal">Select Category</span>
+                    <span class="app-select-chevron">▼</span>
+                </div>
+
+                <div class="app-select-trigger disabled" id="mobProgSelectTrigger">
+                    <span class="app-select-icon">📖</span>
+                    <span class="app-select-value" id="mobProgSelectedVal">Select Program</span>
+                    <span class="app-select-chevron">▼</span>
+                </div>
+
+                <button type="button" class="app-btn-search" id="mobBtnFilterSearch">SEARCH</button>
+            </div>
+
+            <!-- Mobile Live Scoreboard / Team Standings -->
+            <div class="app-championship-section" id="mobChampionshipSection" style="display: none;">
+                <div class="app-championship-header">
+                    <div class="app-badge">🏆 EVENT SCOREBOARD</div>
+                    <h2 class="app-championship-title">Live Standings</h2>
+                </div>
+                <div id="mobLeaderboardContainer" class="app-scoreboard-list">
+                    <!-- Progress bars render dynamically -->
+                </div>
+            </div>
+
+            <!-- Mobile Results Poster View Container -->
+            <div class="app-results-container" id="mobResultsList" style="display: none;">
+                <!-- Back to scoreboard button -->
+                <button type="button" class="app-btn-back" id="mobBtnBackToStandings">⬅ Back to Standings</button>
+                <div id="mobPosterRoot"></div>
+            </div>
+
+            <!-- Mobile Custom Bottom Sheets -->
+            <!-- Category Bottom Sheet -->
+            <div class="bottom-sheet" id="mobCatBottomSheet">
+                <div class="bottom-sheet-overlay" id="mobCatOverlay"></div>
+                <div class="bottom-sheet-panel">
+                    <div class="bottom-sheet-drag-handle"></div>
+                    <div class="bottom-sheet-header">
+                        <h3 class="bottom-sheet-title">Select Category</h3>
+                        <button class="bottom-sheet-close" id="mobCatCloseBtn">&times;</button>
+                    </div>
+                    <div class="bottom-sheet-body" id="mobCatOptionsList">
+                        <!-- Categories dynamic items -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Program Bottom Sheet -->
+            <div class="bottom-sheet" id="mobProgBottomSheet">
+                <div class="bottom-sheet-overlay" id="mobProgOverlay"></div>
+                <div class="bottom-sheet-panel">
+                    <div class="bottom-sheet-drag-handle"></div>
+                    <div class="bottom-sheet-header">
+                        <h3 class="bottom-sheet-title">Select Program</h3>
+                        <button class="bottom-sheet-close" id="mobProgCloseBtn">&times;</button>
+                    </div>
+                    <div class="bottom-sheet-body" id="mobProgOptionsList">
+                        <!-- Programs dynamic items -->
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Template Picker Modal -->
@@ -2478,7 +3838,7 @@
         </div>
     </div>
 
-    <script type="module" src="../js/public-results.js"></script>
+    <script type="module" src="../js/public-results.js?v=1.0.2"></script>
 </body>
 
 </html>

@@ -594,6 +594,113 @@
             transform: translateY(-1px);
         }
 
+        .btn-action-login {
+            background: #f5f3ff;
+            color: #7c3aed;
+            border-color: #ddd6fe;
+        }
+
+        .btn-action-login:hover {
+            background: #ede9fe;
+            color: #6d28d9;
+            transform: translateY(-1px);
+        }
+
+        /* ── Three-Dot Dropdown Menu ── */
+        .action-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-trigger {
+            background: none;
+            border: none;
+            font-size: 1.25rem;
+            padding: 0.5rem;
+            cursor: pointer;
+            color: #64748b;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .dropdown-trigger:hover {
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            min-width: 180px;
+            z-index: 50;
+            display: none;
+            flex-direction: column;
+            padding: 0.5rem 0;
+            animation: fadeIn 0.15s ease-out;
+        }
+
+        .dropdown-menu.show {
+            display: flex;
+        }
+
+        .dropdown-item {
+            padding: 0.6rem 1rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #334155;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-align: left;
+            background: none;
+            border: none;
+            width: 100%;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .dropdown-item:hover {
+            background: #f8fafc;
+            color: #0f172a;
+        }
+
+        .dropdown-item.text-danger {
+            color: #dc2626;
+        }
+
+        .dropdown-item.text-danger:hover {
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (min-width: 768px) {
+            .table-responsive {
+                overflow: visible !important;
+            }
+        }
+
         /* ── Pagination Styling ── */
         .pagination-bar {
             display: flex;
@@ -648,7 +755,7 @@
 
         /* ── Institute Details Drawer / Modal Styling ── */
         .details-modal {
-            max-width: 680px !important;
+            max-width: 800px !important;
             width: 92% !important;
         }
 
@@ -817,11 +924,12 @@
                     <table class="premium-table" id="institutesTable">
                         <thead>
                             <tr>
-                                <th class="inst-table-th" data-sort="name">Institute / Madrasa Name <span class="sort-icon">⇅</span></th>
-                                <th class="inst-table-th" data-sort="district">Location / District <span class="sort-icon">⇅</span></th>
-                                <th>Contact Number</th>
+                                <th class="inst-table-th" data-sort="name">Institute Name <span class="sort-icon">⇅</span></th>
+                                <th class="inst-table-th" data-sort="district">Location <span class="sort-icon">⇅</span></th>
+                                <th>Email Address</th>
+                                <th class="inst-table-th" data-sort="date_desc">Registration Date <span class="sort-icon">⇅</span></th>
+                                <th class="inst-table-th" data-sort="expiry">Expiry Date <span class="sort-icon">⇅</span></th>
                                 <th class="inst-table-th" data-sort="status">Status <span class="sort-icon">⇅</span></th>
-                                <th class="inst-table-th" data-sort="expiry">Subscription Expiry <span class="sort-icon">⇅</span></th>
                                 <th style="text-align: right;">Actions</th>
                             </tr>
                         </thead>
@@ -991,6 +1099,7 @@
                 </div>
             </div>
         </div>
+    </div>
     <!-- View Institute Details Modal -->
     <div class="modal-overlay hidden" id="viewModal">
         <div class="modal details-modal">
