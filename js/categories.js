@@ -158,6 +158,7 @@ function renderCategoriesUI() {
             <div class="categories-table-header">
                 <div>Category Name</div>
                 <div>Classes</div>
+                <div>Chest Range</div>
                 <div class="category-desc-header-item">Description</div>
                 <div>Students</div>
                 <div>Programs</div>
@@ -180,6 +181,10 @@ function renderCategoriesUI() {
                </div>`
             : '<span style="color:#94a3b8; font-size:0.85rem; font-style:italic;">No classes</span>';
 
+        const chestRangeText = (cat.chestStart !== undefined && cat.chestStart !== null && cat.chestEnd !== undefined && cat.chestEnd !== null)
+            ? `Chest No: ${cat.chestStart} – ${cat.chestEnd}`
+            : '—';
+
         tableHTML += `
             <div class="category-row">
                 <div class="category-name-cell">
@@ -187,6 +192,9 @@ function renderCategoriesUI() {
                 </div>
                 <div>
                     ${classesHTML}
+                </div>
+                <div class="category-chest-range-cell" style="font-weight: 700; color: #475569; font-size: 0.8rem;">
+                    ${window.escapeHTML(chestRangeText)}
                 </div>
                 <div class="category-desc-cell">
                     ${window.escapeHTML(cat.description || "No description")}

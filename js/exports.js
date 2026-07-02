@@ -636,8 +636,11 @@ function renderHistoryLogs() {
                 <td style="color:#475569; font-weight:700; text-align:center;">${window.escapeHTML(generatedBy)}</td>
                 <td style="text-align:center;">${getStatusBadge(exp.status)}</td>
                 <td style="text-align:center;">
-                    <div class="exp-action-btn-cluster">
-                        <button type="button" class="btn btn-download-exp" data-id="${exp.id}" ${canDownload ? '' : 'disabled'} style="background:${canDownload ? '#f0fdf4' : '#f8fafc'}; color:${canDownload ? '#16a34a' : '#94a3b8'}; border:1px solid ${canDownload ? '#bbf7d0' : '#cbd5e1'}; cursor:${canDownload ? 'pointer' : 'not-allowed'};">
+                    <div class="exp-action-btn-cluster" style="display:flex; justify-content:center; gap:0.25rem;">
+                        <button type="button" class="btn btn-print-exp" data-id="${exp.id}" ${canDownload ? '' : 'disabled'} style="background:${canDownload ? '#eff6ff' : '#f8fafc'}; color:${canDownload ? '#1d4ed8' : '#94a3b8'}; border:1px solid ${canDownload ? '#93c5fd' : '#cbd5e1'}; cursor:${canDownload ? 'pointer' : 'not-allowed'}; font-weight:700;">
+                            🖨️ Print
+                        </button>
+                        <button type="button" class="btn btn-download-exp" data-id="${exp.id}" ${canDownload ? '' : 'disabled'} style="background:${canDownload ? '#f0fdf4' : '#f8fafc'}; color:${canDownload ? '#16a34a' : '#94a3b8'}; border:1px solid ${canDownload ? '#bbf7d0' : '#cbd5e1'}; cursor:${canDownload ? 'pointer' : 'not-allowed'}; font-weight:700;">
                             📥 Download
                         </button>
                         ${canRetry ? `
@@ -687,9 +690,14 @@ function renderHistoryLogs() {
                     </div>
                 </div>
                 <div class="exp-mobile-actions">
-                    <button type="button" class="btn btn-download-exp" data-id="${exp.id}" ${canDownload ? '' : 'disabled'} style="width:100%; background:${canDownload ? '#f0fdf4' : '#f8fafc'}; color:${canDownload ? '#16a34a' : '#94a3b8'}; border:1px solid ${canDownload ? '#bbf7d0' : '#cbd5e1'}; cursor:${canDownload ? 'pointer' : 'not-allowed'}; font-weight:700; border-radius:8px;">
-                        Download
-                    </button>
+                    <div style="display:flex; gap:0.35rem; width:100%;">
+                        <button type="button" class="btn btn-print-exp" data-id="${exp.id}" ${canDownload ? '' : 'disabled'} style="width:100%; background:${canDownload ? '#eff6ff' : '#f8fafc'}; color:${canDownload ? '#1d4ed8' : '#94a3b8'}; border:1px solid ${canDownload ? '#93c5fd' : '#cbd5e1'}; cursor:${canDownload ? 'pointer' : 'not-allowed'}; font-weight:700; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; gap:0.25rem;">
+                            Print
+                        </button>
+                        <button type="button" class="btn btn-download-exp" data-id="${exp.id}" ${canDownload ? '' : 'disabled'} style="width:100%; background:${canDownload ? '#f0fdf4' : '#f8fafc'}; color:${canDownload ? '#16a34a' : '#94a3b8'}; border:1px solid ${canDownload ? '#bbf7d0' : '#cbd5e1'}; cursor:${canDownload ? 'pointer' : 'not-allowed'}; font-weight:700; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; gap:0.25rem;">
+                            Download
+                        </button>
+                    </div>
                     ${canRetry ? `
                     <button type="button" class="btn btn-retry-exp" data-id="${exp.id}" style="width:100%; background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd; cursor:pointer; font-weight:700; border-radius:8px;">
                         Retry
@@ -706,11 +714,19 @@ function renderHistoryLogs() {
     }).join('');
 
     // Bind triggers on both lists
+    document.querySelectorAll('.btn-print-exp').forEach(btn => {
+        btn.onclick = () => {
+            const id = btn.getAttribute('data-id');
+            const exp = exportsList.find(x => x.id === id);
+            if (exp) triggerDownload(exp, false);
+        };
+    });
+
     document.querySelectorAll('.btn-download-exp').forEach(btn => {
         btn.onclick = () => {
             const id = btn.getAttribute('data-id');
             const exp = exportsList.find(x => x.id === id);
-            if (exp) triggerDownload(exp);
+            if (exp) triggerDownload(exp, true);
         };
     });
 
@@ -1358,7 +1374,7 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
 // ─────────────────────────────────────────────
 // Dynamic Compilation & Download Router
 // ─────────────────────────────────────────────
-async function triggerDownload(exp) {
+async function triggerDownload(exp, isDownload = false) {
     window.showToast(`Loading data for ${exp.fileName}...`, "info");
     const instId = window.currentInstituteId;
 
@@ -1385,7 +1401,7 @@ async function triggerDownload(exp) {
             if (f.format === 'csv') {
                 compileCSV(exp, f, [], [], {}, studentMap);
             } else {
-                compilePDF(exp, f, [], [], {}, studentMap);
+                compilePDF(exp, f, [], [], {}, studentMap, isDownload);
             }
             return;
         }
@@ -1450,7 +1466,7 @@ async function triggerDownload(exp) {
         if (f.format === 'csv') {
             compileCSV(exp, f, programs, resultsList, participantsMap, studentMap);
         } else {
-            compilePDF(exp, f, programs, resultsList, participantsMap, studentMap);
+            compilePDF(exp, f, programs, resultsList, participantsMap, studentMap, isDownload);
         }
 
     } catch (err) {
@@ -1476,10 +1492,22 @@ function getProgramExportLabel(p) {
     return `${numStr}${p.programName} (${typeLabel} • ${locLabel})`;
 }
 
+// Dynamic script loader for html2pdf
+async function loadHtml2Pdf() {
+    if (window.html2pdf) return window.html2pdf;
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        script.onload = () => resolve(window.html2pdf);
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
 // ─────────────────────────────────────────────
 // PDF Dynamic Document Compiler (Iframe Printing)
 // ─────────────────────────────────────────────
-async function compilePDF(exp, f, programs, resultsList, participantsMap, studentMap = {}) {
+async function compilePDF(exp, f, programs, resultsList, participantsMap, studentMap = {}, isDownload = false) {
     let htmlContent = '';
     const orientation = f.orientation || 'portrait';
 
@@ -1994,10 +2022,32 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             `);
             doc.close();
 
-            setTimeout(() => {
-                printIframe.contentWindow.focus();
-                printIframe.contentWindow.print();
-            }, 300);
+            if (isDownload) {
+                setTimeout(async () => {
+                    try {
+                        window.showToast("Preparing PDF download...", "info");
+                        const html2pdf = await loadHtml2Pdf();
+                        const opt = {
+                            margin:       10,
+                            filename:     exp.fileName || 'export.pdf',
+                            image:        { type: 'jpeg', quality: 0.98 },
+                            html2canvas:  { scale: 1.5, useCORS: true },
+                            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+                        };
+                        const element = doc.body;
+                        html2pdf().set(opt).from(element).save();
+                    } catch (err) {
+                        console.error("PDF generation failed, falling back to print dialog:", err);
+                        printIframe.contentWindow.focus();
+                        printIframe.contentWindow.print();
+                    }
+                }, 500);
+            } else {
+                setTimeout(() => {
+                    printIframe.contentWindow.focus();
+                    printIframe.contentWindow.print();
+                }, 300);
+            }
             return;
         }
 
@@ -3802,11 +3852,32 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
     `);
     doc.close();
 
-    // Small timeout delay ensures document renders completely before starting printing dialogue
-    setTimeout(() => {
-        printIframe.contentWindow.focus();
-        printIframe.contentWindow.print();
-    }, 300);
+    if (isDownload) {
+        setTimeout(async () => {
+            try {
+                window.showToast("Preparing PDF download...", "info");
+                const html2pdf = await loadHtml2Pdf();
+                const opt = {
+                    margin:       10,
+                    filename:     exp.fileName || 'export.pdf',
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 1.5, useCORS: true },
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: orientation || 'portrait' }
+                };
+                const element = doc.body;
+                html2pdf().set(opt).from(element).save();
+            } catch (err) {
+                console.error("PDF generation failed, falling back to print dialog:", err);
+                printIframe.contentWindow.focus();
+                printIframe.contentWindow.print();
+            }
+        }, 500);
+    } else {
+        setTimeout(() => {
+            printIframe.contentWindow.focus();
+            printIframe.contentWindow.print();
+        }, 300);
+    }
 }
 
 // ─────────────────────────────────────────────
