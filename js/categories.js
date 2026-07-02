@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata } from './firebase.js';
+import { db, updateDashboardMetadata, invalidateCategoriesCache, sortCategories } from './firebase.js';
 import { collection, getDocs, doc, updateDoc, onSnapshot, serverTimestamp, writeBatch, query, where, setDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 let unsubscribeCategories = null;
@@ -96,7 +96,8 @@ function startRealtimeSync() {
 
     // 1. Listen to Categories
     unsubscribeCategories = onSnapshot(catRef, (snap) => {
-        localCategories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const rawCats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        localCategories = sortCategories(rawCats);
         window.cachedCategories = { data: localCategories, lastFetched: Date.now() };
         categoriesLoaded = true;
         checkAndRender();
@@ -426,7 +427,7 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
                 window.showToast('Category created successfully.');
             }
             await updateDashboardMetadata(window.currentInstituteId);
-            window.cachedCategories = null;
+            invalidateCategoriesCache(window.currentInstituteId);
             modalOverlay.classList.add('hidden');
         } catch (error) {
             console.error('Error saving category:', error);
@@ -496,7 +497,7 @@ async function deleteCategory(catId) {
 
         await batch.commit();
         await updateDashboardMetadata(window.currentInstituteId);
-        window.cachedCategories = null;
+        invalidateCategoriesCache(instId);
         window.showToast('Category and all related records deleted successfully.');
     } catch (error) {
         window.handleError(error, 'deleting category');

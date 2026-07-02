@@ -687,7 +687,23 @@ function setupFilters() {
     }
 
     // Load categories dynamically
-    const categories = [...new Set(allResults.map(r => r.categoryName))].sort();
+    const getCategorySortStats = (name) => {
+        const n = (name || '').toLowerCase().trim();
+        if (n.includes('play')) return -4;
+        if (n.includes('nursery')) return -3;
+        if (n.includes('lkg')) return -2;
+        if (n.includes('ukg')) return -1;
+        const m = n.match(/class\s*(\d+)/i) || n.match(/std\s*(\d+)/i) || n.match(/standard\s*(\d+)/i) || n.match(/(\d+)/);
+        if (m) return parseInt(m[1], 10);
+        return 999;
+    };
+
+    const categories = [...new Set(allResults.map(r => r.categoryName))].sort((a, b) => {
+        const valA = getCategorySortStats(a);
+        const valB = getCategorySortStats(b);
+        if (valA !== valB) return valA - valB;
+        return (a || '').localeCompare(b || '');
+    });
 
     const selectCategory = (c) => {
         selectedCategory = c;

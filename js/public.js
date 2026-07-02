@@ -110,6 +110,26 @@ function subscribeToResults() {
     });
 }
 
+function getCategorySortStats(name) {
+    const n = (name || '').toLowerCase().trim();
+    if (n.includes('play')) return -4;
+    if (n.includes('nursery')) return -3;
+    if (n.includes('lkg')) return -2;
+    if (n.includes('ukg')) return -1;
+    const m = n.match(/class\s*(\d+)/i) || n.match(/std\s*(\d+)/i) || n.match(/standard\s*(\d+)/i) || n.match(/(\d+)/);
+    if (m) return parseInt(m[1], 10);
+    return 999;
+}
+
+function sortCategories(categories) {
+    return categories.sort((a, b) => {
+        const valA = getCategorySortStats(a.name);
+        const valB = getCategorySortStats(b.name);
+        if (valA !== valB) return valA - valB;
+        return (a.name || '').localeCompare(b.name || '');
+    });
+}
+
 // ─────────────────────────────────────────────
 // Populate Category select from results data
 // ─────────────────────────────────────────────
@@ -121,9 +141,16 @@ function populateCategorySelect() {
         }
     });
 
-    let opts = '<option value="">— All Categories —</option>';
+    let catArray = [];
     uniqueCats.forEach((name, id) => {
-        opts += `<option value="${id}">${window.escapeHTML(name)}</option>`;
+        catArray.push({ id, name });
+    });
+
+    sortCategories(catArray);
+
+    let opts = '<option value="">— All Categories —</option>';
+    catArray.forEach(c => {
+        opts += `<option value="${c.id}">${window.escapeHTML(c.name)}</option>`;
     });
     catSelect.innerHTML = opts;
     catSelect.disabled = uniqueCats.size === 0;

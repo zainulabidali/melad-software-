@@ -783,6 +783,7 @@ function renderDrawerContent() {
     if (!body) return;
 
     let catOptions = '<option value="">All Categories</option>';
+    catOptions += '<option value="general_programs">⭐ General Programs</option>';
     allCategories.forEach(c => {
         catOptions += `<option value="${c.id}">${window.escapeHTML(c.name)}</option>`;
     });
@@ -881,6 +882,27 @@ function renderDrawerContent() {
                                 <option value="">All Classes</option>
                             </select>
                         </div>
+                    </div>
+
+                    <!-- Program Location (Stage / Off Stage) filter -->
+                    <div id="expLocationFilterContainer" style="display:none; flex-direction:column; gap:0.45rem;">
+                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">PROGRAM LOCATION</label>
+                        <select id="expLocationFilter" class="exp-input" style="background:#fff;">
+                            <option value="">All Locations</option>
+                            <option value="Stage">Stage Programs</option>
+                            <option value="Off Stage">Off Stage Programs</option>
+                        </select>
+                    </div>
+
+                    <!-- Program Type (Individual / Group / General) filter -->
+                    <div id="expParticipationFilterContainer" style="display:none; flex-direction:column; gap:0.45rem;">
+                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">PROGRAM TYPE / PARTICIPATION</label>
+                        <select id="expParticipationFilter" class="exp-input" style="background:#fff;">
+                            <option value="">All Program Types</option>
+                            <option value="individual">Individual Programs</option>
+                            <option value="group">Group Programs</option>
+                            <option value="general">General Programs</option>
+                        </select>
                     </div>
 
                     <!-- Program selection (Cascading) -->
@@ -999,12 +1021,17 @@ function renderDrawerContent() {
 
             selectedType = card.getAttribute('data-type');
 
+            const locCont = document.getElementById('expLocationFilterContainer');
+            const partCont = document.getElementById('expParticipationFilterContainer');
+
             if (selectedType === 'Results') {
                 resultsSourceContainer.style.display = 'flex';
                 subOptionsContainer.style.display = 'flex';
                 paperPackingContainer.style.display = 'none';
                 chestListSortContainer.style.display = 'none';
                 expProgFilterContainer.style.display = 'block';
+                if (locCont) locCont.style.display = 'none';
+                if (partCont) partCont.style.display = 'none';
             } else if (selectedType === 'Valuation Sheet') {
                 resultsSourceContainer.style.display = 'none';
                 subOptionsContainer.style.display = 'none';
@@ -1012,18 +1039,24 @@ function renderDrawerContent() {
                 packingHint.textContent = "Automatically packing exactly 4 Valuation sheets per A4 page in a 2x2 grid (75% paper savings).";
                 chestListSortContainer.style.display = 'none';
                 expProgFilterContainer.style.display = 'block';
+                if (locCont) locCont.style.display = 'none';
+                if (partCont) partCont.style.display = 'none';
             } else if (selectedType === 'Chest Number List') {
                 resultsSourceContainer.style.display = 'none';
                 subOptionsContainer.style.display = 'none';
                 paperPackingContainer.style.display = 'none';
                 chestListSortContainer.style.display = 'flex';
                 expProgFilterContainer.style.display = 'none';
+                if (locCont) locCont.style.display = 'none';
+                if (partCont) partCont.style.display = 'none';
             } else if (selectedType === 'Program Participation Register') {
                 resultsSourceContainer.style.display = 'none';
                 subOptionsContainer.style.display = 'none';
                 paperPackingContainer.style.display = 'none';
-                chestListSortContainer.style.display = 'flex';
+                chestListSortContainer.style.display = 'none'; // REMOVED SORT BY
                 expProgFilterContainer.style.display = 'none';
+                if (locCont) locCont.style.display = 'flex';
+                if (partCont) partCont.style.display = 'flex';
                 document.getElementById('expOrientation').value = 'landscape';
             } else {
                 resultsSourceContainer.style.display = 'none';
@@ -1032,6 +1065,8 @@ function renderDrawerContent() {
                 packingHint.textContent = "Combine multiple programs continuously to avoid wasting paper on blank space.";
                 chestListSortContainer.style.display = 'none';
                 expProgFilterContainer.style.display = 'block';
+                if (locCont) locCont.style.display = 'none';
+                if (partCont) partCont.style.display = 'none';
             }
         };
     });
@@ -1042,7 +1077,7 @@ function renderDrawerContent() {
         expClassFilter.innerHTML = '<option value="">All Classes</option>';
         expClassFilter.disabled = true;
 
-        if (catId) {
+        if (catId && catId !== 'general_programs') {
             const cat = allCategories.find(c => c.id === catId);
             if (cat && cat.classes) {
                 cat.classes.forEach(c => {
@@ -1084,7 +1119,7 @@ function renderDrawerContent() {
         btn.textContent = 'Queuing Export...';
 
         const categoryId = expCatFilter.value;
-        const categoryName = categoryId ? allCategories.find(c => c.id === categoryId)?.name : 'All';
+        const categoryName = categoryId === 'general_programs' ? 'General' : (categoryId ? allCategories.find(c => c.id === categoryId)?.name : 'All');
         const classId = expClassFilter.value;
         const className = classId ? allCategories.find(c => c.id === categoryId)?.classes.find(cls => cls.id === classId)?.name : '';
         const programId = expProgFilter.value;
@@ -1099,7 +1134,9 @@ function renderDrawerContent() {
         const srcIncludeSubmitted = selectedType === 'Results' && document.getElementById('srcIncludeSubmitted').checked;
         const srcIncludeDraft = selectedType === 'Results' && document.getElementById('srcIncludeDraft').checked;
         const compactPacking = selectedType === 'Results' ? true : document.getElementById('expCompactPacking').checked;
-        const chestSort = (selectedType === 'Chest Number List' || selectedType === 'Program Participation Register') ? document.getElementById('expChestSortVal').value : 'chest';
+        const chestSort = selectedType === 'Chest Number List' ? document.getElementById('expChestSortVal').value : 'chest';
+        const programLocation = selectedType === 'Program Participation Register' ? document.getElementById('expLocationFilter').value : '';
+        const participationType = selectedType === 'Program Participation Register' ? document.getElementById('expParticipationFilter').value : '';
 
         // Visual Validation Flow: alert if search parameters yield 0 matching programs (Phase 2 validation)
         let filteredProgs = [...allPrograms];
@@ -1110,6 +1147,16 @@ function renderDrawerContent() {
                 if (categoryId && p.categoryId !== categoryId) return false;
                 if (classId && p.classId !== classId) return false;
                 if (gender && p.genderCategory !== gender) return false;
+                if (programLocation && p.programLocation !== programLocation) return false;
+                if (participationType) {
+                    if (participationType === 'general') {
+                        if (p.categoryId !== 'general_programs' && p.programType !== 'general') return false;
+                    } else if (participationType === 'group') {
+                        if (p.programType !== 'group') return false;
+                    } else if (participationType === 'individual') {
+                        if (p.programType !== 'individual') return false;
+                    }
+                }
                 return true;
             });
         }
@@ -1160,7 +1207,9 @@ function renderDrawerContent() {
                     srcIncludeSubmitted,
                     srcIncludeDraft,
                     compactPacking,
-                    chestSort
+                    chestSort,
+                    programLocation,
+                    participationType
                 }
             };
 
@@ -1317,7 +1366,7 @@ async function triggerDownload(exp) {
         const f = exp.filters;
         if (!f) throw new Error("Filters parameters are missing.");
 
-        if (f.type === 'Chest Number List' || f.type === 'Program Participation Register') {
+        if (f.type === 'Chest Number List') {
             let studentMap = {};
             try {
                 const studentsSnap = await getDocs(collection(db, "institutes", instId, "students"));
@@ -1350,6 +1399,16 @@ async function triggerDownload(exp) {
                 if (f.categoryId && p.categoryId !== f.categoryId) return false;
                 if (f.classId && p.classId && p.classId !== f.classId) return false;
                 if (f.gender && p.genderCategory !== f.gender) return false;
+                if (f.programLocation && p.programLocation !== f.programLocation) return false;
+                if (f.participationType) {
+                    if (f.participationType === 'general') {
+                        if (p.categoryId !== 'general_programs' && p.programType !== 'general') return false;
+                    } else if (f.participationType === 'group') {
+                        if (p.programType !== 'group') return false;
+                    } else if (f.participationType === 'individual') {
+                        if (p.programType !== 'individual') return false;
+                    }
+                }
                 return true;
             });
         }
@@ -1398,6 +1457,23 @@ async function triggerDownload(exp) {
         console.error("Compilation error:", err);
         window.showToast(`Unable to download: ${err.message || err}`, "error");
     }
+}
+
+// Helper to construct verbose program labels for exports
+function getProgramExportLabel(p) {
+    const numStr = p.programNumber ? `${p.programNumber} – ` : '';
+    
+    // Determine type label
+    let typeLabel = 'Individual';
+    if (p.categoryId === 'general_programs' || p.programType === 'general') {
+        typeLabel = 'General';
+    } else if (p.programType === 'group') {
+        typeLabel = 'Group';
+    }
+
+    const locLabel = p.programLocation || p.location || 'Stage';
+    
+    return `${numStr}${p.programName} (${typeLabel} • ${locLabel})`;
 }
 
 // ─────────────────────────────────────────────
@@ -1495,13 +1571,17 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 groups[catId].classes[classId].teams[teamId].students.push(stu);
             });
 
-            const sortedCatIds = Object.keys(groups).sort((a, b) => groups[a].name.localeCompare(groups[b].name));
+            const sortedCatIds = Object.keys(groups).sort((a, b) => {
+                const idxA = allCategories.findIndex(c => c.id === a);
+                const idxB = allCategories.findIndex(c => c.id === b);
+                return idxA - idxB;
+            });
             const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
             const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
 
             sortedCatIds.forEach(catId => {
                 const cat = groups[catId];
-                const sortedClassIds = Object.keys(cat.classes).sort((a, b) => cat.classes[a].name.localeCompare(cat.classes[b].name));
+                const sortedClassIds = Object.keys(cat.classes).sort((a, b) => cat.classes[a].name.localeCompare(cat.classes[b].name, undefined, { numeric: true }));
 
                 sortedClassIds.forEach(classId => {
                     const cls = cat.classes[classId];
@@ -1512,42 +1592,39 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         const students = team.students;
 
                         htmlContent += `
-                            <div class="${pageDivClass}" style="margin-bottom: 1.5rem; page-break-inside: avoid; break-inside: avoid;">
-                                <div class="report-header" style="margin-bottom: 0.75rem;">
+                            <div class="${pageDivClass}" style="margin-bottom: 1rem; page-break-inside: avoid; break-inside: avoid;">
+                                <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #000; padding-bottom:0.35rem; margin-bottom:0.6rem; width:100%;">
                                     <div>
-                                        <div class="report-title">${window.escapeHTML(instName)}</div>
-                                        <h2 style="margin-top:0.3rem; margin-bottom:0.1rem; color:#1e1b4b; font-size:1.3rem;">🎫 CHEST NUMBER LIST</h2>
-                                        <div style="font-size:0.75rem; font-weight:700; color:#4338ca;">
-                                            CATEGORY: ${window.escapeHTML(cat.name)} · 
-                                            CLASS: ${window.escapeHTML(cls.name)} · 
-                                            TEAM: ${window.escapeHTML(team.name)}
-                                            ${f.gender ? `· GENDER: ${window.escapeHTML(f.gender.toUpperCase())}` : ''}
+                                        <div class="report-title" style="font-size:0.75rem; font-weight:800; color:#555; text-transform:uppercase; letter-spacing:0.05em;">${window.escapeHTML(instName).toUpperCase()}</div>
+                                        <h2 style="margin:0.15rem 0; color:#000; font-size:1.15rem; font-weight:800; text-transform:uppercase;">CHEST NUMBER LIST</h2>
+                                        <div style="font-size:0.7rem; font-weight:700; color:#666; text-transform:uppercase;">
+                                            ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(cls.name).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}${f.gender ? ` • ${window.escapeHTML(f.gender.toUpperCase())}` : ''}
                                         </div>
                                     </div>
-                                    <div style="text-align:right;">
-                                        <span style="font-size:0.65rem; font-weight:800; color:#64748b; text-transform:uppercase; display:block;">Total Participants</span>
-                                        <span style="font-weight:900; font-size:1.15rem; color:#1e1b4b;">${students.length} entries</span>
+                                    <div style="text-align:right; font-weight:800; color:#000; line-height:1.2;">
+                                        <div style="font-size:0.68rem; color:#666; text-transform:uppercase;">TOTAL ENTRIES</div>
+                                        <div style="font-size:0.95rem;">${students.length} STUDENTS</div>
                                     </div>
                                 </div>
 
                                 <table class="report-table" style="margin-top: 0.5rem; width:100%;">
                                     <thead>
                                         <tr>
-                                            <th style="width:50px; text-align:center;">SL</th>
-                                            <th style="width:110px; text-align:center;">Chest No</th>
-                                            <th>Participant Name</th>
-                                            ${!f.gender ? '<th style="width:110px; text-align:center;">Gender</th>' : ''}
+                                            <th style="width:50px; text-align:center; border: 1px solid #000;">SL</th>
+                                            <th style="width:110px; text-align:center; border: 1px solid #000;">CHEST NO</th>
+                                            <th style="border: 1px solid #000;">PARTICIPANT NAME</th>
+                                            ${!f.gender ? '<th style="width:110px; text-align:center; border: 1px solid #000;">GENDER</th>' : ''}
                                         </tr>
                                     </thead>
                                     <tbody>
                                         ${students.map((item, idx) => `
-                                            <tr style="height:30px; page-break-inside:avoid;">
-                                                <td style="text-align:center; font-weight:700; color:#64748b;">${idx + 1}</td>
-                                                <td style="text-align:center;">
-                                                    <span class="call-chest-badge">${window.escapeHTML(item.chestNumber || '—')}</span>
+                                            <tr style="height:26px; page-break-inside:avoid;">
+                                                <td style="text-align:center; font-weight:700; color:#000; border: 1px solid #000;">${idx + 1}</td>
+                                                <td style="text-align:center; font-weight:800; color:#000; border: 1px solid #000;">
+                                                    ${window.escapeHTML(item.chestNumber || '—')}
                                                 </td>
-                                                <td style="font-weight:800; color:#1e1b4b;">${window.escapeHTML(item.name)}</td>
-                                                ${!f.gender ? `<td style="text-align:center; font-weight:700; color:#475569;">${window.escapeHTML(item.gender || '—')}</td>` : ''}
+                                                <td style="font-weight:700; color:#000; border: 1px solid #000;">${window.escapeHTML(item.name).toUpperCase()}</td>
+                                                ${!f.gender ? `<td style="text-align:center; font-weight:600; color:#000; border: 1px solid #000;">${window.escapeHTML(item.gender || '—').toUpperCase()}</td>` : ''}
                                             </tr>
                                         `).join('')}
                                     </tbody>
@@ -1562,7 +1639,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         // Render PDF through iframe
         const printIframe = getPrintIframe();
         const doc = printIframe.contentDocument || printIframe.contentWindow.document;
-        const pageMargin = '15mm';
+        const pageMargin = '10mm';
 
         const styleBlock = `
             <style>
@@ -1572,32 +1649,32 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 }
                 body {
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-                    color: #1e293b;
+                    color: #000;
                     margin: 0;
                     padding: 0;
                     background: #fff;
-                    font-size: 0.85rem;
-                    line-height: 1.4;
+                    font-size: 0.75rem;
+                    line-height: 1.25;
                 }
                 h2, h3, h4 {
                     margin: 0;
-                    color: #1e1b4b;
+                    color: #000;
                 }
                 .report-table {
                     width: 100%;
                     border-collapse: collapse;
-                    margin-top: 1rem;
-                    font-size: 0.8rem;
+                    margin-top: 0.5rem;
+                    font-size: 0.75rem;
                 }
                 .report-table th, .report-table td {
-                    border: 1px solid #cbd5e1;
-                    padding: 0.5rem 0.6rem;
+                    border: 1px solid #000;
+                    padding: 0.25rem 0.4rem;
                     text-align: left;
                     vertical-align: middle;
                 }
                 .report-table th {
-                    background-color: #f8fafc !important;
-                    color: #475569;
+                    background-color: #f5f5f5 !important;
+                    color: #000;
                     font-weight: 800;
                     -webkit-print-color-adjust: exact;
                     print-color-adjust: exact;
@@ -1610,35 +1687,23 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     display: flex;
                     justify-content: space-between;
                     align-items: flex-start;
-                    border-bottom: 2px solid #4338ca;
-                    padding-bottom: 0.5rem;
-                    margin-bottom: 1.25rem;
+                    border-bottom: 2px solid #000;
+                    padding-bottom: 0.35rem;
+                    margin-bottom: 0.6rem;
                     -webkit-print-color-adjust: exact;
                     print-color-adjust: exact;
                 }
                 .report-title {
-                    font-weight: 900;
-                    font-size: 1.15rem;
-                    color: #4338ca;
+                    font-weight: 800;
+                    font-size: 0.75rem;
+                    color: #000;
                     text-transform: uppercase;
                     letter-spacing: 0.05em;
                 }
-                .call-chest-badge {
-                    display: inline-block;
-                    font-size: 1.05rem;
-                    font-weight: 800;
-                    color: #1e1b4b;
-                    background: #f1f5f9;
-                    border: 1px solid #cbd5e1;
-                    padding: 0.1rem 0.35rem;
-                    border-radius: 4px;
-                    text-align: center;
-                    min-width: 44px;
-                }
                 .program-card-compact {
-                    margin-bottom: 1.5rem;
-                    border-bottom: 1.5px dashed #cbd5e1;
-                    padding-bottom: 1rem;
+                    margin-bottom: 0.75rem;
+                    border-bottom: 1.5px dashed #000;
+                    padding-bottom: 0.5rem;
                     page-break-inside: avoid;
                     break-inside: avoid;
                 }
@@ -1683,12 +1748,281 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
     } else if (f.type === 'Program Participation Register') {
         const isCompact = f.compactPacking !== false;
 
+        const isRegistered = (studentId, progId) => {
+            const parts = participantsMap[progId] || [];
+            return parts.some(part => {
+                if (part.isGroup) {
+                    return (part.members || []).some(m => m.studentId === studentId);
+                } else {
+                    return part.studentId === studentId;
+                }
+            });
+        };
+
+        // Retrieve matching programs list
+        let matchingPrograms = [...programs];
+        if (f.programLocation) {
+            matchingPrograms = matchingPrograms.filter(p => p.programLocation === f.programLocation);
+        }
+        if (f.participationType) {
+            if (f.participationType === 'general') {
+                matchingPrograms = matchingPrograms.filter(p => p.categoryId === 'general_programs' || p.programType === 'general');
+            } else if (f.participationType === 'group') {
+                matchingPrograms = matchingPrograms.filter(p => p.programType === 'group');
+            } else if (f.participationType === 'individual') {
+                matchingPrograms = matchingPrograms.filter(p => p.programType === 'individual');
+            }
+        }
+        // Sort programs alphabetically
+        matchingPrograms.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+
+        if (f.categoryId === 'general_programs') {
+            if (matchingPrograms.length === 0) {
+                htmlContent = `
+                    <div style="text-align:center; padding:4rem; color:#dc2626; border:1px solid #fecaca; border-radius:12px; background:#fef2f2;">
+                        <h3 style="margin:0;">⚠️ No matching general programs found.</h3>
+                        <p style="color:#64748b; margin-top:0.25rem; font-weight:600;">Check your filter criteria and try again.</p>
+                    </div>
+                `;
+            } else {
+                const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+                const teamName = f.teamId ? (allTeams.find(t => t.id === f.teamId)?.name || '') : '';
+                const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
+
+                const N = matchingPrograms.length;
+                let cellFontSize = '0.75rem';
+                let headerHeight = '120px';
+
+                if (N > 25) {
+                    cellFontSize = '0.42rem';
+                    headerHeight = '180px';
+                } else if (N > 18) {
+                    cellFontSize = '0.48rem';
+                    headerHeight = '160px';
+                } else if (N > 12) {
+                    cellFontSize = '0.55rem';
+                    headerHeight = '140px';
+                } else if (N > 8) {
+                    cellFontSize = '0.65rem';
+                    headerHeight = '130px';
+                }
+
+                htmlContent += `
+                    <div class="${pageDivClass}" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid;">
+                        <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.4rem; margin-bottom: 0.5rem; width: 100%;">
+                            <div>
+                                <div style="font-size: 0.8rem; font-weight: 800; color: #000; letter-spacing: 0.05em; text-transform: uppercase;">
+                                    PROGRAM PARTICIPATION REGISTER
+                                </div>
+                                <h2 style="margin: 0.15rem 0 0 0; color: #000; font-size: 1.25rem; font-weight: 800; text-transform: uppercase;">
+                                    GENERAL PROGRAMS (NON-CATEGORY)
+                                </h2>
+                                <div style="font-size: 0.72rem; font-weight: 700; color: #000; margin-top: 0.1rem; text-transform: uppercase;">
+                                    ${window.escapeHTML(instName).toUpperCase()} ${teamName ? `• ${window.escapeHTML(teamName).toUpperCase()}` : ''}
+                                </div>
+                            </div>
+                            <div style="text-align: right; font-weight: 800; color: #000; line-height: 1.3;">
+                                <div style="font-size: 0.9rem; text-transform: uppercase;">
+                                    ${(f.participationType === 'individual' ? 'INDIVIDUAL PROGRAM' : (f.participationType === 'group' ? 'GROUP PROGRAM' : (f.participationType === 'general' ? 'GENERAL PROGRAM' : 'ALL PROGRAM TYPES')))}
+                                </div>
+                                <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">
+                                    ${(f.programLocation === 'Stage' ? 'STAGE' : (f.programLocation === 'Off Stage' ? 'OFF STAGE' : 'STAGE / OFF STAGE'))}
+                                </div>
+                                ${f.gender ? `<div style="font-size: 0.68rem; font-weight: 700; color: #475569; text-transform: uppercase;">GENDER: ${window.escapeHTML(f.gender)}</div>` : ''}
+                            </div>
+                        </div>
+
+                        <table class="report-table" style="margin-top: 0.5rem; font-size:${cellFontSize};">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.35rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
+                                    <th style="width:180px; min-width:180px; max-width:180px; padding:0.35rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
+                                    ${matchingPrograms.map(p => `
+                                        <th class="rotated-th program-col" style="height:${headerHeight};">
+                                            <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
+                                        </th>
+                                    `).join('')}
+                                    <th style="border-left: none; border-right: none; background: #fff !important;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${Array.from({ length: 25 }).map((_, idx) => `
+                                    <tr style="height:32px; page-break-inside:avoid;">
+                                        <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:0.35rem 0.2rem; border: 1px solid #000;">${idx + 1}</td>
+                                        <td style="width:180px; min-width:180px; max-width:180px; border: 1px solid #000;"></td>
+                                        ${matchingPrograms.map(() => `
+                                            <td class="program-col" style="border:1px solid #000;"></td>
+                                        `).join('')}
+                                        <td style="border-left: none; border-right: none;"></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+
+                        <div class="register-footer">
+                            <div>COORDINATOR SIGNATURE : ________________________</div>
+                            <div>DATE : ________________________</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Render PDF through iframe
+            const printIframe = getPrintIframe();
+            const doc = printIframe.contentDocument || printIframe.contentWindow.document;
+            const pageMargin = '10mm';
+
+            const styleBlock = `
+                <style>
+                    @page {
+                        size: A4 landscape;
+                        margin: ${pageMargin};
+                    }
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                        color: #000;
+                        margin: 0;
+                        padding: 0;
+                        background: #fff;
+                        font-size: 0.85rem;
+                        line-height: 1.4;
+                    }
+                    h2, h3, h4 {
+                        margin: 0;
+                        color: #000;
+                    }
+                    .report-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-top: 1rem;
+                        border: 2px solid #000;
+                    }
+                    .report-table th, .report-table td {
+                        border: 1px solid #000;
+                    }
+                    .program-col {
+                        width: 32px !important;
+                        min-width: 32px !important;
+                        max-width: 32px !important;
+                        text-align: center;
+                        padding: 0 !important;
+                        box-sizing: border-box;
+                        border: 1px solid #000 !important;
+                    }
+                    .report-table th {
+                        background-color: #fff !important;
+                        color: #000;
+                        font-weight: bold;
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+                    .report-table tr {
+                        page-break-inside: avoid;
+                        break-inside: avoid;
+                    }
+                    .program-card-compact {
+                        padding: 0;
+                        margin-bottom: 2rem;
+                        page-break-inside: avoid;
+                        break-inside: avoid;
+                        background: #fff;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
+                    }
+                    .program-page-standard {
+                        padding: 0;
+                        width: 100%;
+                        height: 100%;
+                        min-height: 180mm;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
+                        page-break-after: always;
+                        break-after: page;
+                        background: #fff;
+                    }
+                    .program-page-standard:last-child {
+                        page-break-after: avoid;
+                        break-after: page-inside;
+                    }
+                    .rotated-th {
+                        vertical-align: middle;
+                        text-align: center;
+                        padding: 0.5rem 0.15rem;
+                        font-weight: bold;
+                        border: 1px solid #000;
+                        box-sizing: border-box;
+                    }
+                    .rotated-th > div {
+                        writing-mode: vertical-rl;
+                        transform: rotate(180deg);
+                        white-space: nowrap;
+                        text-align: center;
+                        margin: 0 auto;
+                        width: 14px;
+                        box-sizing: border-box;
+                    }
+                    .register-footer {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        font-size: 0.8rem;
+                        font-weight: bold;
+                        color: #000;
+                        margin-top: 1.5rem;
+                        padding-top: 0.5rem;
+                    }
+                </style>
+            `;
+
+            doc.open();
+            doc.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>${window.escapeHTML(exp.fileName)}</title>
+                    ${styleBlock}
+                </head>
+                <body>
+                    <div style="max-width:100%; margin: 0 auto; box-sizing:border-box;">
+                        ${htmlContent}
+                    </div>
+                </body>
+                </html>
+            `);
+            doc.close();
+
+            setTimeout(() => {
+                printIframe.contentWindow.focus();
+                printIframe.contentWindow.print();
+            }, 300);
+            return;
+        }
+
         // 1. Filter students
         let studentsList = Object.values(studentMap);
 
-        if (f.categoryId) {
+        if (f.categoryId === 'general_programs' || f.participationType === 'general') {
+            const registeredStudentIds = new Set();
+            matchingPrograms.forEach(p => {
+                const parts = participantsMap[p.id] || [];
+                parts.forEach(part => {
+                    if (part.isGroup) {
+                        (part.members || []).forEach(m => {
+                            if (m.studentId) registeredStudentIds.add(m.studentId);
+                        });
+                    } else {
+                        if (part.studentId) registeredStudentIds.add(part.studentId);
+                    }
+                });
+            });
+            studentsList = studentsList.filter(s => registeredStudentIds.has(s.id));
+        } else if (f.categoryId) {
             studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
         }
+
         if (f.classId) {
             studentsList = studentsList.filter(s => s.classId === f.classId);
         }
@@ -1700,20 +2034,6 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         } else if (f.gender === 'Girls') {
             studentsList = studentsList.filter(s => s.gender === 'Female');
         }
-
-        // Retrieve matching programs list
-        let matchingPrograms = [...allPrograms];
-        if (f.categoryId) {
-            matchingPrograms = matchingPrograms.filter(p => p.categoryId === f.categoryId);
-        }
-        if (f.classId) {
-            matchingPrograms = matchingPrograms.filter(p => !p.classId || p.classId === f.classId);
-        }
-        if (f.gender) {
-            matchingPrograms = matchingPrograms.filter(p => p.genderCategory === f.gender);
-        }
-        // Sort programs alphabetically
-        matchingPrograms.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
 
         if (studentsList.length === 0) {
             htmlContent = `
@@ -1740,9 +2060,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             const sortRule = f.chestSort || 'chest';
             if (sortRule === 'chest') {
                 studentsList.sort((a, b) => {
-                    const chestA = a.chestNumber || '';
-                    const chestB = b.chestNumber || '';
-                    return chestA.localeCompare(chestB, undefined, { numeric: true, sensitivity: 'base' });
+                    const numA = parseInt(a.chestNumber, 10);
+                    const numB = parseInt(b.chestNumber, 10);
+                    const hasA = !isNaN(numA);
+                    const hasB = !isNaN(numB);
+                    if (hasA && hasB) return numA - numB;
+                    if (hasA) return -1;
+                    if (hasB) return 1;
+                    return (a.chestNumber || '').localeCompare(b.chestNumber || '');
                 });
             } else if (sortRule === 'name') {
                 studentsList.sort((a, b) => {
@@ -1789,20 +2114,26 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 groups[catId].classes[classId].teams[teamId].students.push(stu);
             });
 
-            const sortedCatIds = Object.keys(groups).sort((a, b) => groups[a].name.localeCompare(groups[b].name));
+            const sortedCatIds = Object.keys(groups).sort((a, b) => {
+                const idxA = allCategories.findIndex(c => c.id === a);
+                const idxB = allCategories.findIndex(c => c.id === b);
+                return idxA - idxB;
+            });
             const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
             const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
 
             sortedCatIds.forEach(catId => {
                 const cat = groups[catId];
-                const sortedClassIds = Object.keys(cat.classes).sort((a, b) => cat.classes[a].name.localeCompare(cat.classes[b].name));
+                const sortedClassIds = Object.keys(cat.classes).sort((a, b) => cat.classes[a].name.localeCompare(cat.classes[b].name, undefined, { numeric: true }));
 
                 sortedClassIds.forEach(classId => {
                     const cls = cat.classes[classId];
                     const sortedTeamIds = Object.keys(cls.teams).sort((a, b) => cls.teams[a].name.localeCompare(cls.teams[b].name));
 
                     // Filter matching programs for this specific Category + Class
-                    const progs = matchingPrograms.filter(p => p.categoryId === catId && (!p.classId || p.classId === classId));
+                    const progs = f.categoryId === 'general_programs' || f.participationType === 'general'
+                        ? matchingPrograms.filter(p => !p.classId || p.classId === classId)
+                        : matchingPrograms.filter(p => p.categoryId === catId && (!p.classId || p.classId === classId));
 
                     if (progs.length === 0) {
                         htmlContent += `
@@ -1818,13 +2149,20 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                     const N = progs.length;
                     let cellFontSize = '0.75rem';
-                    let headerHeight = '165px';
-                    if (N > 35) {
+                    let headerHeight = '120px';
+
+                    if (N > 25) {
+                        cellFontSize = '0.42rem';
+                        headerHeight = '180px';
+                    } else if (N > 18) {
+                        cellFontSize = '0.48rem';
+                        headerHeight = '160px';
+                    } else if (N > 12) {
                         cellFontSize = '0.55rem';
-                        headerHeight = '145px';
-                    } else if (N > 20) {
+                        headerHeight = '140px';
+                    } else if (N > 8) {
                         cellFontSize = '0.65rem';
-                        headerHeight = '155px';
+                        headerHeight = '130px';
                     }
 
                     sortedTeamIds.forEach(teamId => {
@@ -1833,24 +2171,27 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                         htmlContent += `
                             <div class="${pageDivClass}" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid;">
-                                <div class="register-header-container" style="margin-bottom: 0.4rem;">
-                                    <div style="text-align: center; width: 100%; margin-bottom: 0.3rem;">
-                                        <h2 style="font-size: 1.15rem; font-weight: bold; letter-spacing: 0.05em; color: #000; margin: 0; text-transform: uppercase;">PROGRAM PARTICIPATION REGISTER</h2>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; border-bottom: 1.5px solid #000; padding-bottom: 0.25rem; font-size: 0.75rem; font-weight: bold; color: #000;">
-                                        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
-                                            <span>INSTITUTION: ${window.escapeHTML(instName).toUpperCase()}</span>
-                                            <span style="color: #ccc;">|</span>
-                                            <span>CATEGORY: ${window.escapeHTML(cat.name).toUpperCase()}</span>
-                                            <span style="color: #ccc;">|</span>
-                                            <span>CLASS: ${window.escapeHTML(cls.name).toUpperCase()}</span>
-                                            <span style="color: #ccc;">|</span>
-                                            <span>TEAM: ${window.escapeHTML(team.name).toUpperCase()}</span>
-                                            <span style="color: #ccc;">|</span>
-                                            <span>GENDER: ${f.gender ? window.escapeHTML(f.gender.toUpperCase()) : 'ALL'}</span>
+                                <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.4rem; margin-bottom: 0.5rem; width: 100%;">
+                                    <div>
+                                        <div style="font-size: 0.8rem; font-weight: 800; color: #000; letter-spacing: 0.05em; text-transform: uppercase;">
+                                            PROGRAM PARTICIPATION REGISTER
                                         </div>
-                                        <div style="white-space: nowrap;">
-                                            TOTAL PARTICIPANTS : ${students.length}
+                                        <h2 style="margin: 0.15rem 0 0 0; color: #000; font-size: 1.25rem; font-weight: 800; text-transform: uppercase;">
+                                            ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(cls.name).toUpperCase()}
+                                        </h2>
+                                        <div style="font-size: 0.72rem; font-weight: 700; color: #000; margin-top: 0.1rem; text-transform: uppercase;">
+                                            ${window.escapeHTML(instName).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}
+                                        </div>
+                                    </div>
+                                    <div style="text-align: right; font-weight: 800; color: #000; line-height: 1.3;">
+                                        <div style="font-size: 0.9rem; text-transform: uppercase;">
+                                            ${(f.participationType === 'individual' ? 'INDIVIDUAL PROGRAM' : (f.participationType === 'group' ? 'GROUP PROGRAM' : (f.participationType === 'general' ? 'GENERAL PROGRAM' : 'ALL PROGRAM TYPES')))}
+                                        </div>
+                                        <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">
+                                            ${(f.programLocation === 'Stage' ? 'STAGE' : (f.programLocation === 'Off Stage' ? 'OFF STAGE' : 'STAGE / OFF STAGE'))}
+                                        </div>
+                                        <div style="font-size: 0.68rem; font-weight: 700; color: #475569; margin-top: 0.1rem;">
+                                            TOTAL: ${students.length} STUDENTS
                                         </div>
                                     </div>
                                 </div>
@@ -1862,7 +2203,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                             <th style="width:180px; min-width:180px; max-width:180px; padding:0.35rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
                                             ${progs.map(p => `
                                                 <th class="rotated-th program-col" style="height:${headerHeight};">
-                                                    <div>${window.escapeHTML(p.programName).toUpperCase()}</div>
+                                                    <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
                                                 </th>
                                             `).join('')}
                                             <th style="border-left: none; border-right: none; background: #fff !important;"></th>
@@ -1875,8 +2216,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                 <td style="width:180px; min-width:180px; max-width:180px; font-weight:bold; color:#000; padding:0.35rem 0.5rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.name)}">
                                                     ${window.escapeHTML(item.name).toUpperCase()}
                                                 </td>
-                                                ${progs.map(() => `
-                                                    <td class="program-col"></td>
+                                                ${progs.map(p => `
+                                                    <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
+                                                        ${isRegistered(item.id, p.id) ? '✔' : ''}
+                                                    </td>
                                                 `).join('')}
                                                 <td style="border-left: none; border-right: none;"></td>
                                             </tr>
@@ -2150,40 +2493,35 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
             htmlContent += `
                 <div class="${pageDivClass}">
-                    <div class="report-header">
-                        <div>
-                            <div class="report-title">🚪 GREEN ROOM SIGN-IN</div>
-                            <h2 style="margin-top:0.3rem; margin-bottom:0.1rem; color:#1e1b4b;">${window.escapeHTML(p.programName)}</h2>
-                            <div style="font-size:0.75rem; font-weight:700; color:#4338ca;">
-                                Category: ${window.escapeHTML(p.categoryName)} ${p.className ? `· Class: ${window.escapeHTML(p.className)}` : ''} · 
-                                Type: ${p.programType === 'group' ? 'Group Event' : 'Individual Event'}
-                            </div>
-                        </div>
-                        <div style="text-align:right;">
-                            <span style="font-size:0.65rem; font-weight:800; color:#64748b; text-transform:uppercase; display:block;">Total Entries</span>
-                            <span style="font-weight:900; font-size:1.15rem; color:#1e1b4b;">${parts.length} entries</span>
+                    <div class="report-header-green" style="border-bottom:2px solid #000; padding-bottom:0.35rem; margin-bottom:0.6rem; width:100%;">
+                        <div style="font-size:0.75rem; font-weight:800; color:#555; text-transform:uppercase; letter-spacing:0.05em;">GREEN ROOM SIGN-IN</div>
+                        <h2 style="margin:0.15rem 0; color:#000; font-size:1.2rem; font-weight:800; text-transform:uppercase;">${window.escapeHTML(p.programName)}</h2>
+                        <div style="font-size:0.7rem; font-weight:700; color:#666; text-transform:uppercase;">
+                            ${window.escapeHTML(p.categoryName)}${p.className ? ` • ${window.escapeHTML(p.className)}` : ''} • 
+                            ${p.programType === 'group' ? 'GROUP EVENT' : 'INDIVIDUAL EVENT'} • 
+                            ${parts.length} ENTRIES
                         </div>
                     </div>
 
-                    <table class="report-table">
+                    <table class="report-table" style="margin-top: 0.4rem; width:100%;">
                         <thead>
                             <tr>
-                                <th style="width:50px; text-align:center;">SL</th>
-                                <th style="width:100px; text-align:center;">Chest No</th>
-                                <th>Participant / Team Name</th>
-                                <th style="width:110px; text-align:center;">Code Letter</th>
-                                <th style="width:180px; text-align:center;">Signature</th>
+                                <th style="width:40px; text-align:center; border: 1px solid #000;">SL</th>
+                                <th style="width:90px; text-align:center; border: 1px solid #000;">CHEST NO</th>
+                                <th style="border: 1px solid #000;">PARTICIPANT / TEAM NAME</th>
+                                <th style="width:90px; text-align:center; border: 1px solid #000;">CODE LETTER</th>
+                                <th style="width:150px; text-align:center; border: 1px solid #000;">SIGNATURE</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${parts.length === 0 ? `<tr><td colspan="5" style="text-align:center; padding:1.5rem; color:#64748b;">No registered entries.</td></tr>` :
-                    parts.map((item, idx) => `
-                                <tr style="height:35px;">
-                                    <td style="text-align:center; font-weight:700; color:#475569;">${idx + 1}</td>
-                                    <td style="text-align:center; font-weight:800; color:#0f172a;">${window.escapeHTML(item.chestNumber || '—')}</td>
-                                    <td style="font-weight:700; color:#1e293b;">${window.escapeHTML(item.name)}</td>
-                                    <td style="text-align:center;"></td>
-                                    <td></td>
+                            ${parts.length === 0 ? `<tr><td colspan="5" style="text-align:center; padding:1rem; color:#666; border: 1px solid #000;">No registered entries.</td></tr>` :
+                            parts.map((item, idx) => `
+                                <tr style="height:28px; page-break-inside:avoid;">
+                                    <td style="text-align:center; font-weight:700; color:#000; border: 1px solid #000;">${idx + 1}</td>
+                                    <td style="text-align:center; font-weight:800; color:#000; border: 1px solid #000;">${window.escapeHTML(item.chestNumber || '—')}</td>
+                                    <td style="font-weight:700; color:#000; border: 1px solid #000;">${window.escapeHTML(item.name).toUpperCase()}</td>
+                                    <td style="border: 1px solid #000;"></td>
+                                    <td style="border: 1px solid #000;"></td>
                                 </tr>
                               `).join('')}
                         </tbody>
@@ -3205,7 +3543,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
     // Dynamic absolute millimetric page budgets to guarantee zero overflows or page fractures (Phase 4)
     const gridSheetHeight = orientation === 'portrait' ? '280mm' : '193mm';
-    const pageMargin = f.type === 'Valuation Sheet' ? '5mm' : '15mm';
+    const pageMargin = f.type === 'Valuation Sheet' ? '5mm' : (f.type === 'Green Room Sign' ? '10mm' : '15mm');
 
     // Standard Styles Injection for dynamic high-fidelity printing
     const styleBlock = `
@@ -3216,12 +3554,12 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             }
             body {
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-                color: #1e293b;
+                color: #000;
                 margin: 0;
                 padding: 0;
                 background: #fff;
-                font-size: 0.85rem;
-                line-height: 1.4;
+                font-size: ${f.type === 'Green Room Sign' ? '0.75rem' : '0.85rem'};
+                line-height: ${f.type === 'Green Room Sign' ? '1.25' : '1.4'};
             }
             h2, h3, h4 {
                 margin: 0;
@@ -3284,6 +3622,26 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             .call-list-table th, .call-list-table td {
                 padding: 0.2rem 0.4rem !important;
             }
+
+            ${f.type === 'Green Room Sign' ? `
+            .report-table {
+                margin-top: 0.4rem !important;
+                font-size: 0.75rem !important;
+            }
+            .report-table th, .report-table td {
+                border: 1px solid #000 !important;
+                padding: 0.3rem 0.4rem !important;
+            }
+            .report-table th {
+                background-color: #f5f5f5 !important;
+                color: #000 !important;
+            }
+            .program-card-compact {
+                margin-bottom: 0.75rem !important;
+                border-bottom: 1.5px dashed #000 !important;
+                padding-bottom: 0.5rem !important;
+            }
+            ` : ''}
 
             /* Compact A4 Packing Mode Styles */
             .program-card-compact {
@@ -3483,26 +3841,39 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
         });
 
         // Sort students according to chestSort parameter
-        const sortRule = f.chestSort || 'chest';
-        if (sortRule === 'chest') {
-            studentsList.sort((a, b) => {
-                const chestA = a.chestNumber || '';
-                const chestB = b.chestNumber || '';
-                return chestA.localeCompare(chestB, undefined, { numeric: true, sensitivity: 'base' });
-            });
-        } else if (sortRule === 'name') {
-            studentsList.sort((a, b) => {
-                const nameA = a.name || '';
-                const nameB = b.name || '';
-                return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
-            });
-        } else if (sortRule === 'team') {
-            studentsList.sort((a, b) => {
-                const teamA = teamNamesMap[a.teamId] || a.teamName || '';
-                const teamB = teamNamesMap[b.teamId] || b.teamName || '';
-                return teamA.localeCompare(teamB, undefined, { sensitivity: 'base' });
-            });
-        }
+        // Sort systematically: Category ➔ Class ➔ Team ➔ Sort Rule
+        studentsList.sort((a, b) => {
+            const idxA = allCategories.findIndex(c => c.id === a.categoryId || c.name === a.categoryId || c.name === a.categoryName);
+            const idxB = allCategories.findIndex(c => c.id === b.categoryId || c.name === b.categoryId || c.name === b.categoryName);
+            if (idxA !== idxB) {
+                return idxA - idxB;
+            }
+            
+            const classA = a.className || '';
+            const classB = b.className || '';
+            const classComp = classA.localeCompare(classB, undefined, { numeric: true });
+            if (classComp !== 0) return classComp;
+
+            const teamNameA = teamNamesMap[a.teamId] || a.teamName || '';
+            const teamNameB = teamNamesMap[b.teamId] || b.teamName || '';
+            const teamComp = teamNameA.localeCompare(teamNameB);
+            if (teamComp !== 0) return teamComp;
+
+            const sortRule = f.chestSort || 'chest';
+            if (sortRule === 'chest') {
+                const numA = parseInt(a.chestNumber, 10);
+                const numB = parseInt(b.chestNumber, 10);
+                const hasA = !isNaN(numA);
+                const hasB = !isNaN(numB);
+                if (hasA && hasB) return numA - numB;
+                if (hasA) return -1;
+                if (hasB) return 1;
+                return (a.chestNumber || '').localeCompare(b.chestNumber || '');
+            } else if (sortRule === 'name') {
+                return (a.name || '').localeCompare(b.name || '');
+            }
+            return 0;
+        });
 
         const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
 
@@ -3525,13 +3896,97 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
         document.body.removeChild(link);
         return;
     } else if (f.type === 'Program Participation Register') {
+        const isRegistered = (studentId, progId) => {
+            const parts = participantsMap[progId] || [];
+            return parts.some(part => {
+                if (part.isGroup) {
+                    return (part.members || []).some(m => m.studentId === studentId);
+                } else {
+                    return part.studentId === studentId;
+                }
+            });
+        };
+
+        // Get matching programs first
+        let matchingPrograms = [...programs];
+        if (f.programLocation) {
+            matchingPrograms = matchingPrograms.filter(p => p.programLocation === f.programLocation);
+        }
+        if (f.participationType) {
+            if (f.participationType === 'general') {
+                matchingPrograms = matchingPrograms.filter(p => p.categoryId === 'general_programs' || p.programType === 'general');
+            } else if (f.participationType === 'group') {
+                matchingPrograms = matchingPrograms.filter(p => p.programType === 'group');
+            } else if (f.participationType === 'individual') {
+                matchingPrograms = matchingPrograms.filter(p => p.programType === 'individual');
+            }
+        }
+        matchingPrograms.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+
+        if (f.categoryId === 'general_programs') {
+            csvContent += "INSTITUTION,CATEGORY,CLASS,TEAM,GENDER,SL NO,CHEST NUMBER,PARTICIPANT NAME";
+
+            // Append program names to CSV header
+            matchingPrograms.forEach(p => {
+                const cleanLabel = p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName;
+                csvContent += `,"${cleanLabel.replace(/"/g, '""')}"`;
+            });
+            csvContent += "\n";
+
+            const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+            const teamName = f.teamId ? (allTeams.find(t => t.id === f.teamId)?.name || '') : '';
+
+            for (let idx = 0; idx < 25; idx++) {
+                csvContent += `"${instName.replace(/"/g, '""')}","GENERAL PROGRAMS (NON-CATEGORY)","","${teamName.replace(/"/g, '""')}","",${idx + 1},"",""`;
+                matchingPrograms.forEach(() => {
+                    csvContent += `,""`;
+                });
+                csvContent += "\n";
+            }
+
+            // Trigger standard File Download Blob
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", exp.fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            return;
+        }
+
         csvContent += "INSTITUTION,CATEGORY,CLASS,TEAM,GENDER,SL NO,CHEST NUMBER,PARTICIPANT NAME";
+
+        // Append program names to CSV header
+        matchingPrograms.forEach(p => {
+            const cleanLabel = p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName;
+            csvContent += `,"${cleanLabel.replace(/"/g, '""')}"`;
+        });
+        csvContent += "\n";
 
         let studentsList = Object.values(studentMap);
 
-        if (f.categoryId) {
+        if (f.categoryId === 'general_programs' || f.participationType === 'general') {
+            const registeredStudentIds = new Set();
+            matchingPrograms.forEach(p => {
+                const parts = participantsMap[p.id] || [];
+                parts.forEach(part => {
+                    if (part.isGroup) {
+                        (part.members || []).forEach(m => {
+                            if (m.studentId) registeredStudentIds.add(m.studentId);
+                        });
+                    } else {
+                        if (part.studentId) registeredStudentIds.add(part.studentId);
+                    }
+                });
+            });
+            studentsList = studentsList.filter(s => registeredStudentIds.has(s.id));
+        } else if (f.categoryId) {
             studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
         }
+
         if (f.classId) {
             studentsList = studentsList.filter(s => s.classId === f.classId);
         }
@@ -3549,46 +4004,39 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             teamNamesMap[t.id] = t.name;
         });
 
-        // Sort students according to chestSort parameter
-        const sortRule = f.chestSort || 'chest';
-        if (sortRule === 'chest') {
-            studentsList.sort((a, b) => {
-                const chestA = a.chestNumber || '';
-                const chestB = b.chestNumber || '';
-                return chestA.localeCompare(chestB, undefined, { numeric: true, sensitivity: 'base' });
-            });
-        } else if (sortRule === 'name') {
-            studentsList.sort((a, b) => {
-                const nameA = a.name || '';
-                const nameB = b.name || '';
-                return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
-            });
-        } else if (sortRule === 'team') {
-            studentsList.sort((a, b) => {
-                const teamA = teamNamesMap[a.teamId] || a.teamName || '';
-                const teamB = teamNamesMap[b.teamId] || b.teamName || '';
-                return teamA.localeCompare(teamB, undefined, { sensitivity: 'base' });
-            });
-        }
+        // Sort systematically: Category ➔ Class ➔ Team ➔ Sort Rule
+        studentsList.sort((a, b) => {
+            const idxA = allCategories.findIndex(c => c.id === a.categoryId || c.name === a.categoryId || c.name === a.categoryName);
+            const idxB = allCategories.findIndex(c => c.id === b.categoryId || c.name === b.categoryId || c.name === b.categoryName);
+            if (idxA !== idxB) {
+                return idxA - idxB;
+            }
+            
+            const classA = a.className || '';
+            const classB = b.className || '';
+            const classComp = classA.localeCompare(classB, undefined, { numeric: true });
+            if (classComp !== 0) return classComp;
 
-        // Get matching programs
-        let matchingPrograms = [...allPrograms];
-        if (f.categoryId) {
-            matchingPrograms = matchingPrograms.filter(p => p.categoryId === f.categoryId);
-        }
-        if (f.classId) {
-            matchingPrograms = matchingPrograms.filter(p => !p.classId || p.classId === f.classId);
-        }
-        if (f.gender) {
-            matchingPrograms = matchingPrograms.filter(p => p.genderCategory === f.gender);
-        }
-        matchingPrograms.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+            const teamNameA = teamNamesMap[a.teamId] || a.teamName || '';
+            const teamNameB = teamNamesMap[b.teamId] || b.teamName || '';
+            const teamComp = teamNameA.localeCompare(teamNameB);
+            if (teamComp !== 0) return teamComp;
 
-        // Append program names to CSV header
-        matchingPrograms.forEach(p => {
-            csvContent += `,"${p.programName.replace(/"/g, '""')}"`;
+            const sortRule = f.chestSort || 'chest';
+            if (sortRule === 'chest') {
+                const numA = parseInt(a.chestNumber, 10);
+                const numB = parseInt(b.chestNumber, 10);
+                const hasA = !isNaN(numA);
+                const hasB = !isNaN(numB);
+                if (hasA && hasB) return numA - numB;
+                if (hasA) return -1;
+                if (hasB) return 1;
+                return (a.chestNumber || '').localeCompare(b.chestNumber || '');
+            } else if (sortRule === 'name') {
+                return (a.name || '').localeCompare(b.name || '');
+            }
+            return 0;
         });
-        csvContent += "\n";
 
         const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
 
@@ -3600,9 +4048,10 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             // Build base row
             csvContent += `"${instName.replace(/"/g, '""')}","${catName.replace(/"/g, '""')}","${className.replace(/"/g, '""')}","${teamName.replace(/"/g, '""')}","${(stu.gender || '').replace(/"/g, '""')}",${idx + 1},"${(stu.chestNumber || '').replace(/"/g, '""')}","${(stu.name || '').replace(/"/g, '""')}"`;
 
-            // Append blank columns for programs
-            matchingPrograms.forEach(() => {
-                csvContent += ',""';
+            // Append program checkmarks
+            matchingPrograms.forEach(p => {
+                const registered = isRegistered(stu.id, p.id);
+                csvContent += registered ? ',"✔"' : ',""';
             });
             csvContent += "\n";
         });

@@ -337,7 +337,7 @@ function applyStudentFiltersAndRender() {
         filtered = filtered.filter(s => s.gender === currentGender);
     }
 
-    localStudents = filtered;
+    localStudents = sortStudents(filtered, allCategories);
     renderStudentsUI();
 }
 
@@ -2559,5 +2559,35 @@ function openStudentDropdown(btn) {
     dropdown.querySelector('.btn-delete-stu').addEventListener('click', () => {
         dropdown.remove();
         deleteStudent(id);
+    });
+}
+
+function sortStudents(students, categories) {
+    if (!Array.isArray(students)) return [];
+    return [...students].sort((a, b) => {
+        // 1. Category index in class-based sorted order
+        const catA = categories.find(c => c.id === a.categoryId || c.name === a.categoryId || c.name === a.categoryName);
+        const catB = categories.find(c => c.id === b.categoryId || c.name === b.categoryId || c.name === b.categoryName);
+        const idxA = catA ? categories.indexOf(catA) : 999;
+        const idxB = catB ? categories.indexOf(catB) : 999;
+        
+        if (idxA !== idxB) {
+            return idxA - idxB;
+        }
+
+        // 2. Numeric chest number sort
+        const numA = parseInt(a.chestNumber, 10);
+        const numB = parseInt(b.chestNumber, 10);
+        const hasA = !isNaN(numA);
+        const hasB = !isNaN(numB);
+
+        if (hasA && hasB) {
+            return numA - numB;
+        }
+        if (hasA) return -1;
+        if (hasB) return 1;
+
+        // 3. String name sort
+        return (a.name || '').localeCompare(b.name || '');
     });
 }

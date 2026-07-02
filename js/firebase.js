@@ -417,7 +417,7 @@ export async function getCachedCategories(instituteId, forceRefresh = false) {
     const key = `melad_cached_categories_${instituteId}`;
     if (!forceRefresh) {
         if (isCacheValid(window.cachedCategories)) {
-            return window.cachedCategories.data;
+            return sortCategories(window.cachedCategories.data);
         }
         try {
             const local = localStorage.getItem(key);
@@ -425,7 +425,7 @@ export async function getCachedCategories(instituteId, forceRefresh = false) {
                 const parsed = JSON.parse(local);
                 if (isCacheValid(parsed)) {
                     window.cachedCategories = parsed;
-                    return parsed.data;
+                    return sortCategories(parsed.data);
                 }
             }
         } catch (e) {
@@ -434,8 +434,9 @@ export async function getCachedCategories(instituteId, forceRefresh = false) {
     }
     const snap = await getDocs(collection(db, "institutes", instituteId, "categories"));
     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    setCachedCategories(instituteId, data);
-    return data;
+    const sortedData = sortCategories(data);
+    setCachedCategories(instituteId, sortedData);
+    return sortedData;
 }
 
 export async function getCachedPrograms(instituteId, forceRefresh = false) {
@@ -856,6 +857,58 @@ export function computeDenseRanking(items, getScoreFn, rankPropName = 'rank') {
         item[rankPropName] = currentRank;
     }
     return items;
+}
+
+// Deterministic category sorting based on class structure
+function getCategorySortStats(classes) {
+    if (!Array.isArray(classes) || classes.length === 0) {
+        return { min: 999, max: 999 };
+    }
+    const nums = [];
+    classes.forEach(c => {
+        const name = (typeof c === 'string' ? c : (c?.name || '')).trim();
+        const nameLower = name.toLowerCase();
+        const matches = nameLower.match(/\d+/g);
+        if (matches) {
+            matches.forEach(m => nums.push(parseInt(m, 10)));
+        } else {
+            if (nameLower.includes("play")) {
+                nums.push(-4);
+            } else if (nameLower.includes("nursery")) {
+                nums.push(-3);
+            } else if (nameLower.includes("lkg") || nameLower.includes("l.k.g")) {
+                nums.push(-2);
+            } else if (nameLower.includes("ukg") || nameLower.includes("u.k.g")) {
+                nums.push(-1);
+            } else {
+                nums.push(999);
+            }
+        }
+    });
+    if (nums.length === 0) return { min: 999, max: 999 };
+    return {
+        min: Math.min(...nums),
+        max: Math.max(...nums)
+    };
+}
+
+export function sortCategories(categories) {
+    if (!Array.isArray(categories)) return [];
+    return [...categories].sort((a, b) => {
+        const statsA = getCategorySortStats(a.classes);
+        const statsB = getCategorySortStats(b.classes);
+        if (statsA.min !== statsB.min) {
+            return statsA.min - statsB.min;
+        }
+        if (statsA.max !== statsB.max) {
+            return statsA.max - statsB.max;
+        }
+        const nameA = (a.name || '').toLowerCase();
+        const nameB = (b.name || '').toLowerCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        return 0;
+    });
 }
 
 

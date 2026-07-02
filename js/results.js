@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, computeDenseRanking } from './firebase.js';
+import { db, updateDashboardMetadata, computeDenseRanking, getCachedCategories } from './firebase.js';
 import {
     collection, doc, getDocs, onSnapshot, serverTimestamp, updateDoc, deleteDoc, writeBatch
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -45,9 +45,9 @@ export async function initResultsView(container, topActions) {
     // Load Categories for filter
     let catOptions = '<option value="">All Categories</option>';
     try {
-        const catSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "categories"));
-        catSnap.forEach(d => {
-            catOptions += `<option value="${d.id}">${window.escapeHTML(d.data().name)}</option>`;
+        const cats = await getCachedCategories();
+        cats.forEach(c => {
+            catOptions += `<option value="${c.id}">${window.escapeHTML(c.name)}</option>`;
         });
     } catch (e) { console.error(e); }
 

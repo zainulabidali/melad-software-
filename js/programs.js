@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, migrateParticipantCounts, getCachedCategories } from './firebase.js';
+import { db, updateDashboardMetadata, migrateParticipantCounts, getCachedCategories, invalidateProgramsCache } from './firebase.js';
 import {
     collection, addDoc, getDocs, doc, deleteDoc, updateDoc, setDoc,
     onSnapshot, serverTimestamp, writeBatch, query, where, collectionGroup
@@ -104,7 +104,15 @@ export async function initProgramsView(container, topActions) {
         }, 300));
     }
 
-    if (btnCreateProgram) btnCreateProgram.addEventListener('click', () => openProgramModal());
+    if (btnCreateProgram) {
+        btnCreateProgram.addEventListener('click', () => {
+            if (!currentCategoryId || currentCategoryId === 'general_programs') {
+                window.showToast("Please select a category before creating a program.", "error");
+                return;
+            }
+            openProgramModal();
+        });
+    }
     if (btnCreateGeneralProgram) btnCreateGeneralProgram.addEventListener('click', () => openGeneralProgramModal());
 
     // Scroll handler to close fixed menus when scrolling to prevent floating drifts
@@ -175,8 +183,17 @@ function loadProgramsAllData() {
     participantUnsubs = [];
 
     const programsRef = collection(db, "institutes", window.currentInstituteId, "programs");
-    unsubscribePrograms = onSnapshot(programsRef, (snapshot) => {
-        localProgramsAll = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    unsubscribePrograms = onSnapshot(programsRef, async (snapshot) => {
+        const rawProgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        // Self-healing backfill for program numbers
+        const needsBackfill = rawProgs.some(p => p.programNumber === undefined || p.programNumber === null);
+        if (needsBackfill) {
+            await backfillProgramNumbers(window.currentInstituteId, rawProgs);
+            return;
+        }
+
+        localProgramsAll = rawProgs;
         window.cachedPrograms = { data: localProgramsAll, lastFetched: Date.now() };
         applyProgramFiltersAndRender();
     }, (err) => {
@@ -209,7 +226,13 @@ function renderProgramsUI() {
             </div>`;
         const btnEmpty = document.getElementById("btnCreateProgramEmpty");
         if (btnEmpty) {
-            btnEmpty.onclick = () => openProgramModal();
+            btnEmpty.onclick = () => {
+                if (!currentCategoryId || currentCategoryId === 'general_programs') {
+                    window.showToast("Please select a category before creating a program.", "error");
+                    return;
+                }
+                openProgramModal();
+            };
         }
         return;
     }
@@ -217,6 +240,8 @@ function renderProgramsUI() {
     gridContainer.innerHTML = `
         <div class="programs-table">
             <div class="programs-table-header">
+                <div>Sl No.</div>
+                <div>Prog No.</div>
                 <div>Program Name</div>
                 <div>Program Type</div>
                 <div>Location</div>
@@ -232,7 +257,7 @@ function renderProgramsUI() {
     const grid = document.getElementById('programsGrid');
     if (!grid) return;
 
-    localPrograms.forEach(prog => {
+    localPrograms.forEach((prog, idx) => {
         const progId = prog.id;
 
         const pType = (prog.programType || prog.type || 'individual').toLowerCase();
@@ -314,6 +339,12 @@ function renderProgramsUI() {
         const statusCellId = `prog-status-cell-${progId}`;
 
         row.innerHTML = `
+            <div class="program-sl-cell" style="font-weight:700; color:#475569; font-size:0.85rem;">
+                ${idx + 1}
+            </div>
+            <div class="program-no-cell" style="font-weight:800; color:#1e1b4b; font-size:0.85rem;">
+                #${prog.programNumber || '—'}
+            </div>
             <div class="program-name-cell">
                 <div style="display:flex; flex-direction:column; gap:0.15rem;">
                     <span class="program-title-text">${window.escapeHTML(prog.programName)}</span>
@@ -361,6 +392,10 @@ function renderProgramsUI() {
 // Add / Edit Program Modal
 // ─────────────────────────────────────────────
 function openProgramModal(progId = null, data = {}) {
+    if (!progId && (!currentCategoryId || currentCategoryId === 'general_programs')) {
+        window.showToast("Please select a category before creating a program.", "error");
+        return;
+    }
     const modalTitle = document.getElementById('dynamicModalTitle');
     const modalBody = document.getElementById('dynamicModalBody');
     const modalOverlay = document.getElementById('dynamicModal');
@@ -470,11 +505,13 @@ function openProgramModal(progId = null, data = {}) {
                 window.showToast("Program updated.");
             } else {
                 payload.createdAt = serverTimestamp();
+                const maxNum = localProgramsAll.reduce((max, p) => (p.programNumber && p.programNumber > max ? p.programNumber : max), 100);
+                payload.programNumber = maxNum + 1;
                 await addDoc(progCollection, payload);
                 window.showToast("Program added.");
             }
             await updateDashboardMetadata(window.currentInstituteId);
-            window.cachedPrograms = null;
+            invalidateProgramsCache(window.currentInstituteId);
             modalOverlay.classList.add('hidden');
         } catch (err) {
             console.error(err);
@@ -590,11 +627,13 @@ function openGeneralProgramModal(progId = null, data = {}) {
                 window.showToast("General Program updated.");
             } else {
                 payload.createdAt = serverTimestamp();
+                const maxNum = localProgramsAll.reduce((max, p) => (p.programNumber && p.programNumber > max ? p.programNumber : max), 100);
+                payload.programNumber = maxNum + 1;
                 await addDoc(progCollection, payload);
                 window.showToast("General Program added.");
             }
             await updateDashboardMetadata(window.currentInstituteId);
-            window.cachedPrograms = null;
+            invalidateProgramsCache(window.currentInstituteId);
             modalOverlay.classList.add('hidden');
         } catch (err) {
             console.error(err);
@@ -662,7 +701,7 @@ async function deleteProgram(id) {
 
         await batch.commit();
         await updateDashboardMetadata(instId);
-        window.cachedPrograms = null;
+        invalidateProgramsCache(instId);
         window.showToast("Program and all related data deleted.");
     } catch (e) {
         console.error(e);
@@ -755,4 +794,34 @@ function openProgramsDropdown(btn) {
         dropdown.remove();
         deleteProgram(id);
     });
+}
+
+// Self-healing backfill function to assign sequential program numbers starting at 101
+async function backfillProgramNumbers(instId, programs) {
+    if (!instId || !Array.isArray(programs) || programs.length === 0) return;
+    const sorted = [...programs].sort((a, b) => {
+        const timeA = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
+        const timeB = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
+        if (timeA !== timeB) return timeA - timeB;
+        return (a.programName || '').localeCompare(b.programName || '');
+    });
+    const batch = writeBatch(db);
+    let updatedCount = 0;
+    sorted.forEach((p, index) => {
+        const newNumber = 101 + index;
+        if (p.programNumber !== newNumber) {
+            const progDocRef = doc(db, "institutes", instId, "programs", p.id);
+            batch.update(progDocRef, { programNumber: newNumber });
+            p.programNumber = newNumber;
+            updatedCount++;
+        }
+    });
+    if (updatedCount > 0) {
+        try {
+            await batch.commit();
+            console.log(`Backfilled ${updatedCount} programs with sequential numbers.`);
+        } catch (e) {
+            console.error("Failed to backfill program numbers:", e);
+        }
+    }
 }

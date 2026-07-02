@@ -1,5 +1,5 @@
 // Teams Module
-import { db, updateDashboardMetadata, migrateTeamMemberCounts } from './firebase.js';
+import { db, updateDashboardMetadata, migrateTeamMemberCounts, invalidateTeamsCache } from './firebase.js';
 import {
     collection,
     addDoc,
@@ -324,7 +324,7 @@ function openTeamModal(teamId = null, currentName = "", currentDesc = "") {
                 }
 
                 await updateDashboardMetadata(window.currentInstituteId);
-                window.cachedTeams = null;
+                invalidateTeamsCache(window.currentInstituteId);
                 modalOverlay.classList.add("hidden");
             } catch (err) {
                 window.handleError(err, "saving team");
@@ -414,7 +414,7 @@ async function deleteTeam(teamId) {
 
         await batch.commit();
         await updateDashboardMetadata(instId);
-        window.cachedTeams = null;
+        invalidateTeamsCache(instId);
         window.showToast("Team deleted successfully.");
     } catch (err) {
         window.handleError(err, "deleting team");

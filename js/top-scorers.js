@@ -1,4 +1,4 @@
-import { db, computeDenseRanking } from './firebase.js';
+import { db, computeDenseRanking, getCachedCategories } from './firebase.js';
 import {
     collection, getDocs, onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -187,8 +187,7 @@ async function loadStaticData() {
     const instId = window.currentInstituteId;
     try {
         // Categories
-        const catSnap = await getDocs(collection(db, "institutes", instId, "categories"));
-        allCategories = catSnap.docs.map(d => ({ id: d.id, name: d.data().name }));
+        allCategories = await getCachedCategories();
 
         // Teams
         const teamSnap = await getDocs(collection(db, "institutes", instId, "teams"));
