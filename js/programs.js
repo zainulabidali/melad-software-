@@ -400,7 +400,7 @@ function openProgramModal(progId = null, data = {}) {
     const modalBody = document.getElementById('dynamicModalBody');
     const modalOverlay = document.getElementById('dynamicModal');
 
-    modalTitle.textContent = progId ? "Edit Program" : "Add Program";
+    modalTitle.textContent = progId ? `Edit Program ${data.programNumber ? `#${data.programNumber}` : ''}` : "Add Program";
     const pType = (data.programType || data.type || 'individual').toLowerCase();
     const isGroup = pType === 'group';
 
@@ -532,7 +532,7 @@ function openGeneralProgramModal(progId = null, data = {}) {
     const modalBody = document.getElementById('dynamicModalBody');
     const modalOverlay = document.getElementById('dynamicModal');
 
-    modalTitle.textContent = progId ? "Edit General Program" : "Add General Program";
+    modalTitle.textContent = progId ? `Edit General Program ${data.programNumber ? `#${data.programNumber}` : ''}` : "Add General Program";
     const regType = data.registrationType || 'individual';
     const isLeaderboardEnabled = data.leaderboardEnabled !== false;
 

@@ -201,7 +201,7 @@ function renderHomeScreen() {
             <div class="jp-program-card">
                 <div class="jp-prog-header">
                     <div>
-                        <h3 class="jp-prog-name">${window.escapeHTML(p.programName || p.name)}</h3>
+                        <h3 class="jp-prog-name">${p.programNumber ? `[#${p.programNumber}] ` : ''}${window.escapeHTML(p.programName || p.name)}</h3>
                     </div>
                     ${statusBadge}
                 </div>
@@ -392,7 +392,7 @@ function renderScoringUI(prog, participants, resDoc) {
         <button class="jp-back-btn" id="jpBackHome">← Back to Programs List</button>
 
         <div style="background:#1e1b4b; color:white; border-radius:14px; padding:1.25rem; margin-bottom:1.25rem; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-            <h2 style="margin:0 0 0.35rem 0; font-family:'Outfit',sans-serif; font-size:1.25rem; font-weight:800;">${window.escapeHTML(prog.programName || prog.name)}</h2>
+            <h2 style="margin:0 0 0.35rem 0; font-family:'Outfit',sans-serif; font-size:1.25rem; font-weight:800;">${prog.programNumber ? `[#${prog.programNumber}] ` : ''}${window.escapeHTML(prog.programName || prog.name)}</h2>
             <div style="font-size:0.82rem; color:rgba(255,255,255,0.8); display:flex; gap:0.75rem; flex-wrap:wrap; font-weight:600;">
                 <span>📋 ${window.escapeHTML(prog.categoryName || 'General')}</span>
                 <span>📍 ${window.escapeHTML(prog.programLocation || 'Stage')}</span>

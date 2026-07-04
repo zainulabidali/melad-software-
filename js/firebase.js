@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
-import { initializeFirestore, memoryLocalCache, collection, getDocs, doc, writeBatch, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+import { initializeFirestore, memoryLocalCache, collection, getDocs, doc, writeBatch, setDoc, getDoc, getCountFromServer } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyCWGvKjqytJZHfuSnJGwBrVrFV8koYV7Cw",
@@ -130,13 +130,14 @@ export async function updateDashboardMetadata(instituteId) {
     if (!instituteId) return;
     try {
         // Fetch collections in parallel using one-shot getDocs
-        const [studentsSnap, teamsSnap, programsSnap, categoriesSnap, judgesSnap, resultsSnap] = await Promise.all([
+        const [studentsSnap, teamsSnap, programsSnap, categoriesSnap, judgesSnap, resultsSnap, countSnap] = await Promise.all([
             getDocs(collection(db, "institutes", instituteId, "students")),
             getDocs(collection(db, "institutes", instituteId, "teams")),
             getDocs(collection(db, "institutes", instituteId, "programs")),
             getDocs(collection(db, "institutes", instituteId, "categories")),
             getDocs(collection(db, "institutes", instituteId, "judges")),
-            getDocs(collection(db, "institutes", instituteId, "results"))
+            getDocs(collection(db, "institutes", instituteId, "results")),
+            getCountFromServer(collection(db, "institutes", instituteId, "students"))
         ]);
 
         const students = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -146,7 +147,7 @@ export async function updateDashboardMetadata(instituteId) {
         const judges = judgesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         const results = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        const totalStudents = students.length;
+        const totalStudents = countSnap.data().count;
         const maleCount = students.filter(s => s.gender && s.gender.toString().trim().toLowerCase() === 'male').length;
         const femaleCount = students.filter(s => s.gender && s.gender.toString().trim().toLowerCase() === 'female').length;
         const totalCompetitions = programs.length;

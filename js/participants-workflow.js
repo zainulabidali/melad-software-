@@ -44,7 +44,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     // 1. Initial State Variables
     const pType = (progData.programType || progData.type || 'individual').toLowerCase();
     const isGroupEvent = pType === 'group' || (pType === 'general' && progData.registrationType === 'group');
-    const progName = progData.programName || 'Program';
+    const progNumberStr = progData.programNumber ? `[#${progData.programNumber}] ` : '';
+    const progName = progNumberStr + (progData.programName || 'Program');
     const genderFilter = progData.genderCategory || 'Mixed';
     let inheritedCategoryId = progData.categoryId || '';
 
@@ -695,7 +696,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
                 const prog = programsMap.get(pId);
                 if (!prog) return;
-                const progName = prog.programName || 'Unknown Program';
+                const progName = (prog.programNumber ? `[#${prog.programNumber}] ` : '') + (prog.programName || 'Unknown Program');
                 const pType = (prog.programType || prog.type || 'individual').toLowerCase();
                 const isGroup = pType === 'group' || (pType === 'general' && prog.registrationType === 'group');
 

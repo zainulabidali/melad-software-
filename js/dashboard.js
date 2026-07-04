@@ -1169,6 +1169,15 @@ async function initDashboardOverview(container, topActions) {
             if (snap.exists()) {
                 const data = snap.data();
                 metadataCache = data;
+
+                // Authoritative server-side student count check to override any local caching issues
+                try {
+                    const countSnap = await getCountFromServer(collection(db, "institutes", instId, "students"));
+                    metadataCache.studentsCount = countSnap.data().count;
+                } catch (e) {
+                    console.error("Error fetching authoritative student count from server:", e);
+                }
+
                 recalculateDashboard();
                 if (data.maleStudentsCount === undefined || data.femaleStudentsCount === undefined) {
                     console.log("Legacy dashboard metadata detected. Self-healing gender statistics...");

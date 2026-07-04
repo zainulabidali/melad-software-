@@ -377,6 +377,7 @@ function renderStudentsUI() {
     let tableHTML = `
         <div class="students-table">
             <div class="students-table-header">
+                <div>Sl No.</div>
                 <div>Chest No.</div>
                 <div>Student Name</div>
                 <div>Gender</div>
@@ -389,13 +390,16 @@ function renderStudentsUI() {
             <div class="students-table-body">
     `;
 
-    localStudents.forEach((stu) => {
+    localStudents.forEach((stu, idx) => {
         const id = stu.id;
         const chest = stu.chestNumber || '—';
         const teamName = teamMap.get(stu.teamId) || '—';
 
         tableHTML += `
             <div class="student-row">
+                <div class="student-sl-cell" style="font-weight: 700; color: #475569;">
+                    ${idx + 1}
+                </div>
                 <div class="student-chest-cell">
                     #${window.escapeHTML(chest)}
                 </div>

@@ -363,6 +363,7 @@ async function loadMarkEntryData() {
             return {
                 id: p.id,
                 programName: p.programName || 'Unnamed Program',
+                programNumber: p.programNumber || '',
                 programType: pType,
                 type: regType === 'group' ? 'Group' : 'Individual',
                 registrationType: regType,
@@ -437,7 +438,7 @@ function renderMarkEntryGrid() {
         return `
             <tr>
                 <td style="font-weight: 700; color: #1e293b;">
-                    ${window.escapeHTML(p.programName)}
+                    ${p.programNumber ? `[#${p.programNumber}] ` : ''}${window.escapeHTML(p.programName)}
                 </td>
                 <td style="font-weight: 600;">
                     <span class="me-type-badge">${window.escapeHTML(displayType)}</span>
@@ -630,7 +631,7 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
                 <span style="font-size:2.2rem; display:block; margin-bottom:0.25rem;">🧑‍⚖️</span>
                 <h3 style="margin:0; font-size:1.2rem; font-weight:800;">Assign Judges to Competition</h3>
                 <p style="font-size:0.8rem; color:#4338ca; font-weight:700; margin-top:0.3rem; margin-bottom:0;">
-                    ${window.escapeHTML(prog.programName)} [${window.escapeHTML(prog.categoryName)}]
+                    ${prog.programNumber ? `[#${prog.programNumber}] ` : ''}${window.escapeHTML(prog.programName)} [${window.escapeHTML(prog.categoryName)}]
                 </p>
             </div>
 
@@ -742,7 +743,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
             <!-- Header bar -->
             <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:1.25rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
                 <div>
-                    <h3 style="margin:0; font-size:1.3rem; font-weight:800; color:#0f172a;">${window.escapeHTML(prog.programName)}</h3>
+                    <h3 style="margin:0; font-size:1.3rem; font-weight:800; color:#0f172a;">${prog.programNumber ? `[#${prog.programNumber}] ` : ''}${window.escapeHTML(prog.programName)}</h3>
                     <div style="font-size:0.82rem; color:#475569; font-weight:600; margin-top:0.25rem; display:flex; gap:0.8rem; align-items:center;">
                         <span style="background:#e0e7ff; color:#4338ca; padding:0.15rem 0.6rem; border-radius:6px;">📋 ${window.escapeHTML(prog.categoryName)}</span>
                         <span>Stage: <strong>${prog.programLocation}</strong></span>

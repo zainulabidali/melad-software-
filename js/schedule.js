@@ -411,6 +411,7 @@ function mergeAndRender() {
             id: sched.id,
             programId: sched.programId || sched.id,
             programName: sched.programName || prog.programName || 'Unnamed Program',
+            programNumber: prog.programNumber || sched.programNumber || '',
             stage: sched.stage || '',
             scheduleDate: sched.scheduleDate || '',
             startTime: sched.startTime || '',
@@ -745,7 +746,7 @@ function renderStageTable() {
                 </td>
                 <td style="font-weight:700; color:#0f172a;">
                     ${item.isLocked ? '<span title="Locked Slot" style="margin-right:4px;">🔒</span>' : ''}
-                    ${window.escapeHTML(item.programName)}
+                    ${item.programNumber ? `[#${item.programNumber}] ` : ''}${window.escapeHTML(item.programName)}
                 </td>
                 <td>
                     <input type="number" class="sched-tbl-input row-duration-in" data-id="${item.id}" value="${item.duration}" style="width:75px;" min="1"> mins
@@ -903,7 +904,7 @@ function openAddProgramRowModal() {
         return;
     }
 
-    let options = availablePrograms.map(p => `<option value="${p.id}">${window.escapeHTML(p.programName)} (${p.programType || 'individual'})</option>`).join('');
+    let options = availablePrograms.map(p => `<option value="${p.id}">${p.programNumber ? `[#${p.programNumber}] ` : ''}${window.escapeHTML(p.programName)} (${p.programType || 'individual'})</option>`).join('');
 
     modalBody.innerHTML = `
         <form id="addProgSlotForm">
@@ -1099,7 +1100,7 @@ function shareActiveStageWhatsApp() {
     msg += `📅 Date: ${stageConfigs[activeStage]?.date || 'N/A'}\n\n`;
 
     activeItems.forEach((item, idx) => {
-        msg += `*${idx + 1}. ${item.programName}*\n`;
+        msg += `*${idx + 1}. ${item.programNumber ? `[#${item.programNumber}] ` : ''}${item.programName}*\n`;
         msg += `   ⏱️ ${item.startTime || 'TBD'} - ${item.endTime || 'TBD'} (${item.duration}m) | Status: ${item.status}\n\n`;
     });
 
@@ -1124,7 +1125,7 @@ function printActiveStage() {
         rowsHTML = activeItems.map((item, idx) => `
             <tr>
                 <td style="text-align:center; font-weight:bold; padding:10px; border:1px solid #cbd5e1;">${idx + 1}</td>
-                <td style="font-weight:bold; padding:10px; border:1px solid #cbd5e1; color:#0f172a;">${window.escapeHTML(item.programName)}</td>
+                <td style="font-weight:bold; padding:10px; border:1px solid #cbd5e1; color:#0f172a;">${item.programNumber ? `[#${item.programNumber}] ` : ''}${window.escapeHTML(item.programName)}</td>
                 <td style="text-align:center; padding:10px; border:1px solid #cbd5e1;">${item.duration} mins</td>
                 <td style="text-align:center; font-weight:bold; padding:10px; border:1px solid #cbd5e1; color:#1e40af;">${item.startTime || '—'}</td>
                 <td style="text-align:center; font-weight:bold; padding:10px; border:1px solid #cbd5e1; color:#1e40af;">${item.endTime || '—'}</td>

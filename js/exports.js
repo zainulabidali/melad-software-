@@ -482,6 +482,7 @@ async function loadStaticData(force = false) {
             return {
                 id: p.id,
                 programName: p.programName || 'Unnamed Program',
+                programNumber: p.programNumber || '',
                 programType: pType,
                 type: regType === 'group' ? 'Group' : 'Individual',
                 genderCategory: p.genderCategory || 'Mixed',
@@ -1120,7 +1121,8 @@ function renderDrawerContent() {
         });
 
         filtered.forEach(p => {
-            expProgFilter.innerHTML += `<option value="${p.id}">${window.escapeHTML(p.programName)}</option>`;
+            const numStr = p.programNumber ? `[#${p.programNumber}] ` : '';
+            expProgFilter.innerHTML += `<option value="${p.id}">${numStr}${window.escapeHTML(p.programName)}</option>`;
         });
     }
 
@@ -1768,10 +1770,57 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         `);
         doc.close();
 
-        setTimeout(() => {
-            printIframe.contentWindow.focus();
-            printIframe.contentWindow.print();
-        }, 300);
+        if (isDownload) {
+            setTimeout(async () => {
+                try {
+                    window.showToast("Preparing PDF download...", "info");
+                    
+                    const prevWidth = printIframe.style.width;
+                    const prevHeight = printIframe.style.height;
+                    
+                    if (orientation === 'landscape') {
+                        printIframe.style.width = '1123px';
+                    } else {
+                        printIframe.style.width = '794px';
+                    }
+                    printIframe.style.height = 'auto';
+                    await new Promise(resolve => setTimeout(resolve, 150));
+                    
+                    const scrollHeight = Math.max(
+                        doc.body.scrollHeight,
+                        doc.documentElement.scrollHeight,
+                        doc.body.offsetHeight,
+                        doc.documentElement.offsetHeight
+                    );
+                    printIframe.style.height = (scrollHeight + 100) + 'px';
+                    await new Promise(resolve => setTimeout(resolve, 50));
+
+                    const html2pdf = await loadHtml2Pdf();
+                    const opt = {
+                        margin:       10,
+                        filename:     exp.fileName || 'export.pdf',
+                        image:        { type: 'jpeg', quality: 0.98 },
+                        html2canvas:  { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+                        jsPDF:        { unit: 'mm', format: 'a4', orientation: orientation },
+                        pagebreak:    { mode: ['css', 'legacy'] }
+                    };
+                    const element = doc.body;
+                    await html2pdf().set(opt).from(element).save();
+                    
+                    printIframe.style.width = prevWidth;
+                    printIframe.style.height = prevHeight;
+                } catch (err) {
+                    console.error("PDF generation failed, falling back to print dialog:", err);
+                    printIframe.contentWindow.focus();
+                    printIframe.contentWindow.print();
+                }
+            }, 500);
+        } else {
+            setTimeout(() => {
+                printIframe.contentWindow.focus();
+                printIframe.contentWindow.print();
+            }, 300);
+        }
         return;
     } else if (f.type === 'Program Participation Register') {
         const isCompact = f.compactPacking !== false;
@@ -2026,16 +2075,37 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 setTimeout(async () => {
                     try {
                         window.showToast("Preparing PDF download...", "info");
+                        
+                        const prevWidth = printIframe.style.width;
+                        const prevHeight = printIframe.style.height;
+                        
+                        printIframe.style.width = '1123px';
+                        printIframe.style.height = 'auto';
+                        await new Promise(resolve => setTimeout(resolve, 150));
+                        
+                        const scrollHeight = Math.max(
+                            doc.body.scrollHeight,
+                            doc.documentElement.scrollHeight,
+                            doc.body.offsetHeight,
+                            doc.documentElement.offsetHeight
+                        );
+                        printIframe.style.height = (scrollHeight + 100) + 'px';
+                        await new Promise(resolve => setTimeout(resolve, 50));
+
                         const html2pdf = await loadHtml2Pdf();
                         const opt = {
                             margin:       10,
                             filename:     exp.fileName || 'export.pdf',
                             image:        { type: 'jpeg', quality: 0.98 },
-                            html2canvas:  { scale: 1.5, useCORS: true },
-                            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+                            html2canvas:  { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+                            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
+                            pagebreak:    { mode: ['css', 'legacy'] }
                         };
                         const element = doc.body;
-                        html2pdf().set(opt).from(element).save();
+                        await html2pdf().set(opt).from(element).save();
+                        
+                        printIframe.style.width = prevWidth;
+                        printIframe.style.height = prevHeight;
                     } catch (err) {
                         console.error("PDF generation failed, falling back to print dialog:", err);
                         printIframe.contentWindow.focus();
@@ -2473,7 +2543,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 ${pageIndicator}
                             </div>
                             <h3 style="margin: 0.1rem 0 0 0; font-size:0.95rem; font-weight:900; color:#1e1b4b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:215px; line-height:1.2;" title="${window.escapeHTML(p.programName)}">
-                                ${window.escapeHTML(p.programName)}
+                                ${p.programNumber ? `[#${p.programNumber}] ` : ''}${window.escapeHTML(p.programName)}
                             </h3>
                             <div style="font-size:0.72rem; font-weight:800; color:#4338ca; margin-top:0.05rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:230px;">
                                 Category: ${window.escapeHTML(formatLabel(p.categoryName))} ${p.className ? `· Class: ${window.escapeHTML(formatLabel(p.className))}` : ''}
@@ -2545,7 +2615,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 <div class="${pageDivClass}">
                     <div class="report-header-green" style="border-bottom:2px solid #000; padding-bottom:0.35rem; margin-bottom:0.6rem; width:100%;">
                         <div style="font-size:0.75rem; font-weight:800; color:#555; text-transform:uppercase; letter-spacing:0.05em;">GREEN ROOM SIGN-IN</div>
-                        <h2 style="margin:0.15rem 0; color:#000; font-size:1.2rem; font-weight:800; text-transform:uppercase;">${window.escapeHTML(p.programName)}</h2>
+                        <h2 style="margin:0.15rem 0; color:#000; font-size:1.2rem; font-weight:800; text-transform:uppercase;">${p.programNumber ? `[#${p.programNumber}] ` : ''}${window.escapeHTML(p.programName)}</h2>
                         <div style="font-size:0.7rem; font-weight:700; color:#666; text-transform:uppercase;">
                             ${window.escapeHTML(p.categoryName)}${p.className ? ` • ${window.escapeHTML(p.className)}` : ''} • 
                             ${p.programType === 'group' ? 'GROUP EVENT' : 'INDIVIDUAL EVENT'} • 
@@ -2883,7 +2953,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     <!-- Compact 1-line Info Header Bar (Phase 4) -->
                     <div style="border-bottom:1.5px solid #1e1b4b; padding-bottom:0.15rem; margin-bottom:0.25rem; display:flex; justify-content:space-between; align-items:baseline;">
                         <div>
-                            <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:#1e1b4b; display:inline;">${window.escapeHTML(p.programName)}</h3>
+                            <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:#1e1b4b; display:inline;">${p.programNumber ? `[#${p.programNumber}] ` : ''}${window.escapeHTML(p.programName)}</h3>
                             <span style="font-size:0.75rem; font-weight:700; color:#475569; margin-left:0.4rem;">&bull; ${window.escapeHTML(formatLabel(p.categoryName))} ${p.className ? `&bull; Class: ${window.escapeHTML(formatLabel(p.className))}` : ''} &bull; Location: ${window.escapeHTML(formatLabel(p.programLocation || 'Stage'))}</span>
                         </div>
                         <div style="font-size:0.75rem; font-weight:800; color:#1e1b4b;">
@@ -3856,16 +3926,41 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         setTimeout(async () => {
             try {
                 window.showToast("Preparing PDF download...", "info");
+                
+                const prevWidth = printIframe.style.width;
+                const prevHeight = printIframe.style.height;
+                
+                if ((orientation || 'portrait') === 'landscape') {
+                    printIframe.style.width = '1123px';
+                } else {
+                    printIframe.style.width = '794px';
+                }
+                printIframe.style.height = 'auto';
+                await new Promise(resolve => setTimeout(resolve, 150));
+                
+                const scrollHeight = Math.max(
+                    doc.body.scrollHeight,
+                    doc.documentElement.scrollHeight,
+                    doc.body.offsetHeight,
+                    doc.documentElement.offsetHeight
+                );
+                printIframe.style.height = (scrollHeight + 100) + 'px';
+                await new Promise(resolve => setTimeout(resolve, 50));
+
                 const html2pdf = await loadHtml2Pdf();
                 const opt = {
                     margin:       10,
                     filename:     exp.fileName || 'export.pdf',
                     image:        { type: 'jpeg', quality: 0.98 },
-                    html2canvas:  { scale: 1.5, useCORS: true },
-                    jsPDF:        { unit: 'mm', format: 'a4', orientation: orientation || 'portrait' }
+                    html2canvas:  { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: orientation || 'portrait' },
+                    pagebreak:    { mode: ['css', 'legacy'] }
                 };
                 const element = doc.body;
-                html2pdf().set(opt).from(element).save();
+                await html2pdf().set(opt).from(element).save();
+                
+                printIframe.style.width = prevWidth;
+                printIframe.style.height = prevHeight;
             } catch (err) {
                 console.error("PDF generation failed, falling back to print dialog:", err);
                 printIframe.contentWindow.focus();
