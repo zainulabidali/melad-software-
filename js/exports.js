@@ -2519,9 +2519,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
         const rowsHtml = partsSlice.map((item, idx) => {
             const sl = pageNum ? (pageNum - 1) * 30 + idx + 1 : idx + 1;
+            const chestNo = item.chestNumber || '—';
             return `
                 <tr style="height: ${rowHeight}; font-size: ${fontSize};">
                     <td style="text-align:center; font-weight:800; color:#475569; padding: ${padding};">${sl}</td>
+                    <td style="text-align:center; font-weight:800; color:#475569; padding: ${padding};">${window.escapeHTML(chestNo)}</td>
                     <td style="padding: ${padding};"></td>
                     <td style="padding: ${padding};"></td>
                     <td style="padding: ${padding};"></td>
@@ -2565,13 +2567,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         <thead>
                             <tr>
                                 <th style="width:30px; text-align:center; padding:0.15rem; font-size:0.65rem;">SL</th>
+                                <th style="width:45px; text-align:center; padding:0.15rem; font-size:0.65rem;">Chest No</th>
                                 <th style="width:75px; text-align:center; padding:0.15rem; font-size:0.65rem;">Code</th>
                                 <th style="width:85px; text-align:center; padding:0.15rem; font-size:0.65rem;">Marks (0-100)</th>
                                 <th style="padding:0.15rem; font-size:0.65rem;">Remarks</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${rowsHtml || `<tr><td colspan="4" style="text-align:center; padding:0.5rem; color:#64748b; font-size:0.65rem;">No registered participants.</td></tr>`}
+                            ${rowsHtml || `<tr><td colspan="5" style="text-align:center; padding:0.5rem; color:#64748b; font-size:0.65rem;">No registered participants.</td></tr>`}
                         </tbody>
                     </table>
                 </div>
