@@ -278,7 +278,7 @@ function renderResultsView() {
 
             if (Array.isArray(r.marksData) && r.marksData.length > 0) {
                 r.marksData.forEach(w => {
-                    if (w.teamName && w.totalPoints > 0) {
+                    if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName !== 'No Team' && w.totalPoints > 0) {
                         const current = teamPoints.get(w.teamName) || 0;
                         teamPoints.set(w.teamName, current + (w.totalPoints || 0));
                     }
@@ -286,7 +286,7 @@ function renderResultsView() {
             } else if (Array.isArray(r.winners)) {
                 // Fallback for backward compatibility
                 r.winners.forEach(w => {
-                    if (w.teamName) {
+                    if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName !== 'No Team') {
                         const current = teamPoints.get(w.teamName) || 0;
                         teamPoints.set(w.teamName, current + (w.marks || 0));
                     }

@@ -573,7 +573,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     function renderTeamSegments() {
         const el = document.getElementById('pwTeamList');
         if (!el) return;
-        el.innerHTML = teams.map(t => {
+        let html = teams.map(t => {
             const active = t.id === selectedTeamId ? 'is-active' : '';
             return `
                 <button type="button" class="pw-segment-btn ${active}" data-team-segment="${t.id}">
@@ -581,6 +581,14 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 </button>
             `;
         }).join('');
+
+        const teamlessActive = selectedTeamId === 'teamless' ? 'is-active' : '';
+        html += `
+            <button type="button" class="pw-segment-btn ${teamlessActive}" data-team-segment="teamless">
+                No Team
+            </button>
+        `;
+        el.innerHTML = html;
     }
 
     // 4. Data Loading Methods
@@ -771,6 +779,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             await loadResultsStatus();
             await loadAllTeamRegistrations();
 
+            const targetTeamId = selectedTeamId === 'teamless' ? '' : selectedTeamId;
+
             if (!isGroupEvent) {
                 const participantsRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
                 let existingSnap;
@@ -778,7 +788,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     existingSnap = await getDocs(query(
                         participantsRef,
                         where('type', '==', 'individual'),
-                        where('teamId', '==', selectedTeamId)
+                        where('teamId', '==', targetTeamId)
                     ));
                 } catch (err) {
                     existingSnap = await getDocs(participantsRef);
@@ -786,7 +796,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 existingSnap.forEach(d => {
                     const data = d.data();
                     const matchesCategory = (pType === 'general') || ((data.categoryId || '') === inheritedCategoryId);
-                    if (data.type === 'individual' && data.teamId === selectedTeamId && matchesCategory && data.studentId) {
+                    if (data.type === 'individual' && (data.teamId || '') === targetTeamId && matchesCategory && data.studentId) {
                         savedIndividualStudentIds.add(data.studentId);
                         participantDocIds.set(data.studentId, d.id);
                         assignedParticipantsAll.push({
@@ -804,13 +814,13 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             if (pType === 'general' || inheritedCategoryId === 'general_programs') {
                 q = query(
                     collection(db, "institutes", window.currentInstituteId, "students"),
-                    where('teamId', '==', selectedTeamId)
+                    where('teamId', '==', targetTeamId)
                 );
             } else {
                 q = query(
                     collection(db, "institutes", window.currentInstituteId, "students"),
                     where('categoryId', '==', inheritedCategoryId),
-                    where('teamId', '==', selectedTeamId)
+                    where('teamId', '==', targetTeamId)
                 );
             }
 
@@ -828,7 +838,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 if (pType === 'general' || inheritedCategoryId === 'general_programs') {
                     qFallback = query(
                         collection(db, "institutes", window.currentInstituteId, "students"),
-                        where('teamId', '==', selectedTeamId)
+                        where('teamId', '==', targetTeamId)
                     );
                 } else {
                     qFallback = query(
@@ -855,7 +865,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             });
 
             // Post-filtering safeties
-            studentsAll = studentsAll.filter(s => s.teamId === selectedTeamId);
+            studentsAll = studentsAll.filter(s => (s.teamId || '') === targetTeamId);
             if (genderFilter === 'Boys') {
                 studentsAll = studentsAll.filter(s => s.gender === 'Male');
             } else if (genderFilter === 'Girls') {
@@ -924,18 +934,19 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     // 5. Group Persistence & Management Methods
     async function getOrCreateTeamParticipantContainer() {
         const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
+        const targetTeamId = selectedTeamId === 'teamless' ? '' : selectedTeamId;
         let q;
         if (pType === 'general' || selectedCategoryId === 'general_programs') {
             q = query(
                 partRef,
                 where('type', '==', 'group'),
-                where('teamId', '==', selectedTeamId)
+                where('teamId', '==', targetTeamId)
             );
         } else {
             q = query(
                 partRef,
                 where('type', '==', 'group'),
-                where('teamId', '==', selectedTeamId),
+                where('teamId', '==', targetTeamId),
                 where('categoryId', '==', selectedCategoryId)
             );
         }
@@ -948,8 +959,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
         const newRef = doc(partRef);
         await setDoc(newRef, {
-            teamId: selectedTeamId || '',
-            teamName: teamById.get(selectedTeamId)?.name || '',
+            teamId: targetTeamId,
+            teamName: selectedTeamId === 'teamless' ? 'No Team' : (teamById.get(selectedTeamId)?.name || ''),
             categoryId: selectedCategoryId || inheritedCategoryId || 'general_programs',
             classId: selectedClassId || '',
             programId: progId || '',
@@ -965,18 +976,19 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
     async function loadGroupsForTeam() {
         const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
+        const targetTeamId = selectedTeamId === 'teamless' ? '' : selectedTeamId;
         let q;
         if (pType === 'general' || selectedCategoryId === 'general_programs') {
             q = query(
                 partRef,
                 where('type', '==', 'group'),
-                where('teamId', '==', selectedTeamId)
+                where('teamId', '==', targetTeamId)
             );
         } else {
             q = query(
                 partRef,
                 where('type', '==', 'group'),
-                where('teamId', '==', selectedTeamId),
+                where('teamId', '==', targetTeamId),
                 where('categoryId', '==', selectedCategoryId)
             );
         }
@@ -1031,9 +1043,10 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             }))
         }));
 
+        const targetTeamId = selectedTeamId === 'teamless' ? '' : selectedTeamId;
         await setDoc(groupContainerRef, {
-            teamId: selectedTeamId || '',
-            teamName: teamById.get(selectedTeamId)?.name || '',
+            teamId: targetTeamId,
+            teamName: selectedTeamId === 'teamless' ? 'No Team' : (teamById.get(selectedTeamId)?.name || ''),
             categoryId: selectedCategoryId || inheritedCategoryId || '',
             classId: selectedClassId || '',
             programId: progId || '',
@@ -1479,7 +1492,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             document.querySelectorAll('[data-team-segment]').forEach(b => b.classList.remove('is-active'));
             btn.classList.add('is-active');
 
-            const tName = teamById.get(selectedTeamId)?.name;
+            const tName = selectedTeamId === 'teamless' ? 'No Team' : (teamById.get(selectedTeamId)?.name || '');
             setPill('Team', tName);
             const teamBadge = document.getElementById('pwHeaderTeamBadge');
             if (teamBadge) {
@@ -1693,6 +1706,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             btn.textContent = 'Saving...';
             if (statusEl) statusEl.textContent = 'Saving participant registrations...';
 
+            const targetTeamId = selectedTeamId === 'teamless' ? '' : selectedTeamId;
+
             try {
                 const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
                 let existingSnap;
@@ -1700,7 +1715,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     existingSnap = await getDocs(query(
                         partRef,
                         where('type', '==', 'individual'),
-                        where('teamId', '==', selectedTeamId)
+                        where('teamId', '==', targetTeamId)
                     ));
                 } catch (err) {
                     existingSnap = await getDocs(partRef);
@@ -1709,7 +1724,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 existingSnap.forEach(d => {
                     const data = d.data();
                     const matchesCategory = (pType === 'general') || ((data.categoryId || '') === inheritedCategoryId);
-                    if (data.type === 'individual' && data.teamId === selectedTeamId && matchesCategory && data.studentId) {
+                    if (data.type === 'individual' && (data.teamId || '') === targetTeamId && matchesCategory && data.studentId) {
                         existingStudentIds.add(data.studentId);
                     }
                 });
@@ -1736,8 +1751,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                         studentName: s.name || '',
                         chestNumber: s.chestNumber || '',
                         gender: s.gender || '',
-                        teamId: selectedTeamId || '',
-                        teamName: teamById.get(selectedTeamId)?.name || '',
+                        teamId: targetTeamId,
+                        teamName: selectedTeamId === 'teamless' ? 'No Team' : (teamById.get(selectedTeamId)?.name || ''),
                         categoryId: inheritedCategoryId || 'general_programs',
                         categoryName: categoriesById.get(inheritedCategoryId)?.name || s.categoryName || 'General Programs',
                         classId: s.classId || '',

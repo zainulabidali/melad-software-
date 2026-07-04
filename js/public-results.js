@@ -155,7 +155,7 @@ function updateTeamChampionship() {
 
             if (Array.isArray(r.marksData) && r.marksData.length > 0) {
                 r.marksData.forEach(w => {
-                    if (w.teamName && w.totalPoints > 0) {
+                    if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName.trim() !== 'No Team' && w.totalPoints > 0) {
                         const tName = w.teamName.trim();
                         const current = teamPoints.get(tName) || 0;
                         teamPoints.set(tName, current + (w.totalPoints || 0));
@@ -163,7 +163,7 @@ function updateTeamChampionship() {
                 });
             } else if (Array.isArray(r.winners)) {
                 r.winners.forEach(w => {
-                    if (w.teamName) {
+                    if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName.trim() !== 'No Team') {
                         const tName = w.teamName.trim();
                         const current = teamPoints.get(tName) || 0;
                         teamPoints.set(tName, current + (w.marks || 0));

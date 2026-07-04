@@ -2995,7 +2995,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     r.marksData.forEach(w => {
                         const team = w.teamName;
                         const pts = Number(w.totalPoints) || 0;
-                        if (team && pts > 0) {
+                        if (w.teamId && w.teamId !== 'teamless' && team && team !== 'No Team' && pts > 0) {
                             teamPoints.set(team, (teamPoints.get(team) || 0) + pts);
                         }
                         // For Category Champions accumulation
@@ -3014,7 +3014,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     r.winners.forEach(w => {
                         const team = w.teamName;
                         const pts = Number(w.marks) || 0;
-                        if (team && pts > 0) {
+                        if (w.teamId && w.teamId !== 'teamless' && team && team !== 'No Team' && pts > 0) {
                             teamPoints.set(team, (teamPoints.get(team) || 0) + pts);
                         }
                         // For Category Champions accumulation
@@ -3138,7 +3138,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 filteredResults.forEach(r => {
                     const winners = Array.isArray(r.winners) ? r.winners : [];
                     winners.forEach(w => {
-                        if (!w.teamName) return;
+                        if (!w.teamName || w.teamName === 'No Team' || !w.teamId || w.teamId === 'teamless') return;
                         if (f.teamId && w.teamId !== f.teamId) return;
 
                         if (!teamWinners.has(w.teamName)) {

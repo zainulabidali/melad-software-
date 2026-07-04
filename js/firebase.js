@@ -171,14 +171,14 @@ export async function updateDashboardMetadata(instituteId) {
 
                 if (Array.isArray(r.marksData) && r.marksData.length > 0) {
                     r.marksData.forEach(w => {
-                        if (w.teamName && w.totalPoints > 0) {
+                        if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName !== 'No Team' && w.totalPoints > 0) {
                             const current = teamPoints.get(w.teamName) || 0;
                             teamPoints.set(w.teamName, current + (w.totalPoints || 0));
                         }
                     });
                 } else if (Array.isArray(r.winners)) {
                     r.winners.forEach(w => {
-                        if (w.teamName) {
+                        if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName !== 'No Team') {
                             const current = teamPoints.get(w.teamName) || 0;
                             teamPoints.set(w.teamName, current + (w.marks || 0));
                         }
@@ -197,15 +197,12 @@ export async function updateDashboardMetadata(instituteId) {
             if (t.name) teamCounts.set(t.name, 0);
         });
         students.forEach(s => {
-            if (s.teamId) {
+            if (s.teamId && s.teamId !== 'teamless') {
                 const team = teams.find(t => t.id === s.teamId);
                 if (team && team.name) {
                     const current = teamCounts.get(team.name) || 0;
                     teamCounts.set(team.name, current + 1);
                 }
-            } else if (s.teamName) {
-                const current = teamCounts.get(s.teamName) || 0;
-                teamCounts.set(s.teamName, current + 1);
             }
         });
 

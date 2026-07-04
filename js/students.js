@@ -835,8 +835,11 @@ export async function initAddStudentView(container, topActions) {
                     </div>
 
                     <div class="form-group" style="margin:0;">
-                        <label class="form-label">2. Team *</label>
-                        <select id="seqTeam" class="form-input" disabled>
+                        <label class="form-label" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:700; color:#475569; user-select:none;">
+                            <input type="checkbox" id="seqIsCompetitive" checked style="width:1.15rem; height:1.15rem; cursor:pointer;">
+                            2. Assign to Team *
+                        </label>
+                        <select id="seqTeam" class="form-input" disabled style="margin-top:0.25rem;">
                             <option value="">Select Team (Disabled)...</option>
                             ${Array.from(teamMap.entries()).map(([id, name]) => `<option value="${id}">${window.escapeHTML(name)}</option>`).join('')}
                         </select>
@@ -924,7 +927,8 @@ export async function initAddStudentView(container, topActions) {
 
     function updateFlowState() {
         const catId = seqCategory.value;
-        const teamId = seqTeam.value;
+        const isCompetitive = document.getElementById('seqIsCompetitive')?.checked !== false;
+        const teamId = isCompetitive ? seqTeam.value : 'teamless';
         const gender = seqGender.value;
         const classId = seqClass.value;
 
@@ -932,6 +936,7 @@ export async function initAddStudentView(container, topActions) {
         if (!catId) {
             seqTeam.value = "";
             seqTeam.disabled = true;
+            seqTeam.style.display = 'block';
             seqTeam.innerHTML = '<option value="">Select Team (Disabled)...</option>';
             
             seqGender.value = "";
@@ -955,14 +960,21 @@ export async function initAddStudentView(container, topActions) {
             return;
         }
 
-        // Enable Team
-        seqTeam.disabled = false;
-        if (seqTeam.innerHTML.includes('(Disabled)')) {
-            seqTeam.innerHTML = '<option value="">Select Team...</option>' + 
-                Array.from(teamMap.entries()).map(([id, name]) => `<option value="${id}">${window.escapeHTML(name)}</option>`).join('');
+        // Enable/Disable & Show/Hide Team Select
+        if (isCompetitive) {
+            seqTeam.style.display = 'block';
+            seqTeam.disabled = false;
+            if (seqTeam.innerHTML.includes('(Disabled)')) {
+                seqTeam.innerHTML = '<option value="">Select Team...</option>' + 
+                    Array.from(teamMap.entries()).map(([id, name]) => `<option value="${id}">${window.escapeHTML(name)}</option>`).join('');
+            }
+        } else {
+            seqTeam.style.display = 'none';
+            seqTeam.disabled = true;
+            seqTeam.value = "";
         }
 
-        if (!teamId) {
+        if (isCompetitive && !seqTeam.value) {
             seqGender.value = "";
             seqGender.disabled = true;
             seqGender.innerHTML = `
@@ -1045,7 +1057,8 @@ export async function initAddStudentView(container, topActions) {
     function calculateChestPreviewAndStats() {
         const catId = seqCategory.value;
         const classId = seqClass.value;
-        const teamId = seqTeam.value;
+        const isCompetitive = document.getElementById('seqIsCompetitive')?.checked !== false;
+        const teamId = isCompetitive ? seqTeam.value : '';
         const rawNames = bulkNamesTextarea.value;
 
         const cat = allCategories.find(c => c.id === catId);
@@ -1209,6 +1222,7 @@ export async function initAddStudentView(container, topActions) {
     seqTeam.addEventListener('change', updateFlowState);
     seqGender.addEventListener('change', updateFlowState);
     seqClass.addEventListener('change', updateFlowState);
+    document.getElementById('seqIsCompetitive')?.addEventListener('change', updateFlowState);
 
     bulkNamesTextarea.addEventListener('input', calculateChestPreviewAndStats);
 
@@ -1217,7 +1231,8 @@ export async function initAddStudentView(container, topActions) {
         
         const catId = seqCategory.value;
         const classId = seqClass.value;
-        const teamId = seqTeam.value;
+        const isCompetitive = document.getElementById('seqIsCompetitive')?.checked !== false;
+        const teamId = isCompetitive ? seqTeam.value : '';
         
         const lines = bulkNamesTextarea.value.split('\n');
         const validNames = [];
@@ -1303,6 +1318,7 @@ export async function initAddStudentView(container, topActions) {
                         classId: classId,
                         className: clsObj?.name || '',
                         teamId: teamId,
+                        isTeamParticipant: isCompetitive,
                         createdAt: serverTimestamp()
                     });
                 });
@@ -1337,6 +1353,8 @@ function openEditModal(stuId, data) {
     const modalBody = document.getElementById('dynamicModalBody');
     const modalOverlay = document.getElementById('dynamicModal');
 
+    const isCompetitive = data.teamId && data.isTeamParticipant !== false;
+
     modalTitle.textContent = 'Edit Student';
     modalBody.innerHTML = `
         <form id="editStudentForm">
@@ -1357,11 +1375,35 @@ function openEditModal(stuId, data) {
                     <option value="Other" ${data.gender === 'Other' ? 'selected' : ''}>Other</option>
                 </select>
             </div>
+            <div class="form-group" style="display:flex; align-items:center; gap:0.5rem; margin-top:1rem;">
+                <label class="form-label" style="margin:0; display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:700; color:#475569; user-select:none;">
+                    <input type="checkbox" id="eIsCompetitive" ${isCompetitive ? 'checked' : ''} style="width:1.15rem; height:1.15rem; cursor:pointer;">
+                    Assign to Team
+                </label>
+            </div>
+            <div class="form-group" id="eTeamGroup" style="${isCompetitive ? '' : 'display:none;'}">
+                <label class="form-label">Team</label>
+                <select id="eTeam" class="form-input">
+                    ${Array.from(teamMap.entries()).map(([id, name]) => `<option value="${id}" ${data.teamId === id ? 'selected' : ''}>${window.escapeHTML(name)}</option>`).join('')}
+                </select>
+            </div>
             <div class="modal-actions">
                 <button type="submit" class="btn btn-primary w-full" id="saveEditStuBtn">Save Changes</button>
             </div>
         </form>
     `;
+
+    const checkbox = document.getElementById('eIsCompetitive');
+    const teamGroup = document.getElementById('eTeamGroup');
+    if (checkbox && teamGroup) {
+        checkbox.onchange = () => {
+            if (checkbox.checked) {
+                teamGroup.style.display = 'block';
+            } else {
+                teamGroup.style.display = 'none';
+            }
+        };
+    }
 
     modalOverlay.classList.remove('hidden');
     document.getElementById('editStudentForm').onsubmit = async (e) => {
@@ -1371,6 +1413,9 @@ function openEditModal(stuId, data) {
 
         const newName = document.getElementById('eName').value.trim();
         const newGender = document.getElementById('eGender').value;
+        const newIsCompetitive = document.getElementById('eIsCompetitive').checked;
+        const newTeamId = newIsCompetitive ? document.getElementById('eTeam').value : '';
+        const oldTeamId = data.teamId || '';
 
         if (!newName || newName.length < 2) {
             window.showToast("Student name must be at least 2 characters.", "error");
@@ -1387,6 +1432,8 @@ function openEditModal(stuId, data) {
             batch.update(studentRef, {
                 name: newName,
                 gender: newGender,
+                teamId: newTeamId,
+                isTeamParticipant: newIsCompetitive,
                 updatedAt: serverTimestamp()
             });
 
@@ -1401,19 +1448,19 @@ function openEditModal(stuId, data) {
                     batch.update(d.ref, {
                         studentName: newName,
                         gender: newGender,
+                        teamId: newTeamId,
+                        teamName: newTeamId ? (teamMap.get(newTeamId) || '') : 'No Team',
                         updatedAt: serverTimestamp()
                     });
                 }
             });
 
             // 3. Query group participant docs and update member name inside members array
-            const student = localStudentsAll.find(s => s.id === stuId);
-            const teamId = student?.teamId || '';
-            if (teamId) {
+            if (oldTeamId) {
                 const groupSnap = await getDocs(query(
                     collectionGroup(db, "participants"),
                     where("type", "==", "group"),
-                    where("teamId", "==", teamId)
+                    where("teamId", "==", oldTeamId)
                 ));
                 groupSnap.forEach(d => {
                     if (d.ref.path.startsWith(`institutes/${instId}/`)) {
@@ -1436,6 +1483,18 @@ function openEditModal(stuId, data) {
                         }
                     }
                 });
+            }
+
+            // 4. Update team member counts
+            if (oldTeamId !== newTeamId) {
+                if (oldTeamId) {
+                    const oldTeamRef = doc(db, "institutes", instId, "teams", oldTeamId);
+                    batch.update(oldTeamRef, { memberCount: increment(-1) });
+                }
+                if (newTeamId) {
+                    const newTeamRef = doc(db, "institutes", instId, "teams", newTeamId);
+                    batch.update(newTeamRef, { memberCount: increment(1) });
+                }
             }
 
             await batch.commit();
