@@ -1007,13 +1007,12 @@ function renderDrawerContent() {
                         </select>
                     </div>
 
-                    <!-- Chest Number List specific Sort Controls -->
-                    <div id="chestListSortContainer" style="display:none; flex-direction:column; gap:0.45rem;">
-                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">SORT BY</label>
-                        <select id="expChestSortVal" class="exp-input" style="background:#fff;">
-                            <option value="chest">Chest Number</option>
-                            <option value="name">Name</option>
-                            <option value="team">Team</option>
+                    <!-- Chest Number List specific Mode Controls -->
+                    <div id="chestListModeContainer" style="display:none; flex-direction:column; gap:0.45rem;">
+                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">CHEST NUMBER LIST FORMAT</label>
+                        <select id="expChestMode" class="exp-input" style="background:#fff;">
+                            <option value="class-wise">Class-wise Chest Number List</option>
+                            <option value="category-wise">Category-wise Chest Number List</option>
                         </select>
                     </div>
 
@@ -1100,7 +1099,7 @@ function renderDrawerContent() {
     const expClassFilter = document.getElementById('expClassFilter');
     const expProgFilter = document.getElementById('expProgFilter');
     const expProgFilterContainer = document.getElementById('expProgFilterContainer');
-    const chestListSortContainer = document.getElementById('chestListSortContainer');
+    const chestListModeContainer = document.getElementById('chestListModeContainer');
 
     cards.forEach(card => {
         card.onclick = () => {
@@ -1123,7 +1122,7 @@ function renderDrawerContent() {
                 resultsSourceContainer.style.display = 'flex';
                 subOptionsContainer.style.display = 'flex';
                 paperPackingContainer.style.display = 'none';
-                chestListSortContainer.style.display = 'none';
+                chestListModeContainer.style.display = 'none';
                 expProgFilterContainer.style.display = 'block';
                 if (locCont) locCont.style.display = 'none';
                 if (partCont) partCont.style.display = 'none';
@@ -1133,7 +1132,7 @@ function renderDrawerContent() {
                 subOptionsContainer.style.display = 'none';
                 paperPackingContainer.style.display = 'flex';
                 packingHint.textContent = "Automatically packing exactly 4 Valuation sheets per A4 page in a 2x2 grid (75% paper savings).";
-                chestListSortContainer.style.display = 'none';
+                chestListModeContainer.style.display = 'none';
                 expProgFilterContainer.style.display = 'block';
                 if (locCont) locCont.style.display = 'none';
                 if (partCont) partCont.style.display = 'none';
@@ -1142,7 +1141,7 @@ function renderDrawerContent() {
                 resultsSourceContainer.style.display = 'none';
                 subOptionsContainer.style.display = 'none';
                 paperPackingContainer.style.display = 'none';
-                chestListSortContainer.style.display = 'flex';
+                chestListModeContainer.style.display = 'flex';
                 expProgFilterContainer.style.display = 'none';
                 if (locCont) locCont.style.display = 'none';
                 if (partCont) partCont.style.display = 'none';
@@ -1151,7 +1150,7 @@ function renderDrawerContent() {
                 resultsSourceContainer.style.display = 'none';
                 subOptionsContainer.style.display = 'none';
                 paperPackingContainer.style.display = 'none';
-                chestListSortContainer.style.display = 'none'; // REMOVED SORT BY
+                chestListModeContainer.style.display = 'none';
                 expProgFilterContainer.style.display = 'none';
                 if (locCont) locCont.style.display = 'flex';
                 if (partCont) partCont.style.display = 'flex';
@@ -1162,7 +1161,7 @@ function renderDrawerContent() {
                 subOptionsContainer.style.display = 'none';
                 paperPackingContainer.style.display = 'flex';
                 packingHint.textContent = "Combine multiple programs continuously to avoid wasting paper on blank space.";
-                chestListSortContainer.style.display = 'none';
+                chestListModeContainer.style.display = 'none';
                 expProgFilterContainer.style.display = 'block';
                 if (locCont) locCont.style.display = 'none';
                 if (partCont) partCont.style.display = 'none';
@@ -1171,22 +1170,41 @@ function renderDrawerContent() {
         };
     });
 
-    // Cascading Class select
-    expCatFilter.onchange = async () => {
-        const catId = expCatFilter.value;
-        const mode = document.getElementById('expRegisterMode')?.value || 'class-wise';
-        expClassFilter.innerHTML = '<option value="">All Classes</option>';
-        expClassFilter.disabled = true;
+    // Helper to determine if Class select should be enabled based on active mode
+    function updateClassFilterState() {
+        const activeCard = document.querySelector('.exp-type-card.active');
+        const selectedType = activeCard ? activeCard.getAttribute('data-type') : '';
+        let isCategoryWise = false;
 
-        if (catId && catId !== 'general_programs' && mode !== 'category-wise') {
-            const cat = allCategories.find(c => c.id === catId);
-            if (cat && cat.classes) {
-                cat.classes.forEach(c => {
-                    expClassFilter.innerHTML += `<option value="${c.id}">${window.escapeHTML(c.name)}</option>`;
-                });
-                expClassFilter.disabled = false;
+        if (selectedType === 'Program Participation Register') {
+            isCategoryWise = (document.getElementById('expRegisterMode')?.value === 'category-wise');
+        } else if (selectedType === 'Chest Number List') {
+            isCategoryWise = (document.getElementById('expChestMode')?.value === 'category-wise');
+        }
+
+        const catId = expCatFilter.value;
+
+        if (isCategoryWise) {
+            expClassFilter.value = '';
+            expClassFilter.disabled = true;
+        } else {
+            expClassFilter.innerHTML = '<option value="">All Classes</option>';
+            expClassFilter.disabled = true;
+            if (catId && catId !== 'general_programs') {
+                const cat = allCategories.find(c => c.id === catId);
+                if (cat && cat.classes) {
+                    cat.classes.forEach(c => {
+                        expClassFilter.innerHTML += `<option value="${c.id}">${window.escapeHTML(c.name)}</option>`;
+                    });
+                    expClassFilter.disabled = false;
+                }
             }
         }
+    }
+
+    // Cascading Class select
+    expCatFilter.onchange = async () => {
+        updateClassFilterState();
         updateProgramsDropdown();
     };
 
@@ -1196,24 +1214,16 @@ function renderDrawerContent() {
     const regModeSelect = document.getElementById('expRegisterMode');
     if (regModeSelect) {
         regModeSelect.onchange = () => {
-            const mode = regModeSelect.value;
-            const catId = expCatFilter.value;
-            if (mode === 'category-wise') {
-                expClassFilter.value = '';
-                expClassFilter.disabled = true;
-            } else {
-                expClassFilter.innerHTML = '<option value="">All Classes</option>';
-                expClassFilter.disabled = true;
-                if (catId && catId !== 'general_programs') {
-                    const cat = allCategories.find(c => c.id === catId);
-                    if (cat && cat.classes) {
-                        cat.classes.forEach(c => {
-                            expClassFilter.innerHTML += `<option value="${c.id}">${window.escapeHTML(c.name)}</option>`;
-                        });
-                        expClassFilter.disabled = false;
-                    }
-                }
-            }
+            updateClassFilterState();
+            updateProgramsDropdown();
+        };
+    }
+
+    // Cascading Chest Mode change
+    const chestModeSelect = document.getElementById('expChestMode');
+    if (chestModeSelect) {
+        chestModeSelect.onchange = () => {
+            updateClassFilterState();
             updateProgramsDropdown();
         };
     }
@@ -1262,7 +1272,8 @@ function renderDrawerContent() {
         const srcIncludeSubmitted = selectedType === 'Results' && document.getElementById('srcIncludeSubmitted').checked;
         const srcIncludeDraft = selectedType === 'Results' && document.getElementById('srcIncludeDraft').checked;
         const compactPacking = selectedType === 'Results' ? true : document.getElementById('expCompactPacking').checked;
-        const chestSort = selectedType === 'Chest Number List' ? document.getElementById('expChestSortVal').value : 'chest';
+        const chestSort = 'chest';
+        const chestMode = selectedType === 'Chest Number List' ? document.getElementById('expChestMode').value : 'class-wise';
         const programLocation = selectedType === 'Program Participation Register' ? document.getElementById('expLocationFilter').value : '';
         const participationType = selectedType === 'Program Participation Register' ? document.getElementById('expParticipationFilter').value : '';
         const registerMode = selectedType === 'Program Participation Register' ? document.getElementById('expRegisterMode').value : 'class-wise';
@@ -1305,6 +1316,8 @@ function renderDrawerContent() {
             fileTypePrefix = cleanName(resultSubOption);
         } else if (selectedType === 'Program Participation Register') {
             fileTypePrefix = `${cleanName(selectedType)}_${cleanName(registerMode)}`;
+        } else if (selectedType === 'Chest Number List') {
+            fileTypePrefix = `${cleanName(selectedType)}_${cleanName(chestMode)}`;
         }
 
         let scopeText = '';
@@ -1322,7 +1335,9 @@ function renderDrawerContent() {
                 fileName: finalFilename,
                 summary: selectedType === 'Program Participation Register'
                     ? `Scope: ${categoryName} | Mode: ${registerMode === 'category-wise' ? 'Category-wise' : 'Class-wise'} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`
-                    : `Scope: ${categoryName}${className ? ` (${className})` : ''} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`,
+                    : (selectedType === 'Chest Number List'
+                        ? `Scope: ${categoryName}${className ? ` (${className})` : ''} | Mode: ${chestMode === 'category-wise' ? 'Category-wise' : 'Class-wise'} | Team: ${teamName} [${format.toUpperCase()}]`
+                        : `Scope: ${categoryName}${className ? ` (${className})` : ''} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`),
                 status: 'Pending',
                 queuedAt: serverTimestamp(),
                 completedIn: '—',
@@ -1343,7 +1358,8 @@ function renderDrawerContent() {
                     chestSort,
                     programLocation,
                     participationType,
-                    registerMode
+                    registerMode,
+                    chestMode
                 }
             };
 
@@ -1638,7 +1654,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         if (f.categoryId) {
             studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
         }
-        if (f.classId) {
+        if (f.chestMode !== 'category-wise' && f.classId) {
             studentsList = studentsList.filter(s => s.classId === f.classId);
         }
         if (f.teamId) {
@@ -1686,55 +1702,44 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 });
             }
 
-            // 3. Group students hierarchically by Category -> Class -> Team
-            const groups = {};
-            studentsList.forEach(stu => {
-                const catId = stu.categoryId || 'general';
-                const catName = stu.categoryName || 'General';
-                const classId = stu.classId || 'standard';
-                const className = stu.className || 'Standard';
-                const teamId = stu.teamId || 'no-team';
-                const teamName = teamNamesMap[stu.teamId] || stu.teamName || 'Independent';
+            // 3. Group students hierarchically
+            if (f.chestMode === 'category-wise') {
+                const groups = {};
+                studentsList.forEach(stu => {
+                    const catId = stu.categoryId || 'general';
+                    const catName = stu.categoryName || 'General';
+                    const teamId = stu.teamId || 'no-team';
+                    const teamName = teamNamesMap[stu.teamId] || stu.teamName || 'Independent';
 
-                if (!groups[catId]) {
-                    groups[catId] = {
-                        name: catName,
-                        classes: {}
-                    };
-                }
-                if (!groups[catId].classes[classId]) {
-                    groups[catId].classes[classId] = {
-                        name: className,
-                        teams: {}
-                    };
-                }
-                if (!groups[catId].classes[classId].teams[teamId]) {
-                    groups[catId].classes[classId].teams[teamId] = {
-                        name: teamName,
-                        students: []
-                    };
-                }
-                groups[catId].classes[classId].teams[teamId].students.push(stu);
-            });
+                    if (!groups[catId]) {
+                        groups[catId] = {
+                            name: catName,
+                            teams: {}
+                        };
+                    }
+                    if (!groups[catId].teams[teamId]) {
+                        groups[catId].teams[teamId] = {
+                            name: teamName,
+                            students: []
+                        };
+                    }
+                    groups[catId].teams[teamId].students.push(stu);
+                });
 
-            const sortedCatIds = Object.keys(groups).sort((a, b) => {
-                const idxA = allCategories.findIndex(c => c.id === a);
-                const idxB = allCategories.findIndex(c => c.id === b);
-                return idxA - idxB;
-            });
-            const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
-            const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
+                const sortedCatIds = Object.keys(groups).sort((a, b) => {
+                    const idxA = allCategories.findIndex(c => c.id === a);
+                    const idxB = allCategories.findIndex(c => c.id === b);
+                    return idxA - idxB;
+                });
+                const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+                const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
 
-            sortedCatIds.forEach(catId => {
-                const cat = groups[catId];
-                const sortedClassIds = Object.keys(cat.classes).sort((a, b) => cat.classes[a].name.localeCompare(cat.classes[b].name, undefined, { numeric: true }));
-
-                sortedClassIds.forEach(classId => {
-                    const cls = cat.classes[classId];
-                    const sortedTeamIds = Object.keys(cls.teams).sort((a, b) => cls.teams[a].name.localeCompare(cls.teams[b].name));
+                sortedCatIds.forEach(catId => {
+                    const cat = groups[catId];
+                    const sortedTeamIds = Object.keys(cat.teams).sort((a, b) => cat.teams[a].name.localeCompare(cat.teams[b].name));
 
                     sortedTeamIds.forEach(teamId => {
-                        const team = cls.teams[teamId];
+                        const team = cat.teams[teamId];
                         const students = team.students;
 
                         htmlContent += `
@@ -1744,7 +1749,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                         <div class="report-title" style="font-size:0.75rem; font-weight:800; color:#555; text-transform:uppercase; letter-spacing:0.05em;">${window.escapeHTML(instName).toUpperCase()}</div>
                                         <h2 style="margin:0.15rem 0; color:#000; font-size:1.15rem; font-weight:800; text-transform:uppercase;">CHEST NUMBER LIST</h2>
                                         <div style="font-size:0.7rem; font-weight:700; color:#666; text-transform:uppercase;">
-                                            ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(cls.name).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}${f.gender ? ` • ${window.escapeHTML(f.gender.toUpperCase())}` : ''}
+                                            ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}${f.gender ? ` • ${window.escapeHTML(f.gender.toUpperCase())}` : ''}
                                         </div>
                                     </div>
                                     <div style="text-align:right; font-weight:800; color:#000; line-height:1.2;">
@@ -1759,6 +1764,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                             <th style="width:50px; text-align:center; border: 1px solid #000;">SL</th>
                                             <th style="width:110px; text-align:center; border: 1px solid #000;">CHEST NO</th>
                                             <th style="border: 1px solid #000;">PARTICIPANT NAME</th>
+                                            <th style="width:110px; text-align:center; border: 1px solid #000;">CLASS</th>
                                             ${!f.gender ? '<th style="width:110px; text-align:center; border: 1px solid #000;">GENDER</th>' : ''}
                                         </tr>
                                     </thead>
@@ -1770,6 +1776,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                     ${window.escapeHTML(item.chestNumber || '—')}
                                                 </td>
                                                 <td style="font-weight:700; color:#000; border: 1px solid #000;">${window.escapeHTML(item.name).toUpperCase()}</td>
+                                                <td style="text-align:center; font-weight:600; color:#000; border: 1px solid #000;">${window.escapeHTML(item.className || item.classId || '—').toUpperCase()}</td>
                                                 ${!f.gender ? `<td style="text-align:center; font-weight:600; color:#000; border: 1px solid #000;">${window.escapeHTML(item.gender || '—').toUpperCase()}</td>` : ''}
                                             </tr>
                                         `).join('')}
@@ -1779,7 +1786,102 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         `;
                     });
                 });
-            });
+            } else {
+                // 3. Group students hierarchically by Category -> Class -> Team
+                const groups = {};
+                studentsList.forEach(stu => {
+                    const catId = stu.categoryId || 'general';
+                    const catName = stu.categoryName || 'General';
+                    const classId = stu.classId || 'standard';
+                    const className = stu.className || 'Standard';
+                    const teamId = stu.teamId || 'no-team';
+                    const teamName = teamNamesMap[stu.teamId] || stu.teamName || 'Independent';
+
+                    if (!groups[catId]) {
+                        groups[catId] = {
+                            name: catName,
+                            classes: {}
+                        };
+                    }
+                    if (!groups[catId].classes[classId]) {
+                        groups[catId].classes[classId] = {
+                            name: className,
+                            teams: {}
+                        };
+                    }
+                    if (!groups[catId].classes[classId].teams[teamId]) {
+                        groups[catId].classes[classId].teams[teamId] = {
+                            name: teamName,
+                            students: []
+                        };
+                    }
+                    groups[catId].classes[classId].teams[teamId].students.push(stu);
+                });
+
+                const sortedCatIds = Object.keys(groups).sort((a, b) => {
+                    const idxA = allCategories.findIndex(c => c.id === a);
+                    const idxB = allCategories.findIndex(c => c.id === b);
+                    return idxA - idxB;
+                });
+                const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+                const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
+
+                sortedCatIds.forEach(catId => {
+                    const cat = groups[catId];
+                    const sortedClassIds = Object.keys(cat.classes).sort((a, b) => cat.classes[a].name.localeCompare(cat.classes[b].name, undefined, { numeric: true }));
+
+                    sortedClassIds.forEach(classId => {
+                        const cls = cat.classes[classId];
+                        const sortedTeamIds = Object.keys(cls.teams).sort((a, b) => cls.teams[a].name.localeCompare(cls.teams[b].name));
+
+                        sortedTeamIds.forEach(teamId => {
+                            const team = cls.teams[teamId];
+                            const students = team.students;
+
+                            htmlContent += `
+                                <div class="${pageDivClass}" style="margin-bottom: 1rem; page-break-inside: avoid; break-inside: avoid;">
+                                    <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #000; padding-bottom:0.35rem; margin-bottom:0.6rem; width:100%;">
+                                        <div>
+                                            <div class="report-title" style="font-size:0.75rem; font-weight:800; color:#555; text-transform:uppercase; letter-spacing:0.05em;">${window.escapeHTML(instName).toUpperCase()}</div>
+                                            <h2 style="margin:0.15rem 0; color:#000; font-size:1.15rem; font-weight:800; text-transform:uppercase;">CHEST NUMBER LIST</h2>
+                                            <div style="font-size:0.7rem; font-weight:700; color:#666; text-transform:uppercase;">
+                                                ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(cls.name).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}${f.gender ? ` • ${window.escapeHTML(f.gender.toUpperCase())}` : ''}
+                                            </div>
+                                        </div>
+                                        <div style="text-align:right; font-weight:800; color:#000; line-height:1.2;">
+                                            <div style="font-size:0.68rem; color:#666; text-transform:uppercase;">TOTAL ENTRIES</div>
+                                            <div style="font-size:0.95rem;">${students.length} STUDENTS</div>
+                                        </div>
+                                    </div>
+
+                                    <table class="report-table" style="margin-top: 0.5rem; width:100%;">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:50px; text-align:center; border: 1px solid #000;">SL</th>
+                                                <th style="width:110px; text-align:center; border: 1px solid #000;">CHEST NO</th>
+                                                <th style="border: 1px solid #000;">PARTICIPANT NAME</th>
+                                                ${!f.gender ? '<th style="width:110px; text-align:center; border: 1px solid #000;">GENDER</th>' : ''}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${students.map((item, idx) => `
+                                                <tr style="height:26px; page-break-inside:avoid;">
+                                                    <td style="text-align:center; font-weight:700; color:#000; border: 1px solid #000;">${idx + 1}</td>
+                                                    <td style="text-align:center; font-weight:800; color:#000; border: 1px solid #000;">
+                                                        ${window.escapeHTML(item.chestNumber || '—')}
+                                                    </td>
+                                                    <td style="font-weight:700; color:#000; border: 1px solid #000;">${window.escapeHTML(item.name).toUpperCase()}</td>
+                                                    ${!f.gender ? `<td style="text-align:center; font-weight:600; color:#000; border: 1px solid #000;">${window.escapeHTML(item.gender || '—').toUpperCase()}</td>` : ''}
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            `;
+                        });
+                    });
+                });
+            }
         }
 
         // Render PDF through iframe
