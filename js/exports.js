@@ -2237,6 +2237,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             return;
         }
 
+        const chunkArray = (array, size) => {
+            const chunks = [];
+            for (let i = 0; i < array.length; i += size) {
+                chunks.push(array.slice(i, i + size));
+            }
+            return chunks;
+        };
+
         // 1. Filter students
         let studentsList = Object.values(studentMap);
 
@@ -2373,93 +2381,124 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const N = progs.length;
                     let cellFontSize = '0.75rem';
                     let headerHeight = '120px';
+                    let rowHeightVal = '26px';
+                    let cellPaddingVal = '2px 0.2rem';
+                    let nameCellPaddingVal = '2px 0.5rem';
+                    let pageSize = 16;
 
                     if (N > 25) {
                         cellFontSize = '0.42rem';
                         headerHeight = '180px';
+                        rowHeightVal = '22px';
+                        cellPaddingVal = '1px 0.1rem';
+                        nameCellPaddingVal = '1px 0.3rem';
+                        pageSize = 15;
                     } else if (N > 18) {
                         cellFontSize = '0.48rem';
                         headerHeight = '160px';
+                        rowHeightVal = '23px';
+                        cellPaddingVal = '1px 0.15rem';
+                        nameCellPaddingVal = '1px 0.4rem';
+                        pageSize = 16;
                     } else if (N > 12) {
                         cellFontSize = '0.55rem';
                         headerHeight = '140px';
+                        rowHeightVal = '24px';
+                        cellPaddingVal = '1px 0.2rem';
+                        nameCellPaddingVal = '1px 0.4rem';
+                        pageSize = 16;
                     } else if (N > 8) {
                         cellFontSize = '0.65rem';
                         headerHeight = '130px';
+                        rowHeightVal = '25px';
+                        cellPaddingVal = '1.5px 0.2rem';
+                        nameCellPaddingVal = '1.5px 0.4rem';
+                        pageSize = 16;
                     }
 
                     sortedTeamIds.forEach(teamId => {
                         const team = cat.teams[teamId];
                         const students = team.students;
 
-                        htmlContent += `
-                            <div class="${pageDivClass}" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid;">
-                                <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.4rem; margin-bottom: 0.5rem; width: 100%;">
-                                    <div>
-                                        <div style="font-size: 0.8rem; font-weight: 800; color: #000; letter-spacing: 0.05em; text-transform: uppercase;">
-                                            PROGRAM PARTICIPATION REGISTER
-                                        </div>
-                                        <h2 style="margin: 0.15rem 0 0 0; color: #000; font-size: 1.25rem; font-weight: 800; text-transform: uppercase;">
-                                            ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}
-                                        </h2>
-                                        <div style="font-size: 0.72rem; font-weight: 700; color: #000; margin-top: 0.1rem; text-transform: uppercase;">
-                                            ${window.escapeHTML(instName).toUpperCase()}
-                                        </div>
-                                    </div>
-                                    <div style="text-align: right; font-weight: 800; color: #000; line-height: 1.3;">
-                                        <div style="font-size: 0.9rem; text-transform: uppercase;">
-                                            ${(f.participationType === 'individual' ? 'INDIVIDUAL PROGRAM' : (f.participationType === 'group' ? 'GROUP PROGRAM' : (f.participationType === 'general' ? 'GENERAL PROGRAM' : 'ALL PROGRAM TYPES')))}
-                                        </div>
-                                        <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">
-                                            ${(f.programLocation === 'Stage' ? 'STAGE' : (f.programLocation === 'Off Stage' ? 'OFF STAGE' : 'STAGE / OFF STAGE'))}
-                                        </div>
-                                        <div style="font-size: 0.68rem; font-weight: 700; color: #475569; margin-top: 0.1rem;">
-                                            TOTAL: ${students.length} STUDENTS
-                                        </div>
-                                    </div>
-                                </div>
+                        const studentChunks = chunkArray(students, pageSize);
 
-                                <table class="report-table" style="margin-top: 0.5rem; font-size:${cellFontSize};">
-                                    <thead>
-                                        <tr>
-                                            <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.35rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
-                                            <th style="width:180px; min-width:180px; max-width:180px; padding:0.35rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
-                                            <th style="width:60px; min-width:60px; max-width:60px; padding:0.35rem 0.5rem; text-align:center; border: 1px solid #000;">CLASS</th>
-                                            ${progs.map(p => `
-                                                <th class="rotated-th program-col" style="height:${headerHeight};">
-                                                    <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
-                                                </th>
-                                            `).join('')}
-                                            <th style="border-left: none; border-right: none; background: #fff !important;"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${students.map((item, idx) => `
-                                            <tr style="height:32px; page-break-inside:avoid;">
-                                                <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:0.35rem 0.2rem; border: 1px solid #000;">${idx + 1}</td>
-                                                <td style="width:180px; min-width:180px; max-width:180px; font-weight:bold; color:#000; padding:0.35rem 0.5rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.name)}">
-                                                    ${window.escapeHTML(item.name).toUpperCase()}
-                                                </td>
-                                                <td style="width:60px; min-width:60px; max-width:60px; font-weight:bold; color:#000; padding:0.35rem 0.5rem; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.className || '')}">
-                                                    ${window.escapeHTML(item.className || item.classId || '').toUpperCase()}
-                                                </td>
+                        studentChunks.forEach((chunk, chunkIdx) => {
+                            const pageNum = chunkIdx + 1;
+                            const totalPages = studentChunks.length;
+                            const pageIndicator = totalPages > 1 ? ` • PAGE ${pageNum}/${totalPages}` : '';
+
+                            htmlContent += `
+                                <div class="${pageDivClass}" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid;">
+                                    <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.2rem; margin-bottom: 0.3rem; width: 100%;">
+                                        <div>
+                                            <div style="font-size: 0.7rem; font-weight: 800; color: #000; letter-spacing: 0.05em; text-transform: uppercase;">
+                                                PROGRAM PARTICIPATION REGISTER${pageIndicator}
+                                            </div>
+                                            <h2 style="margin: 0.1rem 0 0 0; color: #000; font-size: 1.15rem; font-weight: 800; text-transform: uppercase;">
+                                                ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}
+                                            </h2>
+                                            <div style="font-size: 0.7rem; font-weight: 700; color: #000; margin-top: 0.05rem; text-transform: uppercase;">
+                                                ${window.escapeHTML(instName).toUpperCase()}
+                                            </div>
+                                        </div>
+                                        <div style="text-align: right; font-weight: 800; color: #000; line-height: 1.2;">
+                                            <div style="font-size: 0.8rem; text-transform: uppercase;">
+                                                ${(f.participationType === 'individual' ? 'INDIVIDUAL PROGRAM' : (f.participationType === 'group' ? 'GROUP PROGRAM' : (f.participationType === 'general' ? 'GENERAL PROGRAM' : 'ALL PROGRAM TYPES')))}
+                                            </div>
+                                            <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase;">
+                                                ${(f.programLocation === 'Stage' ? 'STAGE' : (f.programLocation === 'Off Stage' ? 'OFF STAGE' : 'STAGE / OFF STAGE'))}
+                                            </div>
+                                            <div style="font-size: 0.62rem; font-weight: 700; color: #475569; margin-top: 0.05rem;">
+                                                TOTAL: ${students.length} STUDENTS
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <table class="report-table" style="margin-top: 0.4rem; font-size:${cellFontSize};">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
+                                                <th style="width:180px; min-width:180px; max-width:180px; padding:0.25rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
+                                                <th style="width:60px; min-width:60px; max-width:60px; padding:0.25rem 0.5rem; text-align:center; border: 1px solid #000;">CLASS</th>
                                                 ${progs.map(p => `
-                                                    <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
-                                                        ${isRegistered(item.id, p.id) ? '✔' : ''}
-                                                    </td>
+                                                    <th class="rotated-th program-col" style="height:${headerHeight};">
+                                                        <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
+                                                    </th>
                                                 `).join('')}
-                                                <td style="border-left: none; border-right: none;"></td>
+                                                <th style="border-left: none; border-right: none; background: #fff !important;"></th>
                                             </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            ${chunk.map((item, idx) => {
+                                                const globalIdx = chunkIdx * pageSize + idx;
+                                                return `
+                                                    <tr style="height:${rowHeightVal}; page-break-inside:avoid;">
+                                                        <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; border: 1px solid #000;">${globalIdx + 1}</td>
+                                                        <td style="width:180px; min-width:180px; max-width:180px; font-weight:bold; color:#000; padding:${nameCellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.name)}">
+                                                            ${window.escapeHTML(item.name).toUpperCase()}
+                                                        </td>
+                                                        <td style="width:60px; min-width:60px; max-width:60px; font-weight:bold; color:#000; padding:${cellPaddingVal}; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.className || '')}">
+                                                            ${window.escapeHTML(item.className || item.classId || '').toUpperCase()}
+                                                        </td>
+                                                        ${progs.map(p => `
+                                                            <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
+                                                                ${isRegistered(item.id, p.id) ? '✔' : ''}
+                                                            </td>
+                                                        `).join('')}
+                                                        <td style="border-left: none; border-right: none;"></td>
+                                                    </tr>
+                                                `;
+                                            }).join('')}
+                                        </tbody>
+                                    </table>
 
-                                <div class="register-footer">
-                                    <div>COORDINATOR SIGNATURE : ________________________</div>
-                                    <div>DATE : ________________________</div>
+                                    <div class="register-footer" style="margin-top: 0.6rem; padding-top: 0.2rem; font-size: 0.72rem;">
+                                        <div>COORDINATOR SIGNATURE : ________________________</div>
+                                        <div>DATE : ________________________</div>
+                                    </div>
                                 </div>
-                            </div>
-                        `;
+                            `;
+                        });
                     });
                 });
             } else {
@@ -2530,89 +2569,120 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         const N = progs.length;
                         let cellFontSize = '0.75rem';
                         let headerHeight = '120px';
+                        let rowHeightVal = '26px';
+                        let cellPaddingVal = '2px 0.2rem';
+                        let nameCellPaddingVal = '2px 0.5rem';
+                        let pageSize = 16;
 
                         if (N > 25) {
                             cellFontSize = '0.42rem';
                             headerHeight = '180px';
+                            rowHeightVal = '22px';
+                            cellPaddingVal = '1px 0.1rem';
+                            nameCellPaddingVal = '1px 0.3rem';
+                            pageSize = 15;
                         } else if (N > 18) {
                             cellFontSize = '0.48rem';
                             headerHeight = '160px';
+                            rowHeightVal = '23px';
+                            cellPaddingVal = '1px 0.15rem';
+                            nameCellPaddingVal = '1px 0.4rem';
+                            pageSize = 16;
                         } else if (N > 12) {
                             cellFontSize = '0.55rem';
                             headerHeight = '140px';
+                            rowHeightVal = '24px';
+                            cellPaddingVal = '1px 0.2rem';
+                            nameCellPaddingVal = '1px 0.4rem';
+                            pageSize = 16;
                         } else if (N > 8) {
                             cellFontSize = '0.65rem';
                             headerHeight = '130px';
+                            rowHeightVal = '25px';
+                            cellPaddingVal = '1.5px 0.2rem';
+                            nameCellPaddingVal = '1.5px 0.4rem';
+                            pageSize = 16;
                         }
 
                         sortedTeamIds.forEach(teamId => {
                             const team = cls.teams[teamId];
                             const students = team.students;
 
-                            htmlContent += `
-                                <div class="${pageDivClass}" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid;">
-                                    <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.4rem; margin-bottom: 0.5rem; width: 100%;">
-                                        <div>
-                                            <div style="font-size: 0.8rem; font-weight: 800; color: #000; letter-spacing: 0.05em; text-transform: uppercase;">
-                                                PROGRAM PARTICIPATION REGISTER
-                                            </div>
-                                            <h2 style="margin: 0.15rem 0 0 0; color: #000; font-size: 1.25rem; font-weight: 800; text-transform: uppercase;">
-                                                ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(cls.name).toUpperCase()}
-                                            </h2>
-                                            <div style="font-size: 0.72rem; font-weight: 700; color: #000; margin-top: 0.1rem; text-transform: uppercase;">
-                                                ${window.escapeHTML(instName).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}
-                                            </div>
-                                        </div>
-                                        <div style="text-align: right; font-weight: 800; color: #000; line-height: 1.3;">
-                                            <div style="font-size: 0.9rem; text-transform: uppercase;">
-                                                ${(f.participationType === 'individual' ? 'INDIVIDUAL PROGRAM' : (f.participationType === 'group' ? 'GROUP PROGRAM' : (f.participationType === 'general' ? 'GENERAL PROGRAM' : 'ALL PROGRAM TYPES')))}
-                                            </div>
-                                            <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">
-                                                ${(f.programLocation === 'Stage' ? 'STAGE' : (f.programLocation === 'Off Stage' ? 'OFF STAGE' : 'STAGE / OFF STAGE'))}
-                                            </div>
-                                            <div style="font-size: 0.68rem; font-weight: 700; color: #475569; margin-top: 0.1rem;">
-                                                TOTAL: ${students.length} STUDENTS
-                                            </div>
-                                        </div>
-                                    </div>
+                            const studentChunks = chunkArray(students, pageSize);
 
-                                    <table class="report-table" style="margin-top: 0.5rem; font-size:${cellFontSize};">
-                                        <thead>
-                                            <tr>
-                                                <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.35rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
-                                                <th style="width:180px; min-width:180px; max-width:180px; padding:0.35rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
-                                                ${progs.map(p => `
-                                                    <th class="rotated-th program-col" style="height:${headerHeight};">
-                                                        <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
-                                                    </th>
-                                                `).join('')}
-                                                <th style="border-left: none; border-right: none; background: #fff !important;"></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${students.map((item, idx) => `
-                                                <tr style="height:32px; page-break-inside:avoid;">
-                                                    <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:0.35rem 0.2rem; border: 1px solid #000;">${idx + 1}</td>
-                                                    <td style="width:180px; min-width:180px; max-width:180px; font-weight:bold; color:#000; padding:0.35rem 0.5rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.name)}">
-                                                        ${window.escapeHTML(item.name).toUpperCase()}
-                                                    </td>
+                            studentChunks.forEach((chunk, chunkIdx) => {
+                                const pageNum = chunkIdx + 1;
+                                const totalPages = studentChunks.length;
+                                const pageIndicator = totalPages > 1 ? ` • PAGE ${pageNum}/${totalPages}` : '';
+
+                                htmlContent += `
+                                    <div class="${pageDivClass}" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid;">
+                                        <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.2rem; margin-bottom: 0.3rem; width: 100%;">
+                                            <div>
+                                                <div style="font-size: 0.7rem; font-weight: 800; color: #000; letter-spacing: 0.05em; text-transform: uppercase;">
+                                                    PROGRAM PARTICIPATION REGISTER${pageIndicator}
+                                                </div>
+                                                <h2 style="margin: 0.1rem 0 0 0; color: #000; font-size: 1.15rem; font-weight: 800; text-transform: uppercase;">
+                                                    ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(cls.name).toUpperCase()}
+                                                </h2>
+                                                <div style="font-size: 0.7rem; font-weight: 700; color: #000; margin-top: 0.05rem; text-transform: uppercase;">
+                                                    ${window.escapeHTML(instName).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}
+                                                </div>
+                                            </div>
+                                            <div style="text-align: right; font-weight: 800; color: #000; line-height: 1.2;">
+                                                <div style="font-size: 0.8rem; text-transform: uppercase;">
+                                                    ${(f.participationType === 'individual' ? 'INDIVIDUAL PROGRAM' : (f.participationType === 'group' ? 'GROUP PROGRAM' : (f.participationType === 'general' ? 'GENERAL PROGRAM' : 'ALL PROGRAM TYPES')))}
+                                                </div>
+                                                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase;">
+                                                    ${(f.programLocation === 'Stage' ? 'STAGE' : (f.programLocation === 'Off Stage' ? 'OFF STAGE' : 'STAGE / OFF STAGE'))}
+                                                </div>
+                                                <div style="font-size: 0.62rem; font-weight: 700; color: #475569; margin-top: 0.05rem;">
+                                                    TOTAL: ${students.length} STUDENTS
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <table class="report-table" style="margin-top: 0.4rem; font-size:${cellFontSize};">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
+                                                    <th style="width:180px; min-width:180px; max-width:180px; padding:0.25rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
                                                     ${progs.map(p => `
-                                                        <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
-                                                            ${isRegistered(item.id, p.id) ? '✔' : ''}
-                                                        </td>
+                                                        <th class="rotated-th program-col" style="height:${headerHeight};">
+                                                            <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
+                                                        </th>
                                                     `).join('')}
-                                                    <td style="border-left: none; border-right: none;"></td>
+                                                    <th style="border-left: none; border-right: none; background: #fff !important;"></th>
                                                 </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody>
+                                                ${chunk.map((item, idx) => {
+                                                    const globalIdx = chunkIdx * pageSize + idx;
+                                                    return `
+                                                        <tr style="height:${rowHeightVal}; page-break-inside:avoid;">
+                                                            <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; border: 1px solid #000;">${globalIdx + 1}</td>
+                                                            <td style="width:180px; min-width:180px; max-width:180px; font-weight:bold; color:#000; padding:${nameCellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.name)}">
+                                                                ${window.escapeHTML(item.name).toUpperCase()}
+                                                            </td>
+                                                            ${progs.map(p => `
+                                                                <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
+                                                                    ${isRegistered(item.id, p.id) ? '✔' : ''}
+                                                                </td>
+                                                            `).join('')}
+                                                            <td style="border-left: none; border-right: none;"></td>
+                                                        </tr>
+                                                    `;
+                                                }).join('')}
+                                            </tbody>
+                                        </table>
 
-                                    <div class="register-footer">
-                                        <div>COORDINATOR SIGNATURE : ________________________</div>
-                                        <div>DATE : ________________________</div>
+                                        <div class="register-footer" style="margin-top: 0.6rem; padding-top: 0.2rem; font-size: 0.72rem;">
+                                            <div>COORDINATOR SIGNATURE : ________________________</div>
+                                            <div>DATE : ________________________</div>
+                                        </div>
                                     </div>
-                                </div>
-                            `;
+                                `;
+                            });
                         });
                     });
                 });
@@ -2622,7 +2692,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         // Render PDF through iframe
         const printIframe = getPrintIframe();
         const doc = printIframe.contentDocument || printIframe.contentWindow.document;
-        const pageMargin = '10mm';
+        const pageMargin = '8mm';
 
         const styleBlock = `
             <style>
@@ -2646,7 +2716,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 .report-table {
                     width: 100%;
                     border-collapse: collapse;
-                    margin-top: 1rem;
+                    margin-top: 0.4rem;
                     border: 2px solid #000;
                 }
                 .report-table th, .report-table td {
@@ -2686,7 +2756,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     padding: 0;
                     width: 100%;
                     height: 100%;
-                    min-height: 180mm; /* A4 landscape height minus margins */
+                    min-height: 184mm; /* Adjusted for 8mm margins */
                     display: flex;
                     flex-direction: column;
                     justify-content: space-between;
@@ -2719,11 +2789,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    font-size: 0.8rem;
+                    font-size: 0.72rem;
                     font-weight: bold;
                     color: #000;
-                    margin-top: 1.5rem;
-                    padding-top: 0.5rem;
+                    margin-top: 0.6rem;
+                    padding-top: 0.2rem;
                 }
             </style>
         `;
