@@ -407,7 +407,17 @@ function renderMarkEntryGrid() {
 
     const filtered = allPrograms.filter(p => {
         // Text Search
-        if (markEntryFilter.search && !p.programName.toLowerCase().includes(markEntryFilter.search)) return false;
+        if (markEntryFilter.search) {
+            const q = markEntryFilter.search;
+            const cleanQ = q.replace(/#/g, '');
+            const nameMatch = p.programName.toLowerCase().includes(q);
+            
+            const progNumStr = p.programNumber ? String(p.programNumber).toLowerCase() : '';
+            const cleanProgNum = progNumStr.replace(/#/g, '');
+            const numberMatch = cleanProgNum && cleanQ && cleanProgNum.includes(cleanQ);
+            
+            if (!nameMatch && !numberMatch) return false;
+        }
         // Filters
         if (markEntryFilter.categoryId && p.categoryId !== markEntryFilter.categoryId) return false;
         if (markEntryFilter.gender && p.genderCategory !== markEntryFilter.gender) return false;
@@ -665,7 +675,7 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
         }
 
         // Change modal title header to dynamic scoresheet and proceed
-        document.getElementById('dynamicModalTitle').textContent = `🖋️ Mark Entry Spreadsheet`;
+        document.getElementById('dynamicModalTitle').textContent = `🖋️ Judges List`;
         renderSpreadsheetUI(modalBody, modal, prog, checkedNames, participants, existingResult);
     };
 }
@@ -722,7 +732,6 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
                 </td>
                 <td style="padding:0.75rem; border:1px solid #cbd5e1;">
                     <div style="font-weight:700; color:#1e293b;">${window.escapeHTML(p.name)}</div>
-                    ${p.teamName ? `<div style="font-size:0.75rem; color:#64748b; margin-top:0.15rem;">👥 ${window.escapeHTML(p.teamName)}</div>` : ''}
                 </td>
                 ${judgeInputsHTML}
                 <td style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-weight:800; color:#1e293b; background:#f8fafc;" class="cell-final-mark">

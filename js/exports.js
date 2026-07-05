@@ -455,6 +455,11 @@ export async function initExportsView(container, topActions) {
         renderHistoryLogs();
     };
 
+    window.addEventListener('scroll', () => {
+        const activeDropdown = document.querySelector('.active-body-dropdown');
+        if (activeDropdown) activeDropdown.remove();
+    }, true);
+
     await loadStaticData();
     subscribeExportsHistory();
 }
@@ -637,20 +642,18 @@ function renderHistoryLogs() {
                 <td style="color:#475569; font-weight:700; text-align:center;">${window.escapeHTML(generatedBy)}</td>
                 <td style="text-align:center;">${getStatusBadge(exp.status)}</td>
                 <td style="text-align:center;">
-                    <div class="exp-action-btn-cluster" style="display:flex; justify-content:center; gap:0.25rem;">
+                    <div class="exp-action-btn-cluster" style="display:flex; justify-content:center; gap:0.25rem; align-items:center;">
                         <button type="button" class="btn btn-print-exp" data-id="${exp.id}" ${canDownload ? '' : 'disabled'} style="background:${canDownload ? '#eff6ff' : '#f8fafc'}; color:${canDownload ? '#1d4ed8' : '#94a3b8'}; border:1px solid ${canDownload ? '#93c5fd' : '#cbd5e1'}; cursor:${canDownload ? 'pointer' : 'not-allowed'}; font-weight:700;">
                             🖨️ Print
                         </button>
-                        <button type="button" class="btn btn-download-exp" data-id="${exp.id}" ${canDownload ? '' : 'disabled'} style="background:${canDownload ? '#f0fdf4' : '#f8fafc'}; color:${canDownload ? '#16a34a' : '#94a3b8'}; border:1px solid ${canDownload ? '#bbf7d0' : '#cbd5e1'}; cursor:${canDownload ? 'pointer' : 'not-allowed'}; font-weight:700;">
-                            📥 Download
-                        </button>
-                        ${canRetry ? `
-                        <button type="button" class="btn btn-retry-exp" data-id="${exp.id}" style="background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd; cursor:pointer;">
-                            🔄 Retry
-                        </button>
-                        ` : ''}
-                        <button type="button" class="btn btn-delete-exp" data-id="${exp.id}" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; cursor:pointer;">
-                            🗑️ Delete
+                        <button type="button" class="btn-action-icon btn-action-more dots-btn exp-dots-btn" 
+                            data-id="${exp.id}" 
+                            data-can-download="${canDownload}"
+                            data-can-retry="${canRetry}"
+                            style="border:1px solid #cbd5e1; border-radius:8px; padding:0.35rem; display:inline-flex; align-items:center; justify-content:center; background:#ffffff; cursor:pointer;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.95rem; height:0.95rem; color:#475569;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+                            </svg>
                         </button>
                     </div>
                 </td>
@@ -690,24 +693,18 @@ function renderHistoryLogs() {
                         <span class="exp-mobile-val">${window.escapeHTML(generatedBy)}</span>
                     </div>
                 </div>
-                <div class="exp-mobile-actions">
-                    <div style="display:flex; gap:0.35rem; width:100%;">
-                        <button type="button" class="btn btn-print-exp" data-id="${exp.id}" ${canDownload ? '' : 'disabled'} style="width:100%; background:${canDownload ? '#eff6ff' : '#f8fafc'}; color:${canDownload ? '#1d4ed8' : '#94a3b8'}; border:1px solid ${canDownload ? '#93c5fd' : '#cbd5e1'}; cursor:${canDownload ? 'pointer' : 'not-allowed'}; font-weight:700; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; gap:0.25rem;">
-                            Print
-                        </button>
-                        <button type="button" class="btn btn-download-exp" data-id="${exp.id}" ${canDownload ? '' : 'disabled'} style="width:100%; background:${canDownload ? '#f0fdf4' : '#f8fafc'}; color:${canDownload ? '#16a34a' : '#94a3b8'}; border:1px solid ${canDownload ? '#bbf7d0' : '#cbd5e1'}; cursor:${canDownload ? 'pointer' : 'not-allowed'}; font-weight:700; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; gap:0.25rem;">
-                            Download
-                        </button>
-                    </div>
-                    ${canRetry ? `
-                    <button type="button" class="btn btn-retry-exp" data-id="${exp.id}" style="width:100%; background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd; cursor:pointer; font-weight:700; border-radius:8px;">
-                        Retry
+                <div class="exp-mobile-actions" style="display:flex; align-items:center; gap:0.5rem; margin-top:0.5rem;">
+                    <button type="button" class="btn btn-print-exp" data-id="${exp.id}" ${canDownload ? '' : 'disabled'} style="flex:1; background:${canDownload ? '#eff6ff' : '#f8fafc'}; color:${canDownload ? '#1d4ed8' : '#94a3b8'}; border:1px solid ${canDownload ? '#93c5fd' : '#cbd5e1'}; cursor:${canDownload ? 'pointer' : 'not-allowed'}; font-weight:700; border-radius:8px; min-height:38px; display:inline-flex; align-items:center; justify-content:center; gap:0.25rem;">
+                        🖨️ Print
                     </button>
-                    ` : `
-                    <div style="width:100%; height:1px;"></div>
-                    `}
-                    <button type="button" class="btn btn-delete-exp" data-id="${exp.id}" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; cursor:pointer; font-weight:700; border-radius:8px; width:100%;">
-                        🗑️ Delete Log Record
+                    <button type="button" class="btn-action-icon btn-action-more dots-btn exp-dots-btn" 
+                        data-id="${exp.id}" 
+                        data-can-download="${canDownload}"
+                        data-can-retry="${canRetry}"
+                        style="min-height:38px; width:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #cbd5e1; border-radius:8px; background:#ffffff; cursor:pointer;">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.95rem; height:0.95rem; color:#475569;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+                        </svg>
                     </button>
                 </div>
             </div>
@@ -723,28 +720,99 @@ function renderHistoryLogs() {
         };
     });
 
-    document.querySelectorAll('.btn-download-exp').forEach(btn => {
-        btn.onclick = () => {
-            const id = btn.getAttribute('data-id');
-            const exp = exportsList.find(x => x.id === id);
-            if (exp) triggerDownload(exp, true);
+    document.querySelectorAll('.exp-dots-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            openExportsDropdown(btn);
         };
     });
+}
 
-    document.querySelectorAll('.btn-retry-exp').forEach(btn => {
-        btn.onclick = () => {
-            const id = btn.getAttribute('data-id');
+function openExportsDropdown(btn) {
+    // 1. Remove any existing dynamic body-appended dropdown
+    const existing = document.querySelector('.active-body-dropdown');
+    if (existing) existing.remove();
+
+    // 2. Create the dropdown element
+    const dropdown = document.createElement('div');
+    dropdown.className = 'actions-dropdown-menu active-body-dropdown';
+    
+    // Get datasets
+    const id = btn.dataset.id;
+    const canDownload = btn.dataset.canDownload === 'true';
+    const canRetry = btn.dataset.canRetry === 'true';
+
+    dropdown.innerHTML = `
+        <button class="dropdown-item btn-download-dropdown" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:${canDownload ? '#475569' : '#94a3b8'}; text-align:left; cursor:${canDownload ? 'pointer' : 'not-allowed'};" ${canDownload ? '' : 'disabled'}>
+            📥 Download
+        </button>
+        ${canRetry ? `
+        <button class="dropdown-item btn-retry-dropdown" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#1d4ed8; text-align:left; cursor:pointer;">
+            🔄 Retry
+        </button>
+        ` : ''}
+        <button class="dropdown-item btn-delete-dropdown text-danger" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#dc2626; text-align:left; cursor:pointer;">
+            🗑️ Delete
+        </button>
+    `;
+
+    // 3. Append directly to body
+    document.body.appendChild(dropdown);
+
+    // 4. Position fixed menu dynamically to avoid clipping
+    const rect = btn.getBoundingClientRect();
+    const menuWidth = 135;
+    const menuHeight = canRetry ? 120 : 80;
+
+    let leftPos = rect.right - menuWidth;
+    if (leftPos < 10) leftPos = 10;
+    if (leftPos + menuWidth > window.innerWidth - 10) {
+        leftPos = window.innerWidth - menuWidth - 10;
+    }
+    dropdown.style.left = `${leftPos}px`;
+
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    if (spaceBelow < menuHeight + 15 && spaceAbove > spaceBelow) {
+        let topPos = rect.top - menuHeight - 4;
+        if (topPos < 10) topPos = 10;
+        dropdown.style.top = `${topPos}px`;
+        dropdown.classList.add('open-upward');
+    } else {
+        let topPos = rect.bottom + 4;
+        if (topPos + menuHeight > window.innerHeight - 10) {
+            topPos = window.innerHeight - menuHeight - 10;
+        }
+        if (topPos < 10) topPos = 10;
+        dropdown.style.top = `${topPos}px`;
+        dropdown.classList.remove('open-upward');
+    }
+
+    // Prevent clicks inside the dropdown from closing it unless an item is clicked
+    dropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+
+    // 5. Bind actions (always remove dropdown from body FIRST)
+    dropdown.querySelector('.btn-download-dropdown').addEventListener('click', () => {
+        dropdown.remove();
+        const exp = exportsList.find(x => x.id === id);
+        if (exp) triggerDownload(exp, true);
+    });
+
+    if (canRetry) {
+        dropdown.querySelector('.btn-retry-dropdown').addEventListener('click', () => {
+            dropdown.remove();
             const exp = exportsList.find(x => x.id === id);
             if (exp) triggerRetry(exp);
-        };
-    });
+        });
+    }
 
-    document.querySelectorAll('.btn-delete-exp').forEach(btn => {
-        btn.onclick = () => {
-            const id = btn.getAttribute('data-id');
-            const exp = exportsList.find(x => x.id === id);
-            if (exp) triggerDelete(exp);
-        };
+    dropdown.querySelector('.btn-delete-dropdown').addEventListener('click', () => {
+        dropdown.remove();
+        const exp = exportsList.find(x => x.id === id);
+        if (exp) triggerDelete(exp);
     });
 }
 

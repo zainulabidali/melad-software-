@@ -1085,9 +1085,45 @@
         display: contents !important;
     }
     
-    /* 1. Student Directory Panel Card */
-    .pw-panel:nth-child(1) {
+    /* 1. Choose Team Header Card */
+    .pw-panel:nth-child(2) > .pw-panel-header {
+        order: 1 !important;
+        background: #ffffff !important;
+        border: 1px solid var(--pw-border) !important;
+        border-radius: var(--pw-radius-md) !important;
+        padding: 1rem !important;
+        box-shadow: var(--pw-shadow-sm) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 0.5rem !important;
+    }
+
+    /* 2. Selected Students Card */
+    .pw-selection-buffer-card {
+        order: 2 !important;
+        background: #ffffff !important;
+        border: 1px solid var(--pw-border) !important;
+        border-radius: var(--pw-radius-md) !important;
+        padding: 1rem !important;
+        box-shadow: var(--pw-shadow-sm) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 0.5rem !important;
+    }
+    
+    /* 3. Registration Summary Metrics Card */
+    .pw-summary-panel {
         order: 3 !important;
+        background: #ffffff !important;
+        border: 1px solid var(--pw-border) !important;
+        border-radius: var(--pw-radius-md) !important;
+        padding: 1rem !important;
+        box-shadow: var(--pw-shadow-sm) !important;
+    }
+
+    /* 4. Student List Panel Card */
+    .pw-panel:nth-child(1) {
+        order: 4 !important;
         display: flex !important;
         flex-direction: column !important;
         height: 550px !important;
@@ -1111,113 +1147,9 @@
         -webkit-overflow-scrolling: touch !important;
     }
     
-    /* 2. Team Selection Header Card */
-    .pw-panel:nth-child(2) > .pw-panel-header {
-        order: 1 !important;
-        background: #ffffff !important;
-        border: 1px solid var(--pw-border) !important;
-        border-radius: var(--pw-radius-md) !important;
-        padding: 1rem !important;
-        box-shadow: var(--pw-shadow-sm) !important;
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 0.5rem !important;
-    }
-    
-    .pw-segments {
-        display: flex !important;
-        flex-direction: row !important;
-        overflow-x: auto !important;
-        white-space: nowrap !important;
-        gap: 0.4rem !important;
-        background: var(--pw-slate-100) !important;
-        padding: 0.25rem !important;
-        border-radius: var(--pw-radius-sm) !important;
-        scrollbar-width: none !important;
-    }
-    .pw-segments::-webkit-scrollbar {
-        display: none !important;
-    }
-    
-    .pw-segment-btn {
-        flex: 0 0 auto !important;
-        padding: 0.5rem 0.85rem !important;
-        font-size: 0.78rem !important;
-    }
-    
-    /* 3. Registration Summary Metrics Card */
-    .pw-summary-panel {
-        order: 2 !important;
-        background: #ffffff !important;
-        border: 1px solid var(--pw-border) !important;
-        border-radius: var(--pw-radius-md) !important;
-        padding: 1rem !important;
-        box-shadow: var(--pw-shadow-sm) !important;
-    }
-    
-    /* 4. Selection Buffer Card */
-    .pw-selection-buffer-card {
-        order: 4 !important;
-        background: #ffffff !important;
-        border: 1px solid var(--pw-border) !important;
-        border-radius: var(--pw-radius-md) !important;
-        padding: 1rem !important;
-        box-shadow: var(--pw-shadow-sm) !important;
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 0.5rem !important;
-    }
-    
-    /* Horizontal Chips Scrolling in Selection Buffer */
-    .pw-selected-list {
-        display: flex !important;
-        flex-direction: row !important;
-        gap: 0.5rem !important;
-        overflow-x: auto !important;
-        white-space: nowrap !important;
-        padding-bottom: 0.5rem !important;
-        max-height: none !important;
-        scrollbar-width: thin !important;
-        -webkit-overflow-scrolling: touch !important;
-    }
-    
-    .pw-selected-item {
-        flex: 0 0 auto !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        gap: 0.35rem !important;
-        padding: 0.3rem 0.55rem !important;
-        font-size: 0.72rem !important;
-    }
-
-    /* 5. Quick Group Reuse Card */
-    .pw-group-reuse {
-        order: 5 !important;
-        background: #ffffff !important;
-        border: 1px solid var(--pw-border) !important;
-        border-radius: var(--pw-radius-md) !important;
-        padding: 1rem !important;
-        box-shadow: var(--pw-shadow-sm) !important;
-        border-top: none !important;
-        margin-top: 0 !important;
-    }
-    
-    /* 6. Create Group / Save Action Footer Card */
-    .pw-panel:nth-child(2) > .pw-panel-footer {
-        order: 6 !important;
-        background: #ffffff !important;
-        border: 1px solid var(--pw-border) !important;
-        border-radius: var(--pw-radius-md) !important;
-        padding: 1rem !important;
-        box-shadow: var(--pw-shadow-sm) !important;
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 0.5rem !important;
-    }
-    
-    /* 7. Registered Groups / Active Registrations Card */
+    /* 5. Registered Groups / Assigned Participants Card */
     .pw-panel:nth-child(3) {
-        order: 7 !important;
+        order: 5 !important;
         background: transparent !important;
         border: none !important;
         padding: 0 !important;
@@ -1242,6 +1174,74 @@
         flex-direction: column !important;
         gap: 1rem !important;
     }
+    
+    /* 6. Save Action Footer Card */
+    .pw-panel:nth-child(2) > .pw-panel-footer {
+        order: 6 !important;
+        background: #ffffff !important;
+        border: 1px solid var(--pw-border) !important;
+        border-radius: var(--pw-radius-md) !important;
+        padding: 1rem !important;
+        box-shadow: var(--pw-shadow-sm) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 0.5rem !important;
+    }
+
+    /* 7. Quick Group Reuse Card */
+    .pw-group-reuse {
+        order: 7 !important;
+        background: #ffffff !important;
+        border: 1px solid var(--pw-border) !important;
+        border-radius: var(--pw-radius-md) !important;
+        padding: 1rem !important;
+        box-shadow: var(--pw-shadow-sm) !important;
+        border-top: none !important;
+        margin-top: 0 !important;
+    }
+    
+    .pw-segments {
+        display: flex !important;
+        flex-direction: row !important;
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+        gap: 0.4rem !important;
+        background: var(--pw-slate-100) !important;
+        padding: 0.25rem !important;
+        border-radius: var(--pw-radius-sm) !important;
+        scrollbar-width: none !important;
+    }
+    .pw-segments::-webkit-scrollbar {
+        display: none !important;
+    }
+    
+    .pw-segment-btn {
+        flex: 0 0 auto !important;
+        padding: 0.5rem 0.85rem !important;
+        font-size: 0.78rem !important;
+    }
+    
+    /* Horizontal Chips Scrolling in Selected Students */
+    .pw-selected-list {
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 0.5rem !important;
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+        padding-bottom: 0.5rem !important;
+        max-height: none !important;
+        scrollbar-width: thin !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    
+    .pw-selected-item {
+        flex: 0 0 auto !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 0.35rem !important;
+        padding: 0.3rem 0.55rem !important;
+        font-size: 0.72rem !important;
+    }
 }
 
 @media (max-width: 767px) {
@@ -1262,6 +1262,124 @@
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
+    }
+
+    /* Program Header card layouts */
+    .pw-sticky-header {
+        position: relative !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 1rem !important;
+        padding: 1.25rem !important;
+        margin: 1rem 1rem 0 1rem !important;
+        border-radius: var(--pw-radius-md) !important;
+        border: 1px solid var(--pw-border) !important;
+        box-shadow: var(--pw-shadow-sm) !important;
+    }
+    
+    .pw-title-row {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.5rem !important;
+    }
+    
+    .pw-header-badges {
+        gap: 0.35rem !important;
+    }
+    
+    .pw-header-right {
+        width: 100% !important;
+        margin-top: 0.25rem !important;
+    }
+    
+    .pw-header-right #pwBackBtn {
+        width: 100% !important;
+        justify-content: center !important;
+        min-height: 48px !important;
+    }
+
+    /* Stacked registration metrics */
+    .pw-summary-metrics {
+        grid-template-columns: 1fr !important;
+        gap: 0.5rem !important;
+    }
+
+    /* Responsive Table to Cards layout for Assigned list */
+    .pw-table thead {
+        display: none !important;
+    }
+    
+    .pw-table, 
+    .pw-table tbody, 
+    .pw-table tr, 
+    .pw-table td {
+        display: block !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    
+    .pw-table tr {
+        background: #ffffff !important;
+        border: 1px solid var(--pw-border) !important;
+        border-radius: var(--pw-radius-md) !important;
+        margin-bottom: 0.75rem !important;
+        padding: 1rem !important;
+        position: relative !important;
+        box-shadow: var(--pw-shadow-sm) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 0.4rem !important;
+    }
+    
+    .pw-table tr:hover {
+        background: #ffffff !important;
+    }
+    
+    .pw-table td {
+        padding: 0 !important;
+        border: none !important;
+        color: var(--pw-slate-600) !important;
+    }
+    
+    /* Name */
+    .pw-table td:nth-child(2) {
+        font-size: 0.85rem !important;
+        font-weight: 700 !important;
+        color: var(--pw-slate-900) !important;
+        order: 1 !important;
+    }
+    
+    /* Chest No */
+    .pw-table td:nth-child(1) {
+        font-size: 0.72rem !important;
+        order: 2 !important;
+    }
+    
+    .pw-table td:nth-child(1)::before {
+        content: "Chest: " !important;
+        font-weight: 600 !important;
+        color: var(--pw-slate-500) !important;
+    }
+    
+    /* Class */
+    .pw-table td:nth-child(3) {
+        font-size: 0.72rem !important;
+        order: 3 !important;
+    }
+    
+    .pw-table td:nth-child(3)::before {
+        content: "Class: " !important;
+        font-weight: 600 !important;
+        color: var(--pw-slate-500) !important;
+    }
+    
+    /* Actions */
+    .pw-table td:nth-child(4) {
+        position: absolute !important;
+        top: 0.75rem !important;
+        right: 0.75rem !important;
+        width: auto !important;
+        order: 4 !important;
     }
     
     /* Student cards wrap and sizes */
@@ -1318,7 +1436,7 @@
         width: 100% !important;
         justify-content: center !important;
         min-height: 48px !important;
-        font-size: 0.8rem !important;
+        font-size: 0.85rem !important;
     }
     
     /* Wrap long names inside member chips gracefully */
@@ -1332,7 +1450,7 @@
         max-width: 100% !important;
         box-sizing: border-box !important;
         font-size: 0.72rem !important;
-        padding: 0.3rem 0.5rem !important;
+        padding: 0.3rem 0.55rem !important;
     }
     
     .pw-group-member-chip span {

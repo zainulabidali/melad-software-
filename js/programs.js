@@ -147,8 +147,9 @@ function applyProgramFiltersAndRender() {
 
     let filtered = localProgramsAll;
 
-    // 1. Search locally by name, type, or category name
+    // 1. Search locally by name, type, category name, or program number
     if (q) {
+        const cleanQ = q.replace(/#/g, '');
         filtered = filtered.filter(p => {
             const nameMatch = (p.programName || '').toLowerCase().includes(q);
             const typeMatch = (p.programType || p.type || '').toLowerCase().includes(q);
@@ -158,7 +159,12 @@ function applyProgramFiltersAndRender() {
             const catName = cat?.name || (p.categoryId === 'general_programs' ? 'General' : p.categoryId || '');
             const catMatch = catName.toLowerCase().includes(q);
 
-            return nameMatch || typeMatch || catMatch;
+            // program number match
+            const progNumStr = p.programNumber ? String(p.programNumber).toLowerCase() : '';
+            const cleanProgNum = progNumStr.replace(/#/g, '');
+            const numberMatch = cleanProgNum && cleanQ && cleanProgNum.includes(cleanQ);
+
+            return nameMatch || typeMatch || catMatch || numberMatch;
         });
     }
 

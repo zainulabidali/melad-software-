@@ -120,7 +120,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
           <aside class="pw-panel">
             <div class="pw-panel-header">
               <div class="pw-panel-title">
-                <span>🎓 Student Directory</span>
+                <span>🎓 Student List</span>
                 <span id="pwStudentsCountLabel" style="font-size: 0.72rem; color: var(--pw-slate-500); font-weight: 600;">Total: 0</span>
               </div>
               <div class="pw-search-wrapper">
@@ -148,7 +148,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
           <!-- 2. CENTER PANEL: Selected & Selection Summary -->
           <aside class="pw-panel">
             <div class="pw-panel-header" style="gap: 0.5rem;">
-              <div class="pw-panel-title">🏢 Team Selection</div>
+              <div class="pw-panel-title">🏢 Choose Team</div>
               <!-- Compact segmented button group -->
               <div class="pw-segments" id="pwTeamList"></div>
             </div>
@@ -156,7 +156,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             <div class="pw-panel-body">
               <div class="pw-selection-buffer-card">
                 <div class="pw-panel-title">
-                  <span>👥 Selection Buffer</span>
+                  <span>👥 Selected Students</span>
                   <span class="pw-badge-compact pw-badge-registered" id="pwSelectedCountBadge">0</span>
                 </div>
                 
@@ -166,7 +166,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
               
               <!-- Registration Constraints Summary -->
               <div class="pw-summary-panel">
-                <div class="pw-panel-title" style="font-size: 0.78rem; text-transform: uppercase;">📋 Registration Metrics</div>
+                <div class="pw-panel-title" style="font-size: 0.78rem; text-transform: uppercase;">📋 Registration Summary</div>
                 <div class="pw-summary-metrics">
                   <div class="pw-metric-card">
                     <span class="pw-metric-label">Selected Count</span>
