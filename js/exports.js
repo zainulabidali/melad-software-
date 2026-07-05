@@ -2969,6 +2969,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
     const renderValuationCard = (p, partsSlice, pageNum = null, totalPages = null) => {
         const totalCount = partsSlice.length;
 
+        const progName = p.programName || '';
+        let titleFontSize = '0.95rem';
+        if (progName.length > 35) {
+            titleFontSize = '0.74rem';
+        } else if (progName.length > 20) {
+            titleFontSize = '0.82rem';
+        }
+
         // Smart Row Compression based on actual registered count (Phase 9)
         let rowHeight = '23px';
         let fontSize = '0.65rem';
@@ -3015,7 +3023,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 <span style="font-size:0.55rem; font-weight:900; color:#4338ca; text-transform:uppercase; letter-spacing:0.04em;">📝 JUDGES EVALUATION CARD</span>
                                 ${pageIndicator}
                             </div>
-                            <h3 style="margin: 0.1rem 0 0 0; font-size:0.95rem; font-weight:900; color:#1e1b4b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:215px; line-height:1.2;" title="${window.escapeHTML(p.programName)}">
+                            <h3 style="margin: 0.1rem 0 0 0; font-size:${titleFontSize}; font-weight:900; color:#1e1b4b; line-height:1.2; word-break:break-word;" title="${window.escapeHTML(p.programName)}">
                                 ${p.programNumber ? `[#${p.programNumber}] ` : ''}${window.escapeHTML(p.programName)}
                             </h3>
                             <div style="font-size:0.72rem; font-weight:800; color:#4338ca; margin-top:0.05rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:230px;">
