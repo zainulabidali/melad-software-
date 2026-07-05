@@ -2420,6 +2420,25 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         const team = cat.teams[teamId];
                         const students = team.students;
 
+                        // Determine gender label from filters or actual students
+                        let genderLabel = '';
+                        if (f.gender === 'Boys') {
+                            genderLabel = ' • BOYS';
+                        } else if (f.gender === 'Girls') {
+                            genderLabel = ' • GIRLS';
+                        } else if (f.gender === 'Mixed') {
+                            genderLabel = ' • MIXED';
+                        } else {
+                            // Detect from students on this team
+                            const genders = [...new Set(students.map(s => s.gender).filter(Boolean))];
+                            if (genders.length === 1) {
+                                if (genders[0] === 'Male') genderLabel = ' • BOYS';
+                                else if (genders[0] === 'Female') genderLabel = ' • GIRLS';
+                            } else if (genders.length > 1) {
+                                genderLabel = ' • MIXED';
+                            }
+                        }
+
                         const studentChunks = chunkArray(students, pageSize);
 
                         studentChunks.forEach((chunk, chunkIdx) => {
@@ -2435,7 +2454,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                 PROGRAM PARTICIPATION REGISTER${pageIndicator}
                                             </div>
                                             <h2 style="margin: 0.1rem 0 0 0; color: #000; font-size: 1.15rem; font-weight: 800; text-transform: uppercase;">
-                                                ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}
+                                                ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}${genderLabel}
                                             </h2>
                                             <div style="font-size: 0.7rem; font-weight: 700; color: #000; margin-top: 0.05rem; text-transform: uppercase;">
                                                 ${window.escapeHTML(instName).toUpperCase()}
@@ -2608,6 +2627,25 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             const team = cls.teams[teamId];
                             const students = team.students;
 
+                            // Determine gender label from filters or actual students
+                            let genderLabel = '';
+                            if (f.gender === 'Boys') {
+                                genderLabel = ' • BOYS';
+                            } else if (f.gender === 'Girls') {
+                                genderLabel = ' • GIRLS';
+                            } else if (f.gender === 'Mixed') {
+                                genderLabel = ' • MIXED';
+                            } else {
+                                // Detect from students on this team
+                                const genders = [...new Set(students.map(s => s.gender).filter(Boolean))];
+                                if (genders.length === 1) {
+                                    if (genders[0] === 'Male') genderLabel = ' • BOYS';
+                                    else if (genders[0] === 'Female') genderLabel = ' • GIRLS';
+                                } else if (genders.length > 1) {
+                                    genderLabel = ' • MIXED';
+                                }
+                            }
+
                             const studentChunks = chunkArray(students, pageSize);
 
                             studentChunks.forEach((chunk, chunkIdx) => {
@@ -2623,7 +2661,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                     PROGRAM PARTICIPATION REGISTER${pageIndicator}
                                                 </div>
                                                 <h2 style="margin: 0.1rem 0 0 0; color: #000; font-size: 1.15rem; font-weight: 800; text-transform: uppercase;">
-                                                    ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(cls.name).toUpperCase()}
+                                                    ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(cls.name).toUpperCase()}${genderLabel}
                                                 </h2>
                                                 <div style="font-size: 0.7rem; font-weight: 700; color: #000; margin-top: 0.05rem; text-transform: uppercase;">
                                                     ${window.escapeHTML(instName).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}
