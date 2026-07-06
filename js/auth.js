@@ -17,6 +17,64 @@ const pathPrefix = isSubFolder ? '../' : './';
 
 
 // ─────────────────────────────────────────────
+// Safe sessionStorage Utilities
+// ─────────────────────────────────────────────
+export function canUseSessionStorage() {
+    try {
+        const storage = window.sessionStorage;
+        if (!storage) return false;
+        const testKey = '__storage_test__';
+        storage.setItem(testKey, testKey);
+        storage.removeItem(testKey);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+const isSessionStorageAvailable = canUseSessionStorage();
+
+export function safeSessionGet(key, fallback = null) {
+    if (!isSessionStorageAvailable) return fallback;
+    try {
+        return window.sessionStorage.getItem(key);
+    } catch (e) {
+        return fallback;
+    }
+}
+
+export function safeSessionSet(key, value) {
+    if (!isSessionStorageAvailable) return false;
+    try {
+        window.sessionStorage.setItem(key, value);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+export function safeSessionRemove(key) {
+    if (!isSessionStorageAvailable) return false;
+    try {
+        window.sessionStorage.removeItem(key);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+export function safeSessionClear() {
+    if (!isSessionStorageAvailable) return false;
+    try {
+        window.sessionStorage.clear();
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+
+// ─────────────────────────────────────────────
 // Utility: Alert display
 // ─────────────────────────────────────────────
 function showAlert(message, type = 'error') {
@@ -37,7 +95,7 @@ function hideAlert() {
 // ─────────────────────────────────────────────
 export async function logoutUser() {
     try {
-        sessionStorage.clear();
+        safeSessionClear();
         await signOut(auth);
         window.location.href = `${pathPrefix}pages/login.html`;
     } catch (error) {
@@ -53,8 +111,8 @@ window.logoutUser = logoutUser;
 export async function getUserProfile(uid) {
     if (!uid) return null;
     try {
-        const cachedUid = sessionStorage.getItem('melad_auth_uid');
-        const cachedProfile = sessionStorage.getItem('melad_user_profile');
+        const cachedUid = safeSessionGet('melad_auth_uid');
+        const cachedProfile = safeSessionGet('melad_user_profile');
         if (cachedUid === uid && cachedProfile) {
             return JSON.parse(cachedProfile);
         }
@@ -63,8 +121,8 @@ export async function getUserProfile(uid) {
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
             const data = userSnap.data();
-            sessionStorage.setItem('melad_auth_uid', uid);
-            sessionStorage.setItem('melad_user_profile', JSON.stringify(data));
+            safeSessionSet('melad_auth_uid', uid);
+            safeSessionSet('melad_user_profile', JSON.stringify(data));
             return data;
         }
         return null;
@@ -82,7 +140,7 @@ export async function validateInstituteAccess(user) {
     
     try {
         // Fast-path check: Super Admins bypass all constraints to prevent session clearing on expired/deactivated institutes
-        const cachedProfileStr = sessionStorage.getItem('melad_user_profile');
+        const cachedProfileStr = safeSessionGet('melad_user_profile');
         if (cachedProfileStr) {
             try {
                 const cachedProfile = JSON.parse(cachedProfileStr);
@@ -93,9 +151,9 @@ export async function validateInstituteAccess(user) {
         }
 
         const now = new Date().getTime();
-        const cachedUid = sessionStorage.getItem('melad_auth_uid');
-        const cachedValidTime = sessionStorage.getItem('melad_last_validated');
-        const cachedInstStatus = sessionStorage.getItem('melad_institute_status');
+        const cachedUid = safeSessionGet('melad_auth_uid');
+        const cachedValidTime = safeSessionGet('melad_last_validated');
+        const cachedInstStatus = safeSessionGet('melad_institute_status');
 
         // If cache is valid (TTL < 5 minutes)
         if (cachedUid === user.uid && cachedValidTime && (now - parseInt(cachedValidTime, 10) < 300000) && cachedInstStatus) {
@@ -105,7 +163,7 @@ export async function validateInstituteAccess(user) {
             const isExpired = expiryDateObj && (now >= expiryDateObj.getTime());
 
             if (isExpired || status !== 'active') {
-                sessionStorage.clear();
+                safeSessionClear();
                 await signOut(auth);
                 return false;
             }
@@ -122,7 +180,7 @@ export async function validateInstituteAccess(user) {
                 const teacherData = teacherSnap.data();
                 const status = teacherData.status || 'pending';
                 
-                sessionStorage.clear();
+                safeSessionClear();
                 await signOut(auth);
                 
                 if (status === 'pending') {
@@ -144,22 +202,22 @@ export async function validateInstituteAccess(user) {
                 return false;
             }
 
-            sessionStorage.clear();
+            safeSessionClear();
             await signOut(auth);
             return false;
         }
 
         // Super admins have global bypass
         if (profile.role === 'super_admin') {
-            sessionStorage.setItem('melad_auth_uid', user.uid);
-            sessionStorage.setItem('melad_last_validated', now.toString());
+            safeSessionSet('melad_auth_uid', user.uid);
+            safeSessionSet('melad_last_validated', now.toString());
             return true;
         }
 
         if (profile.role === 'admin') {
             const instId = profile.instituteId;
             if (!instId) {
-                sessionStorage.clear();
+                safeSessionClear();
                 await signOut(auth);
                 return false;
             }
@@ -167,7 +225,7 @@ export async function validateInstituteAccess(user) {
             const instRef = doc(db, "institutes", instId);
             const instSnap = await getDoc(instRef);
             if (!instSnap.exists()) {
-                sessionStorage.clear();
+                safeSessionClear();
                 await signOut(auth);
                 return false;
             }
@@ -184,7 +242,7 @@ export async function validateInstituteAccess(user) {
                 if (status !== 'deactivated') {
                     await updateDoc(instRef, { status: "deactivated" }).catch(e => {});
                 }
-                sessionStorage.clear();
+                safeSessionClear();
                 await signOut(auth);
                 
                 // Show alert directly if on login/auth page, otherwise fall back to redirect
@@ -197,7 +255,7 @@ export async function validateInstituteAccess(user) {
             }
 
             if (status !== 'active') {
-                sessionStorage.clear();
+                safeSessionClear();
                 await signOut(auth);
                 
                 // Show alert directly if on login/auth page, otherwise fall back to redirect
@@ -210,22 +268,22 @@ export async function validateInstituteAccess(user) {
             }
 
             // Cache valid state on success
-            sessionStorage.setItem('melad_auth_uid', user.uid);
-            sessionStorage.setItem('melad_institute_status', JSON.stringify({
+            safeSessionSet('melad_auth_uid', user.uid);
+            safeSessionSet('melad_institute_status', JSON.stringify({
                 status,
                 expiryDate: expiryDateObj ? expiryDateObj.toISOString() : null
             }));
-            sessionStorage.setItem('melad_last_validated', now.toString());
+            safeSessionSet('melad_last_validated', now.toString());
 
             return true;
         }
 
-        sessionStorage.clear();
+        safeSessionClear();
         await signOut(auth);
         return false;
     } catch (e) {
         console.error("Centralized Access Validation Error:", e);
-        sessionStorage.clear();
+        safeSessionClear();
         await signOut(auth);
         return false;
     }
