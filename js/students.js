@@ -36,6 +36,34 @@ let localStudentsAll = [];
 let localParticipants = [];
 let participantUnsubs = [];
 
+function findNextAvailableChestNumber(startFrom, chestStart, chestEnd, excludeSet = new Set()) {
+    let start = parseInt(startFrom, 10);
+    const startBound = parseInt(chestStart, 10) || 1;
+    const endBound = parseInt(chestEnd, 10) || Infinity;
+
+    if (isNaN(start) || start < startBound || start > endBound) {
+        start = startBound;
+    }
+
+    let current = start;
+    // 1. Search from start to endBound
+    while (current <= endBound) {
+        const currentStr = current.toString();
+        const isTaken = localStudentsAll.some(s => s.chestNumber === currentStr) || excludeSet.has(currentStr);
+        if (!isTaken) return current;
+        current++;
+    }
+    // 2. Wrap around: search from startBound to start - 1
+    current = startBound;
+    while (current < start) {
+        const currentStr = current.toString();
+        const isTaken = localStudentsAll.some(s => s.chestNumber === currentStr) || excludeSet.has(currentStr);
+        if (!isTaken) return current;
+        current++;
+    }
+    return null; // Truly full
+}
+
 function getStudentPrograms(studentId) {
     const studentProgs = [];
     localParticipants.forEach(p => {
@@ -1134,18 +1162,7 @@ export async function initAddStudentView(container, topActions) {
         const lblNextChest = document.getElementById('lblNextChest');
         const lblExpectedRange = document.getElementById('lblExpectedRange');
 
-        let nextChest = Math.max(highestChest + 1, chestStart);
-        
-        const findNextAvailable = (startFrom, excludeSet) => {
-            let current = startFrom;
-            while (true) {
-                const currentStr = current.toString();
-                const isTaken = localStudentsAll.some(s => s.chestNumber === currentStr) || excludeSet.has(currentStr);
-                if (!isTaken) return current;
-                current++;
-                if (current > chestEnd) return null;
-            }
-        };
+        let nextChest = parseInt(cat.nextChestNumber || chestStart, 10);
 
         let tempExclude = new Set();
         let rangeStart = null;
@@ -1155,7 +1172,7 @@ export async function initAddStudentView(container, topActions) {
         const studentsToAllocateCount = validNames.length;
 
         for (let i = 0; i < studentsToAllocateCount; i++) {
-            const allocated = findNextAvailable(nextChest, tempExclude);
+            const allocated = findNextAvailableChestNumber(nextChest, chestStart, chestEnd, tempExclude);
             if (allocated === null) {
                 limitReached = true;
                 break;
@@ -1166,7 +1183,7 @@ export async function initAddStudentView(container, topActions) {
             nextChest = allocated + 1;
         }
 
-        const firstAvailable = findNextAvailable(Math.max(highestChest + 1, chestStart), new Set());
+        const firstAvailable = findNextAvailableChestNumber(parseInt(cat.nextChestNumber || chestStart, 10), chestStart, chestEnd, new Set());
 
         if (firstAvailable) {
             lblNextChest.textContent = `#${firstAvailable}`;
@@ -1279,32 +1296,22 @@ export async function initAddStudentView(container, topActions) {
                 const chestStart = parseInt(catData.chestStart, 10) || 1;
                 const chestEnd = parseInt(catData.chestEnd, 10) || Infinity;
                 
-                const catStudents = localStudentsAll.filter(s => s.categoryId === catId);
-                const chestNums = catStudents.map(s => parseInt(s.chestNumber, 10)).filter(num => !isNaN(num));
-                const highestChest = chestNums.length > 0 ? Math.max(...chestNums) : 0;
-                
-                let nextChest = Math.max(parseInt(catData.nextChestNumber || chestStart, 10), highestChest + 1);
+                let nextChest = parseInt(catData.nextChestNumber || chestStart, 10);
 
                 const colRef = collection(db, "institutes", instId, "students");
                 const catObj = allCategories.find(c => c.id === catId);
                 const clsObj = catObj?.classes.find(c => c.id === classId);
 
                 const allocatedStudents = [];
+                const tempExclude = new Set();
                 for (const name of validNames) {
-                    while (true) {
-                        const chestStr = nextChest.toString();
-                        const isTaken = localStudentsAll.some(s => s.chestNumber === chestStr);
-                        if (!isTaken) {
-                            allocatedStudents.push({ name, chestNumber: chestStr });
-                            nextChest++;
-                            break;
-                        }
-                        nextChest++;
-                    }
-
-                    if (nextChest - 1 > chestEnd) {
+                    const allocated = findNextAvailableChestNumber(nextChest, chestStart, chestEnd, tempExclude);
+                    if (allocated === null) {
                         throw new Error("No available chest numbers remaining for this category.");
                     }
+                    allocatedStudents.push({ name, chestNumber: allocated.toString() });
+                    tempExclude.add(allocated.toString());
+                    nextChest = allocated + 1;
                 }
 
                 allocatedStudents.forEach(stu => {
@@ -2350,30 +2357,18 @@ async function executeImportProcess(validList, duplicateList, duplicateAction) {
                     continue;
                 }
 
-                let assignedChest = null;
-                while (nextChest <= chestEnd) {
-                    const chestStr = nextChest.toString();
-                    const isTakenInDb = localStudentsAll.some(s => s.chestNumber === chestStr);
-                    const isTakenInBatch = allocatedInThisBatch.has(chestStr);
-                    if (!isTakenInDb && !isTakenInBatch) {
-                        assignedChest = chestStr;
-                        allocatedInThisBatch.add(chestStr);
-                        nextChest++;
-                        break;
-                    }
-                    nextChest++;
-                }
-
-                if (!assignedChest) {
+                const allocated = findNextAvailableChestNumber(nextChest, chestStart, chestEnd, allocatedInThisBatch);
+                if (allocated === null) {
                     stu.errors = stu.errors || [];
                     stu.errors.push("Chest range limit reached for category.");
                     failedRows.push(stu);
                     continue;
                 }
 
-                chestNumber = assignedChest;
+                chestNumber = allocated.toString();
+                allocatedInThisBatch.add(chestNumber);
                 // Update nextChestNumber in our local map object so the next student gets the next available number
-                catInfo.nextChestNumber = nextChest;
+                catInfo.nextChestNumber = allocated + 1;
             }
 
             const isOverwrite = stu.isDuplicateInDb;
