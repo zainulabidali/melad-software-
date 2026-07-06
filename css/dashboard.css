@@ -2161,18 +2161,20 @@
 }
 
 @media (max-width: 768px) {
-    .students-header-right {
+    .students-view-header {
         display: flex !important;
-        flex-direction: row !important;
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-        white-space: nowrap !important;
-        gap: 0.5rem !important;
+        flex-direction: column !important;
+        gap: 1rem !important;
+        align-items: stretch !important;
+    }
+
+    .students-header-right {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.75rem !important;
         width: 100% !important;
-        padding-bottom: 4px !important;
-        justify-content: flex-start !important;
-        align-items: center !important;
-        scrollbar-width: none !important;
+        overflow-x: visible !important;
+        white-space: normal !important;
     }
 
     .students-header-right::-webkit-scrollbar {
@@ -2182,19 +2184,21 @@
     .students-header-right .search-input-wrapper,
     .students-header-right select,
     .students-header-right button {
-        flex-shrink: 0 !important;
-        width: auto !important;
-        max-width: none !important;
+        flex-shrink: 1 !important;
+        width: 100% !important;
+        max-width: 100% !important;
         height: 38px !important;
         min-height: 38px !important;
         padding: 0 0.85rem !important;
         font-size: 0.82rem !important;
+        box-sizing: border-box !important;
     }
 
     .students-header-right .search-input-premium {
         height: 38px !important;
-        width: 150px !important;
+        width: 100% !important;
         font-size: 0.82rem !important;
+        box-sizing: border-box !important;
     }
 
     .students-header-right button {
@@ -2202,6 +2206,12 @@
         align-items: center !important;
         justify-content: center !important;
         padding: 0 1rem !important;
+    }
+
+    .students-header-right #btnAddStudents {
+        grid-column: span 2 !important;
+        width: 100% !important;
+        margin-top: 0.25rem !important;
     }
 }
 
