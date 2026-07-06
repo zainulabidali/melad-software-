@@ -217,17 +217,36 @@ export async function updateDashboardMetadata(instituteId) {
             if (c.name) catCounts.set(c.name, 0);
         });
         students.forEach(s => {
-            if (s.categoryId) {
-                const cat = categories.find(c => c.id === s.categoryId);
-                if (cat && cat.name) {
-                    const current = catCounts.get(cat.name) || 0;
-                    catCounts.set(cat.name, current + 1);
+            // Find category matching case-insensitively by ID or name
+            const cat = categories.find(c => {
+                const sCatId = s.categoryId ? s.categoryId.toString().toLowerCase().trim() : '';
+                const sCatName = s.categoryName ? s.categoryName.toString().toLowerCase().trim() : '';
+                const cId = c.id ? c.id.toString().toLowerCase().trim() : '';
+                const cName = c.name ? c.name.toString().toLowerCase().trim() : '';
+                
+                return (sCatId && (cId === sCatId || cName === sCatId)) ||
+                       (sCatName && (cId === sCatName || cName === sCatName));
+            });
+            
+            const resolvedCatName = cat?.name || s.categoryName || 'General';
+            
+            // Match the resolved name case-insensitively to the initialized keys in catCounts to avoid duplicates
+            let matchedKey = null;
+            const targetLower = resolvedCatName.toLowerCase().trim();
+            for (const key of catCounts.keys()) {
+                if (key.toLowerCase().trim() === targetLower) {
+                    matchedKey = key;
+                    break;
                 }
-            } else if (s.categoryName) {
-                const current = catCounts.get(s.categoryName) || 0;
-                catCounts.set(s.categoryName, current + 1);
+            }
+            
+            const finalKey = matchedKey || resolvedCatName.trim();
+            if (finalKey) {
+                const current = catCounts.get(finalKey) || 0;
+                catCounts.set(finalKey, current + 1);
             }
         });
+
 
         const barChartData = {
             labels: [...catCounts.keys()],

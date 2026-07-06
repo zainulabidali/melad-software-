@@ -1179,9 +1179,20 @@ async function initDashboardOverview(container, topActions) {
                 }
 
                 recalculateDashboard();
-                if (data.maleStudentsCount === undefined || data.femaleStudentsCount === undefined) {
-                    console.log("Legacy dashboard metadata detected. Self-healing gender statistics...");
-                    await updateDashboardMetadata(instId);
+                
+                // Self-healing: if the sum of category chart counts doesn't match total students, trigger update
+                const catTotal = data.barChartData?.data?.reduce((sum, v) => sum + v, 0) || 0;
+                const needsSelfHealing = 
+                    data.maleStudentsCount === undefined || 
+                    data.femaleStudentsCount === undefined || 
+                    catTotal !== metadataCache.studentsCount;
+
+                if (needsSelfHealing) {
+                    console.log("Self-healing dashboard metadata triggered due to legacy data or mismatch...");
+                    if (!window.__selfHealingTriggered) {
+                        window.__selfHealingTriggered = true;
+                        await updateDashboardMetadata(instId).catch(e => console.error("Self-healing failed:", e));
+                    }
                 }
             } else {
                 console.warn("Dashboard metadata aggregates document is missing. Triggering self-healing generation...");
