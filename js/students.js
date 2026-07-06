@@ -36,26 +36,12 @@ let localStudentsAll = [];
 let localParticipants = [];
 let participantUnsubs = [];
 
-function findNextAvailableChestNumber(startFrom, chestStart, chestEnd, excludeSet = new Set()) {
-    let start = parseInt(startFrom, 10);
+function findNextAvailableChestNumber(chestStart, chestEnd, excludeSet = new Set()) {
     const startBound = parseInt(chestStart, 10) || 1;
     const endBound = parseInt(chestEnd, 10) || Infinity;
 
-    if (isNaN(start) || start < startBound || start > endBound) {
-        start = startBound;
-    }
-
-    let current = start;
-    // 1. Search from start to endBound
+    let current = startBound;
     while (current <= endBound) {
-        const currentStr = current.toString();
-        const isTaken = localStudentsAll.some(s => s.chestNumber === currentStr) || excludeSet.has(currentStr);
-        if (!isTaken) return current;
-        current++;
-    }
-    // 2. Wrap around: search from startBound to start - 1
-    current = startBound;
-    while (current < start) {
         const currentStr = current.toString();
         const isTaken = localStudentsAll.some(s => s.chestNumber === currentStr) || excludeSet.has(currentStr);
         if (!isTaken) return current;
@@ -1162,8 +1148,6 @@ export async function initAddStudentView(container, topActions) {
         const lblNextChest = document.getElementById('lblNextChest');
         const lblExpectedRange = document.getElementById('lblExpectedRange');
 
-        let nextChest = parseInt(cat.nextChestNumber || chestStart, 10);
-
         let tempExclude = new Set();
         let rangeStart = null;
         let rangeEnd = null;
@@ -1172,7 +1156,7 @@ export async function initAddStudentView(container, topActions) {
         const studentsToAllocateCount = validNames.length;
 
         for (let i = 0; i < studentsToAllocateCount; i++) {
-            const allocated = findNextAvailableChestNumber(nextChest, chestStart, chestEnd, tempExclude);
+            const allocated = findNextAvailableChestNumber(chestStart, chestEnd, tempExclude);
             if (allocated === null) {
                 limitReached = true;
                 break;
@@ -1180,10 +1164,9 @@ export async function initAddStudentView(container, topActions) {
             if (i === 0) rangeStart = allocated;
             rangeEnd = allocated;
             tempExclude.add(allocated.toString());
-            nextChest = allocated + 1;
         }
 
-        const firstAvailable = findNextAvailableChestNumber(parseInt(cat.nextChestNumber || chestStart, 10), chestStart, chestEnd, new Set());
+        const firstAvailable = findNextAvailableChestNumber(chestStart, chestEnd, new Set());
 
         if (firstAvailable) {
             lblNextChest.textContent = `#${firstAvailable}`;
@@ -1295,8 +1278,6 @@ export async function initAddStudentView(container, topActions) {
                 const catData = catSnap.data();
                 const chestStart = parseInt(catData.chestStart, 10) || 1;
                 const chestEnd = parseInt(catData.chestEnd, 10) || Infinity;
-                
-                let nextChest = parseInt(catData.nextChestNumber || chestStart, 10);
 
                 const colRef = collection(db, "institutes", instId, "students");
                 const catObj = allCategories.find(c => c.id === catId);
@@ -1305,13 +1286,12 @@ export async function initAddStudentView(container, topActions) {
                 const allocatedStudents = [];
                 const tempExclude = new Set();
                 for (const name of validNames) {
-                    const allocated = findNextAvailableChestNumber(nextChest, chestStart, chestEnd, tempExclude);
+                    const allocated = findNextAvailableChestNumber(chestStart, chestEnd, tempExclude);
                     if (allocated === null) {
                         throw new Error("No available chest numbers remaining for this category.");
                     }
                     allocatedStudents.push({ name, chestNumber: allocated.toString() });
                     tempExclude.add(allocated.toString());
-                    nextChest = allocated + 1;
                 }
 
                 allocatedStudents.forEach(stu => {
@@ -1330,8 +1310,9 @@ export async function initAddStudentView(container, topActions) {
                     });
                 });
 
+                const finalNextAvailable = findNextAvailableChestNumber(chestStart, chestEnd, tempExclude) || (chestEnd + 1);
                 transaction.update(catRef, {
-                    nextChestNumber: nextChest,
+                    nextChestNumber: finalNextAvailable,
                     updatedAt: serverTimestamp()
                 });
 
@@ -1650,19 +1631,8 @@ async function executeStudentDeletion(studentIds) {
 
         const committer = new BatchCommitter(db);
 
-        // 3. Write Recovery Bin backup and Student deletes to batch
+        // 3. Student deletes to batch
         for (const [stuId, sData] of studentsDataMap.entries()) {
-            const binRef = doc(db, "institutes", instId, "recoveryBin", stuId);
-            committer.addSet(binRef, {
-                type: 'student',
-                originalId: stuId,
-                originalPath: `institutes/${instId}/students/${stuId}`,
-                data: sData,
-                deletedBy,
-                deletedAt: deletionDate.toISOString(),
-                expiryTime: expiryDate.toISOString()
-            });
-
             const studentRef = doc(db, "institutes", instId, "students", stuId);
             committer.addDelete(studentRef);
         }
@@ -1760,7 +1730,7 @@ async function executeStudentDeletion(studentIds) {
         lastQueryLabel = `updateDashboardMetadata("${instId}")`;
         await updateDashboardMetadata(instId);
 
-        console.log(`Successfully deleted ${studentIds.length} students. Recovery Bin backups created.`);
+        console.log(`Successfully deleted ${studentIds.length} students.`);
     } catch (e) {
         console.error("Student deletion failure diagnostic log:", {
             authUid: authUid || auth.currentUser?.uid || 'N/A',
@@ -1777,7 +1747,7 @@ async function executeStudentDeletion(studentIds) {
 
 export async function deleteStudent(stuId) {
     const confirmed = await window.customConfirm(
-        "Are you sure you want to delete this student? This will move them to the Recovery Bin for 24 hours and remove them from all program registrations.",
+        "Are you sure you want to delete this student? This will permanently delete them and remove them from all program registrations.",
         "Delete Student",
         { danger: true, okText: "Delete" }
     );
@@ -1794,7 +1764,7 @@ export async function deleteStudent(stuId) {
 export async function deleteStudents(studentIds) {
     if (!Array.isArray(studentIds) || studentIds.length === 0) return;
     const confirmed = await window.customConfirm(
-        `Are you sure you want to delete the ${studentIds.length} selected students? They will be moved to the Recovery Bin and removed from all program registrations.`,
+        `Are you sure you want to delete the ${studentIds.length} selected students? They will be permanently deleted and removed from all program registrations.`,
         "Delete Selected Students",
         { danger: true, okText: "Delete Bulk" }
     );
@@ -1810,7 +1780,7 @@ export async function deleteStudents(studentIds) {
 
 export async function deleteAllStudents() {
     const confirmed = await window.customConfirm(
-        "⚠️ WARNING: This will delete ALL students in this institute! They will be moved to the Recovery Bin and removed from all program registrations. This action is highly destructive.",
+        "⚠️ WARNING: This will delete ALL students in this institute! They will be permanently deleted and removed from all program registrations. This action is highly destructive.",
         "Delete All Students",
         { danger: true, okText: "Delete All" }
     );
@@ -2348,7 +2318,6 @@ async function executeImportProcess(validList, duplicateList, duplicateAction) {
 
                 const chestStart = parseInt(catInfo.chestStart, 10);
                 const chestEnd = parseInt(catInfo.chestEnd, 10);
-                let nextChest = parseInt(catInfo.nextChestNumber || chestStart, 10);
 
                 if (isNaN(chestStart) || isNaN(chestEnd)) {
                     stu.errors = stu.errors || [];
@@ -2357,7 +2326,7 @@ async function executeImportProcess(validList, duplicateList, duplicateAction) {
                     continue;
                 }
 
-                const allocated = findNextAvailableChestNumber(nextChest, chestStart, chestEnd, allocatedInThisBatch);
+                const allocated = findNextAvailableChestNumber(chestStart, chestEnd, allocatedInThisBatch);
                 if (allocated === null) {
                     stu.errors = stu.errors || [];
                     stu.errors.push("Chest range limit reached for category.");
@@ -2367,8 +2336,10 @@ async function executeImportProcess(validList, duplicateList, duplicateAction) {
 
                 chestNumber = allocated.toString();
                 allocatedInThisBatch.add(chestNumber);
-                // Update nextChestNumber in our local map object so the next student gets the next available number
-                catInfo.nextChestNumber = allocated + 1;
+                
+                // Update nextChestNumber in our local map object so it stays consistent
+                const finalNextAvailable = findNextAvailableChestNumber(chestStart, chestEnd, allocatedInThisBatch) || (chestEnd + 1);
+                catInfo.nextChestNumber = finalNextAvailable;
             }
 
             const isOverwrite = stu.isDuplicateInDb;

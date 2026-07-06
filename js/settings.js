@@ -144,8 +144,8 @@ async function loadAndPurgeRecoveryBin() {
             const data = d.data();
             const expiry = data.expiryTime ? new Date(data.expiryTime) : null;
             
-            // Auto Purge Check: If expired, flag for Firestore deletion
-            if (expiry && now.getTime() > expiry.getTime()) {
+            // Auto Purge Check: If expired or is a student recovery document, flag for Firestore deletion
+            if ((expiry && now.getTime() > expiry.getTime()) || data.type === 'student') {
                 expiredIds.push(d.id);
             } else {
                 recoveryBinItems.push({ id: d.id, ...data });
@@ -348,10 +348,12 @@ function renderRecoveryBinList() {
         return;
     }
 
-    // Sort by deleted timestamp descending
-    const sorted = [...recoveryBinItems].sort((a, b) => {
-        return new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime();
-    });
+    // Filter out student recovery bin items and sort by deleted timestamp descending
+    const sorted = [...recoveryBinItems]
+        .filter(item => item.type !== 'student')
+        .sort((a, b) => {
+            return new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime();
+        });
 
     const now = new Date();
 
