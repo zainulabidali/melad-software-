@@ -3366,9 +3366,10 @@
             left: 0;
             width: 100vw;
             height: 100vh;
+            height: 100dvh;
             z-index: 1000;
             display: none;
-            align-items: flex-end;
+            align-items: center;
             justify-content: center;
         }
 
@@ -3382,7 +3383,9 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(15, 23, 42, 0.4);
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
             opacity: 0;
             transition: opacity 0.3s ease;
         }
@@ -3395,17 +3398,32 @@
             position: relative;
             width: 100%;
             max-width: 480px;
+            height: 100%;
+            height: 100dvh;
             background: #ffffff;
-            border-top-left-radius: 24px;
-            border-top-right-radius: 24px;
-            padding: 16px 20px 32px 20px;
-            box-sizing: border-box;
-            transform: translateY(100%);
-            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-            box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.15);
-            max-height: 80vh;
             display: flex;
             flex-direction: column;
+            box-sizing: border-box;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 -10px 40px rgba(15, 23, 42, 0.15);
+            padding: calc(16px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px)) 20px;
+        }
+
+        @media (min-width: 576px) {
+            .bottom-sheet-panel {
+                height: auto;
+                max-height: 85vh;
+                border-radius: 24px;
+                padding: 24px;
+                transform: translateY(20px);
+                opacity: 0;
+                transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+            }
+            .bottom-sheet.open .bottom-sheet-panel {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
 
         .bottom-sheet.open .bottom-sheet-panel {
@@ -3413,22 +3431,21 @@
         }
 
         .bottom-sheet-drag-handle {
-            width: 36px;
-            height: 4px;
-            background: #cbd5e1;
-            border-radius: 2px;
-            margin: 0 auto 12px auto;
+            display: none;
         }
 
         .bottom-sheet-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f1f5f9;
+            margin-bottom: 12px;
+            flex-shrink: 0;
         }
 
         .bottom-sheet-title {
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 800;
             color: #0f172a;
             margin: 0;
@@ -3437,16 +3454,21 @@
         .bottom-sheet-close {
             background: #f1f5f9;
             border: none;
-            width: 28px;
-            height: 28px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 600;
             color: #64748b;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: background 0.2s ease;
+        }
+
+        .bottom-sheet-close:active {
+            background: #e2e8f0;
         }
 
         .bottom-sheet-body {
@@ -3454,15 +3476,17 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 6px;
-            padding-right: 4px;
+            gap: 8px;
+            padding-right: 2px;
+            padding-bottom: 16px;
+            -webkit-overflow-scrolling: touch;
         }
 
         .bottom-sheet-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 14px 16px;
+            padding: 16px;
             border-radius: 12px;
             background: #f8fafc;
             color: #334155;
@@ -3470,10 +3494,11 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
+            border: 1px solid transparent;
         }
 
         .bottom-sheet-item:active {
-            background: #cbd5e1;
+            background: #f1f5f9;
         }
 
         .bottom-sheet-item.selected {
