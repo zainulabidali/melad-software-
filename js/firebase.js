@@ -406,7 +406,8 @@ export function invalidateProgramsCache(instituteId) {
 }
 
 export async function getCachedTeams(instituteId, forceRefresh = false) {
-    const key = `melad_cached_teams_${instituteId}`;
+    const instId = instituteId || window.currentInstituteId;
+    const key = `melad_cached_teams_${instId}`;
     if (!forceRefresh) {
         if (isCacheValid(window.cachedTeams)) {
             return window.cachedTeams.data;
@@ -424,14 +425,15 @@ export async function getCachedTeams(instituteId, forceRefresh = false) {
             console.error("Error loading teams cache from localStorage:", e);
         }
     }
-    const snap = await getDocs(collection(db, "institutes", instituteId, "teams"));
+    const snap = await getDocs(collection(db, "institutes", instId, "teams"));
     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    setCachedTeams(instituteId, data);
+    setCachedTeams(instId, data);
     return data;
 }
 
 export async function getCachedCategories(instituteId, forceRefresh = false) {
-    const key = `melad_cached_categories_${instituteId}`;
+    const instId = instituteId || window.currentInstituteId;
+    const key = `melad_cached_categories_${instId}`;
     if (!forceRefresh) {
         if (isCacheValid(window.cachedCategories)) {
             return sortCategories(window.cachedCategories.data);
@@ -449,15 +451,16 @@ export async function getCachedCategories(instituteId, forceRefresh = false) {
             console.error("Error loading categories cache from localStorage:", e);
         }
     }
-    const snap = await getDocs(collection(db, "institutes", instituteId, "categories"));
+    const snap = await getDocs(collection(db, "institutes", instId, "categories"));
     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     const sortedData = sortCategories(data);
-    setCachedCategories(instituteId, sortedData);
+    setCachedCategories(instId, sortedData);
     return sortedData;
 }
 
 export async function getCachedPrograms(instituteId, forceRefresh = false) {
-    const key = `melad_cached_programs_${instituteId}`;
+    const instId = instituteId || window.currentInstituteId;
+    const key = `melad_cached_programs_${instId}`;
     if (!forceRefresh) {
         if (isCacheValid(window.cachedPrograms)) {
             return window.cachedPrograms.data;
@@ -475,9 +478,9 @@ export async function getCachedPrograms(instituteId, forceRefresh = false) {
             console.error("Error loading programs cache from localStorage:", e);
         }
     }
-    const snap = await getDocs(collection(db, "institutes", instituteId, "programs"));
+    const snap = await getDocs(collection(db, "institutes", instId, "programs"));
     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    setCachedPrograms(instituteId, data);
+    setCachedPrograms(instId, data);
     return data;
 }
 

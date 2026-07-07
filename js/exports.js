@@ -1645,6 +1645,24 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
     let htmlContent = '';
     const orientation = f.orientation || 'portrait';
 
+    const buildColumnItems = (progsList) => {
+        const stageProgs = progsList.filter(p => (p.programLocation || p.location || 'Off Stage') === 'Stage');
+        const offStageProgs = progsList.filter(p => (p.programLocation || p.location || 'Off Stage') !== 'Stage');
+        
+        stageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+        offStageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+        
+        const items = [];
+        stageProgs.forEach(p => items.push({ type: 'program', program: p }));
+        
+        if (stageProgs.length > 0 && offStageProgs.length > 0) {
+            items.push({ type: 'separator' });
+        }
+        
+        offStageProgs.forEach(p => items.push({ type: 'program', program: p }));
+        return items;
+    };
+
     if (f.type === 'Chest Number List') {
         const isCompact = f.compactPacking !== false; // compact layout true by default
 
@@ -2054,11 +2072,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             });
         };
 
-        // Retrieve matching programs list
+        // Retrieve matching programs list (Combine Stage & Off Stage columns)
         let matchingPrograms = [...programs];
-        if (f.programLocation) {
-            matchingPrograms = matchingPrograms.filter(p => p.programLocation === f.programLocation);
-        }
         if (f.participationType) {
             if (f.participationType === 'general') {
                 matchingPrograms = matchingPrograms.filter(p => p.categoryId === 'general_programs' || p.programType === 'general');
@@ -2068,11 +2083,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 matchingPrograms = matchingPrograms.filter(p => p.programType === 'individual');
             }
         }
-        // Sort programs alphabetically
-        matchingPrograms.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+        
+        const columnItems = buildColumnItems(matchingPrograms);
 
         if (f.categoryId === 'general_programs') {
-            if (matchingPrograms.length === 0) {
+            if (columnItems.length === 0) {
                 htmlContent = `
                     <div style="text-align:center; padding:4rem; color:#dc2626; border:1px solid #fecaca; border-radius:12px; background:#fef2f2;">
                         <h3 style="margin:0;">⚠️ No matching general programs found.</h3>
@@ -2084,7 +2099,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 const teamName = f.teamId ? (allTeams.find(t => t.id === f.teamId)?.name || '') : '';
                 const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
 
-                const N = matchingPrograms.length;
+                const N = columnItems.length;
                 let cellFontSize = '0.75rem';
                 let headerHeight = '120px';
 
@@ -2121,7 +2136,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     ${(f.participationType === 'individual' ? 'INDIVIDUAL PROGRAM' : (f.participationType === 'group' ? 'GROUP PROGRAM' : (f.participationType === 'general' ? 'GENERAL PROGRAM' : 'ALL PROGRAM TYPES')))}
                                 </div>
                                 <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">
-                                    ${(f.programLocation === 'Stage' ? 'STAGE' : (f.programLocation === 'Off Stage' ? 'OFF STAGE' : 'STAGE / OFF STAGE'))}
+                                    STAGE / OFF STAGE
                                 </div>
                                 ${f.gender ? `<div style="font-size: 0.68rem; font-weight: 700; color: #475569; text-transform: uppercase;">GENDER: ${window.escapeHTML(f.gender)}</div>` : ''}
                             </div>
@@ -2132,11 +2147,17 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 <tr>
                                     <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.35rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
                                     <th style="width:180px; min-width:180px; max-width:180px; padding:0.35rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
-                                    ${matchingPrograms.map(p => `
-                                        <th class="rotated-th program-col" style="height:${headerHeight};">
-                                            <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
-                                        </th>
-                                    `).join('')}
+                                    ${columnItems.map(item => {
+                                        if (item.type === 'separator') {
+                                            return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
+                                        }
+                                        const p = item.program;
+                                        return `
+                                            <th class="rotated-th program-col" style="height:${headerHeight};">
+                                                <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
+                                            </th>
+                                        `;
+                                    }).join('')}
                                     <th style="border-left: none; border-right: none; background: #fff !important;"></th>
                                 </tr>
                             </thead>
@@ -2145,9 +2166,12 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     <tr style="height:32px; page-break-inside:avoid;">
                                         <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:0.35rem 0.2rem; border: 1px solid #000;">${idx + 1}</td>
                                         <td style="width:180px; min-width:180px; max-width:180px; border: 1px solid #000;"></td>
-                                        ${matchingPrograms.map(() => `
-                                            <td class="program-col" style="border:1px solid #000;"></td>
-                                        `).join('')}
+                                        ${columnItems.map(item => {
+                                            if (item.type === 'separator') {
+                                                return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
+                                            }
+                                            return `<td class="program-col" style="border:1px solid #000;"></td>`;
+                                        }).join('')}
                                         <td style="border-left: none; border-right: none;"></td>
                                     </tr>
                                 `).join('')}
@@ -2170,7 +2194,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             const styleBlock = `
                 <style>
                     @page {
-                        size: A4 landscape;
+                        size: A4 ${orientation};
                         margin: ${pageMargin};
                     }
                     body {
@@ -2229,7 +2253,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         padding: 0;
                         width: 100%;
                         height: 100%;
-                        min-height: 180mm;
+                        min-height: ${orientation === 'landscape' ? '180mm' : '258mm'};
                         display: flex;
                         flex-direction: column;
                         justify-content: space-between;
@@ -2297,7 +2321,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         const prevWidth = printIframe.style.width;
                         const prevHeight = printIframe.style.height;
                         
-                        printIframe.style.width = '1123px';
+                        if (orientation === 'landscape') {
+                            printIframe.style.width = '1123px';
+                        } else {
+                            printIframe.style.width = '794px';
+                        }
                         printIframe.style.height = 'auto';
                         await new Promise(resolve => setTimeout(resolve, 150));
                         
@@ -2316,7 +2344,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             filename:     exp.fileName || 'export.pdf',
                             image:        { type: 'jpeg', quality: 0.98 },
                             html2canvas:  { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
-                            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
+                            jsPDF:        { unit: 'mm', format: 'a4', orientation: orientation },
                             pagebreak:    { mode: ['css', 'legacy'] }
                         };
                         const element = doc.body;
@@ -2480,13 +2508,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         return;
                     }
 
-                    const N = progs.length;
+                    const columnItems = buildColumnItems(progs);
+                    const N = columnItems.length;
                     let cellFontSize = '0.75rem';
                     let headerHeight = '120px';
                     let rowHeightVal = '26px';
                     let cellPaddingVal = '2px 0.2rem';
                     let nameCellPaddingVal = '2px 0.5rem';
-                    let pageSize = 16;
+                    let pageSize = orientation === 'landscape' ? 16 : 20;
 
                     if (N > 25) {
                         cellFontSize = '0.42rem';
@@ -2494,28 +2523,28 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         rowHeightVal = '22px';
                         cellPaddingVal = '1px 0.1rem';
                         nameCellPaddingVal = '1px 0.3rem';
-                        pageSize = 15;
+                        pageSize = orientation === 'landscape' ? 15 : 28;
                     } else if (N > 18) {
                         cellFontSize = '0.48rem';
                         headerHeight = '160px';
                         rowHeightVal = '23px';
                         cellPaddingVal = '1px 0.15rem';
                         nameCellPaddingVal = '1px 0.4rem';
-                        pageSize = 16;
+                        pageSize = orientation === 'landscape' ? 16 : 26;
                     } else if (N > 12) {
                         cellFontSize = '0.55rem';
                         headerHeight = '140px';
                         rowHeightVal = '24px';
                         cellPaddingVal = '1px 0.2rem';
                         nameCellPaddingVal = '1px 0.4rem';
-                        pageSize = 16;
+                        pageSize = orientation === 'landscape' ? 16 : 24;
                     } else if (N > 8) {
                         cellFontSize = '0.65rem';
                         headerHeight = '130px';
                         rowHeightVal = '25px';
                         cellPaddingVal = '1.5px 0.2rem';
                         nameCellPaddingVal = '1.5px 0.4rem';
-                        pageSize = 16;
+                        pageSize = orientation === 'landscape' ? 16 : 22;
                     }
 
                     sortedTeamIds.forEach(teamId => {
@@ -2567,7 +2596,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                 ${(f.participationType === 'individual' ? 'INDIVIDUAL PROGRAM' : (f.participationType === 'group' ? 'GROUP PROGRAM' : (f.participationType === 'general' ? 'GENERAL PROGRAM' : 'ALL PROGRAM TYPES')))}
                                             </div>
                                             <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase;">
-                                                ${(f.programLocation === 'Stage' ? 'STAGE' : (f.programLocation === 'Off Stage' ? 'OFF STAGE' : 'STAGE / OFF STAGE'))}
+                                                STAGE / OFF STAGE
                                             </div>
                                             <div style="font-size: 0.62rem; font-weight: 700; color: #475569; margin-top: 0.05rem;">
                                                 TOTAL: ${students.length} STUDENTS
@@ -2581,11 +2610,17 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                 <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
                                                 <th style="width:180px; min-width:180px; max-width:180px; padding:0.25rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
                                                 <th style="width:60px; min-width:60px; max-width:60px; padding:0.25rem 0.5rem; text-align:center; border: 1px solid #000;">CLASS</th>
-                                                ${progs.map(p => `
-                                                    <th class="rotated-th program-col" style="height:${headerHeight};">
-                                                        <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
-                                                    </th>
-                                                `).join('')}
+                                                ${columnItems.map(item => {
+                                                    if (item.type === 'separator') {
+                                                        return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
+                                                    }
+                                                    const p = item.program;
+                                                    return `
+                                                        <th class="rotated-th program-col" style="height:${headerHeight};">
+                                                            <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
+                                                        </th>
+                                                    `;
+                                                }).join('')}
                                                 <th style="border-left: none; border-right: none; background: #fff !important;"></th>
                                             </tr>
                                         </thead>
@@ -2601,11 +2636,17 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                         <td style="width:60px; min-width:60px; max-width:60px; font-weight:bold; color:#000; padding:${cellPaddingVal}; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.className || '')}">
                                                             ${window.escapeHTML(item.className || item.classId || '').toUpperCase()}
                                                         </td>
-                                                        ${progs.map(p => `
-                                                            <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
-                                                                ${isRegistered(item.id, p.id) ? '✔' : ''}
-                                                            </td>
-                                                        `).join('')}
+                                                        ${columnItems.map(col => {
+                                                            if (col.type === 'separator') {
+                                                                return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
+                                                            }
+                                                            const p = col.program;
+                                                            return `
+                                                                <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
+                                                                    ${isRegistered(item.id, p.id) ? '✔' : ''}
+                                                                </td>
+                                                            `;
+                                                        }).join('')}
                                                         <td style="border-left: none; border-right: none;"></td>
                                                     </tr>
                                                 `;
@@ -2687,13 +2728,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             return;
                         }
 
-                        const N = progs.length;
+                        const columnItems = buildColumnItems(progs);
+                        const N = columnItems.length;
                         let cellFontSize = '0.75rem';
                         let headerHeight = '120px';
                         let rowHeightVal = '26px';
                         let cellPaddingVal = '2px 0.2rem';
                         let nameCellPaddingVal = '2px 0.5rem';
-                        let pageSize = 16;
+                        let pageSize = orientation === 'landscape' ? 16 : 20;
 
                         if (N > 25) {
                             cellFontSize = '0.42rem';
@@ -2701,28 +2743,28 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             rowHeightVal = '22px';
                             cellPaddingVal = '1px 0.1rem';
                             nameCellPaddingVal = '1px 0.3rem';
-                            pageSize = 15;
+                            pageSize = orientation === 'landscape' ? 15 : 28;
                         } else if (N > 18) {
                             cellFontSize = '0.48rem';
                             headerHeight = '160px';
                             rowHeightVal = '23px';
                             cellPaddingVal = '1px 0.15rem';
                             nameCellPaddingVal = '1px 0.4rem';
-                            pageSize = 16;
+                            pageSize = orientation === 'landscape' ? 16 : 26;
                         } else if (N > 12) {
                             cellFontSize = '0.55rem';
                             headerHeight = '140px';
                             rowHeightVal = '24px';
                             cellPaddingVal = '1px 0.2rem';
                             nameCellPaddingVal = '1px 0.4rem';
-                            pageSize = 16;
+                            pageSize = orientation === 'landscape' ? 16 : 24;
                         } else if (N > 8) {
                             cellFontSize = '0.65rem';
                             headerHeight = '130px';
                             rowHeightVal = '25px';
                             cellPaddingVal = '1.5px 0.2rem';
                             nameCellPaddingVal = '1.5px 0.4rem';
-                            pageSize = 16;
+                            pageSize = orientation === 'landscape' ? 16 : 22;
                         }
 
                         sortedTeamIds.forEach(teamId => {
@@ -2774,7 +2816,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                     ${(f.participationType === 'individual' ? 'INDIVIDUAL PROGRAM' : (f.participationType === 'group' ? 'GROUP PROGRAM' : (f.participationType === 'general' ? 'GENERAL PROGRAM' : 'ALL PROGRAM TYPES')))}
                                                 </div>
                                                 <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase;">
-                                                    ${(f.programLocation === 'Stage' ? 'STAGE' : (f.programLocation === 'Off Stage' ? 'OFF STAGE' : 'STAGE / OFF STAGE'))}
+                                                    STAGE / OFF STAGE
                                                 </div>
                                                 <div style="font-size: 0.62rem; font-weight: 700; color: #475569; margin-top: 0.05rem;">
                                                     TOTAL: ${students.length} STUDENTS
@@ -2787,11 +2829,17 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                 <tr>
                                                     <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
                                                     <th style="width:180px; min-width:180px; max-width:180px; padding:0.25rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
-                                                    ${progs.map(p => `
-                                                        <th class="rotated-th program-col" style="height:${headerHeight};">
-                                                            <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
-                                                        </th>
-                                                    `).join('')}
+                                                    ${columnItems.map(item => {
+                                                        if (item.type === 'separator') {
+                                                            return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
+                                                        }
+                                                        const p = item.program;
+                                                        return `
+                                                            <th class="rotated-th program-col" style="height:${headerHeight};">
+                                                                <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
+                                                            </th>
+                                                        `;
+                                                    }).join('')}
                                                     <th style="border-left: none; border-right: none; background: #fff !important;"></th>
                                                 </tr>
                                             </thead>
@@ -2804,11 +2852,17 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                             <td style="width:180px; min-width:180px; max-width:180px; font-weight:bold; color:#000; padding:${nameCellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.name)}">
                                                                 ${window.escapeHTML(item.name).toUpperCase()}
                                                             </td>
-                                                            ${progs.map(p => `
-                                                                <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
-                                                                    ${isRegistered(item.id, p.id) ? '✔' : ''}
-                                                                </td>
-                                                            `).join('')}
+                                                            ${columnItems.map(col => {
+                                                                if (col.type === 'separator') {
+                                                                    return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
+                                                                }
+                                                                const p = col.program;
+                                                                return `
+                                                                    <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
+                                                                        ${isRegistered(item.id, p.id) ? '✔' : ''}
+                                                                    </td>
+                                                                `;
+                                                            }).join('')}
                                                             <td style="border-left: none; border-right: none;"></td>
                                                         </tr>
                                                     `;
@@ -2837,7 +2891,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         const styleBlock = `
             <style>
                 @page {
-                    size: A4 landscape;
+                    size: A4 ${orientation};
                     margin: ${pageMargin};
                 }
                 body {
@@ -2896,7 +2950,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     padding: 0;
                     width: 100%;
                     height: 100%;
-                    min-height: 184mm; /* Adjusted for 8mm margins */
+                    min-height: ${orientation === 'landscape' ? '184mm' : '262mm'}; /* Adjusted for 8mm margins */
                     display: flex;
                     flex-direction: column;
                     justify-content: space-between;
@@ -2956,10 +3010,57 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         `);
         doc.close();
 
-        setTimeout(() => {
-            printIframe.contentWindow.focus();
-            printIframe.contentWindow.print();
-        }, 300);
+        if (isDownload) {
+            setTimeout(async () => {
+                try {
+                    window.showToast("Preparing PDF download...", "info");
+                    
+                    const prevWidth = printIframe.style.width;
+                    const prevHeight = printIframe.style.height;
+                    
+                    if (orientation === 'landscape') {
+                        printIframe.style.width = '1123px';
+                    } else {
+                        printIframe.style.width = '794px';
+                    }
+                    printIframe.style.height = 'auto';
+                    await new Promise(resolve => setTimeout(resolve, 150));
+                    
+                    const scrollHeight = Math.max(
+                        doc.body.scrollHeight,
+                        doc.documentElement.scrollHeight,
+                        doc.body.offsetHeight,
+                        doc.documentElement.offsetHeight
+                    );
+                    printIframe.style.height = (scrollHeight + 100) + 'px';
+                    await new Promise(resolve => setTimeout(resolve, 50));
+
+                    const html2pdf = await loadHtml2Pdf();
+                    const opt = {
+                        margin:       10,
+                        filename:     exp.fileName || 'export.pdf',
+                        image:        { type: 'jpeg', quality: 0.98 },
+                        html2canvas:  { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+                        jsPDF:        { unit: 'mm', format: 'a4', orientation: orientation },
+                        pagebreak:    { mode: ['css', 'legacy'] }
+                    };
+                    const element = doc.body;
+                    await html2pdf().set(opt).from(element).save();
+                    
+                    printIframe.style.width = prevWidth;
+                    printIframe.style.height = prevHeight;
+                } catch (err) {
+                    console.error("PDF generation failed, falling back to print dialog:", err);
+                    printIframe.contentWindow.focus();
+                    printIframe.contentWindow.print();
+                }
+            }, 500);
+        } else {
+            setTimeout(() => {
+                printIframe.contentWindow.focus();
+                printIframe.contentWindow.print();
+            }, 300);
+        }
         return;
     }
 
@@ -4555,11 +4656,8 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             });
         };
 
-        // Get matching programs first
+        // Get matching programs first (Combine Stage & Off Stage columns)
         let matchingPrograms = [...programs];
-        if (f.programLocation) {
-            matchingPrograms = matchingPrograms.filter(p => p.programLocation === f.programLocation);
-        }
         if (f.participationType) {
             if (f.participationType === 'general') {
                 matchingPrograms = matchingPrograms.filter(p => p.categoryId === 'general_programs' || p.programType === 'general');
@@ -4569,15 +4667,33 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 matchingPrograms = matchingPrograms.filter(p => p.programType === 'individual');
             }
         }
-        matchingPrograms.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+        
+        const stageProgs = matchingPrograms.filter(p => (p.programLocation || p.location || 'Off Stage') === 'Stage');
+        const offStageProgs = matchingPrograms.filter(p => (p.programLocation || p.location || 'Off Stage') !== 'Stage');
+        
+        stageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+        offStageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+        
+        const columnItems = [];
+        stageProgs.forEach(p => columnItems.push({ type: 'program', program: p }));
+        
+        if (stageProgs.length > 0 && offStageProgs.length > 0) {
+            columnItems.push({ type: 'separator' });
+        }
+        offStageProgs.forEach(p => columnItems.push({ type: 'program', program: p }));
 
         if (f.categoryId === 'general_programs') {
             csvContent += "INSTITUTION,CATEGORY,CLASS,TEAM,GENDER,SL NO,CHEST NUMBER,PARTICIPANT NAME";
 
             // Append program names to CSV header
-            matchingPrograms.forEach(p => {
-                const cleanLabel = p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName;
-                csvContent += `,"${cleanLabel.replace(/"/g, '""')}"`;
+            columnItems.forEach(item => {
+                if (item.type === 'separator') {
+                    csvContent += `,""`;
+                } else {
+                    const p = item.program;
+                    const cleanLabel = p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName;
+                    csvContent += `,"${cleanLabel.replace(/"/g, '""')}"`;
+                }
             });
             csvContent += "\n";
 
@@ -4586,7 +4702,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
 
             for (let idx = 0; idx < 25; idx++) {
                 csvContent += `"${instName.replace(/"/g, '""')}","GENERAL PROGRAMS (NON-CATEGORY)","","${teamName.replace(/"/g, '""')}","",${idx + 1},"",""`;
-                matchingPrograms.forEach(() => {
+                columnItems.forEach(() => {
                     csvContent += `,""`;
                 });
                 csvContent += "\n";
@@ -4608,9 +4724,14 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
         csvContent += "INSTITUTION,CATEGORY,CLASS,TEAM,GENDER,SL NO,CHEST NUMBER,PARTICIPANT NAME";
 
         // Append program names to CSV header
-        matchingPrograms.forEach(p => {
-            const cleanLabel = p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName;
-            csvContent += `,"${cleanLabel.replace(/"/g, '""')}"`;
+        columnItems.forEach(item => {
+            if (item.type === 'separator') {
+                csvContent += `,""`;
+            } else {
+                const p = item.program;
+                const cleanLabel = p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName;
+                csvContent += `,"${cleanLabel.replace(/"/g, '""')}"`;
+            }
         });
         csvContent += "\n";
 
@@ -4697,9 +4818,14 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             csvContent += `"${instName.replace(/"/g, '""')}","${catName.replace(/"/g, '""')}","${className.replace(/"/g, '""')}","${teamName.replace(/"/g, '""')}","${(stu.gender || '').replace(/"/g, '""')}",${idx + 1},"${(stu.chestNumber || '').replace(/"/g, '""')}","${(stu.name || '').replace(/"/g, '""')}"`;
 
             // Append program checkmarks
-            matchingPrograms.forEach(p => {
-                const registered = isRegistered(stu.id, p.id);
-                csvContent += registered ? ',"✔"' : ',""';
+            columnItems.forEach(item => {
+                if (item.type === 'separator') {
+                    csvContent += `,""`;
+                } else {
+                    const p = item.program;
+                    const registered = isRegistered(stu.id, p.id);
+                    csvContent += registered ? ',"✔"' : ',""';
+                }
             });
             csvContent += "\n";
         });

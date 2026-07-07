@@ -44,16 +44,30 @@ export async function initProgramsView(container, topActions) {
                 <p class="programs-view-subtitle">Manage competition and general programs</p>
             </div>
             <div class="programs-header-right filter-bar-scrollable">
-                <div class="search-input-wrapper">
-                    <span class="search-icon">🔍</span>
-                    <input type="text" id="progSearchInput" class="form-input search-input-premium" placeholder="Search program..." />
+                <div class="programs-filters-grid">
+                    <div class="search-input-wrapper">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="progSearchInput" class="form-input search-input-premium" placeholder="Search program..." />
+                    </div>
+                    <select id="progCatSelect" class="form-input select-premium" style="width: 230px;">
+                        <option value="">Select Category...</option>
+                        <option value="general_programs">⭐ General Programs (Non-Category)</option>
+                    </select>
+                    <select id="progGenderSelect" class="form-input select-premium">
+                        <option value="">All Genders</option>
+                        <option value="Boys">Boys</option>
+                        <option value="Girls">Girls</option>
+                    </select>
+                    <select id="progStageSelect" class="form-input select-premium">
+                        <option value="">All Stages</option>
+                        <option value="Stage">Stage</option>
+                        <option value="Off Stage">Off Stage</option>
+                    </select>
                 </div>
-                <select id="progCatSelect" class="form-input select-premium" style="width: 230px;">
-                    <option value="">Select Category...</option>
-                    <option value="general_programs">⭐ General Programs (Non-Category)</option>
-                </select>
-                <button class="btn btn-general" id="btnCreateGeneralProgram">+ General</button>
-                <button class="btn btn-primary" id="btnCreateProgram" disabled>+ Program</button>
+                <div class="programs-actions-group">
+                    <button class="btn btn-general" id="btnCreateGeneralProgram">+ General</button>
+                    <button class="btn btn-primary" id="btnCreateProgram" disabled>+ Program</button>
+                </div>
             </div>
         </div>
 
@@ -67,6 +81,8 @@ export async function initProgramsView(container, topActions) {
     `;
 
     const catSel = document.getElementById('progCatSelect');
+    const genderSel = document.getElementById('progGenderSelect');
+    const stageSel = document.getElementById('progStageSelect');
     const btnCreateProgram = document.getElementById('btnCreateProgram');
     const btnCreateGeneralProgram = document.getElementById('btnCreateGeneralProgram');
     const searchInput = document.getElementById('progSearchInput');
@@ -94,6 +110,18 @@ export async function initProgramsView(container, topActions) {
                     btnCreateProgram.disabled = true;
                 }
             }
+            applyProgramFiltersAndRender();
+        });
+    }
+
+    if (genderSel) {
+        genderSel.addEventListener('change', () => {
+            applyProgramFiltersAndRender();
+        });
+    }
+
+    if (stageSel) {
+        stageSel.addEventListener('change', () => {
             applyProgramFiltersAndRender();
         });
     }
@@ -144,6 +172,8 @@ function debounce(fn, ms) {
 
 function applyProgramFiltersAndRender() {
     const q = (document.getElementById('progSearchInput')?.value || '').trim().toLowerCase();
+    const genderVal = document.getElementById('progGenderSelect')?.value || '';
+    const stageVal = document.getElementById('progStageSelect')?.value || '';
 
     let filtered = localProgramsAll;
 
@@ -176,6 +206,22 @@ function applyProgramFiltersAndRender() {
             const cat = allCategories.find(c => c.id === currentCategoryId);
             filtered = filtered.filter(p => p.categoryId === currentCategoryId || p.categoryId === cat?.name);
         }
+    }
+
+    // 3. Gender post-filter
+    if (genderVal) {
+        filtered = filtered.filter(p => {
+            const progGender = (p.genderCategory || 'Mixed').trim().toLowerCase();
+            return progGender === genderVal.toLowerCase();
+        });
+    }
+
+    // 4. Stage post-filter
+    if (stageVal) {
+        filtered = filtered.filter(p => {
+            const progLoc = (p.programLocation || p.location || 'Off Stage').trim().toLowerCase();
+            return progLoc === stageVal.toLowerCase();
+        });
     }
 
     localPrograms = filtered;

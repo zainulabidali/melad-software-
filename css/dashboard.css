@@ -1694,6 +1694,25 @@
     flex-wrap: wrap;
 }
 
+.programs-filters-grid {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.programs-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#progGenderSelect,
+#progStageSelect {
+    width: 150px;
+}
+
+
 .select-premium {
     height: 42px !important;
     min-height: 42px !important;
@@ -2043,41 +2062,53 @@
 
     .programs-header-right {
         display: flex !important;
-        flex-direction: row !important;
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-        white-space: nowrap !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.75rem !important;
+        width: 100% !important;
+        overflow-x: visible !important;
+        white-space: normal !important;
+        padding-bottom: 0 !important;
+    }
+
+    .programs-filters-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
         gap: 0.5rem !important;
         width: 100% !important;
-        padding-bottom: 4px !important;
-        justify-content: flex-start !important;
-        align-items: center !important;
-        scrollbar-width: none !important;
     }
 
-    .programs-header-right::-webkit-scrollbar {
-        display: none !important;
-    }
-
-    .programs-header-right .search-input-wrapper,
-    .programs-header-right select,
-    .programs-header-right button {
-        flex-shrink: 0 !important;
-        width: auto !important;
-        max-width: none !important;
+    .programs-filters-grid .search-input-wrapper,
+    .programs-filters-grid select {
+        width: 100% !important;
+        max-width: 100% !important;
         height: 38px !important;
         min-height: 38px !important;
+        margin: 0 !important;
+        flex-shrink: 0 !important;
         padding: 0 0.85rem !important;
         font-size: 0.82rem !important;
     }
 
-    .programs-header-right .search-input-premium {
+    .programs-filters-grid .search-input-wrapper .search-input-premium {
+        width: 100% !important;
         height: 38px !important;
-        width: 150px !important;
+        max-width: 100% !important;
         font-size: 0.82rem !important;
     }
 
-    .programs-header-right button {
+    .programs-actions-group {
+        display: flex !important;
+        gap: 0.5rem !important;
+        width: 100% !important;
+        justify-content: flex-end !important;
+    }
+
+    .programs-actions-group button {
+        flex: 1 !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        font-size: 0.82rem !important;
         display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
