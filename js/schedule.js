@@ -446,6 +446,19 @@ function minutesToTime(mins) {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+function formatTimeTo12Hour(timeStr) {
+    if (!timeStr) return '';
+    const parts = timeStr.split(':');
+    if (parts.length < 2) return timeStr;
+    let h = parseInt(parts[0], 10);
+    const m = parts[1];
+    if (isNaN(h)) return timeStr;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${h}:${m} ${ampm}`;
+}
+
 // Automatically recalculates Start and End times down the active stage table
 async function triggerTimeCascade(stageItems) {
     if (!stageItems || stageItems.length === 0) return;
@@ -752,10 +765,10 @@ function renderStageTable() {
                     <input type="number" class="sched-tbl-input row-duration-in" data-id="${item.id}" value="${item.duration}" style="width:75px;" min="1"> mins
                 </td>
                 <td style="font-weight:700; color:#312e81;">
-                    ${item.startTime || '09:00'}
+                    ${formatTimeTo12Hour(item.startTime || '09:00')}
                 </td>
                 <td style="font-weight:700; color:#312e81;">
-                    ${item.endTime || '09:20'}
+                    ${formatTimeTo12Hour(item.endTime || '09:20')}
                 </td>
                 <td>
                     <select class="sched-tbl-select row-status-sel" data-id="${item.id}" style="${statusColors[item.status] || ''}">
@@ -1101,7 +1114,7 @@ function shareActiveStageWhatsApp() {
 
     activeItems.forEach((item, idx) => {
         msg += `*${idx + 1}. ${item.programNumber ? `[#${item.programNumber}] ` : ''}${item.programName}*\n`;
-        msg += `   ⏱️ ${item.startTime || 'TBD'} - ${item.endTime || 'TBD'} (${item.duration}m) | Status: ${item.status}\n\n`;
+        msg += `   ⏱️ ${formatTimeTo12Hour(item.startTime || 'TBD')} - ${formatTimeTo12Hour(item.endTime || 'TBD')} (${item.duration}m) | Status: ${item.status}\n\n`;
     });
 
     const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;

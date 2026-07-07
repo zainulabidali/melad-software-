@@ -224,6 +224,26 @@ function applyProgramFiltersAndRender() {
         });
     }
 
+    filtered.sort((a, b) => {
+        const cleanA = String(a.programNumber || '').replace(/[^0-9]/g, '');
+        const cleanB = String(b.programNumber || '').replace(/[^0-9]/g, '');
+        
+        const numA = parseInt(cleanA, 10);
+        const numB = parseInt(cleanB, 10);
+        
+        const hasA = !isNaN(numA) && cleanA !== '';
+        const hasB = !isNaN(numB) && cleanB !== '';
+        
+        if (hasA && hasB) {
+            if (numA !== numB) return numA - numB;
+            return (a.programName || '').localeCompare(b.programName || '');
+        }
+        if (hasA) return -1;
+        if (hasB) return 1;
+        
+        return String(a.programNumber || '').localeCompare(String(b.programNumber || ''), undefined, { numeric: true });
+    });
+
     localPrograms = filtered;
     renderProgramsUI();
 }
