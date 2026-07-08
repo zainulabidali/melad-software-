@@ -3150,6 +3150,122 @@ select.filter-select {
         gap: 0.5rem !important;
     }
     .bulk-table-container {
-        max-height: 35vh !important;
+        max-height: 45vh !important;
+        border: none !important;
+    }
+    
+    /* Responsive card layout for table on mobile */
+    .bulk-table thead {
+        display: none !important;
+    }
+    .bulk-table, 
+    .bulk-table tbody, 
+    .bulk-table tr, 
+    .bulk-table td {
+        display: block !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    .bulk-table tr.bulk-row {
+        display: grid !important;
+        grid-template-areas: 
+            "chk name del"
+            "loc loc loc"
+            "type type type"
+            "size size size" !important;
+        grid-template-columns: auto 1fr auto !important;
+        grid-gap: 0.6rem 0.5rem !important;
+        align-items: center !important;
+        padding: 0.75rem !important;
+        background: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 8px !important;
+        margin-bottom: 0.75rem !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+    }
+    
+    .bulk-table tr.bulk-row td {
+        border-bottom: none !important;
+        padding: 0 !important;
+    }
+    
+    .bulk-table tr.bulk-row td:nth-child(1) {
+        grid-area: chk !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    .bulk-table tr.bulk-row td:nth-child(2) {
+        grid-area: name !important;
+    }
+    .bulk-table tr.bulk-row td:nth-child(3) {
+        grid-area: loc !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+    }
+    .bulk-table tr.bulk-row td:nth-child(4) {
+        grid-area: type !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+    }
+    .bulk-table tr.bulk-row td:nth-child(5) {
+        grid-area: size !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+    }
+    .bulk-table tr.bulk-row td:nth-child(6) {
+        grid-area: del !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    /* Inject field labels on mobile view */
+    .bulk-table tr.bulk-row td:nth-child(3)::before {
+        content: "Location:" !important;
+        font-size: 0.72rem !important;
+        font-weight: 700 !important;
+        color: #64748b !important;
+        min-width: 65px !important;
+        text-transform: uppercase !important;
+    }
+    .bulk-table tr.bulk-row td:nth-child(4)::before {
+        content: "Type:" !important;
+        font-size: 0.72rem !important;
+        font-weight: 700 !important;
+        color: #64748b !important;
+        min-width: 65px !important;
+        text-transform: uppercase !important;
+    }
+    .bulk-table tr.bulk-row td:nth-child(5)::before {
+        content: "Size:" !important;
+        font-size: 0.72rem !important;
+        font-weight: 700 !important;
+        color: #64748b !important;
+        min-width: 65px !important;
+        text-transform: uppercase !important;
+    }
+
+    /* Hide the parent td wrapper for group size input if it is display:none */
+    .bulk-table tr.bulk-row td:nth-child(5):has(.bulk-row-size[style*="display: none"]),
+    .bulk-table tr.bulk-row td:nth-child(5):has(.bulk-row-size[style*="display:none"]) {
+        display: none !important;
+    }
+
+    .bulk-table tr.bulk-row td .form-input {
+        width: 100% !important;
+        flex: 1 !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    #bulkEmptyState td {
+        display: block !important;
+        width: 100% !important;
+        text-align: center !important;
+        padding: 2rem 0.5rem !important;
     }
 }
