@@ -90,11 +90,11 @@ export async function initResultsView(container, topActions) {
 
     // Main layout with side leaderboard
     container.innerHTML = `
-        <div style="display:flex; gap:1.5rem; flex-wrap:wrap; align-items:flex-start; width:100%;">
+        <div class="results-layout-container">
             <!-- Left Results Panel -->
-            <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:1.25rem; width:100%;">
+            <div class="results-left-panel">
                 <!-- Stats Grid -->
-                <div class="grid" id="resultsStatsGrid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:0.75rem; margin:0;">
+                <div class="grid results-stats-grid" id="resultsStatsGrid">
                     <div class="card" style="padding:0.75rem 1rem; border-color:#cbd5e1;">
                         <div style="font-size:0.72rem; font-weight:700; color:#64748b; text-transform:uppercase;">Pending</div>
                         <h2 style="font-size:1.8rem; font-weight:800; margin-top:0.25rem; color:#475569;" id="statPending">-</h2>
@@ -119,7 +119,7 @@ export async function initResultsView(container, topActions) {
             </div>
  
             <!-- Right Leaderboard Panel -->
-            <div style="width:340px; flex-shrink:0; display:flex; flex-direction:column; gap:0.75rem; position:sticky; top:1rem;">
+            <div class="results-right-panel">
                 <button class="btn btn-primary" id="btnGoTopScorers" style="width:100%; padding:0.75rem 1rem; font-size:0.95rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:0.5rem; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
                     🌟 Top Scorers
                 </button>
@@ -500,18 +500,10 @@ function openResultDetailPopup(r) {
     modalTitle.textContent = "🏆 Result Details";
 
     const modalEl = modal.querySelector('.modal');
-    // Set custom large dimensions for results details popup to prevent compression and nested scrollbars
-    modalEl.style.width = '90%';
-    modalEl.style.maxWidth = '1250px';
-    modalEl.style.height = '88vh';
-    modalEl.style.maxHeight = '90vh';
+    modalEl.classList.add('modal-result-detail');
 
     const handleClose = () => {
-        // Restore default small modal styles to prevent style leakages
-        modalEl.style.width = '';
-        modalEl.style.maxWidth = '';
-        modalEl.style.height = '';
-        modalEl.style.maxHeight = '';
+        modalEl.classList.remove('modal-result-detail');
         modal.classList.add('hidden');
     };
 
@@ -565,15 +557,15 @@ function openResultDetailPopup(r) {
             const points = hasScore ? `${item.totalPoints || 0}pts` : '—';
 
             return `
-                <tr style="border-bottom:1px solid #f1f5f9; hover:background:#f8fafc;">
-                    <td style="padding:0.5rem 0.75rem; text-align:center; font-weight:700; color:#475569; white-space:nowrap;">${positionHTML}</td>
-                    <td style="padding:0.5rem 0.75rem; font-weight:700; color:#0f172a; word-break:break-word; max-width:240px;">${window.escapeHTML(displayName)}</td>
-                    <td style="padding:0.5rem 0.75rem; color:#475569; font-weight:600; word-break:break-word; max-width:180px;">${window.escapeHTML(teamDisplay)}</td>
-                    <td style="padding:0.5rem 0.75rem; text-align:center; font-weight:800; color:#0f172a;">${finalMark}</td>
-                    <td style="padding:0.5rem 0.75rem; text-align:center;">
+                <tr class="res-detail-table-row">
+                    <td class="res-detail-td-rank">${positionHTML}</td>
+                    <td class="res-detail-td-name">${window.escapeHTML(displayName)}</td>
+                    <td class="res-detail-td-team">${window.escapeHTML(teamDisplay)}</td>
+                    <td class="res-detail-td-mark">${finalMark}</td>
+                    <td class="res-detail-td-grade">
                         ${grade !== '—' ? `<span class="badge" style="background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe; font-size:0.75rem; font-weight:700; padding:0.15rem 0.5rem;">${grade}</span>` : '—'}
                     </td>
-                    <td style="padding:0.5rem 0.75rem; text-align:center;">
+                    <td class="res-detail-td-points">
                         ${points !== '—' ? `<span class="badge" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; font-size:0.75rem; font-weight:700; padding:0.15rem 0.5rem;">${points}</span>` : '—'}
                     </td>
                 </tr>
@@ -582,19 +574,19 @@ function openResultDetailPopup(r) {
     }
 
     modalBody.innerHTML = `
-        <div style="display:flex; flex-direction:column; gap:0.65rem; height:100%; width:100%;">
+        <div class="res-detail-container">
             <!-- Modern Compact Header Card -->
-            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:0.85rem 1rem; box-shadow:0 1px 3px rgba(0,0,0,0.03);">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.6rem;">
-                    <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
-                        <h3 style="margin:0; font-size:1.3rem; font-weight:800; color:#0f172a; font-family:'Outfit', sans-serif; line-height:1.2;">${window.escapeHTML(r.programName)}</h3>
+            <div class="res-detail-header-card">
+                <div class="res-detail-header-row">
+                    <div class="res-detail-title-group">
+                        <h3 class="res-detail-title">${window.escapeHTML(r.programName)}</h3>
                         <span class="badge" style="background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe; font-size:0.82rem; font-weight:700; padding:0.25rem 0.65rem;">${window.escapeHTML(r.categoryName || 'General')}${r.className ? ` (${window.escapeHTML(r.className)})` : ''}</span>
                     </div>
                     <div style="display:flex; align-items:center; gap:0.5rem;">
                         ${statusBadge}
                     </div>
                 </div>
-                <div style="display:flex; flex-wrap:wrap; gap:0.5rem 1.25rem; align-items:center; font-size:0.85rem; color:#475569; font-weight:600; background:#ffffff; padding:0.55rem 0.85rem; border-radius:8px; border:1px solid #e2e8f0;">
+                <div class="res-detail-meta-grid">
                     <div><span style="color:#64748b; font-weight:500;">Type:</span> <span class="badge" style="background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; font-size:0.78rem; font-weight:700;">${r.programType === 'group' ? '👥 Group' : '👤 Individual'}</span></div>
                     <div><span style="color:#64748b; font-weight:500;">Gender:</span> <strong style="color:#0f172a;">${window.escapeHTML(r.genderCategory || 'Mixed')}</strong></div>
                     <div><span style="color:#64748b; font-weight:500;">Stage:</span> <strong style="color:#0f172a;">📍 ${window.escapeHTML(r.programLocation || 'Stage')}</strong></div>
@@ -603,16 +595,16 @@ function openResultDetailPopup(r) {
             </div>
 
             <!-- Standings Table Container (Only this scrolls) -->
-            <div style="flex:1; overflow-y:auto; overflow-x:auto; min-height:0; width:100%; border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.04);">
-                <table style="width:100%; border-collapse:collapse; text-align:left; font-size:0.85rem; min-width:500px; color:#1e293b;">
+            <div class="res-detail-table-container">
+                <table class="res-detail-table">
                     <thead>
-                        <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; position:sticky; top:0; z-index:10;">
-                            <th style="padding:0.55rem 0.75rem; color:#475569; font-weight:700; text-align:center; width:80px;">Rank</th>
-                            <th style="padding:0.55rem 0.75rem; color:#475569; font-weight:700;">Contestant Name</th>
-                            <th style="padding:0.55rem 0.75rem; color:#475569; font-weight:700; width:180px;">Team</th>
-                            <th style="padding:0.55rem 0.75rem; color:#475569; font-weight:700; width:110px; text-align:center;">Avg Mark</th>
-                            <th style="padding:0.55rem 0.75rem; color:#475569; font-weight:700; width:90px; text-align:center;">Grade</th>
-                            <th style="padding:0.55rem 0.75rem; color:#475569; font-weight:700; width:90px; text-align:center;">Points</th>
+                        <tr class="res-detail-table-header-row">
+                            <th style="text-align:center; width:80px;">Rank</th>
+                            <th>Contestant Name</th>
+                            <th style="width:180px;">Team</th>
+                            <th style="width:110px; text-align:center;">Avg Mark</th>
+                            <th style="width:90px; text-align:center;">Grade</th>
+                            <th style="width:90px; text-align:center;">Points</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -622,7 +614,7 @@ function openResultDetailPopup(r) {
             </div>
 
             <!-- Footer Action Row -->
-            <div class="modal-actions" style="margin-top:0; border-top:1px solid #e2e8f0; padding-top:0.4rem; display:flex; justify-content:flex-end; gap:0.5rem; flex-wrap:wrap;">
+            <div class="res-detail-actions">
                 <button type="button" class="btn btn-secondary" id="btnOpenResEdit" style="font-weight:700; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">✏️ Edit</button>
                 <button type="button" class="btn btn-danger" id="btnOpenResDelete" style="font-weight:700; background:#fef2f2; color:#dc2626; border:1px solid #fecaca;">🗑️ Delete</button>
                 <button type="button" class="btn btn-secondary" id="btnOpenResClose" style="min-width:90px; font-weight:700;">Close</button>
