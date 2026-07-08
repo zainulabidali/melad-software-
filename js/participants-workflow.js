@@ -88,23 +88,25 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
       <div class="pw-sticky-header">
         <div class="pw-header-left">
           <div class="pw-breadcrumb">Admin Panel · Programs · Add Students</div>
-          <div class="pw-title-row">
+          <div class="pw-header-title-row">
             <h2 class="pw-title">👥 ${window.escapeHTML(progName)}</h2>
-            <div class="pw-header-badges">
-              <span class="pw-badge-compact ${isGroupEvent ? 'pw-badge-registered' : 'pw-badge-male'}">
-                ${isGroupEvent ? 'Group Event' : 'Individual Event'}
-              </span>
-              <span class="pw-badge-compact pw-badge-female">
-                ${window.escapeHTML(genderFilter)}
-              </span>
-              <span class="pw-badge-compact pw-badge-cannot" id="pwHeaderStatusBadge">Pending</span>
-              <span class="pw-badge-compact pw-badge-registered" id="pwHeaderParticipantCount">👥 0 Participants</span>
-              <span class="pw-badge-compact pw-badge-team" id="pwHeaderTeamBadge" style="display: none;">Team: —</span>
-              <span class="pw-badge-compact pw-badge-selected-count" id="pwHeaderSelectedCountBadge" style="display: none;">Selected: 0</span>
-            </div>
           </div>
-          <div class="pw-subtitle">
-            Category: <strong id="pwHeaderCategoryLabel" style="color:var(--pw-primary);">Loading...</strong> · Location: <strong>${window.escapeHTML(progData.programLocation || '—')}</strong>
+          <div class="pw-header-meta-row">
+            <span class="pw-meta-item">Category: <strong id="pwHeaderCategoryLabel">Loading...</strong></span>
+            <span class="pw-meta-divider">•</span>
+            <span class="pw-meta-item">Gender: <strong>${window.escapeHTML(genderFilter)}</strong></span>
+            <span class="pw-meta-divider">•</span>
+            <span class="pw-meta-item">Location: <strong>${window.escapeHTML(progData.programLocation || '—')}</strong></span>
+            <span class="pw-meta-divider">•</span>
+            <span class="pw-badge-compact ${isGroupEvent ? 'pw-badge-registered' : 'pw-badge-male'}">
+              ${isGroupEvent ? 'Group' : 'Individual'}
+            </span>
+            <span class="pw-badge-compact pw-badge-cannot" id="pwHeaderStatusBadge">Pending</span>
+          </div>
+          <div class="pw-header-status-row">
+            <span class="pw-badge-compact pw-badge-team" id="pwHeaderTeamBadge" style="display: none;">Team: —</span>
+            <span class="pw-badge-compact pw-badge-selected-count" id="pwHeaderSelectedCountBadge" style="display: none;">Selected: 0</span>
+            <span class="pw-badge-compact pw-badge-registered" id="pwHeaderParticipantCount">👥 0 Participants</span>
           </div>
         </div>
         <div class="pw-header-right">
@@ -154,7 +156,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             </div>
             
             <div class="pw-panel-body">
-              <div class="pw-selection-buffer-card">
+              <div class="pw-selection-buffer-card is-empty">
                 <div class="pw-panel-title">
                   <span>👥 Selected Students</span>
                   <span class="pw-badge-compact pw-badge-registered" id="pwSelectedCountBadge">0</span>
@@ -191,22 +193,28 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             
             <div class="pw-panel-footer">
               ${isGroupEvent ? `
-                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                <div class="pw-group-create-container">
                   <input id="pwNewGroupName" class="form-input" placeholder="New Group Name (e.g. Group A)" style="font-size: 0.8rem; padding: 0.55rem 0.75rem;" />
                   <button class="btn btn-primary" id="pwCreateGroupBtn" disabled style="width:100%; font-weight:700; min-height:38px;">+ Create Group</button>
                 </div>
               ` : `
-                <button class="btn btn-primary" id="pwSaveParticipantsBtn" disabled style="width:100%; font-weight:700; min-height:38px;">💾 Save Participants</button>
+                <div class="pw-save-container-mobile">
+                  <div class="pw-mobile-save-info" style="display: none;">
+                    <span class="pw-mobile-save-count" id="pwFooterSelectedCount">0</span> selected
+                  </div>
+                  <button class="btn btn-primary" id="pwSaveParticipantsBtn" disabled style="width:100%; font-weight:700; min-height:38px;">💾 Save Participants</button>
+                </div>
                 <div class="pw-save-status" id="pwSaveStatus" aria-live="polite" style="margin-top: 0.5rem; font-size:0.72rem; color:var(--pw-slate-500); text-align:center;"></div>
               `}
             </div>
           </aside>
 
           <!-- 3. RIGHT PANEL: Existing Groups / Active Registrations -->
-          <main class="pw-panel">
-            <div class="pw-panel-header">
+          <main class="pw-panel" id="pwRightPanel">
+            <div class="pw-panel-header" id="pwRightPanelHeader" style="cursor: pointer;">
               <div class="pw-panel-title">
-                <span>${isGroupEvent ? '📂 Registered Groups' : '📋 Assigned Participants'}</span>
+                <span id="pwRightPanelTitleText">${isGroupEvent ? '📂 Registered Groups' : '📋 Assigned Participants'}</span>
+                <span id="pwRightPanelHeaderArrow" class="pw-accordion-arrow" style="display: none;">▼</span>
               </div>
               <p class="pw-subtitle" style="margin:0;">
                 ${isGroupEvent ? 'Manage created groups and member registers.' : 'List of saved individual registrations for this team.'}
@@ -252,6 +260,13 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         }
 
         if (pCountBadge) pCountBadge.innerHTML = `👥 ${pText}`;
+
+        const rightPanelTitleText = document.getElementById('pwRightPanelTitleText');
+        if (rightPanelTitleText) {
+            rightPanelTitleText.textContent = isGroupEvent 
+                ? `📂 Registered Groups (${groups.length})` 
+                : `📋 Assigned Participants (${assignedParticipantsAll.length})`;
+        }
 
         let status = 'Pending';
         let badgeClass = 'pw-badge-pending';
@@ -316,6 +331,18 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     function refreshSelectedPreviews() {
         const badgeEl = document.getElementById('pwSelectedCountBadge');
         if (badgeEl) badgeEl.textContent = selectedStudentIds.size;
+
+        const footerCountEl = document.getElementById('pwFooterSelectedCount');
+        if (footerCountEl) footerCountEl.textContent = selectedStudentIds.size;
+
+        const bufferCard = document.querySelector('.pw-selection-buffer-card');
+        if (bufferCard) {
+            if (selectedStudentIds.size === 0) {
+                bufferCard.classList.add('is-empty');
+            } else {
+                bufferCard.classList.remove('is-empty');
+            }
+        }
 
         const previewEl = document.getElementById('pwSelectedStudentsPreview');
         if (previewEl) {
@@ -1429,6 +1456,17 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             returnBack();
         }
     };
+
+    // Collapsible Assigned Participants/Registered Groups section on mobile
+    const rightPanelHeader = document.getElementById('pwRightPanelHeader');
+    const rightPanel = document.getElementById('pwRightPanel');
+    if (rightPanelHeader && rightPanel) {
+        rightPanelHeader.onclick = () => {
+            if (window.innerWidth <= 991) {
+                rightPanel.classList.toggle('is-expanded');
+            }
+        };
+    }
 
     // 7. Initial Initialization
     async function initialize() {
