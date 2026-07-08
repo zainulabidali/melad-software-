@@ -461,139 +461,541 @@ function renderProgramsUI() {
 }
 
 // ─────────────────────────────────────────────
-// Add / Edit Program Modal
+// Default Program Templates
+// ─────────────────────────────────────────────
+const DEFAULT_PROGRAM_TEMPLATES = [
+    { name: "Quran Recitation", type: "individual", location: "Stage", gender: "Mixed", description: "Holy Quran recitation competition" },
+    { name: "Elocution English", type: "individual", location: "Stage", gender: "Mixed", description: "English speech competition" },
+    { name: "Elocution Arabic", type: "individual", location: "Stage", gender: "Mixed", description: "Arabic speech competition" },
+    { name: "Elocution Urdu", type: "individual", location: "Stage", gender: "Mixed", description: "Urdu speech competition" },
+    { name: "Elocution Malayalam", type: "individual", location: "Stage", gender: "Mixed", description: "Malayalam speech competition" },
+    { name: "Light Music", type: "individual", location: "Stage", gender: "Mixed", description: "Singing competition" },
+    { name: "Poem Recitation English", type: "individual", location: "Stage", gender: "Mixed", description: "Reciting English poetry" },
+    { name: "Poem Recitation Arabic", type: "individual", location: "Stage", gender: "Mixed", description: "Reciting Arabic poetry" },
+    { name: "Poem Recitation Malayalam", type: "individual", location: "Stage", gender: "Mixed", description: "Reciting Malayalam poetry" },
+    { name: "Story Telling", type: "individual", location: "Stage", gender: "Mixed", description: "Story telling competition" },
+    { name: "Singing", type: "individual", location: "Stage", gender: "Mixed", description: "Vocal song competition" },
+    { name: "Ghazal", type: "individual", location: "Stage", gender: "Mixed", description: "Ghazal singing competition" },
+    { name: "Monologue", type: "individual", location: "Stage", gender: "Mixed", description: "Acting monologue" },
+
+    { name: "Group Song", type: "group", groupSize: 5, location: "Stage", gender: "Mixed", description: "Group vocal performance" },
+    { name: "Quiz Competition", type: "group", groupSize: 3, location: "Stage", gender: "Mixed", description: "General and Islamic quiz" },
+    { name: "Duffmuttu", type: "group", groupSize: 7, location: "Stage", gender: "Boys", description: "Traditional Duff performance" },
+    { name: "Oppana", type: "group", groupSize: 10, location: "Stage", gender: "Girls", description: "Traditional Oppana dance" },
+    { name: "Kolkali", type: "group", groupSize: 8, location: "Stage", gender: "Boys", description: "Traditional Kolkali folk art" },
+    { name: "Patriotic Song Group", type: "group", groupSize: 6, location: "Stage", gender: "Mixed", description: "Patriotic choral performance" },
+    { name: "Choral Speaking", type: "group", groupSize: 12, location: "Stage", gender: "Mixed", description: "Group choral recitation" },
+
+    { name: "Pencil Drawing", type: "individual", location: "Off Stage", gender: "Mixed", description: "Sketching/pencil shading" },
+    { name: "Watercolor Painting", type: "individual", location: "Off Stage", gender: "Mixed", description: "Watercolor art" },
+    { name: "Calligraphy Arabic", type: "individual", location: "Off Stage", gender: "Mixed", description: "Arabic script calligraphy" },
+    { name: "Calligraphy English", type: "individual", location: "Off Stage", gender: "Mixed", description: "English script calligraphy" },
+    { name: "Essay Writing English", type: "individual", location: "Off Stage", gender: "Mixed", description: "English essay writing" },
+    { name: "Essay Writing Arabic", type: "individual", location: "Off Stage", gender: "Mixed", description: "Arabic essay writing" },
+    { name: "Essay Writing Malayalam", type: "individual", location: "Off Stage", gender: "Mixed", description: "Malayalam essay writing" },
+    { name: "Story Writing Malayalam", type: "individual", location: "Off Stage", gender: "Mixed", description: "Malayalam story writing" },
+    { name: "Poem Writing Malayalam", type: "individual", location: "Off Stage", gender: "Mixed", description: "Malayalam poem writing" },
+    { name: "Clay Modeling", type: "individual", location: "Off Stage", gender: "Mixed", description: "Clay sculpting competition" },
+    { name: "Map Drawing", type: "individual", location: "Off Stage", gender: "Mixed", description: "Geographical map drawing" },
+    { name: "Digital Painting", type: "individual", location: "Off Stage", gender: "Mixed", description: "Graphic digital illustration" },
+
+    { name: "Collage making", type: "group", groupSize: 3, location: "Off Stage", gender: "Mixed", description: "Magazine collage collage art" },
+    { name: "Wall Magazine", type: "group", groupSize: 4, location: "Off Stage", gender: "Mixed", description: "Wall poster/magazine creation" }
+];
+
+// ─────────────────────────────────────────────
+// Add / Edit Program Modal (Bulk Creation Workflow Support)
 // ─────────────────────────────────────────────
 function openProgramModal(progId = null, data = {}) {
-    if (!progId && (!currentCategoryId || currentCategoryId === 'general_programs')) {
-        window.showToast("Please select a category before creating a program.", "error");
-        return;
-    }
     const modalTitle = document.getElementById('dynamicModalTitle');
     const modalBody = document.getElementById('dynamicModalBody');
     const modalOverlay = document.getElementById('dynamicModal');
+    const modalEl = modalOverlay.querySelector('.modal');
 
-    modalTitle.textContent = progId ? `Edit Program ${data.programNumber ? `#${data.programNumber}` : ''}` : "Add Program";
-    const pType = (data.programType || data.type || 'individual').toLowerCase();
-    const isGroup = pType === 'group';
+    // Helper to close modal and reset size
+    const handleClose = () => {
+        if (modalEl) modalEl.classList.remove('modal-large');
+        modalOverlay.classList.add('hidden');
+    };
 
-    modalBody.innerHTML = `
-        <form id="programForm" autocomplete="off">
-            <div class="form-group">
-                <label class="form-label">Program Name *</label>
-                <input type="text" id="pName" class="form-input" required
-                    value="${window.escapeHTML(data.programName || '')}">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Description (Optional)</label>
-                <textarea id="pDesc" class="form-input" rows="2">${window.escapeHTML(data.description || '')}</textarea>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Type *</label>
-                <select id="pType" class="form-input" required>
-                    <option value="individual" ${!isGroup ? 'selected' : ''}>Individual</option>
-                    <option value="group"      ${isGroup ? 'selected' : ''}>Group</option>
-                </select>
-            </div>
-            <div class="form-group" id="groupSizeRow" style="display:${isGroup ? 'block' : 'none'};">
-                <label class="form-label">Group Size * <span style="font-size:0.75rem;color:#94a3b8;">(max participants per team)</span></label>
-                <input type="number" id="pGroupSize" class="form-input" min="2" placeholder="e.g. 5"
-                    value="${isGroup && (data.maxParticipants || data.groupSize) ? (data.maxParticipants || data.groupSize) : ''}">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Program Location *</label>
-                <select id="pLocation" class="form-input" required>
-                    <option value="Stage"     ${data.programLocation === 'Stage' ? 'selected' : ''}>Stage</option>
-                    <option value="Off Stage" ${data.programLocation === 'Off Stage' ? 'selected' : ''}>Off Stage</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Gender Category *</label>
-                <select id="pGender" class="form-input" required>
-                    <option value="Boys"  ${data.genderCategory === 'Boys' ? 'selected' : ''}>Boys</option>
-                    <option value="Girls" ${data.genderCategory === 'Girls' ? 'selected' : ''}>Girls</option>
-                    <option value="Mixed" ${data.genderCategory === 'Mixed' ? 'selected' : ''}>Mixed</option>
-                </select>
-            </div>
-            <div class="modal-actions" style="margin-top:1.25rem;">
-                <button type="submit" class="btn btn-primary w-full" id="saveProgBtn">
-                    <span class="btn-text">${progId ? 'Save Changes' : 'Add Program'}</span>
-                    <span class="btn-spinner hidden"></span>
-                </button>
-            </div>
-        </form>
-    `;
+    if (progId) {
+        // --- SINGLE EDIT MODE (Compatibility) ---
+        if (modalEl) modalEl.classList.remove('modal-large');
+        modalTitle.textContent = `Edit Program ${data.programNumber ? `#${data.programNumber}` : ''}`;
+        const pType = (data.programType || data.type || 'individual').toLowerCase();
+        const isGroup = pType === 'group';
 
-    modalOverlay.classList.remove('hidden');
-    document.getElementById('closeDynamicModalBtn').onclick = () => modalOverlay.classList.add('hidden');
+        modalBody.innerHTML = `
+            <form id="programForm" autocomplete="off">
+                <div class="form-group">
+                    <label class="form-label">Program Name *</label>
+                    <input type="text" id="pName" class="form-input" required
+                        value="${window.escapeHTML(data.programName || '')}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description (Optional)</label>
+                    <textarea id="pDesc" class="form-input" rows="2">${window.escapeHTML(data.description || '')}</textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Type *</label>
+                    <select id="pType" class="form-input" required>
+                        <option value="individual" ${!isGroup ? 'selected' : ''}>Individual</option>
+                        <option value="group"      ${isGroup ? 'selected' : ''}>Group</option>
+                    </select>
+                </div>
+                <div class="form-group" id="groupSizeRow" style="display:${isGroup ? 'block' : 'none'};">
+                    <label class="form-label">Group Size * <span style="font-size:0.75rem;color:#94a3b8;">(max participants per team)</span></label>
+                    <input type="number" id="pGroupSize" class="form-input" min="2" placeholder="e.g. 5"
+                        value="${isGroup && (data.maxParticipants || data.groupSize) ? (data.maxParticipants || data.groupSize) : ''}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Program Location *</label>
+                    <select id="pLocation" class="form-input" required>
+                        <option value="Stage"     ${data.programLocation === 'Stage' ? 'selected' : ''}>Stage</option>
+                        <option value="Off Stage" ${data.programLocation === 'Off Stage' ? 'selected' : ''}>Off Stage</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Gender Category *</label>
+                    <select id="pGender" class="form-input" required>
+                        <option value="Boys"  ${data.genderCategory === 'Boys' ? 'selected' : ''}>Boys</option>
+                        <option value="Girls" ${data.genderCategory === 'Girls' ? 'selected' : ''}>Girls</option>
+                        <option value="Mixed" ${data.genderCategory === 'Mixed' ? 'selected' : ''}>Mixed</option>
+                    </select>
+                </div>
+                <div class="modal-actions" style="margin-top:1.25rem;">
+                    <button type="submit" class="btn btn-primary w-full" id="saveProgBtn">
+                        <span class="btn-text">Save Changes</span>
+                        <span class="btn-spinner hidden"></span>
+                    </button>
+                </div>
+            </form>
+        `;
 
-    document.getElementById('pType').addEventListener('change', (e) => {
-        const gsRow = document.getElementById('groupSizeRow');
-        const gsIn = document.getElementById('pGroupSize');
-        if (e.target.value === 'group') {
-            gsRow.style.display = 'block';
-            gsIn.required = true;
-        } else {
-            gsRow.style.display = 'none';
-            gsIn.required = false;
-            gsIn.value = '';
-        }
-    });
+        modalOverlay.classList.remove('hidden');
+        document.getElementById('closeDynamicModalBtn').onclick = handleClose;
 
-    document.getElementById('programForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const type = document.getElementById('pType').value;
-        const gsRaw = document.getElementById('pGroupSize').value.trim();
-
-        if (type === 'group') {
-            const gsNum = parseInt(gsRaw, 10);
-            if (!gsRaw || isNaN(gsNum) || gsNum < 2) {
-                window.showToast("Group size must be 2 or more.", "error");
-                return;
+        document.getElementById('pType').addEventListener('change', (e) => {
+            const gsRow = document.getElementById('groupSizeRow');
+            const gsIn = document.getElementById('pGroupSize');
+            if (e.target.value === 'group') {
+                gsRow.style.display = 'block';
+                gsIn.required = true;
+                if (!gsIn.value) gsIn.value = '5';
+            } else {
+                gsRow.style.display = 'none';
+                gsIn.required = false;
+                gsIn.value = '';
             }
-        }
+        });
 
-        const btn = document.getElementById('saveProgBtn');
-        const text = btn.querySelector('.btn-text');
-        const spinner = btn.querySelector('.btn-spinner');
-        btn.disabled = true;
-        text.classList.add('hidden');
-        spinner.classList.remove('hidden');
+        document.getElementById('programForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const type = document.getElementById('pType').value;
+            const gsRaw = document.getElementById('pGroupSize').value.trim();
 
-        try {
-            const payload = {
-                programName: document.getElementById('pName').value.trim(),
-                description: document.getElementById('pDesc').value.trim(),
-                programType: type,
-                maxParticipants: type === 'individual' ? null : parseInt(gsRaw, 10),
-                programLocation: document.getElementById('pLocation').value,
-                genderCategory: document.getElementById('pGender').value,
-                categoryId: currentCategoryId
-            };
+            if (type === 'group') {
+                const gsNum = parseInt(gsRaw, 10);
+                if (!gsRaw || isNaN(gsNum) || gsNum < 2) {
+                    window.showToast("Group size must be 2 or more.", "error");
+                    return;
+                }
+            }
 
-            const progCollection = collection(db, "institutes", window.currentInstituteId, "programs");
+            const btn = document.getElementById('saveProgBtn');
+            const text = btn.querySelector('.btn-text');
+            const spinner = btn.querySelector('.btn-spinner');
+            btn.disabled = true;
+            text.classList.add('hidden');
+            spinner.classList.remove('hidden');
 
-            if (progId) {
+            try {
+                const payload = {
+                    programName: document.getElementById('pName').value.trim(),
+                    description: document.getElementById('pDesc').value.trim(),
+                    programType: type,
+                    maxParticipants: type === 'individual' ? null : parseInt(gsRaw, 10),
+                    programLocation: document.getElementById('pLocation').value,
+                    genderCategory: document.getElementById('pGender').value,
+                    categoryId: data.categoryId || currentCategoryId
+                };
+
+                const progCollection = collection(db, "institutes", window.currentInstituteId, "programs");
                 await updateDoc(doc(progCollection, progId), payload);
                 window.showToast("Program updated.");
-            } else {
-                payload.createdAt = serverTimestamp();
-                const maxNum = localProgramsAll.reduce((max, p) => (p.programNumber && p.programNumber > max ? p.programNumber : max), 100);
-                payload.programNumber = maxNum + 1;
-                await addDoc(progCollection, payload);
-                window.showToast("Program added.");
+                await updateDashboardMetadata(window.currentInstituteId);
+                invalidateProgramsCache(window.currentInstituteId);
+                handleClose();
+            } catch (err) {
+                console.error(err);
+                window.showToast("Error saving program.", "error");
+            } finally {
+                btn.disabled = false;
+                text.classList.remove('hidden');
+                spinner.classList.add('hidden');
             }
-            await updateDashboardMetadata(window.currentInstituteId);
-            invalidateProgramsCache(window.currentInstituteId);
-            modalOverlay.classList.add('hidden');
-        } catch (err) {
-            console.error(err);
-            window.showToast("Error saving program.", "error");
-        } finally {
-            btn.disabled = false;
-            text.classList.remove('hidden');
-            spinner.classList.add('hidden');
+        });
+    } else {
+        // --- BULK CREATE MODE ---
+        if (!currentCategoryId || currentCategoryId === 'general_programs') {
+            window.showToast("Please select a category before creating a program.", "error");
+            return;
         }
-    });
+        if (modalEl) modalEl.classList.add('modal-large');
+
+        modalTitle.textContent = "Bulk Add Programs";
+        const categoryOptionsHTML = allCategories.map(cat => {
+            const selected = cat.id === currentCategoryId ? 'selected' : '';
+            return `<option value="${cat.id}" ${selected}>${window.escapeHTML(cat.name)}</option>`;
+        }).join('');
+
+        modalBody.innerHTML = `
+            <div class="bulk-prog-container">
+                <!-- Filter Section -->
+                <div class="bulk-filter-bar" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:0.5rem; margin-bottom:1rem; padding:0.75rem; background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:10px; transition: opacity 0.2s ease;">
+                    <div class="form-group-compact" style="display:flex; flex-direction:column; gap:0.15rem;">
+                        <label class="form-label-compact" style="font-size:0.68rem; font-weight:700; color:#64748b; text-transform:uppercase;">Category</label>
+                        <select id="bulkCat" class="form-input-compact select-premium" style="font-size:0.78rem; padding:0.35rem 0.5rem; border-radius:6px; border:1px solid #e2e8f0;">
+                            ${categoryOptionsHTML}
+                        </select>
+                    </div>
+                    <div class="form-group-compact" style="display:flex; flex-direction:column; gap:0.15rem;">
+                        <label class="form-label-compact" style="font-size:0.68rem; font-weight:700; color:#64748b; text-transform:uppercase;">Type Scope</label>
+                        <select id="bulkTypeScope" class="form-input-compact select-premium" style="font-size:0.78rem; padding:0.35rem 0.5rem; border-radius:6px; border:1px solid #e2e8f0;">
+                            <option value="competition" selected>Competition Program</option>
+                            <option value="general">General Program</option>
+                        </select>
+                    </div>
+                    <div class="form-group-compact" style="display:flex; flex-direction:column; gap:0.15rem;">
+                        <label class="form-label-compact" style="font-size:0.68rem; font-weight:700; color:#64748b; text-transform:uppercase;">Gender</label>
+                        <select id="bulkGender" class="form-input-compact select-premium" style="font-size:0.78rem; padding:0.35rem 0.5rem; border-radius:6px; border:1px solid #e2e8f0;">
+                            <option value="Boys" selected>Boys</option>
+                            <option value="Girls">Girls</option>
+                            <option value="Mixed">Mixed</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Custom program rows list -->
+                <div class="bulk-table-container" style="max-height: 40vh; overflow-y: auto; border: 1.5px solid #e2e8f0; border-radius: 10px; margin-bottom: 1rem; background: #ffffff;">
+                    <table class="bulk-table" style="width:100%; border-collapse:collapse; font-size:0.8rem; text-align:left;">
+                        <thead style="background:#f8fafc; position:sticky; top:0; z-index:10; border-bottom:1.5px solid #e2e8f0;">
+                            <tr>
+                                <th style="padding:0.6rem 0.75rem; width:40px; border-bottom:1.5px solid #e2e8f0;"><input type="checkbox" id="bulkSelectAll" checked style="cursor:pointer;" /></th>
+                                <th style="padding:0.6rem 0.75rem; border-bottom:1.5px solid #e2e8f0;">Program Name *</th>
+                                <th style="padding:0.6rem 0.75rem; width:130px; border-bottom:1.5px solid #e2e8f0;">Location *</th>
+                                <th style="padding:0.6rem 0.75rem; width:120px; border-bottom:1.5px solid #e2e8f0;">Type *</th>
+                                <th style="padding:0.6rem 0.75rem; width:100px; border-bottom:1.5px solid #e2e8f0;">Group Size</th>
+                                <th style="padding:0.6rem 0.75rem; width:70px; border-bottom:1.5px solid #e2e8f0; text-align:center;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bulkTableBody">
+                            <!-- Empty State initially -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Footer actions inside body -->
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem;">
+                    <button type="button" class="btn btn-general btn-sm" id="bulkAddCustomRow" style="font-size:0.75rem; padding:0.35rem 0.75rem;">+ Add Custom Program</button>
+                    <div style="font-size:0.75rem; color:#64748b; font-weight:600;" id="bulkSelectionStats">0 / 0 Selected</div>
+                </div>
+
+                <div class="modal-actions" style="border-top:1.5px solid #e2e8f0; padding-top:0.75rem; margin-top:0.5rem; display:flex; justify-content:flex-end; gap:0.5rem;">
+                    <button type="button" class="btn btn-secondary" id="bulkCloseBtn" style="font-weight:700;">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="bulkSaveBtn" style="font-weight:700;">
+                        <span class="btn-text" id="bulkSaveText">Create Selected Programs</span>
+                        <span class="btn-spinner hidden" id="bulkSaveSpinner"></span>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        modalOverlay.classList.remove('hidden');
+        document.getElementById('closeDynamicModalBtn').onclick = handleClose;
+        document.getElementById('bulkCloseBtn').onclick = handleClose;
+
+        // Lock selectors when rows exist
+        const updateFiltersLockState = () => {
+            const hasRows = document.querySelectorAll('.bulk-row').length > 0;
+            document.getElementById('bulkCat').disabled = hasRows;
+            document.getElementById('bulkTypeScope').disabled = hasRows;
+            document.getElementById('bulkGender').disabled = hasRows;
+
+            const filterBar = document.querySelector('.bulk-filter-bar');
+            if (filterBar) {
+                filterBar.style.opacity = hasRows ? '0.7' : '1';
+            }
+            if (!hasRows) {
+                const typeScopeVal = document.getElementById('bulkTypeScope').value;
+                if (typeScopeVal === 'general') {
+                    document.getElementById('bulkCat').disabled = true;
+                    document.getElementById('bulkCat').closest('.form-group-compact').style.opacity = '0.5';
+                } else {
+                    document.getElementById('bulkCat').closest('.form-group-compact').style.opacity = '1';
+                }
+            }
+        };
+
+        // Dynamic metrics update
+        const updateBulkStats = () => {
+            const checks = document.querySelectorAll('.bulk-row-check');
+            const checkedCount = Array.from(checks).filter(c => c.checked).length;
+            document.getElementById('bulkSelectionStats').textContent = `${checkedCount} / ${checks.length} Selected`;
+            const selectAll = document.getElementById('bulkSelectAll');
+            if (selectAll) {
+                selectAll.checked = (checkedCount === checks.length && checks.length > 0);
+            }
+        };
+
+        const renderEmptyState = () => {
+            const tbody = document.getElementById('bulkTableBody');
+            tbody.innerHTML = `
+                <tr id="bulkEmptyState">
+                    <td colspan="6" style="text-align:center; padding:2.5rem 0; color:#94a3b8; font-style:italic;">
+                        No custom programs added yet. Complete selections above and click "+ Add Custom Program".
+                    </td>
+                </tr>
+            `;
+            updateBulkStats();
+            updateFiltersLockState();
+        };
+
+        // Type Scope listener (toggles category accessibility)
+        document.getElementById('bulkTypeScope').addEventListener('change', (e) => {
+            const catGroup = document.getElementById('bulkCat').closest('.form-group-compact');
+            if (e.target.value === 'general') {
+                catGroup.style.opacity = '0.5';
+                document.getElementById('bulkCat').disabled = true;
+            } else {
+                catGroup.style.opacity = '1';
+                document.getElementById('bulkCat').disabled = false;
+            }
+        });
+
+        // Add custom row functionality
+        document.getElementById('bulkAddCustomRow').onclick = () => {
+            const catId = document.getElementById('bulkCat').value;
+            const typeScope = document.getElementById('bulkTypeScope').value;
+            const gender = document.getElementById('bulkGender').value;
+
+            if (typeScope === 'competition' && !catId) {
+                window.showToast("Category is required for competition programs.", "error");
+                return;
+            }
+            if (!gender) {
+                window.showToast("Please ensure gender selection is complete.", "error");
+                return;
+            }
+
+            const tbody = document.getElementById('bulkTableBody');
+            const emptyState = document.getElementById('bulkEmptyState');
+            if (emptyState) {
+                tbody.removeChild(emptyState);
+            }
+
+            const tr = document.createElement('tr');
+            tr.className = 'bulk-row';
+            tr.innerHTML = `
+                <td style="padding:0.45rem 0.75rem; border-bottom:1px solid #e2e8f0; vertical-align: middle;"><input type="checkbox" class="bulk-row-check" checked style="cursor:pointer;" /></td>
+                <td style="padding:0.45rem 0.75rem; border-bottom:1px solid #e2e8f0; vertical-align: middle;"><input type="text" class="bulk-row-name form-input" placeholder="Program Name *" style="font-size:0.75rem; width:100%; border:1px solid #cbd5e1; border-radius:4px; padding:0.25rem 0.4rem; height:auto; min-height:initial;" /></td>
+                <td style="padding:0.45rem 0.75rem; border-bottom:1px solid #e2e8f0; vertical-align: middle;">
+                    <select class="bulk-row-loc form-input" style="font-size:0.75rem; width:100%; border:1px solid #cbd5e1; border-radius:4px; padding:0.2rem 0.4rem; height:auto; min-height:initial;">
+                        <option value="Stage" selected>Stage</option>
+                        <option value="Off Stage">Off Stage</option>
+                    </select>
+                </td>
+                <td style="padding:0.45rem 0.75rem; border-bottom:1px solid #e2e8f0; vertical-align: middle;">
+                    <select class="bulk-row-type form-input" style="font-size:0.75rem; width:100%; border:1px solid #cbd5e1; border-radius:4px; padding:0.2rem 0.4rem; height:auto; min-height:initial;">
+                        <option value="individual" selected>Individual</option>
+                        <option value="group">Group</option>
+                    </select>
+                </td>
+                <td style="padding:0.45rem 0.75rem; border-bottom:1px solid #e2e8f0; vertical-align: middle;"><input type="number" class="bulk-row-size form-input" min="2" placeholder="Size" style="font-size:0.75rem; width:100%; border:1px solid #cbd5e1; border-radius:4px; padding:0.25rem 0.4rem; display:none; height:auto; min-height:initial;" /></td>
+                <td style="padding:0.45rem 0.75rem; border-bottom:1px solid #e2e8f0; text-align:center; vertical-align: middle;">
+                    <button type="button" class="bulk-row-delete" style="background:none; border:none; color:#ef4444; font-size:1.3rem; cursor:pointer; padding:0 0.25rem; line-height:1; font-weight:700;" title="Delete Row">&times;</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+            updateBulkStats();
+            updateFiltersLockState();
+        };
+
+        // Table event handlers delegation
+        const tableBody = document.getElementById('bulkTableBody');
+        tableBody.addEventListener('change', (e) => {
+            if (e.target.classList.contains('bulk-row-type')) {
+                const row = e.target.closest('tr');
+                const sizeInput = row.querySelector('.bulk-row-size');
+                if (e.target.value === 'group') {
+                    sizeInput.style.display = 'block';
+                    sizeInput.required = true;
+                    if (!sizeInput.value) sizeInput.value = '5';
+                } else {
+                    sizeInput.style.display = 'none';
+                    sizeInput.required = false;
+                    sizeInput.value = '';
+                }
+            }
+            updateBulkStats();
+        });
+
+        tableBody.addEventListener('click', (e) => {
+            if (e.target.classList.contains('bulk-row-check')) {
+                updateBulkStats();
+            } else if (e.target.classList.contains('bulk-row-delete')) {
+                const row = e.target.closest('tr');
+                row.remove();
+                
+                const tbody = document.getElementById('bulkTableBody');
+                if (tbody.querySelectorAll('.bulk-row').length === 0) {
+                    renderEmptyState();
+                } else {
+                    updateBulkStats();
+                    updateFiltersLockState();
+                }
+            }
+        });
+
+        document.getElementById('bulkSelectAll').onclick = (e) => {
+            const checked = e.target.checked;
+            document.querySelectorAll('.bulk-row-check').forEach(c => c.checked = checked);
+            updateBulkStats();
+        };
+
+        // Save selected batch programs
+        document.getElementById('bulkSaveBtn').onclick = async () => {
+            const catId = document.getElementById('bulkCat').value;
+            const typeScope = document.getElementById('bulkTypeScope').value;
+            const gender = document.getElementById('bulkGender').value;
+
+            const rows = document.querySelectorAll('.bulk-row');
+            const selectedPayloads = [];
+
+            for (const row of rows) {
+                const checked = row.querySelector('.bulk-row-check').checked;
+                if (!checked) continue;
+
+                const name = row.querySelector('.bulk-row-name').value.trim();
+                if (!name) {
+                    window.showToast("Program name cannot be blank.", "error");
+                    return;
+                }
+
+                const location = row.querySelector('.bulk-row-loc').value;
+                const pType = row.querySelector('.bulk-row-type').value;
+                const sizeVal = row.querySelector('.bulk-row-size').value.trim();
+
+                let maxParticipants = null;
+                if (typeScope === 'competition') {
+                    if (pType === 'group') {
+                        const sizeNum = parseInt(sizeVal, 10);
+                        if (!sizeVal || isNaN(sizeNum) || sizeNum < 2) {
+                            window.showToast(`Group size for program "${name}" must be 2 or more.`, "error");
+                            return;
+                        }
+                        maxParticipants = sizeNum;
+                    }
+
+                    selectedPayloads.push({
+                        programName: name,
+                        description: "",
+                        programType: pType,
+                        maxParticipants: maxParticipants,
+                        programLocation: location,
+                        genderCategory: gender,
+                        categoryId: catId
+                    });
+                } else {
+                    if (pType === 'group') {
+                        const sizeNum = parseInt(sizeVal, 10);
+                        if (sizeVal && (isNaN(sizeNum) || sizeNum < 2)) {
+                            window.showToast(`Group size for program "${name}" must be 2 or more.`, "error");
+                            return;
+                        }
+                        maxParticipants = sizeNum || null;
+                    }
+
+                    selectedPayloads.push({
+                        programName: name,
+                        description: "",
+                        location: location,
+                        programLocation: location,
+                        genderCategory: gender,
+                        registrationType: pType === 'group' ? 'group' : 'individual',
+                        maxParticipants: maxParticipants,
+                        leaderboardEnabled: true,
+                        programType: "general",
+                        categoryId: "general_programs"
+                    });
+                }
+            }
+
+            if (selectedPayloads.length === 0) {
+                window.showToast("No programs selected for creation.", "error");
+                return;
+            }
+
+            // Real-time duplicates warnings warning check before commits
+            let hasDuplicate = false;
+            for (const payload of selectedPayloads) {
+                const exists = localProgramsAll.some(p => 
+                    p.categoryId === payload.categoryId &&
+                    p.programName.trim().toLowerCase() === payload.programName.toLowerCase() &&
+                    (p.programLocation || p.location) === payload.programLocation &&
+                    p.genderCategory === payload.genderCategory
+                );
+                if (exists) {
+                    hasDuplicate = true;
+                    break;
+                }
+            }
+            if (hasDuplicate) {
+                const proceed = await window.customConfirm("Warning: One or more of the programs already exists in this category/gender/location combination. Do you still want to proceed and create duplicates?");
+                if (!proceed) return;
+            }
+
+            const btn = document.getElementById('bulkSaveBtn');
+            const text = document.getElementById('bulkSaveText');
+            const spinner = document.getElementById('bulkSaveSpinner');
+
+            btn.disabled = true;
+            text.classList.add('hidden');
+            spinner.classList.remove('hidden');
+
+            try {
+                const progCollection = collection(db, "institutes", window.currentInstituteId, "programs");
+                const batch = writeBatch(db);
+
+                let maxNum = localProgramsAll.reduce((max, p) => (p.programNumber && p.programNumber > max ? p.programNumber : max), 100);
+
+                selectedPayloads.forEach(payload => {
+                    maxNum++;
+                    payload.programNumber = maxNum;
+                    payload.createdAt = serverTimestamp();
+                    const newDocRef = doc(progCollection);
+                    batch.set(newDocRef, payload);
+                });
+
+                await batch.commit();
+                window.showToast(`Successfully created ${selectedPayloads.length} programs.`);
+
+                await updateDashboardMetadata(window.currentInstituteId);
+                invalidateProgramsCache(window.currentInstituteId);
+                handleClose();
+            } catch (err) {
+                console.error("Bulk save error:", err);
+                window.showToast("Error saving programs.", "error");
+            } finally {
+                btn.disabled = false;
+                text.classList.remove('hidden');
+                spinner.classList.add('hidden');
+            }
+        };
+
+        // Initialize empty state
+        renderEmptyState();
+    }
 }
 
 // ─────────────────────────────────────────────
