@@ -1,18 +1,30 @@
-import { db, computeDenseRanking } from './firebase.js';
+import { db, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS } from './firebase.js';
 import {
     collection, doc, getDoc, getDocs, setDoc, onSnapshot, serverTimestamp, writeBatch
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 // Point Systems & Grading Mapping (identical to mark-entry.js)
-const POSITION_POINTS = { 'First': 10, 'Second': 8, 'Third': 6, 'Participation': 0 };
+let activePointsConfig = DEFAULT_POINTS;
 
-function getGradeAndPoints(score) {
-    if (score >= 90) return { grade: 'A+', points: 5 };
-    if (score >= 80) return { grade: 'A', points: 4 };
-    if (score >= 70) return { grade: 'B+', points: 3 };
-    if (score >= 60) return { grade: 'B', points: 2 };
-    if (score >= 50) return { grade: 'C', points: 1 };
-    return { grade: '', points: 0 };
+function getGradeAndPoints(score, classType = 'individual') {
+    const config = activePointsConfig[classType] || DEFAULT_POINTS[classType];
+    const gradePointsMap = {
+        'A+': config.gradeAPlus !== undefined ? Number(config.gradeAPlus) : 5,
+        'A': config.gradeA !== undefined ? Number(config.gradeA) : 4,
+        'B+': config.gradeBPlus !== undefined ? Number(config.gradeBPlus) : 3,
+        'B': config.gradeB !== undefined ? Number(config.gradeB) : 2,
+        'C': config.gradeC !== undefined ? Number(config.gradeC) : 1
+    };
+
+    let grade = '';
+    if (score >= 90) grade = 'A+';
+    else if (score >= 80) grade = 'A';
+    else if (score >= 70) grade = 'B+';
+    else if (score >= 60) grade = 'B';
+    else if (score >= 50) grade = 'C';
+
+    const points = grade ? (gradePointsMap[grade] || 0) : 0;
+    return { grade, points };
 }
 
 // Module State
@@ -92,6 +104,13 @@ async function initJudgePortal() {
 
         currentJudge = { id: judgeSnap.id, ...judgeData };
         currentInstituteId = instId;
+
+        try {
+            activePointsConfig = await getCachedPointsConfig(currentInstituteId);
+        } catch (e) {
+            console.error("Failed to load points config in judge portal:", e);
+            activePointsConfig = DEFAULT_POINTS;
+        }
 
         // Update Header
         document.getElementById('jpJudgeWelcome').textContent = `Welcome, ${currentJudge.name}`;
@@ -503,12 +522,25 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
     const activeRows = sortedRows.filter(r => r.hasScores);
     computeDenseRanking(activeRows, r => r.finalMark, 'rank');
 
+    const pType = (prog.programType || prog.type || 'individual').toLowerCase();
+    let classType = 'individual';
+    if (pType === 'general') classType = 'general';
+    else if (pType === 'group') classType = 'group';
+
+    const config = activePointsConfig[classType] || DEFAULT_POINTS[classType];
+    const positionPointsMap = {
+        'First': config.first !== undefined ? Number(config.first) : 10,
+        'Second': config.second !== undefined ? Number(config.second) : 8,
+        'Third': config.third !== undefined ? Number(config.third) : 6,
+        'Participation': 0
+    };
+
     sortedRows.forEach(r => {
         if (r.hasScores) {
-            const { grade, points: gp } = getGradeAndPoints(r.finalMark);
+            const { grade, points: gp } = getGradeAndPoints(r.finalMark, classType);
             const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
             const position = posMap[r.rank] || '';
-            const pp = POSITION_POINTS[position] || 0;
+            const pp = positionPointsMap[position] || 0;
             const totalPoints = gp + pp;
 
             marksData.push({

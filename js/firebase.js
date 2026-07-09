@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, getDocs, doc, writeBatch, setDoc, getDoc, getCountFromServer } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, getDocs, doc, writeBatch, setDoc, getDoc, getCountFromServer, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyCWGvKjqytJZHfuSnJGwBrVrFV8koYV7Cw",
@@ -931,6 +931,197 @@ export function sortCategories(categories) {
         if (nameA > nameB) return 1;
         return 0;
     });
+}
+
+// ─────────────────────────────────────────────
+// Point Rules & Calculations Config
+// ─────────────────────────────────────────────
+export const DEFAULT_POINTS = {
+    individual: {
+        first: 10,
+        second: 8,
+        third: 6,
+        gradeAPlus: 5,
+        gradeA: 4,
+        gradeBPlus: 3,
+        gradeB: 2,
+        gradeC: 1
+    },
+    group: {
+        first: 10,
+        second: 8,
+        third: 6,
+        gradeAPlus: 5,
+        gradeA: 4,
+        gradeBPlus: 3,
+        gradeB: 2,
+        gradeC: 1
+    },
+    general: {
+        first: 10,
+        second: 8,
+        third: 6,
+        gradeAPlus: 5,
+        gradeA: 4,
+        gradeBPlus: 3,
+        gradeB: 2,
+        gradeC: 1
+    }
+};
+
+export async function getCachedPointsConfig(instituteId, forceRefresh = false) {
+    const instId = instituteId || window.currentInstituteId;
+    if (!instId) return DEFAULT_POINTS;
+    const key = `melad_cached_points_${instId}`;
+    if (!forceRefresh) {
+        if (window.cachedPointsConfig && window.cachedPointsConfig.lastFetched && (Date.now() - window.cachedPointsConfig.lastFetched < 300000)) {
+            return window.cachedPointsConfig.data;
+        }
+        try {
+            const local = localStorage.getItem(key);
+            if (local) {
+                const parsed = JSON.parse(local);
+                if (parsed && parsed.lastFetched && (Date.now() - parsed.lastFetched < 300000)) {
+                    window.cachedPointsConfig = parsed;
+                    return parsed.data;
+                }
+            }
+        } catch (e) {
+            console.error("Error loading points cache from localStorage:", e);
+        }
+    }
+    try {
+        const snap = await getDoc(doc(db, "institutes", instId, "metadata", "points"));
+        const data = snap.exists() ? snap.data() : DEFAULT_POINTS;
+        const cacheObj = { data, lastFetched: Date.now() };
+        window.cachedPointsConfig = cacheObj;
+        localStorage.setItem(key, JSON.stringify(cacheObj));
+        return data;
+    } catch (err) {
+        console.error("Failed to load points config from database:", err);
+        return DEFAULT_POINTS;
+    }
+}
+
+export function invalidatePointsConfigCache(instituteId) {
+    const instId = instituteId || window.currentInstituteId;
+    if (!instId) return;
+    window.cachedPointsConfig = null;
+    localStorage.removeItem(`melad_cached_points_${instId}`);
+}
+
+export async function recalculateAllResultsPoints(instituteId) {
+    if (!instituteId) return 0;
+
+    // 1. Fetch points configuration
+    const pointsConfig = await getCachedPointsConfig(instituteId, true);
+
+    // 2. Fetch all programs
+    const progsSnap = await getDocs(collection(db, "institutes", instituteId, "programs"));
+    const programsMap = new Map(progsSnap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+
+    // 3. Fetch all results
+    const resultsSnap = await getDocs(collection(db, "institutes", instituteId, "results"));
+    const results = resultsSnap.docs.map(d => ({ id: d.id, ref: d.ref, ...d.data() }));
+
+    let count = 0;
+    let batch = writeBatch(db);
+    let batchCount = 0;
+
+    for (let i = 0; i < results.length; i++) {
+        const res = results[i];
+        const prog = programsMap.get(res.programId);
+        if (!prog) continue;
+
+        // Determine program class type: general, group, individual
+        const pType = (prog.programType || prog.type || 'individual').toLowerCase();
+        let classType = 'individual';
+        if (pType === 'general') classType = 'general';
+        else if (pType === 'group') classType = 'group';
+
+        const config = pointsConfig[classType] || DEFAULT_POINTS[classType];
+
+        const gradePointsMap = {
+            'A+': config.gradeAPlus !== undefined ? Number(config.gradeAPlus) : 5,
+            'A': config.gradeA !== undefined ? Number(config.gradeA) : 4,
+            'B+': config.gradeBPlus !== undefined ? Number(config.gradeBPlus) : 3,
+            'B': config.gradeB !== undefined ? Number(config.gradeB) : 2,
+            'C': config.gradeC !== undefined ? Number(config.gradeC) : 1
+        };
+
+        const positionPointsMap = {
+            'First': config.first !== undefined ? Number(config.first) : 10,
+            'Second': config.second !== undefined ? Number(config.second) : 8,
+            'Third': config.third !== undefined ? Number(config.third) : 6,
+            'Participation': 0
+        };
+
+        let changed = false;
+
+        // Recalculate marksData
+        let updatedMarksData = [];
+        if (Array.isArray(res.marksData)) {
+            updatedMarksData = res.marksData.map(m => {
+                const gp = gradePointsMap[m.grade] || 0;
+                const pp = positionPointsMap[m.position] || 0;
+                const totalPoints = gp + pp;
+
+                if (m.gradePoints !== gp || m.positionPoints !== pp || m.totalPoints !== totalPoints) {
+                    changed = true;
+                }
+
+                return {
+                    ...m,
+                    gradePoints: gp,
+                    positionPoints: pp,
+                    totalPoints: totalPoints
+                };
+            });
+        }
+
+        // Recalculate winners
+        let updatedWinners = [];
+        if (Array.isArray(res.winners)) {
+            updatedWinners = res.winners.map(w => {
+                const gp = gradePointsMap[w.grade] || 0;
+                const pp = positionPointsMap[w.position] || 0;
+                const totalPoints = gp + pp;
+
+                if (w.gradePoints !== gp || w.positionPoints !== pp || w.marks !== totalPoints) {
+                    changed = true;
+                }
+
+                return {
+                    ...w,
+                    gradePoints: gp,
+                    positionPoints: pp,
+                    marks: totalPoints
+                };
+            });
+        }
+
+        if (changed) {
+            batch.update(res.ref, {
+                marksData: updatedMarksData,
+                winners: updatedWinners,
+                updatedAt: serverTimestamp()
+            });
+            batchCount++;
+            count++;
+
+            if (batchCount === 400) {
+                await batch.commit();
+                batch = writeBatch(db);
+                batchCount = 0;
+            }
+        }
+    }
+
+    if (batchCount > 0) {
+        await batch.commit();
+    }
+
+    return count;
 }
 
 
