@@ -60,10 +60,23 @@ export function initTeamsView(container, topActions) {
     document.getElementById("btnCreateTeam")?.addEventListener("click", () => openTeamModal());
 
     // Scroll handler to close fixed menus when scrolling to prevent floating drifts
-    window.addEventListener('scroll', () => {
+    const handleScroll = () => {
         const activeDropdown = document.querySelector('.active-body-dropdown');
         if (activeDropdown) activeDropdown.remove();
-    }, true);
+    };
+    window.addEventListener('scroll', handleScroll, true);
+
+    window.currentViewCleanup = () => {
+        if (unsubscribeTeams) {
+            unsubscribeTeams();
+            unsubscribeTeams = null;
+        }
+        if (unsubscribeStudents) {
+            unsubscribeStudents();
+            unsubscribeStudents = null;
+        }
+        window.removeEventListener('scroll', handleScroll, true);
+    };
 
     // Single delegated click listener on container for team-dots-btn
     container.addEventListener('click', (e) => {

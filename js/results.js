@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, computeDenseRanking, getCachedCategories } from './firebase.js';
+import { db, updateDashboardMetadata, computeDenseRanking, getCachedCategories, getCachedPrograms } from './firebase.js';
 import {
     collection, doc, getDocs, onSnapshot, serverTimestamp, updateDoc, deleteDoc, writeBatch
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -156,9 +156,16 @@ export async function initResultsView(container, topActions) {
     const statusFilter = document.getElementById('resStatusFilter');
     const publishAllBtn = document.getElementById('btnPublishAll');
 
-    searchFilter.oninput = (e) => {
+    searchFilter.oninput = debounce((e) => {
         resultsFilter.search = e.target.value.toLowerCase().trim();
         renderResultsView();
+    }, 200);
+
+    window.currentViewCleanup = () => {
+        if (unsubscribeResults) {
+            unsubscribeResults();
+            unsubscribeResults = null;
+        }
     };
 
     catFilter.onchange = (e) => {
@@ -191,13 +198,12 @@ export async function initResultsView(container, topActions) {
 // ─────────────────────────────────────────────
 async function loadResultsViewData() {
     try {
-        // Load Programs
-        const progsSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs"));
-        allPrograms = progsSnap.docs.map(progDoc => {
-            const p = progDoc.data();
+        // Load Programs from Cache
+        const cachedProgs = await getCachedPrograms(window.currentInstituteId);
+        allPrograms = cachedProgs.map(p => {
             const pType = (p.programType || p.type || 'individual').toLowerCase();
             return {
-                id: progDoc.id,
+                id: p.id,
                 programName: p.programName || 'Unnamed Program',
                 programType: pType,
                 type: pType === 'group' ? 'Group' : 'Individual',
@@ -714,4 +720,12 @@ async function triggerPublishAll() {
         console.error("Batch publish error:", err);
         window.showToast("Failed to batch publish results.", "error");
     }
+}
+
+function debounce(fn, ms) {
+    let t = null;
+    return (...args) => {
+        clearTimeout(t);
+        t = setTimeout(() => fn(...args), ms);
+    };
 }

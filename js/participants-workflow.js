@@ -712,14 +712,20 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 const snap = await getDocs(q);
                 docs = snap.docs;
             } catch (cgErr) {
-                console.warn("CollectionGroup query failed, scanning collections in parallel:", cgErr);
-                const promises = allProgs.map(async (prog) => {
-                    const partRef = collection(db, "institutes", instId, "programs", prog.id, "participants");
-                    const q = query(partRef, where("teamId", "==", selectedTeamId));
-                    const snap = await getDocs(q);
-                    return snap.docs;
-                });
-                const results = await Promise.all(promises);
+                console.warn("CollectionGroup query failed, scanning collections in batched promises:", cgErr);
+                const results = [];
+                const batchSize = 10;
+                for (let i = 0; i < allProgs.length; i += batchSize) {
+                    const chunk = allProgs.slice(i, i + batchSize);
+                    const chunkPromises = chunk.map(async (prog) => {
+                        const partRef = collection(db, "institutes", instId, "programs", prog.id, "participants");
+                        const q = query(partRef, where("teamId", "==", selectedTeamId));
+                        const snap = await getDocs(q);
+                        return snap.docs;
+                    });
+                    const chunkResults = await Promise.all(chunkPromises);
+                    results.push(...chunkResults);
+                }
                 docs = results.flat();
             }
 
@@ -2081,21 +2087,31 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         }
     });
 
-    window.addEventListener('scroll', () => {
+    const handleScroll = () => {
         closeAllDropdowns();
-    }, true);
+    };
 
-    document.addEventListener('click', (e) => {
+    const handleClick = (e) => {
         if (!e.target.closest('.pw-part-dots-btn') && !e.target.closest('.active-body-dropdown')) {
             closeAllDropdowns();
         }
-    });
+    };
 
-    document.addEventListener('keydown', (e) => {
+    const handleKeyDown = (e) => {
         if (e.key === 'Escape') {
             closeAllDropdowns();
         }
-    });
+    };
+
+    window.addEventListener('scroll', handleScroll, true);
+    document.addEventListener('click', handleClick);
+    document.addEventListener('keydown', handleKeyDown);
+
+    window.currentViewCleanup = () => {
+        window.removeEventListener('scroll', handleScroll, true);
+        document.removeEventListener('click', handleClick);
+        document.removeEventListener('keydown', handleKeyDown);
+    };
 
     await initialize();
 }

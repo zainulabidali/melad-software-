@@ -455,10 +455,20 @@ export async function initExportsView(container, topActions) {
         renderHistoryLogs();
     };
 
-    window.addEventListener('scroll', () => {
+    // Scroll handler to close fixed menus when scrolling to prevent floating drifts
+    const handleScroll = () => {
         const activeDropdown = document.querySelector('.active-body-dropdown');
         if (activeDropdown) activeDropdown.remove();
-    }, true);
+    };
+    window.addEventListener('scroll', handleScroll, true);
+
+    window.currentViewCleanup = () => {
+        if (unsubscribeExports) {
+            unsubscribeExports();
+            unsubscribeExports = null;
+        }
+        window.removeEventListener('scroll', handleScroll, true);
+    };
 
     await loadStaticData();
     subscribeExportsHistory();

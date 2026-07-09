@@ -144,10 +144,29 @@ export async function initProgramsView(container, topActions) {
     if (btnCreateGeneralProgram) btnCreateGeneralProgram.addEventListener('click', () => openGeneralProgramModal());
 
     // Scroll handler to close fixed menus when scrolling to prevent floating drifts
-    window.addEventListener('scroll', () => {
+    const handleScroll = () => {
         const activeDropdown = document.querySelector('.active-body-dropdown');
         if (activeDropdown) activeDropdown.remove();
-    }, true);
+    };
+    window.addEventListener('scroll', handleScroll, true);
+
+    window.currentViewCleanup = () => {
+        if (unsubscribePrograms) {
+            unsubscribePrograms();
+            unsubscribePrograms = null;
+        }
+        if (unsubscribeParticipants) {
+            unsubscribeParticipants();
+            unsubscribeParticipants = null;
+        }
+        if (unsubscribeResults) {
+            unsubscribeResults();
+            unsubscribeResults = null;
+        }
+        participantUnsubs.forEach(unsub => unsub());
+        participantUnsubs = [];
+        window.removeEventListener('scroll', handleScroll, true);
+    };
 
     // Single delegated click listener on container for prog-dots-btn
     container.addEventListener('click', (e) => {
@@ -447,8 +466,7 @@ function renderProgramsUI() {
             <div class="program-actions-cell">
                 <div class="actions-dropdown-container">
                     <button class="btn-action-icon btn-action-more dots-btn prog-dots-btn" 
-                        data-id="${progId}" 
-                        data-all='${JSON.stringify(prog).replace(/'/g, "&#39;")}'>
+                        data-id="${progId}">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.95rem; height:0.95rem;">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
                         </svg>
@@ -1194,7 +1212,6 @@ function openProgramsDropdown(btn) {
     
     // Get datasets
     const id = btn.dataset.id;
-    const progDataStr = btn.dataset.all;
 
     dropdown.innerHTML = `
         <button class="dropdown-item btn-view-parts" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#475569; text-align:left; cursor:pointer;">
@@ -1249,13 +1266,13 @@ function openProgramsDropdown(btn) {
     // 5. Bind actions (always remove dropdown from body FIRST)
     dropdown.querySelector('.btn-view-parts').addEventListener('click', () => {
         dropdown.remove();
-        const allData = JSON.parse(progDataStr);
+        const allData = getProgramFromLocalCache(id);
         window.navigateToParticipantsWorkflow?.(id, allData);
     });
 
     dropdown.querySelector('.btn-edit-prog').addEventListener('click', () => {
         dropdown.remove();
-        const allData = JSON.parse(progDataStr);
+        const allData = getProgramFromLocalCache(id);
         const type = (allData.programType || allData.type || 'individual').toLowerCase();
         if (type === 'general') {
             openGeneralProgramModal(id, allData);
@@ -1298,4 +1315,8 @@ async function backfillProgramNumbers(instId, programs) {
             console.error("Failed to backfill program numbers:", e);
         }
     }
+}
+
+function getProgramFromLocalCache(id) {
+    return localProgramsAll.find(p => p.id === id);
 }

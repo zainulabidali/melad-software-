@@ -458,6 +458,16 @@ function navigateTo(viewName) {
     // Clear active real-time dashboard listeners immediately on navigating away
     clearDashboardListeners();
 
+    // Call dynamic page view cleanup routines to prevent listener and snapshot leaks
+    if (typeof window.currentViewCleanup === 'function') {
+        try {
+            window.currentViewCleanup();
+        } catch (e) {
+            console.error("Error during view cleanup:", e);
+        }
+        window.currentViewCleanup = null;
+    }
+
     const mainContent = document.getElementById('mainContentArea');
     const topActions = document.getElementById('topbarActions');
 
@@ -1170,12 +1180,16 @@ async function initDashboardOverview(container, topActions) {
                 const data = snap.data();
                 metadataCache = data;
 
-                // Authoritative server-side student count check to override any local caching issues
-                try {
-                    const countSnap = await getCountFromServer(collection(db, "institutes", instId, "students"));
-                    metadataCache.studentsCount = countSnap.data().count;
-                } catch (e) {
-                    console.error("Error fetching authoritative student count from server:", e);
+                // Authoritative student count check with server fallback to avoid redundant reads
+                if (data.studentsCount !== undefined) {
+                    metadataCache.studentsCount = data.studentsCount;
+                } else {
+                    try {
+                        const countSnap = await getCountFromServer(collection(db, "institutes", instId, "students"));
+                        metadataCache.studentsCount = countSnap.data().count;
+                    } catch (e) {
+                        console.error("Error fetching authoritative student count from server:", e);
+                    }
                 }
 
                 recalculateDashboard();

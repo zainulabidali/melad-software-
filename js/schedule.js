@@ -248,6 +248,12 @@ export async function initScheduleView(container, topActions) {
     if (unsubStages) unsubStages();
     selectedScheduleIds.clear();
 
+    window.currentViewCleanup = () => {
+        if (unsubPrograms) { unsubPrograms(); unsubPrograms = null; }
+        if (unsubSchedules) { unsubSchedules(); unsubSchedules = null; }
+        if (unsubStages) { unsubStages(); unsubStages = null; }
+    };
+
     // Render Top Actions specifically for currently active Stage
     topActions.innerHTML = `
         <div style="display:inline-flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
@@ -460,7 +466,7 @@ function formatTimeTo12Hour(timeStr) {
 }
 
 // Automatically recalculates Start and End times down the active stage table
-async function triggerTimeCascade(stageItems) {
+async function triggerTimeCascade(stageItems, saveToDb = true) {
     if (!stageItems || stageItems.length === 0) return;
 
     const cfg = stageConfigs[activeStage] || { startTime: '09:00', defaultDuration: 20 };
@@ -489,19 +495,21 @@ async function triggerTimeCascade(stageItems) {
             item.endTime = endStr;
             item.runningOrder = idx + 1;
 
-            const ref = doc(db, "institutes", window.currentInstituteId, "schedules", item.id);
-            batch.update(ref, {
-                startTime: startStr,
-                endTime: endStr,
-                runningOrder: idx + 1,
-                updatedAt: serverTimestamp()
-            });
+            if (saveToDb) {
+                const ref = doc(db, "institutes", window.currentInstituteId, "schedules", item.id);
+                batch.update(ref, {
+                    startTime: startStr,
+                    endTime: endStr,
+                    runningOrder: idx + 1,
+                    updatedAt: serverTimestamp()
+                });
+            }
         }
 
         currentMins = endMins;
     });
 
-    if (changed) {
+    if (changed && saveToDb) {
         await batch.commit().catch(e => console.error("Time cascade sync error", e));
     }
 }
@@ -684,13 +692,13 @@ function renderConfigBar() {
     document.getElementById('cfgStageStart').onchange = (e) => {
         cfg.startTime = e.target.value;
         const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
-        triggerTimeCascade(activeItems);
+        triggerTimeCascade(activeItems, true);
     };
 
     document.getElementById('cfgStageGap').onchange = (e) => {
         cfg.defaultDuration = parseInt(e.target.value, 10) || 20;
         const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
-        triggerTimeCascade(activeItems);
+        triggerTimeCascade(activeItems, true);
     };
 
     document.getElementById('btnAddProgramRow').onclick = openAddProgramRowModal;
@@ -719,8 +727,8 @@ function renderStageTable() {
     const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
     activeItems.sort((a, b) => a.runningOrder - b.runningOrder);
 
-    // Run cascade to guarantee seamless times
-    triggerTimeCascade(activeItems);
+    // Run cascade in-memory to guarantee seamless times on display, but do not write to db on load/render!
+    triggerTimeCascade(activeItems, false);
 
     if (activeItems.length === 0) {
         tbody.innerHTML = `
@@ -818,7 +826,7 @@ function attachTableEvents(tbody, activeItems) {
             });
             const item = activeItems.find(x => x.id === id);
             if (item) item.duration = newDur;
-            triggerTimeCascade(activeItems);
+            triggerTimeCascade(activeItems, true);
         };
     });
 
@@ -894,7 +902,7 @@ async function reorderRowsByIndex(items, fromIdx, toIdx) {
         item.runningOrder = idx + 1;
     });
 
-    await triggerTimeCascade(items);
+    await triggerTimeCascade(items, true);
     renderStageTable();
 }
 

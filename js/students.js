@@ -190,10 +190,25 @@ export async function initStudentsView(container, topActions) {
     const searchInput = document.getElementById('stuSearchInput');
 
     // Scroll handler to close fixed menus
-    window.addEventListener('scroll', () => {
+    const handleScroll = () => {
         const activeDropdown = document.querySelector('.active-body-dropdown');
         if (activeDropdown) activeDropdown.remove();
-    }, true);
+    };
+    window.addEventListener('scroll', handleScroll, true);
+
+    window.currentViewCleanup = () => {
+        if (unsubscribeStudents) {
+            unsubscribeStudents();
+            unsubscribeStudents = null;
+        }
+        if (unsubscribeParticipants) {
+            unsubscribeParticipants();
+            unsubscribeParticipants = null;
+        }
+        participantUnsubs.forEach(unsub => unsub());
+        participantUnsubs = [];
+        window.removeEventListener('scroll', handleScroll, true);
+    };
 
     // Single delegated click listener on container
     container.addEventListener('click', (e) => {
@@ -207,7 +222,7 @@ export async function initStudentsView(container, topActions) {
         const viewProgsBtn = e.target.closest('.btn-view-progs-direct');
         if (viewProgsBtn) {
             e.stopPropagation();
-            const stuData = JSON.parse(viewProgsBtn.dataset.stu);
+            const stuData = getStudentFromLocalCache(viewProgsBtn.dataset.id);
             openViewProgramsModal(stuData);
         }
     });
@@ -433,13 +448,13 @@ function renderStudentsUI() {
                     ${window.escapeHTML(teamName)}
                 </div>
                 <div class="student-programs-cell">
-                    <span class="student-programs-badge btn-view-progs-direct" data-stu='${JSON.stringify(stu).replace(/'/g, "&#39;")}' style="cursor:pointer; background:rgba(99, 102, 241, 0.08); color:#4f46e5; border:1px solid rgba(99, 102, 241, 0.15); display:inline-flex; align-items:center; gap:0.25rem;" title="Click to view registered programs">
+                    <span class="student-programs-badge btn-view-progs-direct" data-id="${id}" style="cursor:pointer; background:rgba(99, 102, 241, 0.08); color:#4f46e5; border:1px solid rgba(99, 102, 241, 0.15); display:inline-flex; align-items:center; gap:0.25rem;" title="Click to view registered programs">
                         👥 View Programs
                     </span>
                 </div>
                 <div class="student-actions-cell">
                     <div class="actions-dropdown-container">
-                        <button class="btn-action-icon btn-action-more dots-btn student-dots-btn" data-id="${id}" data-all='${JSON.stringify(stu).replace(/'/g, "&#39;")}'>
+                        <button class="btn-action-icon btn-action-more dots-btn student-dots-btn" data-id="${id}">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.95rem; height:0.95rem;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
                             </svg>
@@ -2519,8 +2534,6 @@ function openStudentDropdown(btn) {
     
     // Get datasets
     const id = btn.dataset.id;
-    const stuDataStr = btn.dataset.all;
-    const progsDataStr = btn.dataset.progs;
 
     dropdown.innerHTML = `
         <button class="dropdown-item btn-view-stu" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:#475569; text-align:left; cursor:pointer;">
@@ -2575,13 +2588,13 @@ function openStudentDropdown(btn) {
     // 5. Bind actions (always remove dropdown from body FIRST)
     dropdown.querySelector('.btn-view-stu').addEventListener('click', () => {
         dropdown.remove();
-        const stu = JSON.parse(stuDataStr);
+        const stu = getStudentFromLocalCache(id);
         openViewProgramsModal(stu);
     });
 
     dropdown.querySelector('.btn-edit-stu').addEventListener('click', () => {
         dropdown.remove();
-        const stu = JSON.parse(stuDataStr);
+        const stu = getStudentFromLocalCache(id);
         openEditModal(id, stu);
     });
 
@@ -2619,4 +2632,8 @@ function sortStudents(students, categories) {
         // 3. String name sort
         return (a.name || '').localeCompare(b.name || '');
     });
+}
+
+function getStudentFromLocalCache(id) {
+    return localStudentsAll.find(s => s.id === id);
 }
