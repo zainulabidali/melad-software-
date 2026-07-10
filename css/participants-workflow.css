@@ -1622,6 +1622,20 @@
         display: inline-block !important;
         max-width: calc(100% - 12px) !important;
     }
+    
+    /* Fix mobile responsive view for Assigned list Actions (Delete button) */
+    .pw-table td:nth-child(4),
+    .pw-table .pw-part-actions-cell {
+        position: static !important;
+        transform: none !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        width: 100% !important;
+        margin-top: 0.4rem !important;
+        border-top: 1px dashed var(--pw-border) !important;
+        padding-top: 0.4rem !important;
+        order: 4 !important;
+    }
 }
 
 

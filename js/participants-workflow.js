@@ -1919,11 +1919,12 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     <td>#${window.escapeHTML(p.chestNumber || '—')}</td>
                     <td style="font-weight:700; color:var(--pw-slate-900);">${window.escapeHTML(p.studentName)}</td>
                     <td>${window.escapeHTML(p.className)}</td>
-                    <td>
-                        <button class="btn-action-icon pw-part-dots-btn" data-id="${p.studentId}">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.85rem; height:0.85rem;">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+                    <td class="pw-part-actions-cell">
+                        <button class="btn-action-icon pw-part-delete-btn text-danger" data-id="${p.studentId}" title="Delete" style="display: inline-flex; align-items: center; gap: 0.25rem; background: #fef2f2; border: 1.5px solid #fee2e2; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.72rem; font-weight: 700; color: #dc2626; cursor: pointer; transition: all 0.2s ease;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.8rem; height:0.8rem; color:#dc2626;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.34 9m-4.78 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.100 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
                             </svg>
+                            <span>Delete</span>
                         </button>
                     </td>
                 </tr>
@@ -1937,7 +1938,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                                 <th>Chest No</th>
                                 <th>Student Name</th>
                                 <th>Class</th>
-                                <th style="width: 50px;">Actions</th>
+                                <th style="width: 50px;">Delete</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1948,151 +1949,62 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             `;
         }
 
-        let editingFormHTML = '';
-        if (editingParticipantId) {
-            const p = assignedParticipantsAll.find(x => x.studentId === editingParticipantId);
-            if (p) {
-                editingFormHTML = `
-                    <div style="background:var(--pw-slate-50); border:1.5px solid var(--pw-primary); border-radius:var(--pw-radius-sm); padding:1rem; margin-bottom:1rem; display:flex; flex-direction:column; gap:0.5rem;">
-                        <h4 style="margin:0; font-size:0.85rem; font-weight:800; color:var(--pw-primary);">✏️ Edit Participant</h4>
-                        <input type="text" id="pwEditName_${p.studentId}" class="form-input" value="${window.escapeHTML(p.studentName)}" style="font-size:0.8rem; padding: 0.4rem 0.6rem;" />
-                        <input type="text" id="pwEditClass_${p.studentId}" class="form-input" value="${window.escapeHTML(p.className)}" style="font-size:0.8rem; padding: 0.4rem 0.6rem;" />
-                        <div style="display:flex; gap:0.4rem; justify-content:flex-end; margin-top:0.25rem;">
-                            <button class="btn btn-secondary btn-sm pw-cancel-edit-btn" style="font-size: 0.72rem; padding: 0.3rem 0.6rem;">Cancel</button>
-                            <button class="btn btn-primary btn-sm pw-save-edit-btn" data-id="${p.studentId}" style="font-size: 0.72rem; padding: 0.3rem 0.6rem;">Save</button>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-
         panel.innerHTML = `
-            ${editingFormHTML}
             <div class="pw-assigned-list">
                 ${listHTML}
             </div>
         `;
 
-        panel.querySelectorAll('.pw-cancel-edit-btn').forEach(btn => {
-            btn.onclick = () => {
-                editingParticipantId = null;
-                renderAssignedManagement();
-            };
-        });
-
-        panel.querySelectorAll('.pw-save-edit-btn').forEach(btn => {
-            btn.onclick = async () => {
+        panel.querySelectorAll('.pw-part-delete-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                e.stopPropagation();
                 const id = btn.getAttribute('data-id');
-                const newName = document.getElementById(`pwEditName_${id}`).value.trim();
-                const newClass = document.getElementById(`pwEditClass_${id}`).value.trim();
-
-                if (!newName) {
-                    window.showToast("Student Name is required.", "error");
-                    return;
-                }
-
-                const spinner = document.getElementById('pwStudentsSkeleton');
-                if (spinner) spinner.style.display = 'block';
-
-                try {
-                    const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
-                    let docId = participantDocIds.get(id) || `individual_${safeDocId(selectedTeamId)}_${safeDocId(id)}`;
-                    const docRef = doc(partRef, docId);
-
-                    await setDoc(docRef, {
-                        studentName: newName,
-                        className: newClass,
-                        updatedAt: serverTimestamp()
-                    }, { merge: true });
-                    await updateDashboardMetadata(window.currentInstituteId);
-
-                    window.showToast("Participant updated successfully!", "success");
-                    editingParticipantId = null;
-                    await loadStudentsForSelection();
-                } catch (e) {
-                    console.error("Edit failure:", e);
-                    window.showToast("Failed to save changes.", "error");
-                } finally {
-                    if (spinner) spinner.style.display = 'none';
-                }
+                await deleteParticipant(id);
             };
         });
 
         updateProgramHeaderBadges();
     }
 
-    function openParticipantDropdown(btn) {
-        closeAllDropdowns();
-        const id = btn.getAttribute('data-id');
+    async function deleteParticipant(id) {
+        const student = assignedParticipantsAll.find(x => x.studentId === id);
+        if (!student) return;
+        const confirmed = await window.customConfirm(`Are you sure you want to delete ${student.studentName}?`);
+        if (!confirmed) return;
 
-        const dropdown = document.createElement('div');
-        dropdown.className = 'actions-dropdown-menu active-body-dropdown';
-        dropdown.innerHTML = `
-            <button class="dropdown-item pw-dropdown-edit-btn" data-id="${id}">✏️ Edit</button>
-            <button class="dropdown-item btn-danger-item pw-dropdown-delete-btn text-danger" data-id="${id}">🗑️ Delete</button>
-        `;
+        const spinner = document.getElementById('pwStudentsSkeleton');
+        if (spinner) spinner.style.display = 'block';
 
-        document.body.appendChild(dropdown);
+        try {
+            const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
+            let docId = participantDocIds.get(id) || `individual_${safeDocId(selectedTeamId)}_${safeDocId(id)}`;
+            const docRef = doc(partRef, docId);
 
-        const rect = btn.getBoundingClientRect();
-        dropdown.style.top = `${rect.bottom + window.scrollY}px`;
-        dropdown.style.left = `${rect.left + window.scrollX - 120 + rect.width}px`;
+            await deleteDoc(docRef);
 
-        dropdown.querySelector('.pw-dropdown-edit-btn').onclick = () => {
-            dropdown.remove();
-            editingParticipantId = id;
-            renderAssignedManagement();
-        };
+            const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
+            await setDoc(progRef, { participantCount: increment(-1) }, { merge: true });
+            await updateDashboardMetadata(window.currentInstituteId);
 
-        dropdown.querySelector('.pw-dropdown-delete-btn').onclick = async () => {
-            dropdown.remove();
-            const student = assignedParticipantsAll.find(x => x.studentId === id);
-            if (!student) return;
-            const confirmed = await window.customConfirm(`Are you sure you want to delete ${student.studentName}?`);
-            if (!confirmed) return;
+            savedIndividualStudentIds.delete(id);
+            selectedStudentIds.delete(id);
 
-            const spinner = document.getElementById('pwStudentsSkeleton');
-            if (spinner) spinner.style.display = 'block';
-
-            try {
-                const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
-                let docId = participantDocIds.get(id) || `individual_${safeDocId(selectedTeamId)}_${safeDocId(id)}`;
-                const docRef = doc(partRef, docId);
-
-                await deleteDoc(docRef);
-
-                const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
-                await setDoc(progRef, { participantCount: increment(-1) }, { merge: true });
-                await updateDashboardMetadata(window.currentInstituteId);
-
-                savedIndividualStudentIds.delete(id);
-                selectedStudentIds.delete(id);
-
-                window.showToast("Participant deleted successfully!", "success");
-                await loadStudentsForSelection();
-            } catch (e) {
-                console.error("Delete failure:", e);
-                window.showToast("Failed to delete participant.", "error");
-            } finally {
-                if (spinner) spinner.style.display = 'none';
-            }
-        };
-    }
-
-    container.addEventListener('click', (e) => {
-        const dotsBtn = e.target.closest('.pw-part-dots-btn');
-        if (dotsBtn) {
-            e.stopPropagation();
-            openParticipantDropdown(dotsBtn);
+            window.showToast("Participant deleted successfully!", "success");
+            await loadStudentsForSelection();
+        } catch (e) {
+            console.error("Delete failure:", e);
+            window.showToast("Failed to delete participant.", "error");
+        } finally {
+            if (spinner) spinner.style.display = 'none';
         }
-    });
+    }
 
     const handleScroll = () => {
         closeAllDropdowns();
     };
 
     const handleClick = (e) => {
-        if (!e.target.closest('.pw-part-dots-btn') && !e.target.closest('.active-body-dropdown')) {
+        if (!e.target.closest('.pw-part-delete-btn') && !e.target.closest('.active-body-dropdown')) {
             closeAllDropdowns();
         }
     };
