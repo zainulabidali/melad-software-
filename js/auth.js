@@ -105,6 +105,26 @@ export async function logoutUser() {
 window.logoutUser = logoutUser;
 
 // ─────────────────────────────────────────────
+// Helper function to retry Firestore reads on transient permission/auth errors
+async function getDocWithRetry(docRef, maxRetries = 3, delayMs = 150) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await getDoc(docRef);
+        } catch (error) {
+            const isPermissionError = error.code === 'permission-denied' || 
+                                     error.code === 'unauthenticated' ||
+                                     (error.message && error.message.toLowerCase().includes('permission'));
+            if (isPermissionError && attempt < maxRetries) {
+                console.warn(`Firestore read permission denied, retrying (attempt ${attempt}/${maxRetries}) in ${delayMs}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                continue;
+            }
+            throw error;
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
 // Helper: Get user profile from Firestore
 // Returns null if not found (pending or missing)
 // ─────────────────────────────────────────────
@@ -118,7 +138,7 @@ export async function getUserProfile(uid) {
         }
 
         const userRef = doc(db, "users", uid);
-        const userSnap = await getDoc(userRef);
+        const userSnap = await getDocWithRetry(userRef);
         if (userSnap.exists()) {
             const data = userSnap.data();
             safeSessionSet('melad_auth_uid', uid);
@@ -175,7 +195,7 @@ export async function validateInstituteAccess(user) {
         if (!profile) {
             // Check if they exist in the teachers collection
             const teacherRef = doc(db, "teachers", user.uid);
-            const teacherSnap = await getDoc(teacherRef);
+            const teacherSnap = await getDocWithRetry(teacherRef);
             if (teacherSnap.exists()) {
                 const teacherData = teacherSnap.data();
                 const status = teacherData.status || 'pending';
@@ -223,7 +243,7 @@ export async function validateInstituteAccess(user) {
             }
 
             const instRef = doc(db, "institutes", instId);
-            const instSnap = await getDoc(instRef);
+            const instSnap = await getDocWithRetry(instRef);
             if (!instSnap.exists()) {
                 safeSessionClear();
                 await signOut(auth);
@@ -343,12 +363,20 @@ if (loginForm) {
 
             // 2. Redirect if valid
             const profile = await getUserProfile(user.uid);
+            if (!profile || !profile.role) {
+                await signOut(auth);
+                safeSessionClear();
+                showAlert('Login failed: User profile or role mapping is missing. Please contact administrator.');
+                return;
+            }
+
             if (profile.role === 'super_admin') {
                 window.location.href = `${pathPrefix}pages/super-admin.html`;
             } else if (profile.role === 'admin') {
                 window.location.href = `${pathPrefix}pages/admin-dashboard.html`;
             } else {
                 await signOut(auth);
+                safeSessionClear();
                 showAlert('Invalid account configuration. Contact support.');
             }
 
@@ -539,14 +567,32 @@ if (isAuthPage) {
         if (window.isRegistering) return;
         if (user) {
             if (user.isAnonymous) return;
-            const isValid = await validateInstituteAccess(user);
-            if (isValid) {
-                const profile = await getUserProfile(user.uid);
-                if (profile.role === 'super_admin') {
-                    window.location.href = `${pathPrefix}pages/super-admin.html`;
-                } else if (profile.role === 'admin') {
-                    window.location.href = `${pathPrefix}pages/admin-dashboard.html`;
+            try {
+                const isValid = await validateInstituteAccess(user);
+                if (isValid) {
+                    const profile = await getUserProfile(user.uid);
+                    if (!profile || !profile.role) {
+                        console.error("Auto-redirect failed: Profile or role missing");
+                        await signOut(auth);
+                        safeSessionClear();
+                        showAlert('Login failed: User profile or role mapping is missing. Please contact administrator.');
+                        return;
+                    }
+                    if (profile.role === 'super_admin') {
+                        window.location.href = `${pathPrefix}pages/super-admin.html`;
+                    } else if (profile.role === 'admin') {
+                        window.location.href = `${pathPrefix}pages/admin-dashboard.html`;
+                    } else {
+                        await signOut(auth);
+                        safeSessionClear();
+                        showAlert('Invalid account configuration. Contact support.');
+                    }
                 }
+            } catch (err) {
+                console.error("Auto-redirect check error:", err);
+                await signOut(auth);
+                safeSessionClear();
+                showAlert('Authentication check failed. Please log in again.');
             }
         }
     });
