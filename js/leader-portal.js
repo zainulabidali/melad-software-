@@ -90,8 +90,22 @@ let instituteDetails = null;
 
 let allPrograms = [];
 let teamStudents = [];
+let allCategories = []; // Global categories array
 let teamParticipants = []; // all participants in the team
 let programParticipantsMap = new Map(); // programId -> Set of registered student IDs for current team
+
+function normalizeClasses(classes) {
+    if (!Array.isArray(classes)) return [];
+    return classes.map(c => {
+        if (typeof c === 'string') {
+            return {
+                id: c.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                name: c.trim()
+            };
+        }
+        return c;
+    });
+}
 
 // Active View State
 let currentView = 'dashboard'; // 'dashboard' | 'assignment'
@@ -217,12 +231,24 @@ async function loadPortalData() {
         ));
         teamStudents = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+        // Fetch all categories (Public Read)
+        const categoriesSnap = await getDocs(collection(db, "institutes", instId, "categories"));
+        allCategories = categoriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
         // Fetch all programs (Public Read)
         const programsSnap = await getDocs(collection(db, "institutes", instId, "programs"));
         allPrograms = programsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         // Calculate and load all participant counts for this team
         await refreshTeamParticipants();
+
+        // Initialize dashboard filter options based on eligible programs
+        const teamCategoryIds = [...new Set(teamStudents.map(s => s.categoryId).filter(Boolean))];
+        const eligiblePrograms = allPrograms.filter(p => {
+            const catId = p.categoryId || '';
+            return catId === 'general_programs' || teamCategoryIds.includes(catId);
+        });
+        initDashboardFilters(eligiblePrograms);
 
         // Render dashboard
         renderDashboard();
@@ -232,6 +258,40 @@ async function loadPortalData() {
     } catch (err) {
         console.error("Load portal data error:", err);
         showError("Data Error", "Failed to fetch isolated team students and programs. Please refresh page.");
+    }
+}
+
+function initDashboardFilters(eligiblePrograms) {
+    // 1. Categories
+    const categories = [...new Set(eligiblePrograms.map(p => p.categoryName || p.categoryId || 'General').filter(Boolean))].sort();
+    const catSelect = document.getElementById("dashFilterCategory");
+    if (catSelect) {
+        catSelect.innerHTML = '<option value="">All Categories</option>' +
+            categories.map(c => `<option value="${window.escapeHTML(c)}">${window.escapeHTML(c)}</option>`).join('');
+    }
+
+    // 2. Locations
+    const locations = [...new Set(eligiblePrograms.map(p => p.programLocation || 'Off Stage').filter(Boolean))].sort();
+    const locSelect = document.getElementById("dashFilterLocation");
+    if (locSelect) {
+        locSelect.innerHTML = '<option value="">All Locations</option>' +
+            locations.map(l => `<option value="${window.escapeHTML(l)}">${window.escapeHTML(l)}</option>`).join('');
+    }
+
+    // 3. Listeners
+    const typeSelect = document.getElementById("dashFilterType");
+    const genderSelect = document.getElementById("dashFilterGender");
+    if (typeSelect) {
+        typeSelect.onchange = () => renderDashboard();
+    }
+    if (genderSelect) {
+        genderSelect.onchange = () => renderDashboard();
+    }
+    if (catSelect) {
+        catSelect.onchange = () => renderDashboard();
+    }
+    if (locSelect) {
+        locSelect.onchange = () => renderDashboard();
     }
 }
 
@@ -303,17 +363,44 @@ function renderDashboard() {
         return catId === 'general_programs' || teamCategoryIds.includes(catId);
     });
 
-    document.getElementById("totalEligibleProgramsLabel").textContent = `${eligiblePrograms.length} Programs`;
+    // Apply dashboard filters
+    const filterType = document.getElementById("dashFilterType")?.value || '';
+    const filterCat = document.getElementById("dashFilterCategory")?.value || '';
+    const filterGender = document.getElementById("dashFilterGender")?.value || '';
+    const filterLoc = document.getElementById("dashFilterLocation")?.value || '';
+
+    let displayedPrograms = eligiblePrograms;
+    if (filterType) {
+        displayedPrograms = displayedPrograms.filter(p => {
+            const pType = (p.programType || p.type || 'individual').toLowerCase();
+            const isGroup = pType === 'group' || (pType === 'general' && p.registrationType === 'group');
+            return filterType === 'group' ? isGroup : !isGroup;
+        });
+    }
+    if (filterCat) {
+        displayedPrograms = displayedPrograms.filter(p => (p.categoryName || p.categoryId || 'General') === filterCat);
+    }
+    if (filterGender) {
+        displayedPrograms = displayedPrograms.filter(p => {
+            const pGender = p.genderCategory || 'Mixed';
+            return pGender === filterGender;
+        });
+    }
+    if (filterLoc) {
+        displayedPrograms = displayedPrograms.filter(p => (p.programLocation || 'Off Stage') === filterLoc);
+    }
+
+    document.getElementById("totalEligibleProgramsLabel").textContent = `${displayedPrograms.length} Programs`;
 
     const container = document.getElementById("programsListContainer");
     container.innerHTML = "";
 
-    if (eligiblePrograms.length === 0) {
-        container.innerHTML = `<div style="text-align:center; padding:3rem; color:#64748b; font-style:italic; font-weight:500; grid-column: 1 / -1;">No eligible programs found for this team's student categories.</div>`;
+    if (displayedPrograms.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding:3rem; color:#64748b; font-style:italic; font-weight:500; grid-column: 1 / -1;">No programs found matching conditions.</div>`;
         return;
     }
 
-    eligiblePrograms.forEach(p => {
+    displayedPrograms.forEach(p => {
         const pId = p.id;
         const pType = (p.programType || p.type || 'individual').toLowerCase();
         const isGroup = pType === 'group' || (pType === 'general' && p.registrationType === 'group');
@@ -516,6 +603,26 @@ async function openProgramAssignment(prog) {
             });
         }
 
+        // Calculate eligible students to extract unique classes for Class filter
+        const inheritedCategoryId = prog.categoryId || '';
+        const isGeneral = pType === 'general' || inheritedCategoryId === 'general_programs';
+        let eligibleStudents = teamStudents;
+        if (!isGeneral) {
+            eligibleStudents = eligibleStudents.filter(s => s.categoryId === inheritedCategoryId);
+        }
+        if (genderFilter === 'Boys') {
+            eligibleStudents = eligibleStudents.filter(s => s.gender === 'Male');
+        } else if (genderFilter === 'Girls') {
+            eligibleStudents = eligibleStudents.filter(s => s.gender === 'Female');
+        }
+
+        const classes = [...new Set(eligibleStudents.map(s => s.className || s.classId || '').filter(Boolean))].sort();
+        const classFilterEl = document.getElementById("assignClassFilter");
+        if (classFilterEl) {
+            classFilterEl.innerHTML = '<option value="">All Classes</option>' + 
+                classes.map(c => `<option value="${window.escapeHTML(c)}">${window.escapeHTML(c)}</option>`).join('');
+        }
+
         // Render elements
         renderStudentsCheklist();
         renderAssignedRightPanel();
@@ -558,16 +665,30 @@ function renderStudentsCheklist() {
     // Filter student checklist by category eligibility and gender
     let filtered = teamStudents;
     
-    // Category check (except for general programs)
-    if (!isGeneral) {
-        filtered = filtered.filter(s => s.categoryId === inheritedCategoryId);
+    // Strict Category check based on category classes list
+    if (inheritedCategoryId && inheritedCategoryId !== 'general_programs') {
+        const cat = allCategories.find(c => c.id === inheritedCategoryId || c.name === inheritedCategoryId);
+        if (cat && Array.isArray(cat.classes)) {
+            const normClasses = normalizeClasses(cat.classes);
+            const allowedClassNames = new Set(normClasses.map(c => normalizeText(c.name)));
+            const allowedClassIds = new Set(normClasses.map(c => normalizeText(c.id)));
+
+            filtered = filtered.filter(s => {
+                const sClassId = normalizeText(s.classId || '');
+                const sClassName = normalizeText(s.className || '');
+                return allowedClassNames.has(sClassName) || allowedClassIds.has(sClassId) || s.categoryId === inheritedCategoryId;
+            });
+        } else {
+            filtered = filtered.filter(s => s.categoryId === inheritedCategoryId);
+        }
     }
 
     // Gender check
-    if (genderFilter === 'Boys') {
-        filtered = filtered.filter(s => s.gender === 'Male');
-    } else if (genderFilter === 'Girls') {
-        filtered = filtered.filter(s => s.gender === 'Female');
+    const normGenderFilter = normalizeText(genderFilter);
+    if (normGenderFilter === 'boys' || normGenderFilter === 'male') {
+        filtered = filtered.filter(s => normalizeText(s.gender) === 'male' || normalizeText(s.gender) === 'boys');
+    } else if (normGenderFilter === 'girls' || normGenderFilter === 'female') {
+        filtered = filtered.filter(s => normalizeText(s.gender) === 'female' || normalizeText(s.gender) === 'girls');
     }
 
     // Class filter (Search/Filter Pills)
@@ -577,6 +698,11 @@ function renderStudentsCheklist() {
             normalizeText(s.name).includes(searchQuery) || 
             normalizeText(s.chestNumber).includes(searchQuery)
         );
+    }
+
+    const selectedClass = document.getElementById("assignClassFilter")?.value || '';
+    if (selectedClass) {
+        filtered = filtered.filter(s => (s.className || s.classId || '') === selectedClass);
     }
 
     if (activeFilter === 'eligible') {
@@ -695,6 +821,13 @@ function setupChecklistListeners() {
         };
     }
 
+    const classFilter = document.getElementById("assignClassFilter");
+    if (classFilter) {
+        classFilter.onchange = () => {
+            renderStudentsCheklist();
+        };
+    }
+
     const pills = document.querySelectorAll("#assignFilterPills .pw-filter-pill");
     pills.forEach(pill => {
         pill.onclick = () => {
@@ -725,10 +858,14 @@ function renderSelectionBufferAndSummary() {
         const chips = [...selectedStudentIds].map(id => {
             const s = teamStudents.find(x => x.id === id);
             if (!s) return '';
+            const details = [];
+            if (s.chestNumber) details.push(`#${s.chestNumber}`);
+            if (s.className) details.push(s.className);
+            const secondaryText = details.length > 0 ? ` <small style="color: #64748b; font-weight: normal; margin-left: 4px;">(${window.escapeHTML(details.join(', '))})</small>` : '';
             return `
-                <div class="pw-chip">
-                    <span>${window.escapeHTML(s.name)}</span>
-                    <button class="pw-chip-remove" data-id="${s.id}">&times;</button>
+                <div class="pw-chip" style="margin: 0.15rem; display: inline-flex; align-items: center; background: #ffffff; border: 1.5px solid #cbd5e1; padding: 0.35rem 0.65rem; border-radius: 20px; font-size: 0.78rem; color: #334155; font-weight: 600; gap: 0.4rem; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03); transition: all 0.2s ease;">
+                    <span>${window.escapeHTML(s.name)}${secondaryText}</span>
+                    <button class="pw-chip-remove" data-id="${s.id}" style="background: transparent; border: none; color: #64748b; font-size: 1rem; line-height: 1; cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; transition: all 0.15s ease;">&times;</button>
                 </div>
             `;
         }).join('');
@@ -746,13 +883,18 @@ function renderSelectionBufferAndSummary() {
     }
 
     // Summary calculations
-    document.getElementById("assignMetricSelected").textContent = `${selectedCount} / ${maxVal || '—'}`;
-    const metricSlots = document.getElementById("assignMetricSlots");
+    const selectedLabelEl = document.getElementById("assignMetricSelected").previousElementSibling;
+    const slotsLabelEl = document.getElementById("assignMetricSlots").previousElementSibling;
     const progressFill = document.getElementById("assignProgressBarFill");
 
-    if (maxVal) {
+    if (maxVal > 0) {
+        selectedLabelEl.textContent = "Selected Count";
+        document.getElementById("assignMetricSelected").textContent = `${selectedCount} / ${maxVal}`;
+        slotsLabelEl.textContent = "Remaining Slots";
+        
         const remaining = Math.max(0, maxVal - selectedCount);
-        metricSlots.textContent = remaining;
+        document.getElementById("assignMetricSlots").textContent = remaining;
+        
         const pct = Math.min(100, (selectedCount / maxVal) * 100);
         progressFill.style.width = `${pct}%`;
 
@@ -764,7 +906,10 @@ function renderSelectionBufferAndSummary() {
             progressFill.style.background = 'var(--pw-primary)';
         }
     } else {
-        metricSlots.textContent = '—';
+        selectedLabelEl.textContent = "Selected Count";
+        document.getElementById("assignMetricSelected").textContent = selectedCount;
+        slotsLabelEl.textContent = "Limit";
+        document.getElementById("assignMetricSlots").textContent = "Unlimited";
         progressFill.style.width = '0%';
     }
 
@@ -1022,35 +1167,16 @@ function renderAssignedRightPanel() {
                 <td style="font-weight:700; color:var(--pw-slate-900);">${window.escapeHTML(p.studentName)}</td>
                 <td>${window.escapeHTML(p.className)}</td>
                 <td>
-                    <button class="btn-action-icon pw-part-dots-btn" data-id="${p.studentId}" ${resultSubmitted || resultPublished ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.85rem; height:0.85rem;">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+                    <button class="btn-action-icon pw-part-delete-btn text-danger" data-id="${p.studentId}" ${resultSubmitted || resultPublished ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} title="Delete">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.85rem; height:0.85rem; color:#dc2626;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.34 9m-4.78 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
                         </svg>
                     </button>
                 </td>
             </tr>
         `).join('');
 
-        let editingFormHTML = '';
-        if (editingParticipantId) {
-            const p = assignedParticipantsAll.find(x => x.studentId === editingParticipantId);
-            if (p) {
-                editingFormHTML = `
-                    <div style="background:var(--pw-slate-50); border:1.5px solid var(--pw-primary); border-radius:var(--pw-radius-sm); padding:1rem; margin-bottom:1rem; display:flex; flex-direction:column; gap:0.5rem;">
-                        <h4 style="margin:0; font-size:0.85rem; font-weight:800; color:var(--pw-primary);">✏️ Edit Participant</h4>
-                        <input type="text" id="pwEditName_${p.studentId}" class="form-input" value="${window.escapeHTML(p.studentName)}" style="font-size:0.8rem; padding: 0.4rem 0.6rem;" />
-                        <input type="text" id="pwEditClass_${p.studentId}" class="form-input" value="${window.escapeHTML(p.className)}" style="font-size:0.8rem; padding: 0.4rem 0.6rem;" />
-                        <div style="display:flex; gap:0.4rem; justify-content:flex-end; margin-top:0.25rem;">
-                            <button class="btn btn-secondary btn-sm pw-cancel-edit-btn" style="font-size: 0.72rem; padding: 0.3rem 0.6rem;">Cancel</button>
-                            <button class="btn btn-primary btn-sm pw-save-edit-btn" data-id="${p.studentId}" style="font-size: 0.72rem; padding: 0.3rem 0.6rem;">Save</button>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-
         container.innerHTML = `
-            ${editingFormHTML}
             <div class="pw-table-container">
                 <table class="pw-table">
                     <thead>
@@ -1058,7 +1184,7 @@ function renderAssignedRightPanel() {
                             <th>Chest No</th>
                             <th>Student Name</th>
                             <th>Class</th>
-                            <th style="width: 50px;">Actions</th>
+                            <th style="width: 50px;">Delete</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1068,35 +1194,13 @@ function renderAssignedRightPanel() {
             </div>
         `;
 
-        // Bind Edit panel buttons
-        container.querySelectorAll(".pw-cancel-edit-btn").forEach(btn => {
-            btn.onclick = () => {
-                editingParticipantId = null;
-                renderAssignedRightPanel();
-            };
-        });
-
-        container.querySelectorAll(".pw-save-edit-btn").forEach(btn => {
-            btn.onclick = async () => {
-                const sId = btn.getAttribute("data-id");
-                const newName = document.getElementById(`pwEditName_${sId}`).value.trim();
-                const newClass = document.getElementById(`pwEditClass_${sId}`).value.trim();
-
-                if (!newName) {
-                    window.showToast("Student Name is required.", "error");
-                    return;
-                }
-
-                await saveEditParticipant(sId, newName, newClass);
-            };
-        });
-
-        // Bind dropdown click
-        container.querySelectorAll(".pw-part-dots-btn").forEach(btn => {
-            btn.onclick = (e) => {
+        // Bind delete action directly
+        container.querySelectorAll(".pw-part-delete-btn").forEach(btn => {
+            btn.onclick = async (e) => {
                 e.stopPropagation();
                 if (resultSubmitted || resultPublished) return;
-                openParticipantDropdownMenu(btn);
+                const sId = btn.getAttribute("data-id");
+                await deleteParticipant(sId);
             };
         });
     }
