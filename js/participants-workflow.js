@@ -49,6 +49,12 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     const genderFilter = progData.genderCategory || 'Mixed';
     let inheritedCategoryId = progData.categoryId || '';
 
+    // In-memory cache variables to optimize performance
+    const studentsByTeamCache = new Map();
+    const registrationsByTeamCache = new Map();
+    let programParticipantsCache = null;
+    let resultsStatusCache = null;
+
     const teams = [];
     const teamById = new Map();
     const categoriesById = new Map();
@@ -316,16 +322,31 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
     function toggleStudentSelection(student) {
         const id = student.id;
-        const isAssigned = savedIndividualStudentIds.has(id) || (isGroupEvent && groups.some(g => g.members?.some(m => m.studentId === id)));
+        const assignedGroupStudentIds = new Set();
+        if (isGroupEvent) {
+            for (const g of groups) {
+                if (g.members) {
+                    for (const m of g.members) {
+                        if (m.studentId) assignedGroupStudentIds.add(m.studentId);
+                    }
+                }
+            }
+        }
+        const isAssigned = savedIndividualStudentIds.has(id) || (isGroupEvent && assignedGroupStudentIds.has(id));
         if (isAssigned) return;
 
-        if (selectedStudentIds.has(id)) {
+        const isSelectedNow = selectedStudentIds.has(id);
+        if (isSelectedNow) {
             selectedStudentIds.delete(id);
         } else {
             selectedStudentIds.add(id);
         }
         refreshSelectedPreviews();
-        renderStudentList();
+
+        const card = document.querySelector(`#pwStudentList [data-stu-id="${id}"]`);
+        if (card) {
+            card.classList.toggle('is-selected', !isSelectedNow);
+        }
     }
 
     function refreshSelectedPreviews() {
@@ -480,10 +501,21 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             return;
         }
 
+        const assignedGroupStudentIds = new Set();
+        if (isGroupEvent) {
+            for (const g of groups) {
+                if (g.members) {
+                    for (const m of g.members) {
+                        if (m.studentId) assignedGroupStudentIds.add(m.studentId);
+                    }
+                }
+            }
+        }
+
         const visibleStudents = studentsFiltered.slice(0, renderLimit);
         const frag = visibleStudents.map((s, idx) => {
             const isSelected = selectedStudentIds.has(s.id);
-            const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && groups.some(g => g.members?.some(m => m.studentId === s.id)));
+            const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && assignedGroupStudentIds.has(s.id));
             
             // Determine duplicate status
             let statusText = 'Eligible';
@@ -578,23 +610,6 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 }
             }
         }
-
-        // Click handler wires
-        el.querySelectorAll('.stu-card').forEach(card => {
-            card.onclick = (e) => {
-                const id = card.getAttribute('data-stu-id');
-                const stu = studentsAll.find(x => x.id === id);
-                if (!stu) return;
-
-                const isAssigned = savedIndividualStudentIds.has(id) || (isGroupEvent && groups.some(g => g.members?.some(m => m.studentId === id)));
-                if (isAssigned) {
-                    window.showToast("This student is already registered for this program.", "error");
-                    return;
-                }
-
-                toggleStudentSelection(stu);
-            };
-        });
     }
 
     function renderTeamSegments() {
@@ -673,7 +688,22 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         return all.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
     }
 
+    async function getProgramParticipantsDocs() {
+        if (programParticipantsCache !== null) {
+            return programParticipantsCache;
+        }
+        const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
+        const programSnap = await getDocs(partRef);
+        programParticipantsCache = programSnap.docs;
+        return programParticipantsCache;
+    }
+
     async function loadResultsStatus() {
+        if (resultsStatusCache !== null) {
+            resultSubmitted = resultsStatusCache.resultSubmitted;
+            resultPublished = resultsStatusCache.resultPublished;
+            return;
+        }
         try {
             const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
             const resultsSnap = await getDocs(query(resultsRef, where("programId", "==", progId)));
@@ -688,6 +718,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     resultSubmitted = true;
                 }
             }
+            resultsStatusCache = { resultSubmitted, resultPublished };
         } catch (e) {
             console.error("Error loading results status:", e);
         }
@@ -695,6 +726,15 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
     // Load registrations mapping for duplicate validations and cross-program tag indicators
     async function loadAllTeamRegistrations() {
+        const cacheKey = selectedTeamId;
+        if (registrationsByTeamCache.has(cacheKey)) {
+            const cached = registrationsByTeamCache.get(cacheKey);
+            registrationsMap = new Map(cached.registrationsMap);
+            studentGroupsMap = new Map(cached.studentGroupsMap);
+            allEventGroups = [...cached.allEventGroups];
+            return;
+        }
+
         registrationsMap.clear();
         studentGroupsMap.clear();
         allEventGroups = [];
@@ -706,11 +746,23 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             
             let docs = [];
 
-            // Try collectionGroup fetch
+            // Try collectionGroup fetch using composite index (teamId, type)
             try {
-                const q = query(collectionGroup(db, "participants"), where("teamId", "==", selectedTeamId));
-                const snap = await getDocs(q);
-                docs = snap.docs;
+                const qInd = query(
+                    collectionGroup(db, "participants"),
+                    where("teamId", "==", selectedTeamId),
+                    where("type", "==", "individual")
+                );
+                const qGrp = query(
+                    collectionGroup(db, "participants"),
+                    where("teamId", "==", selectedTeamId),
+                    where("type", "==", "group")
+                );
+                const [snapInd, snapGrp] = await Promise.all([
+                    getDocs(qInd),
+                    getDocs(qGrp)
+                ]);
+                docs = [...snapInd.docs, ...snapGrp.docs];
             } catch (cgErr) {
                 console.warn("CollectionGroup query failed, scanning collections in batched promises:", cgErr);
                 const results = [];
@@ -773,9 +825,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
             // Load all other group names in this program across the entire institute (for quick group reuse copy)
             if (isGroupEvent) {
-                const partRef = collection(db, "institutes", instId, "programs", progId, "participants");
-                const programSnap = await getDocs(partRef);
-                programSnap.forEach(d => {
+                const progDocs = await getProgramParticipantsDocs();
+                progDocs.forEach(d => {
                     const data = d.data();
                     if (data.type === 'group' && Array.isArray(data.groups)) {
                         data.groups.forEach(g => {
@@ -790,6 +841,13 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     }
                 });
             }
+
+            // Cache the result
+            registrationsByTeamCache.set(cacheKey, {
+                registrationsMap: new Map(registrationsMap),
+                studentGroupsMap: new Map(studentGroupsMap),
+                allEventGroups: [...allEventGroups]
+            });
 
         } catch (err) {
             console.error("Error loading all registrations:", err);
@@ -813,20 +871,11 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             await loadAllTeamRegistrations();
 
             const targetTeamId = selectedTeamId === 'teamless' ? '' : selectedTeamId;
+            const studentsCacheKey = targetTeamId;
 
             if (!isGroupEvent) {
-                const participantsRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
-                let existingSnap;
-                try {
-                    existingSnap = await getDocs(query(
-                        participantsRef,
-                        where('type', '==', 'individual'),
-                        where('teamId', '==', targetTeamId)
-                    ));
-                } catch (err) {
-                    existingSnap = await getDocs(participantsRef);
-                }
-                existingSnap.forEach(d => {
+                const progDocs = await getProgramParticipantsDocs();
+                progDocs.forEach(d => {
                     const data = d.data();
                     const matchesCategory = (pType === 'general') || ((data.categoryId || '') === inheritedCategoryId);
                     if (data.type === 'individual' && (data.teamId || '') === targetTeamId && matchesCategory && data.studentId) {
@@ -842,70 +891,76 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 });
             }
 
-            // Fetch eligible student records
-            let q;
-            if (pType === 'general' || inheritedCategoryId === 'general_programs') {
-                q = query(
-                    collection(db, "institutes", window.currentInstituteId, "students"),
-                    where('teamId', '==', targetTeamId)
-                );
+            if (studentsByTeamCache.has(studentsCacheKey)) {
+                studentsAll = [...studentsByTeamCache.get(studentsCacheKey)];
             } else {
-                q = query(
-                    collection(db, "institutes", window.currentInstituteId, "students"),
-                    where('categoryId', '==', inheritedCategoryId),
-                    where('teamId', '==', targetTeamId)
-                );
-            }
-
-            // Apply direct queries for non-general events
-            if (pType !== 'general' && inheritedCategoryId !== 'general_programs') {
-                if (genderFilter === 'Boys') q = query(q, where('gender', '==', 'Male'));
-                if (genderFilter === 'Girls') q = query(q, where('gender', '==', 'Female'));
-            }
-
-            let snap;
-            try {
-                snap = await getDocs(q);
-            } catch (err) {
-                let qFallback;
+                // Fetch eligible student records
+                let q;
                 if (pType === 'general' || inheritedCategoryId === 'general_programs') {
-                    qFallback = query(
+                    q = query(
                         collection(db, "institutes", window.currentInstituteId, "students"),
                         where('teamId', '==', targetTeamId)
                     );
                 } else {
-                    qFallback = query(
+                    q = query(
                         collection(db, "institutes", window.currentInstituteId, "students"),
-                        where('categoryId', '==', inheritedCategoryId)
+                        where('categoryId', '==', inheritedCategoryId),
+                        where('teamId', '==', targetTeamId)
                     );
                 }
-                snap = await getDocs(qFallback);
+
+                // Apply direct queries for non-general events
+                if (pType !== 'general' && inheritedCategoryId !== 'general_programs') {
+                    if (genderFilter === 'Boys') q = query(q, where('gender', '==', 'Male'));
+                    if (genderFilter === 'Girls') q = query(q, where('gender', '==', 'Female'));
+                }
+
+                let snap;
+                try {
+                    snap = await getDocs(q);
+                } catch (err) {
+                    let qFallback;
+                    if (pType === 'general' || inheritedCategoryId === 'general_programs') {
+                        qFallback = query(
+                            collection(db, "institutes", window.currentInstituteId, "students"),
+                            where('teamId', '==', targetTeamId)
+                        );
+                    } else {
+                        qFallback = query(
+                            collection(db, "institutes", window.currentInstituteId, "students"),
+                            where('categoryId', '==', inheritedCategoryId)
+                        );
+                    }
+                    snap = await getDocs(qFallback);
+                }
+
+                studentsAll = snap.docs.map(d => {
+                    const s = d.data();
+                    return {
+                        id: d.id || '',
+                        name: s.name || '',
+                        chestNumber: s.chestNumber || '',
+                        gender: s.gender || '',
+                        teamId: s.teamId || '',
+                        categoryId: s.categoryId || '',
+                        categoryName: s.categoryName || '',
+                        classId: s.classId || s.class || '',
+                        className: s.className || ''
+                    };
+                });
+
+                // Post-filtering safeties
+                studentsAll = studentsAll.filter(s => (s.teamId || '') === targetTeamId);
+                if (genderFilter === 'Boys') {
+                    studentsAll = studentsAll.filter(s => s.gender === 'Male');
+                } else if (genderFilter === 'Girls') {
+                    studentsAll = studentsAll.filter(s => s.gender === 'Female');
+                }
+
+                studentsAll = uniqById(studentsAll);
+                studentsByTeamCache.set(studentsCacheKey, [...studentsAll]);
             }
 
-            studentsAll = snap.docs.map(d => {
-                const s = d.data();
-                return {
-                    id: d.id || '',
-                    name: s.name || '',
-                    chestNumber: s.chestNumber || '',
-                    gender: s.gender || '',
-                    teamId: s.teamId || '',
-                    categoryId: s.categoryId || '',
-                    categoryName: s.categoryName || '',
-                    classId: s.classId || s.class || '',
-                    className: s.className || ''
-                };
-            });
-
-            // Post-filtering safeties
-            studentsAll = studentsAll.filter(s => (s.teamId || '') === targetTeamId);
-            if (genderFilter === 'Boys') {
-                studentsAll = studentsAll.filter(s => s.gender === 'Male');
-            } else if (genderFilter === 'Girls') {
-                studentsAll = studentsAll.filter(s => s.gender === 'Female');
-            }
-
-            studentsAll = uniqById(studentsAll);
             studentsFiltered = studentsAll;
             applyStudentSearchFilter();
             
@@ -946,14 +1001,25 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         }
 
         // Apply quick pills filter
+        const assignedGroupStudentIds = new Set();
+        if (isGroupEvent) {
+            for (const g of groups) {
+                if (g.members) {
+                    for (const m of g.members) {
+                        if (m.studentId) assignedGroupStudentIds.add(m.studentId);
+                    }
+                }
+            }
+        }
+
         if (activeFilter === 'eligible') {
             filtered = filtered.filter(s => {
-                const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && groups.some(g => g.members?.some(m => m.studentId === s.id)));
+                const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && assignedGroupStudentIds.has(s.id));
                 return !isAssigned;
             });
         } else if (activeFilter === 'selected') {
             filtered = filtered.filter(s => {
-                const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && groups.some(g => g.members?.some(m => m.studentId === s.id)));
+                const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && assignedGroupStudentIds.has(s.id));
                 return isAssigned || selectedStudentIds.has(s.id);
             });
         }
@@ -1008,29 +1074,22 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     }
 
     async function loadGroupsForTeam() {
-        const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
         const targetTeamId = selectedTeamId === 'teamless' ? '' : selectedTeamId;
-        let q;
-        if (pType === 'general' || selectedCategoryId === 'general_programs') {
-            q = query(
-                partRef,
-                where('type', '==', 'group'),
-                where('teamId', '==', targetTeamId)
-            );
-        } else {
-            q = query(
-                partRef,
-                where('type', '==', 'group'),
-                where('teamId', '==', targetTeamId),
-                where('categoryId', '==', selectedCategoryId)
-            );
-        }
 
         const listEl = document.getElementById('pwGroupsList');
         if (listEl) listEl.innerHTML = `<div class="pw-empty">Loading groups...</div>`;
 
-        const snap = await getDocs(q);
-        if (snap.empty) {
+        const progDocs = await getProgramParticipantsDocs();
+        const matchedDoc = progDocs.find(d => {
+            const data = d.data();
+            const matchesType = data.type === 'group';
+            const matchesTeam = (data.teamId || '') === targetTeamId;
+            const matchesCategory = (pType === 'general' || selectedCategoryId === 'general_programs') || 
+                                    ((data.categoryId || '') === selectedCategoryId);
+            return matchesType && matchesTeam && matchesCategory;
+        });
+
+        if (!matchedDoc) {
             groups = [];
             if (listEl) {
                 listEl.innerHTML = `
@@ -1043,9 +1102,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             return;
         }
 
-        const d = snap.docs[0];
-        const data = d.data();
-        groupContainerRef = d.ref;
+        const data = matchedDoc.data();
+        groupContainerRef = matchedDoc.ref;
         groups = (data.groups || []).map(g => ({
             id: g.id,
             name: g.name,
@@ -1088,6 +1146,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             updatedAt: serverTimestamp()
         }, { merge: true });
         await updateDashboardMetadata(window.currentInstituteId);
+        programParticipantsCache = null;
+        registrationsByTeamCache.clear();
     }
 
     async function updateGroup(groupId, updateFn) {
@@ -1520,6 +1580,37 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
         renderTeamSegments();
 
+        // Delegate student card click handler for efficiency
+        const studentListEl = document.getElementById('pwStudentList');
+        if (studentListEl) {
+            studentListEl.onclick = (e) => {
+                const card = e.target.closest('.stu-card');
+                if (!card) return;
+                const id = card.getAttribute('data-stu-id');
+                const stu = studentsAll.find(x => x.id === id);
+                if (!stu) return;
+
+                const assignedGroupStudentIds = new Set();
+                if (isGroupEvent) {
+                    for (const g of groups) {
+                        if (g.members) {
+                            for (const m of g.members) {
+                                if (m.studentId) assignedGroupStudentIds.add(m.studentId);
+                            }
+                        }
+                    }
+                }
+
+                const isAssigned = savedIndividualStudentIds.has(id) || (isGroupEvent && assignedGroupStudentIds.has(id));
+                if (isAssigned) {
+                    window.showToast("This student is already registered for this program.", "error");
+                    return;
+                }
+
+                toggleStudentSelection(stu);
+            };
+        }
+
         // Team segment selection listener
         document.getElementById('pwTeamList')?.addEventListener('click', (e) => {
             const btn = e.target.closest('[data-team-segment]');
@@ -1645,8 +1736,18 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         // Bulk Buttons Wiring
         document.getElementById('pwSelectAllVisibleBtn')?.addEventListener('click', () => {
             let added = 0;
+            const assignedGroupStudentIds = new Set();
+            if (isGroupEvent) {
+                for (const g of groups) {
+                    if (g.members) {
+                        for (const m of g.members) {
+                            if (m.studentId) assignedGroupStudentIds.add(m.studentId);
+                        }
+                    }
+                }
+            }
             studentsFiltered.forEach(s => {
-                const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && groups.some(g => g.members?.some(m => m.studentId === s.id)));
+                const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && assignedGroupStudentIds.has(s.id));
                 if (!isAssigned) {
                     selectedStudentIds.add(s.id);
                     added++;
@@ -1658,8 +1759,18 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         });
 
         document.getElementById('pwInvertSelectionBtn')?.addEventListener('click', () => {
+            const assignedGroupStudentIds = new Set();
+            if (isGroupEvent) {
+                for (const g of groups) {
+                    if (g.members) {
+                        for (const m of g.members) {
+                            if (m.studentId) assignedGroupStudentIds.add(m.studentId);
+                        }
+                    }
+                }
+            }
             studentsFiltered.forEach(s => {
-                const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && groups.some(g => g.members?.some(m => m.studentId === s.id)));
+                const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && assignedGroupStudentIds.has(s.id));
                 if (!isAssigned) {
                     if (selectedStudentIds.has(s.id)) {
                         selectedStudentIds.delete(s.id);
@@ -1810,6 +1921,9 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 batch.update(progRef, { participantCount: increment(toAdd.length) });
                 await batch.commit();
                 await updateDashboardMetadata(window.currentInstituteId);
+                programParticipantsCache = null;
+                registrationsByTeamCache.clear();
+
                 toAdd.forEach(s => savedIndividualStudentIds.add(s.id));
                 window.showToast(`${toAdd.length} participant${toAdd.length === 1 ? '' : 's'} saved successfully!`, 'success');
                 if (statusEl) statusEl.textContent = `${toAdd.length} saved.`;
@@ -1877,6 +1991,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
                 await setDoc(progRef, { participantCount: increment(1) }, { merge: true });
                 await updateDashboardMetadata(window.currentInstituteId);
+                programParticipantsCache = null;
+                registrationsByTeamCache.clear();
 
                 window.showToast('Group created successfully!', 'success');
                 nameInput.value = '';
@@ -1985,6 +2101,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
             await setDoc(progRef, { participantCount: increment(-1) }, { merge: true });
             await updateDashboardMetadata(window.currentInstituteId);
+            programParticipantsCache = null;
+            registrationsByTeamCache.clear();
 
             savedIndividualStudentIds.delete(id);
             selectedStudentIds.delete(id);
