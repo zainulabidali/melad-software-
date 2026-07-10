@@ -97,6 +97,13 @@ onAuthStateChanged(auth, async (user) => {
         return;
     }
 
+    if (user.isAnonymous) {
+        sessionStorage.clear();
+        await signOut(auth);
+        window.location.href = '../pages/login.html';
+        return;
+    }
+
     if (isStandalone && standaloneInstId) {
         document.body.classList.add('standalone-mode');
     }

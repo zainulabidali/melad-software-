@@ -14,6 +14,11 @@ onAuthStateChanged(auth, async (user) => {
         window.location.href = '../pages/login.html';
         return;
     }
+    if (user.isAnonymous) {
+        await signOut(auth);
+        window.location.href = '../pages/login.html';
+        return;
+    }
     const userProfile = await getUserProfile(user.uid);
     if (userProfile && userProfile.role === 'super_admin') {
         document.body.style.display = 'flex';

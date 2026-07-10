@@ -136,7 +136,7 @@ export async function getUserProfile(uid) {
 // Centralized Access Validation Helper
 // ─────────────────────────────────────────────
 export async function validateInstituteAccess(user) {
-    if (!user) return false;
+    if (!user || user.isAnonymous) return false;
     
     try {
         // Fast-path check: Super Admins bypass all constraints to prevent session clearing on expired/deactivated institutes
@@ -538,6 +538,7 @@ if (isAuthPage) {
     onAuthStateChanged(auth, async (user) => {
         if (window.isRegistering) return;
         if (user) {
+            if (user.isAnonymous) return;
             const isValid = await validateInstituteAccess(user);
             if (isValid) {
                 const profile = await getUserProfile(user.uid);

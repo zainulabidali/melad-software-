@@ -1,4 +1,149 @@
-+  if isSuperAdmin();
+rules_version = '2';
+
+service cloud.firestore {
+
+match /databases/{database}/documents {
+
+
+// =====================================================
+// AUTH HELPERS
+// =====================================================
+
+function isAuthenticated() {
+  return request.auth != null;
+}
+
+function userDoc() {
+  return get(
+    /databases/$(database)/documents/users/$(request.auth.uid)
+  );
+}
+
+function userExists() {
+  return isAuthenticated() &&
+         exists(
+           /databases/$(database)/documents/users/$(request.auth.uid)
+         );
+}
+
+function userData() {
+  return userDoc().data;
+}
+
+function instituteDoc(instituteId) {
+  return get(
+    /databases/$(database)/documents/institutes/$(instituteId)
+  );
+}
+
+function instituteExists(instituteId) {
+  return exists(
+    /databases/$(database)/documents/institutes/$(instituteId)
+  );
+}
+
+function instituteData(instituteId) {
+  return instituteDoc(instituteId).data;
+}
+
+// =====================================================
+// ROLE CHECKS
+// =====================================================
+
+function isSuperAdmin() {
+  return userExists()
+    && userData().role == "super_admin";
+}
+
+function isAdmin() {
+  return userExists()
+    && userData().role == "admin";
+}
+
+// =====================================================
+// INSTITUTE CHECKS
+// =====================================================
+
+function isInstituteActive(instituteId) {
+  return instituteExists(instituteId)
+    && instituteData(instituteId).status == "active";
+}
+
+function isInstituteNotExpired(instituteId) {
+  return instituteExists(instituteId)
+    && (
+      !("expiryDate" in instituteData(instituteId))
+      ||
+      instituteData(instituteId).expiryDate == null
+      ||
+      !(instituteData(instituteId).expiryDate is timestamp)
+      ||
+      instituteData(instituteId).expiryDate > request.time
+    );
+}
+
+function isInstituteAdmin(instituteId) {
+  return isAdmin()
+    && userData().instituteId == instituteId
+    && isInstituteActive(instituteId)
+    && isInstituteNotExpired(instituteId);
+}
+
+// =====================================================
+// USERS
+// =====================================================
+
+match /users/{userId} {
+
+  allow read:
+  if isAuthenticated()
+  && request.auth.uid == userId;
+
+  allow read:
+  if isSuperAdmin();
+
+  allow create, update, delete:
+  if isSuperAdmin();
+}
+
+// =====================================================
+// PENDING ADMINS
+// =====================================================
+
+match /pending_admins/{uid} {
+
+  allow create:
+  if isAuthenticated()
+  && request.auth.uid == uid;
+
+  allow read, update, delete:
+  if isSuperAdmin();
+}
+
+// =====================================================
+// TEACHERS
+// =====================================================
+
+match /teachers/{uid} {
+
+  allow create:
+  if isAuthenticated()
+  && request.auth.uid == uid
+  && request.resource.data.fullName is string
+  && request.resource.data.email is string
+  && request.resource.data.phone is string
+  && request.resource.data.place is string
+  && request.resource.data.status == "pending";
+
+  allow read:
+  if isAuthenticated()
+  && request.auth.uid == uid;
+
+  allow read:
+  if isSuperAdmin();
+
+  allow update, delete:
+  if isSuperAdmin();
 }
 
 // =====================================================
@@ -25,6 +170,24 @@ match /institutes/{instituteId} {
   if isSuperAdmin();
 
   // -----------------------------
+  // LEADER ACCESS LOGINS & SESSIONS
+  // -----------------------------
+
+  match /leaderAccess/{token} {
+    allow read: if true;
+    allow write: if isInstituteAdmin(instituteId) || isSuperAdmin();
+  }
+
+  match /leaderSessions/{uid} {
+    allow read: if true;
+    allow create, update: if request.auth != null && request.auth.uid == uid &&
+      exists(/databases/$(database)/documents/institutes/$(instituteId)/leaderAccess/$(request.resource.data.token)) &&
+      get(/databases/$(database)/documents/institutes/$(instituteId)/leaderAccess/$(request.resource.data.token)).data.enabled == true &&
+      get(/databases/$(database)/documents/institutes/$(instituteId)/leaderAccess/$(request.resource.data.token)).data.teamId == request.resource.data.teamId;
+    allow delete: if request.auth != null && request.auth.uid == uid;
+  }
+
+  // -----------------------------
   // CATEGORIES
   // -----------------------------
 
@@ -43,9 +206,18 @@ match /institutes/{instituteId} {
 
   match /students/{studentId} {
 
-    allow read, create, update, delete:
-    if isInstituteAdmin(instituteId)
-    || isSuperAdmin();
+    allow read: if request.auth != null &&
+      exists(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)) &&
+      get(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)).data.teamId == resource.data.teamId;
+
+    allow read: if isInstituteAdmin(instituteId);
+    allow read: if isSuperAdmin();
+
+    allow create, update, delete:
+    if isInstituteAdmin(instituteId);
+
+    allow create, update, delete:
+    if isSuperAdmin();
   }
 
   // -----------------------------
@@ -64,9 +236,28 @@ match /institutes/{instituteId} {
 
       allow read: if true;
 
-      allow create, update, delete:
-      if isInstituteAdmin(instituteId)
-      || isSuperAdmin();
+      allow create, update:
+      if request.auth != null &&
+      exists(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)) &&
+      get(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)).data.teamId == request.resource.data.teamId &&
+      (resource == null || get(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)).data.teamId == resource.data.teamId);
+
+      allow create, update:
+      if isInstituteAdmin(instituteId);
+
+      allow create, update:
+      if isSuperAdmin();
+
+      allow delete:
+      if request.auth != null &&
+      exists(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)) &&
+      get(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)).data.teamId == resource.data.teamId;
+
+      allow delete:
+      if isInstituteAdmin(instituteId);
+
+      allow delete:
+      if isSuperAdmin();
     }
   }
 
@@ -76,9 +267,18 @@ match /institutes/{instituteId} {
 
   match /teams/{teamId} {
 
-    allow read, create, update, delete:
-    if isInstituteAdmin(instituteId)
-    || isSuperAdmin();
+    allow read: if request.auth != null &&
+      exists(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)) &&
+      get(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)).data.teamId == teamId;
+
+    allow read: if isInstituteAdmin(instituteId);
+    allow read: if isSuperAdmin();
+
+    allow create, update, delete:
+    if isInstituteAdmin(instituteId);
+
+    allow create, update, delete:
+    if isSuperAdmin();
 
     match /categories/{categoryId} {
 

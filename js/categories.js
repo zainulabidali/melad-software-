@@ -366,8 +366,8 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
             return;
         }
 
-        if (chestStart >= chestEnd) {
-            window.showToast('Chest start number must be strictly less than chest end number.', 'error');
+        if (chestStart > chestEnd) {
+            window.showToast('Chest start number must be less than or equal to chest end number.', 'error');
             return;
         }
 
@@ -390,22 +390,73 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
             return;
         }
 
+        // Find students in this category
+        const originalCat = catId ? localCategories.find(c => c.id === catId) : null;
+        const catStudents = localStudents.filter(s => s.categoryId === catId || (originalCat && s.categoryName === originalCat.name));
+        const capacity = chestEnd - chestStart + 1;
+
+        if (catStudents.length > capacity) {
+            window.showToast('This chest range is too small for the number of students in this category.', 'error');
+            return;
+        }
+
         saveBtn.disabled = true;
         text.classList.add('hidden');
         spinner.classList.remove('hidden');
 
         try {
             const description = document.getElementById('catDesc').value.trim();
+            const instId = window.currentInstituteId;
+
+            // Check if chest range values changed
+            const originalChestStart = originalCat ? parseInt(originalCat.chestStart, 10) : null;
+            const originalChestEnd = originalCat ? parseInt(originalCat.chestEnd, 10) : null;
+            const rangeChanged = !!(originalCat && (
+                isNaN(originalChestStart) ||
+                isNaN(originalChestEnd) ||
+                originalChestStart !== chestStart ||
+                originalChestEnd !== chestEnd
+            ));
+
+            // Check if any student currently has a chest number that is outside the range or not numeric
+            const hasOutOfRangeStudents = catStudents.some(s => {
+                const num = parseInt(s.chestNumber, 10);
+                return isNaN(num) || num < chestStart || num > chestEnd;
+            });
+
+            // Also check if the sequence itself has holes or duplicates or isn't perfectly sequential
+            let isSequential = true;
+            if (!rangeChanged && !hasOutOfRangeStudents) {
+                // Sort students by current chest number
+                const sorted = [...catStudents].sort((a, b) => {
+                    const numA = parseInt(a.chestNumber, 10);
+                    const numB = parseInt(b.chestNumber, 10);
+                    return numA - numB;
+                });
+                for (let i = 0; i < sorted.length; i++) {
+                    if (parseInt(sorted[i].chestNumber, 10) !== chestStart + i) {
+                        isSequential = false;
+                        break;
+                    }
+                }
+            } else {
+                isSequential = false;
+            }
+
+            const shouldSync = rangeChanged || !isSequential;
 
             let nextChestNumber = chestStart;
             if (catId) {
-                const originalCat = localCategories.find(c => c.id === catId);
-                const prevNext = originalCat?.nextChestNumber;
-                if (prevNext !== undefined && prevNext !== null) {
-                    nextChestNumber = prevNext;
-                }
-                if (nextChestNumber < chestStart || nextChestNumber > chestEnd) {
-                    nextChestNumber = chestStart;
+                if (shouldSync) {
+                    nextChestNumber = chestStart + catStudents.length;
+                } else {
+                    const prevNext = originalCat?.nextChestNumber;
+                    if (prevNext !== undefined && prevNext !== null) {
+                        nextChestNumber = prevNext;
+                    }
+                    if (nextChestNumber < chestStart || nextChestNumber > chestEnd) {
+                        nextChestNumber = chestStart;
+                    }
                 }
             }
 
@@ -419,20 +470,95 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
                 updatedAt: serverTimestamp()
             };
 
-            if (catId) {
-                await updateDoc(doc(db, 'institutes', window.currentInstituteId, 'categories', catId), payload);
-                window.showToast('Category updated successfully.');
-            } else {
-                const categoryId = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                if (!categoryId) {
-                    window.showToast('Please enter a valid category name.', 'error');
-                    return;
+            const catDocRef = catId ? doc(db, 'institutes', instId, 'categories', catId) : null;
+
+            if (catId && shouldSync) {
+                // Stable sort students
+                catStudents.sort((a, b) => {
+                    const aChest = parseInt(a.chestNumber, 10);
+                    const bChest = parseInt(b.chestNumber, 10);
+                    const aHasChest = !isNaN(aChest);
+                    const bHasChest = !isNaN(bChest);
+
+                    if (aHasChest && bHasChest) {
+                        return aChest - bChest;
+                    }
+                    if (aHasChest && !bHasChest) return -1;
+                    if (!aHasChest && bHasChest) return 1;
+
+                    const aTime = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
+                    const bTime = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
+                    if (aTime !== bTime) {
+                        return aTime - bTime;
+                    }
+
+                    const aName = (a.name || '').toLowerCase();
+                    const bName = (b.name || '').toLowerCase();
+                    if (aName !== bName) {
+                        return aName.localeCompare(bName);
+                    }
+                    return a.id.localeCompare(b.id);
+                });
+
+                // Assign chest numbers and prepare student updates
+                let currentChest = chestStart;
+                const studentUpdates = [];
+                for (const student of catStudents) {
+                    studentUpdates.push({
+                        ref: doc(db, 'institutes', instId, 'students', student.id),
+                        chestNumber: currentChest.toString()
+                    });
+                    currentChest++;
                 }
-                await setDoc(doc(db, 'institutes', window.currentInstituteId, 'categories', categoryId), {
-                    ...payload,
-                    createdAt: serverTimestamp()
-                }, { merge: true });
-                window.showToast('Category created successfully.');
+
+                // Recalculate nextChestNumber
+                payload.nextChestNumber = currentChest;
+
+                // Write in chunks to handle Firestore's 500-doc batch limits
+                let currentBatch = writeBatch(db);
+                let opsInBatch = 0;
+
+                // Update category in currentBatch
+                currentBatch.update(catDocRef, payload);
+                opsInBatch++;
+
+                const batchPromises = [];
+                for (const updateInfo of studentUpdates) {
+                    currentBatch.update(updateInfo.ref, {
+                        chestNumber: updateInfo.chestNumber,
+                        updatedAt: serverTimestamp()
+                    });
+                    opsInBatch++;
+
+                    if (opsInBatch >= 450) {
+                        batchPromises.push(currentBatch.commit());
+                        currentBatch = writeBatch(db);
+                        opsInBatch = 0;
+                    }
+                }
+
+                if (opsInBatch > 0) {
+                    batchPromises.push(currentBatch.commit());
+                }
+
+                await Promise.all(batchPromises);
+                window.showToast('Category updated and student chest numbers synchronized successfully.');
+            } else {
+                if (catId) {
+                    await updateDoc(catDocRef, payload);
+                    window.showToast('Category updated successfully.');
+                } else {
+                    const categoryId = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                    if (!categoryId) {
+                        window.showToast('Please enter a valid category name.', 'error');
+                        return;
+                    }
+                    await setDoc(doc(db, 'institutes', instId, 'categories', categoryId), {
+                        ...payload,
+                        createdAt: serverTimestamp()
+                    }, { merge: true });
+                    window.showToast('Category created successfully.');
+                }
             }
             await updateDashboardMetadata(window.currentInstituteId);
             invalidateCategoriesCache(window.currentInstituteId);

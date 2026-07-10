@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Leader Access Portal</title>
+    <!-- App Favicon Package -->
+    <link rel="icon" type="image/x-icon" href="../favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/participants-workflow.css">
+    <style>
+        .portal-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            box-sizing: border-box;
+            width: 100%;
+        }
+        .error-card {
+            background: linear-gradient(135deg, #fef2f2, #fee2e2);
+            border: 1px solid #fca5a5;
+            color: #b91c1c;
+            border-radius: 12px;
+            padding: 2.5rem;
+            text-align: center;
+            max-width: 500px;
+            margin: 4rem auto;
+            box-shadow: 0 10px 25px rgba(220, 38, 38, 0.08);
+        }
+        .error-card svg {
+            width: 4rem;
+            height: 4rem;
+            margin-bottom: 1rem;
+            color: #ef4444;
+        }
+        .error-card h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .error-card p {
+            font-size: 0.95rem;
+            color: #7f1d1d;
+            line-height: 1.5;
+        }
+        .program-card {
+            background: white;
+            border: 1.5px solid var(--pw-border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+        }
+        .program-card:hover {
+            border-color: var(--pw-primary-light);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.03), 0 4px 6px -4px rgba(0, 0, 0, 0.03);
+            transform: translateY(-2px);
+        }
+        .program-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+        .program-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+        .program-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        @media(min-width: 768px) {
+            .program-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        .portal-header {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            color: white;
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.15);
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+        .portal-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .portal-header-title {
+            font-size: 1.75rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin: 0;
+            line-height: 1.2;
+        }
+        .portal-header-subtitle {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            margin-top: 0.25rem;
+        }
+        .portal-stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 1.25rem;
+        }
+        .portal-stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+        }
+        .portal-stat-label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .portal-stat-val {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: white;
+            margin-top: 0.25rem;
+        }
+        .portal-body-wrapper {
+            animation: fadeIn 0.4s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .back-btn-container {
+            margin-bottom: 1.5rem;
+        }
+        .spinner-large {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px;
+            gap: 1rem;
+        }
+    </style>
+</head>
+<body style="background: #f8fafc; min-height: 100vh; font-family: 'Inter', sans-serif;">
+
+    <div class="portal-container">
+        
+        <!-- Loading State -->
+        <div id="portalLoading" class="spinner-large">
+            <div class="spinner"></div>
+            <div style="font-size: 0.95rem; font-weight: 600; color: #64748b;">Loading Leader Access Portal...</div>
+        </div>
+
+        <!-- Error State -->
+        <div id="portalError" class="hidden">
+            <div class="error-card">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0-10.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.75c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.249-8.25-3.286Zm0 13.036h.008v.008H12v-.008Z" />
+                </svg>
+                <h2 id="portalErrorTitle">Access Denied</h2>
+                <p id="portalErrorMessage">The link you followed is invalid, or access has been disabled by the administrator.</p>
+            </div>
+        </div>
+
+        <!-- Portal View Wrapper (Active State) -->
+        <div id="portalContent" class="portal-body-wrapper hidden">
+            
+            <!-- Dashboard View -->
+            <div id="viewDashboard">
+                <!-- A) Top Team Summary Header -->
+                <header class="portal-header">
+                    <div class="portal-header-top">
+                        <div>
+                            <span id="headerInstituteName" class="pw-badge-compact pw-badge-elsewhere" style="margin-bottom:0.5rem; display:inline-block; font-weight: 700; text-transform: uppercase; font-size: 0.7rem; padding: 3px 8px; border-radius: 4px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: #cbd5e1;">JK HIMAMI</span>
+                            <h1 id="headerTeamName" class="portal-header-title">Team Loading...</h1>
+                            <div class="portal-header-subtitle">Team Leader Access Portal · Registrations Dashboard</div>
+                        </div>
+                    </div>
+                    
+                    <div class="portal-stats-row">
+                        <div class="portal-stat-card">
+                            <span class="portal-stat-label">Total Students</span>
+                            <div id="statTotalStudents" class="portal-stat-val">0</div>
+                        </div>
+                        <div class="portal-stat-card">
+                            <span class="portal-stat-label">Gender Split</span>
+                            <div id="statGenderSplit" class="portal-stat-val">— / —</div>
+                        </div>
+                        <div class="portal-stat-card">
+                            <span class="portal-stat-label">Program Slots Assigned</span>
+                            <div id="statTotalRegistrations" class="portal-stat-val">0</div>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- B) Program List Area -->
+                <section>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:2px solid #e2e8f0; padding-bottom:0.75rem;">
+                        <h2 style="font-size:1.25rem; font-weight:800; color:#1e293b; margin:0;">📝 Eligible Programs</h2>
+                        <span id="totalEligibleProgramsLabel" style="font-size:0.85rem; font-weight:600; color:#64748b;">0 Programs</span>
+                    </div>
+
+                    <div id="programsListContainer" class="program-grid">
+                        <!-- Programs injected dynamically -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- Program Registration Assignment View -->
+            <div id="viewAssignment" class="hidden">
+                <!-- Back Button Container -->
+                <div class="back-btn-container">
+                    <button class="btn btn-secondary" id="btnBackToDashboard" style="font-weight:700;">← Back to Programs</button>
+                </div>
+
+                <!-- Assignment Component Layout (Reused from participants-workflow layout) -->
+                <div class="pw-page" style="box-shadow:none; padding:0; background:transparent;">
+                    <div class="pw-sticky-header" style="top:0; border-radius:12px; margin-bottom:1.5rem; background:white; border:1px solid #e2e8f0; box-shadow:0 4px 6px -1px rgba(0,0,0,0.01);">
+                        <div class="pw-header-left">
+                            <div class="pw-breadcrumb" id="assignBreadcrumb">Programs · Add Students</div>
+                            <div class="pw-header-title-row">
+                                <h2 class="pw-title" id="assignProgramName">👥 [Program Name]</h2>
+                            </div>
+                            <div class="pw-header-meta-row">
+                                <span class="pw-meta-item">Category: <strong id="assignCategoryLabel">Loading...</strong></span>
+                                <span class="pw-meta-divider">•</span>
+                                <span class="pw-meta-item">Gender: <strong id="assignGenderLabel">Mixed</strong></span>
+                                <span class="pw-meta-divider">•</span>
+                                <span class="pw-meta-item">Location: <strong id="assignLocationLabel">—</strong></span>
+                                <span class="pw-meta-divider">•</span>
+                                <span class="pw-badge-compact" id="assignTypeBadge">Individual</span>
+                            </div>
+                            <div class="pw-header-status-row">
+                                <span class="pw-badge-compact pw-badge-team" id="assignTeamBadge">Team: —</span>
+                                <span class="pw-badge-compact pw-badge-registered" id="assignParticipantCount">👥 0 Participants</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pw-content" style="padding:0;">
+                        <div class="pw-grid">
+                            
+                            <!-- 1. LEFT COLUMN: Student Checklist -->
+                            <aside class="pw-panel">
+                                <div class="pw-panel-header">
+                                    <div class="pw-panel-title">
+                                        <span>🎓 Select Eligible Students</span>
+                                        <span id="assignStudentsCountLabel" style="font-size: 0.72rem; color: var(--pw-slate-500); font-weight: 600;">Total: 0</span>
+                                    </div>
+                                    <div class="pw-search-wrapper">
+                                        <span class="pw-search-icon">🔍</span>
+                                        <input type="text" id="assignStudentSearch" class="pw-search-input" placeholder="Search by name, chest #..." />
+                                    </div>
+                                    <div class="pw-filter-scroll" id="assignFilterPills">
+                                        <button class="pw-filter-pill is-active" data-filter="all">All</button>
+                                        <button class="pw-filter-pill" data-filter="eligible">Available</button>
+                                        <button class="pw-filter-pill" data-filter="selected">Selected</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="pw-panel-body" id="assignStudentListScroll" style="padding-top: 0.5rem; max-height:480px; overflow-y:auto;">
+                                    <div id="assignStudentList" class="pw-student-list"></div>
+                                    <div id="assignStudentsSkeleton" class="pw-skeleton" style="display:none; height:180px; margin-top:1rem;"></div>
+                                </div>
+                            </aside>
+
+                            <!-- 2. CENTER COLUMN: Current Selection summary -->
+                            <aside class="pw-panel">
+                                <div class="pw-panel-header" style="gap: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+                                    <div class="pw-panel-title">👥 Selected Students</div>
+                                    <span class="pw-badge-compact pw-badge-registered" id="assignSelectedCountBadge">0</span>
+                                </div>
+                                
+                                <div class="pw-panel-body">
+                                    <div class="pw-selection-buffer-card is-empty" id="assignSelectionBuffer">
+                                        <div id="assignSelectedStudentsPreview" class="pw-selected-list" style="margin-top:0.5rem; min-height:100px;"></div>
+                                    </div>
+                                    
+                                    <div class="pw-summary-panel">
+                                        <div class="pw-panel-title" style="font-size: 0.78rem; text-transform: uppercase;">📋 Registration Summary</div>
+                                        <div class="pw-summary-metrics">
+                                            <div class="pw-metric-card">
+                                                <span class="pw-metric-label">Selected Count</span>
+                                                <span class="pw-metric-value" id="assignMetricSelected">0 / —</span>
+                                            </div>
+                                            <div class="pw-metric-card">
+                                                <span class="pw-metric-label">Remaining Slots</span>
+                                                <span class="pw-metric-value" id="assignMetricSlots">—</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="pw-progress-wrapper">
+                                            <div class="pw-progress-bar-bg">
+                                                <div class="pw-progress-bar-fill" id="assignProgressBarFill"></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="pw-alert-container" id="assignAlertContainer"></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="pw-panel-footer" id="assignActionFooter">
+                                    <!-- Save controls injected based on Individual/Group type -->
+                                </div>
+                            </aside>
+
+                            <!-- 3. RIGHT COLUMN: Assigned Entries List -->
+                            <main class="pw-panel" id="assignRightPanel">
+                                <div class="pw-panel-header">
+                                    <div class="pw-panel-title">
+                                        <span id="assignRightPanelTitleText">📋 Assigned Participants</span>
+                                    </div>
+                                    <p class="pw-subtitle" id="assignRightPanelSubtitleText" style="margin:0; font-size:0.75rem;">
+                                        List of saved registrations for this team.
+                                    </p>
+                                </div>
+                                
+                                <div class="pw-panel-body" id="assignRightPanelBody" style="max-height:480px; overflow-y:auto;">
+                                    <!-- Table or groups list injected dynamically -->
+                                </div>
+                            </main>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Global Toast Container -->
+            <div id="toastContainer" class="toast-container"></div>
+            
+            <!-- Global Empty Modal Shell -->
+            <div class="modal-overlay hidden" id="dynamicModal">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3 id="dynamicModalTitle">Modal Title</h3>
+                        <button class="close-modal" id="closeDynamicModalBtn">&times;</button>
+                    </div>
+                    <div class="modal-body" id="dynamicModalBody">
+                        <!-- Content injected dynamically -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Firebase SDK Scripts -->
+    <script type="module" src="../js/leader-portal.js"></script>
+</body>
+</html>
