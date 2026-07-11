@@ -1,6 +1,6 @@
 import { db, computeDenseRanking } from './firebase.js';
 import {
-    collection, doc, getDoc, onSnapshot, query, where
+    collection, doc, getDoc, getDocs, onSnapshot, query, where
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 // ─────────────────────────────────────────────
@@ -16,6 +16,13 @@ let eventConfig = null;
 let currentDisplayedResult = null;
 let cachedLogoImg = null;
 let cachedLogoSrc = null;
+
+// Optimizations state
+let activeResultUnsubscribe = null;
+let activeResultKey = "";
+let isInitInProgress = false;
+let isInitialized = false;
+let leaderboardData = [];
 
 function getEffectiveEventName() {
     return eventConfig?.eventName || instituteDetails?.name || "Results Portal";
@@ -137,44 +144,8 @@ function updateTeamChampionship() {
     
     if (!leaderboardContainer || !podiumContainer || !championshipSection) return;
 
-    // 1. Calculate points per team
-    const teamPoints = new Map();
-    
-    // Initialize points for all registered teams
-    allTeams.forEach(t => {
-        if (t.name) {
-            teamPoints.set(t.name.trim(), 0);
-        }
-    });
-
-    allResults.forEach(r => {
-        // Only count published results that are not disabled
-        if (r.status === 'published' && r.publicDisabled !== true) {
-            const prog = allPrograms.find(p => p.id === r.programId);
-            if (prog && prog.leaderboardEnabled === false) return;
-
-            if (Array.isArray(r.marksData) && r.marksData.length > 0) {
-                r.marksData.forEach(w => {
-                    if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName.trim() !== 'No Team' && w.totalPoints > 0) {
-                        const tName = w.teamName.trim();
-                        const current = teamPoints.get(tName) || 0;
-                        teamPoints.set(tName, current + (w.totalPoints || 0));
-                    }
-                });
-            } else if (Array.isArray(r.winners)) {
-                r.winners.forEach(w => {
-                    if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName.trim() !== 'No Team') {
-                        const tName = w.teamName.trim();
-                        const current = teamPoints.get(tName) || 0;
-                        teamPoints.set(tName, current + (w.marks || 0));
-                    }
-                });
-            }
-        }
-    });
-
-    // Convert Map to array
-    let teamsArray = [...teamPoints.entries()].map(([name, points]) => ({ name, points }));
+    // Use precalculated leaderboard from metadata/dashboard document
+    let teamsArray = leaderboardData.map(t => ({ name: t.name, points: t.points }));
     
     // Sort and rank
     teamsArray.sort((a, b) => b.points - a.points);
@@ -433,8 +404,12 @@ function normalizeCategoryName(name) {
 // Initialization
 // ─────────────────────────────────────────────
 async function init() {
+    if (isInitialized || isInitInProgress) return;
+    isInitInProgress = true;
+
     if (!instId) {
         renderError("Invalid Link", "The results link is missing a valid institute identifier.");
+        isInitInProgress = false;
         return;
     }
 
@@ -443,6 +418,7 @@ async function init() {
         const instSnap = await getDoc(doc(db, "institutes", instId));
         if (!instSnap.exists()) {
             renderError("Madrasa Not Found", "The requested Madrasa results portal does not exist.");
+            isInitInProgress = false;
             return;
         }
 
@@ -455,6 +431,7 @@ async function init() {
         if (isExpired || instituteDetails.status === 'deactivated' || instituteDetails.status === 'inactive') {
             renderError("Subscription Expired", "This results portal has been suspended because the institute's subscription has expired or is deactivated.");
             hideOverlay();
+            isInitInProgress = false;
             return;
         }
 
@@ -494,39 +471,43 @@ async function init() {
             console.warn("Public results custom event settings bypassed: read restricted, falling back to name.", e);
         });
 
-        // Setup real-time listener for programs to check leaderboard status
-        const programsRef = collection(db, "institutes", instId, "programs");
-        onSnapshot(programsRef, (snap) => {
-            allPrograms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Setup single document listener for precalculated leaderboard metadata
+        const dashboardMetaRef = doc(db, "institutes", instId, "metadata", "dashboard");
+        onSnapshot(dashboardMetaRef, (snap) => {
+            if (snap.exists()) {
+                const data = snap.data();
+                leaderboardData = data.leaderboard || [];
+            } else {
+                leaderboardData = [];
+            }
             updateTeamChampionship();
         }, (err) => {
-            console.warn("Programs listener error:", err);
+            console.warn("Dashboard metadata listener error:", err);
         });
 
-        // Setup real-time listener for teams to get their names
-        const teamsRef = collection(db, "institutes", instId, "teams");
-        onSnapshot(teamsRef, (snap) => {
-            allTeams = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            updateTeamChampionship();
-        }, (err) => {
-            console.warn("Teams listener error:", err);
-        });
-
-        // 2. Setup Real-time Firestore Listeners on Results (Strictly Published results only)
+        // Fetch published results once to populate selector dropdowns
         const resultsRef = collection(db, "institutes", instId, "results");
         const publishedQuery = query(
             resultsRef,
             where("status", "==", "published")
         );
 
-        onSnapshot(publishedQuery, (snapshot) => {
-            const published = snapshot.docs
+        try {
+            const querySnapshot = await getDocs(publishedQuery);
+            const published = querySnapshot.docs
                 .map(d => {
                     const data = d.data();
+                    const rawCategoryName = data.categoryName || "";
+                    let normalizedCatName = "";
                     if (data.categoryName) {
-                        data.categoryName = normalizeCategoryName(data.categoryName);
+                        normalizedCatName = normalizeCategoryName(data.categoryName);
                     }
-                    return { id: d.id, ...data };
+                    return { 
+                        id: d.id, 
+                        ...data,
+                        rawCategoryName: rawCategoryName,
+                        categoryName: normalizedCatName 
+                    };
                 })
                 .filter(r => r.publicDisabled !== true);
 
@@ -555,18 +536,20 @@ async function init() {
             if (mobFilterBar) mobFilterBar.style.display = 'flex';
             hideOverlay();
             
-            // Re-render Team Championship Leaderboard
-            updateTeamChampionship();
-        }, (err) => {
-            console.error("Standings snapshot error:", err);
+            isInitialized = true;
+            isInitInProgress = false;
+        } catch (err) {
+            console.error("Failed to fetch initial published results list:", err);
             renderError("Access Denied", "Unable to establish database connection.");
             hideOverlay();
-        });
+            isInitInProgress = false;
+        }
 
     } catch (err) {
         console.error(err);
         renderError("Connection Failed", "Failed to connect to Madrasa records database.");
         hideOverlay();
+        isInitInProgress = false;
     }
 }
 
@@ -839,6 +822,19 @@ function setupFilters() {
             return;
         }
 
+        const searchKey = `${instId}_${selectedCategory}_${selectedProgram}`;
+        const originalText = btn.innerHTML;
+
+        if (activeResultKey === searchKey && activeResultUnsubscribe) {
+            // Already listening to the same program result
+            if (currentDisplayedResult) {
+                renderSingleResult(currentDisplayedResult);
+            }
+            btn.innerHTML = originalText;
+            btn.classList.remove('loading');
+            return;
+        }
+
         // Add ripple visual effect
         const rect = btn.getBoundingClientRect();
         const circle = document.createElement('span');
@@ -855,23 +851,81 @@ function setupFilters() {
         setTimeout(() => circle.remove(), 600);
 
         // Add loading state
-        const originalText = btn.innerHTML;
         btn.innerHTML = `<span>⏳ Searching...</span>`;
         btn.classList.add('loading');
 
-        setTimeout(() => {
+        // Unsubscribe previous listener
+        if (activeResultUnsubscribe) {
+            activeResultUnsubscribe();
+            activeResultUnsubscribe = null;
+        }
+        activeResultKey = "";
+
+        const matchedMeta = allResults.find(r => r.categoryName === selectedCategory && r.programName === selectedProgram);
+        if (!matchedMeta) {
+            btn.innerHTML = originalText;
+            btn.classList.remove('loading');
+            currentDisplayedResult = null;
+            renderEmpty("Result Not Found", "The requested program standings have not been published yet.");
+            return;
+        }
+
+        const resultsRef = collection(db, "institutes", instId, "results");
+        const q = query(
+            resultsRef,
+            where("status", "==", "published"),
+            where("categoryName", "==", matchedMeta.rawCategoryName || matchedMeta.categoryName),
+            where("programName", "==", matchedMeta.programName)
+        );
+
+        activeResultKey = searchKey;
+        activeResultUnsubscribe = onSnapshot(q, (snapshot) => {
             btn.innerHTML = originalText;
             btn.classList.remove('loading');
 
-            // Query result
-            const currentResult = allResults.find(r => r.categoryName === selectedCategory && r.programName === selectedProgram);
-            if (!currentResult) {
+            if (snapshot.empty) {
+                currentDisplayedResult = null;
                 renderEmpty("Result Not Found", "The requested program standings have not been published yet.");
                 return;
             }
 
-            renderSingleResult(currentResult);
-        }, 400);
+            const docs = snapshot.docs.map(d => {
+                const data = d.data();
+                if (data.categoryName) {
+                    data.categoryName = normalizeCategoryName(data.categoryName);
+                }
+                return { id: d.id, ...data };
+            });
+
+            // Sort by published timestamp descending for duplicate matching logic
+            docs.sort((a, b) => {
+                const timeA = a.publishedAt?.seconds || 0;
+                const timeB = b.publishedAt?.seconds || 0;
+                return timeB - timeA;
+            });
+
+            const targetResult = docs[0];
+
+            if (!cardBgMap[targetResult.id]) {
+                cardBgMap[targetResult.id] = 1;
+            }
+            if (!cardTemplateMap[targetResult.id]) {
+                cardTemplateMap[targetResult.id] = 1;
+            }
+
+            currentDisplayedResult = targetResult;
+            renderSingleResult(targetResult);
+        }, (err) => {
+            btn.innerHTML = originalText;
+            btn.classList.remove('loading');
+            console.error("Single result snapshot error:", err);
+            if (activeResultUnsubscribe) {
+                activeResultUnsubscribe();
+                activeResultUnsubscribe = null;
+            }
+            activeResultKey = "";
+            showToast("⚠️ Failed to retrieve results. Please try again.");
+        });
     };
 
     // Bind triggers
@@ -2138,3 +2192,9 @@ async function sharePosterContent(cardId) {
 
 // Start Portal Load
 init();
+
+window.addEventListener('unload', () => {
+    if (activeResultUnsubscribe) {
+        activeResultUnsubscribe();
+    }
+});
