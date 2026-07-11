@@ -753,7 +753,7 @@ function openExportsDropdown(btn) {
     const canRetry = btn.dataset.canRetry === 'true';
 
     dropdown.innerHTML = `
-        <button class="dropdown-item btn-download-dropdown" style="display:flex; align-items:center; gap:0.5rem; width:100%; border:none; background:transparent; padding:0.5rem 0.85rem; font-size:12px; font-weight:600; color:${canDownload ? '#475569' : '#94a3b8'}; text-align:left; cursor:${canDownload ? 'pointer' : 'not-allowed'};" ${canDownload ? '' : 'disabled'}>
+        <button class="dropdown-item btn-download-dropdown" style="display: none !important;" ${canDownload ? '' : 'disabled'}>
             📥 Download
         </button>
         ${canRetry ? `
@@ -1656,20 +1656,40 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
     const orientation = f.orientation || 'portrait';
 
     const buildColumnItems = (progsList) => {
-        const stageProgs = progsList.filter(p => (p.programLocation || p.location || 'Off Stage') === 'Stage');
-        const offStageProgs = progsList.filter(p => (p.programLocation || p.location || 'Off Stage') !== 'Stage');
-        
-        stageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
-        offStageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
-        
+        // Exclude General Programs completely
+        const filteredList = progsList.filter(p => p.categoryId !== 'general_programs' && p.programType !== 'general');
+
+        // Group into Stage Individual, Off-Stage Individual, and Group programs
+        const indStageProgs = filteredList.filter(p => p.type === 'Individual' && p.programLocation === 'Stage');
+        const indOffStageProgs = filteredList.filter(p => p.type === 'Individual' && p.programLocation !== 'Stage');
+        const groupProgs = filteredList.filter(p => p.type === 'Group');
+
+        // Sort inside each section alphabetically
+        indStageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+        indOffStageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+        groupProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+
         const items = [];
-        stageProgs.forEach(p => items.push({ type: 'program', program: p }));
-        
-        if (stageProgs.length > 0 && offStageProgs.length > 0) {
+
+        // 1. INDIVIDUAL STAGE PROGRAMS
+        indStageProgs.forEach(p => items.push({ type: 'program', program: p }));
+
+        // Separator 1: Between Section 1 (Stage) and Section 2 (Off Stage) or Section 3 (Group)
+        if (indStageProgs.length > 0 && (indOffStageProgs.length > 0 || groupProgs.length > 0)) {
             items.push({ type: 'separator' });
         }
-        
-        offStageProgs.forEach(p => items.push({ type: 'program', program: p }));
+
+        // 2. INDIVIDUAL OFF STAGE PROGRAMS
+        indOffStageProgs.forEach(p => items.push({ type: 'program', program: p }));
+
+        // Separator 2: Between Section 2 (Off Stage) and Section 3 (Group)
+        if (indOffStageProgs.length > 0 && groupProgs.length > 0) {
+            items.push({ type: 'separator' });
+        }
+
+        // 3. GROUP PROGRAMS
+        groupProgs.forEach(p => items.push({ type: 'program', program: p }));
+
         return items;
     };
 

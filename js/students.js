@@ -21,6 +21,7 @@ import { normalizeClasses } from './categories.js';
 
 let unsubscribeStudents = null;
 let unsubscribeParticipants = null;
+let activeChestPreviewCalculator = null;
 
 let currentTeamId = null;
 let currentCategoryId = null;
@@ -368,6 +369,9 @@ function applyStudentFiltersAndRender() {
 
     localStudents = sortStudents(filtered, allCategories);
     renderStudentsUI();
+    if (activeChestPreviewCalculator) {
+        activeChestPreviewCalculator();
+    }
 }
 
 function loadStudentsData() {
@@ -1339,16 +1343,28 @@ export async function initAddStudentView(container, topActions) {
 
             await updateDashboardMetadata(instId);
             window.showToast(`Successfully enrolled ${validNames.length} students!`, "success");
-            window.navigateTo('students');
+            bulkNamesTextarea.value = '';
+            bulkNamesTextarea.focus();
 
         } catch (err) {
             window.handleError(err, "registering students in bulk");
         } finally {
-            btnSave.disabled = false;
             btnSave.querySelector('.btn-text').classList.remove('hidden');
             btnSave.querySelector('.btn-spinner').classList.add('hidden');
+            calculateChestPreviewAndStats();
         }
     };
+
+    activeChestPreviewCalculator = calculateChestPreviewAndStats;
+    window.currentViewCleanup = () => {
+        activeChestPreviewCalculator = null;
+        if (unsubscribeStudents) {
+            unsubscribeStudents();
+            unsubscribeStudents = null;
+        }
+    };
+
+    loadStudentsData();
 }
 
 function openEditModal(stuId, data) {
