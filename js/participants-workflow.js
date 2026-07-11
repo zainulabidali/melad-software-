@@ -1,4 +1,4 @@
-import { db, getCachedTeams, getCachedCategories, getCachedPrograms, updateDashboardMetadata } from './firebase.js';
+import { db, getCachedTeams, getCachedCategories, getCachedPrograms, updateDashboardMetadata, classifyProgram, resolveEffectiveParticipationLimits, checkStudentParticipationEligibility } from './firebase.js';
 import {
     collection,
     getDocs,
@@ -67,6 +67,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     let studentsAll = []; // Full list fetched from Firestore for selected Team + Category
     let studentsFiltered = []; // Filtered list based on search/class/pill filters
     let registrationsMap = new Map(); // studentId -> Set of registered program names
+    let registrationsProgramIdsMap = new Map(); // studentId -> Set of registered program IDs
+    let programsMap = new Map(); // programId -> program data object
     let studentGroupsMap = new Map(); // studentId -> { groupName, teamName, memberCount, members }
     let allEventGroups = []; // Array of groups from all teams in this program
     let savedIndividualStudentIds = new Set();
@@ -335,6 +337,18 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         const isAssigned = savedIndividualStudentIds.has(id) || (isGroupEvent && assignedGroupStudentIds.has(id));
         if (isAssigned) return;
 
+        const limitEligibility = checkStudentParticipationEligibility(
+            student,
+            progData,
+            window.currentEventDetails?.participationLimits,
+            registrationsProgramIdsMap,
+            programsMap
+        );
+        if (!limitEligibility.eligible) {
+            window.showToast(`Cannot select ${student.name}. Limit reached for ${limitEligibility.label} (${limitEligibility.count}/${limitEligibility.limit}).`, "error");
+            return;
+        }
+
         const isSelectedNow = selectedStudentIds.has(id);
         if (isSelectedNow) {
             selectedStudentIds.delete(id);
@@ -522,10 +536,24 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             let statusClass = 'pw-badge-eligible';
             let statusDot = '🟢';
             
+            const limitEligibility = checkStudentParticipationEligibility(
+                s,
+                progData,
+                window.currentEventDetails?.participationLimits,
+                registrationsProgramIdsMap,
+                programsMap
+            );
+
+            const isLimitReached = !isAssigned && !limitEligibility.eligible;
+
             if (isAssigned) {
                 statusText = isGroupEvent ? 'Already in this Group' : 'Registered Here';
                 statusClass = 'pw-badge-registered';
                 statusDot = '🔵';
+            } else if (isLimitReached) {
+                statusText = `${limitEligibility.label.toUpperCase()} LIMIT REACHED · ${limitEligibility.count}/${limitEligibility.limit}`;
+                statusClass = 'pw-badge-cannot';
+                statusDot = '🔴';
             } else {
                 const hasOtherRegs = registrationsMap.has(s.id) && registrationsMap.get(s.id).size > 0;
                 if (hasOtherRegs) {
@@ -568,7 +596,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             const cardClass = `stu-card ${isSelected ? 'is-selected' : ''} ${isAssigned ? 'is-assigned' : ''} ${isKeyboardHover}`;
 
             return `
-                <div class="${cardClass}" data-stu-id="${s.id}">
+                <div class="${cardClass}" data-stu-id="${s.id}" style="${isLimitReached ? 'opacity: 0.7; cursor: not-allowed;' : ''}">
                     <div class="stu-card-check">
                         <span class="pw-checkbox"></span>
                     </div>
@@ -730,19 +758,22 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         if (registrationsByTeamCache.has(cacheKey)) {
             const cached = registrationsByTeamCache.get(cacheKey);
             registrationsMap = new Map(cached.registrationsMap);
+            registrationsProgramIdsMap = new Map(cached.registrationsProgramIdsMap);
+            programsMap = new Map(cached.programsMap);
             studentGroupsMap = new Map(cached.studentGroupsMap);
             allEventGroups = [...cached.allEventGroups];
             return;
         }
 
         registrationsMap.clear();
+        registrationsProgramIdsMap.clear();
         studentGroupsMap.clear();
         allEventGroups = [];
 
         try {
             const instId = window.currentInstituteId;
             const allProgs = await getCachedPrograms(instId);
-            const programsMap = new Map(allProgs.map(p => [p.id, p]));
+            programsMap = new Map(allProgs.map(p => [p.id, p]));
             
             let docs = [];
 
@@ -797,6 +828,9 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     const sId = data.studentId;
                     if (!registrationsMap.has(sId)) registrationsMap.set(sId, new Set());
                     registrationsMap.get(sId).add(progName);
+
+                    if (!registrationsProgramIdsMap.has(sId)) registrationsProgramIdsMap.set(sId, new Set());
+                    registrationsProgramIdsMap.get(sId).add(pId);
                 } else if (data.type === 'group' && Array.isArray(data.groups)) {
                     data.groups.forEach(g => {
                         const gName = g.name || 'Unnamed Group';
@@ -808,6 +842,9 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                                     if (!registrationsMap.has(sId)) registrationsMap.set(sId, new Set());
                                     registrationsMap.get(sId).add(`${progName} (${gName})`);
                                     
+                                    if (!registrationsProgramIdsMap.has(sId)) registrationsProgramIdsMap.set(sId, new Set());
+                                    registrationsProgramIdsMap.get(sId).add(pId);
+
                                     if (pId === progId) {
                                         studentGroupsMap.set(sId, {
                                             groupName: gName,
@@ -845,6 +882,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             // Cache the result
             registrationsByTeamCache.set(cacheKey, {
                 registrationsMap: new Map(registrationsMap),
+                registrationsProgramIdsMap: new Map(registrationsProgramIdsMap),
+                programsMap: new Map(programsMap),
                 studentGroupsMap: new Map(studentGroupsMap),
                 allEventGroups: [...allEventGroups]
             });
@@ -1889,6 +1928,30 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     .map(id => studentsAll.find(s => s.id === id))
                     .filter(Boolean);
 
+                const blockedStudents = [];
+                for (const s of toAdd) {
+                    const limitEligibility = checkStudentParticipationEligibility(
+                        s,
+                        progData,
+                        window.currentEventDetails?.participationLimits,
+                        registrationsProgramIdsMap,
+                        programsMap
+                    );
+                    if (!limitEligibility.eligible) {
+                        blockedStudents.push(`${s.name} — ${limitEligibility.label} ${limitEligibility.count}/${limitEligibility.limit}`);
+                    }
+                }
+
+                if (blockedStudents.length > 0) {
+                    const errorMsg = `Cannot save participants.\n\nParticipation limit reached:\n` + blockedStudents.join('\n');
+                    window.customAlert ? window.customAlert(errorMsg, "Limit Reached") : alert(errorMsg);
+                    
+                    if (statusEl) statusEl.textContent = 'Save cancelled. Limit reached.';
+                    btn.disabled = false;
+                    btn.textContent = '💾 Save Participants';
+                    return;
+                }
+
                 if (toAdd.length === 0) {
                     window.showToast('All selected students are already assigned.', 'success');
                     if (statusEl) statusEl.textContent = 'No new participants to save.';
@@ -1969,6 +2032,32 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                         studentId: s.id || '',
                         studentName: s.name || ''
                     }));
+
+                // Save-time group registration validation (Only for controlled General/Group Program rules)
+                const classification = classifyProgram(progData);
+                if (classification === 'general' || classification === 'group') {
+                    const blockedStudents = [];
+                    const selectedStudents = studentsAll.filter(s => selectedStudentIds.has(s.id));
+                    for (const s of selectedStudents) {
+                        const limitEligibility = checkStudentParticipationEligibility(
+                            s,
+                            progData,
+                            window.currentEventDetails?.participationLimits,
+                            registrationsProgramIdsMap,
+                            programsMap
+                        );
+                        if (!limitEligibility.eligible) {
+                            blockedStudents.push(`${s.name} — ${limitEligibility.label} ${limitEligibility.count}/${limitEligibility.limit}`);
+                        }
+                    }
+
+                    if (blockedStudents.length > 0) {
+                        const errorMsg = `Cannot save participants.\n\nParticipation limit reached:\n` + blockedStudents.join('\n');
+                        window.customAlert ? window.customAlert(errorMsg, "Limit Reached") : alert(errorMsg);
+                        createBtn.disabled = false;
+                        return;
+                    }
+                }
 
                 const containerDoc = await getOrCreateTeamParticipantContainer();
                 const docRef = containerDoc.ref;

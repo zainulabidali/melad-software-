@@ -1124,6 +1124,174 @@ export async function recalculateAllResultsPoints(instituteId) {
     return count;
 }
 
+// ─────────────────────────────────────────────
+// Student Participation Limits Helpers
+// ─────────────────────────────────────────────
+
+export function classifyProgram(program) {
+    if (!program) return null;
+    const type = (program.programType || program.type || 'individual').toLowerCase();
+    
+    // 1. General Program (highest priority)
+    if (type === 'general') {
+        return 'general';
+    }
+    
+    // 2. Group Program
+    if (type === 'group') {
+        return 'group';
+    }
+    
+    // 3 & 4. Individual Programs
+    if (type === 'individual') {
+        const location = (program.programLocation || program.location || '').trim().toLowerCase();
+        if (location === 'stage') {
+            return 'individual_stage';
+        } else if (location === 'off stage' || location === 'offstage' || location === 'off-stage') {
+            return 'individual_off_stage';
+        }
+    }
+    return null;
+}
+
+export function resolveEffectiveParticipationLimits(participationLimits, student) {
+    if (!participationLimits || participationLimits.enabled !== true) {
+        return {
+            stageIndividual: null,
+            offStageIndividual: null,
+            generalPrograms: null,
+            groupPrograms: null
+        };
+    }
+
+    const defaults = participationLimits.defaults || {};
+    const rules = participationLimits.rules || [];
+
+    const resolveField = (fieldName) => {
+        // 1. CATEGORY + GENDER RULE
+        const catGenderRule = rules.find(r => 
+            r.categoryId && r.categoryId === student.categoryId && 
+            r.gender && r.gender === student.gender
+        );
+        if (catGenderRule && catGenderRule[fieldName] !== undefined && catGenderRule[fieldName] !== null && catGenderRule[fieldName] !== '') {
+            return catGenderRule[fieldName];
+        }
+
+        // 2. CATEGORY-ONLY RULE
+        const catOnlyRule = rules.find(r => 
+            r.categoryId && r.categoryId === student.categoryId && 
+            (!r.gender || r.gender === '')
+        );
+        if (catOnlyRule && catOnlyRule[fieldName] !== undefined && catOnlyRule[fieldName] !== null && catOnlyRule[fieldName] !== '') {
+            return catOnlyRule[fieldName];
+        }
+
+        // 3. GENDER-ONLY RULE
+        const genderOnlyRule = rules.find(r => 
+            (!r.categoryId || r.categoryId === '') && 
+            r.gender && r.gender === student.gender
+        );
+        if (genderOnlyRule && genderOnlyRule[fieldName] !== undefined && genderOnlyRule[fieldName] !== null && genderOnlyRule[fieldName] !== '') {
+            return genderOnlyRule[fieldName];
+        }
+
+        // 4. GLOBAL DEFAULT RULE
+        if (defaults[fieldName] !== undefined && defaults[fieldName] !== null && defaults[fieldName] !== '') {
+            return defaults[fieldName];
+        }
+
+        // 5. UNLIMITED
+        return null;
+    };
+
+    return {
+        stageIndividual: resolveField('stageIndividual'),
+        offStageIndividual: resolveField('offStageIndividual'),
+        generalPrograms: resolveField('generalPrograms'),
+        groupPrograms: resolveField('groupPrograms')
+    };
+}
+
+export function checkStudentParticipationEligibility(
+    student,
+    program,
+    participationLimits,
+    studentRegistrationsMap, // Maps studentId -> Set of programIds
+    allProgramsMap // Maps programId -> program data
+) {
+    if (!participationLimits || participationLimits.enabled !== true) {
+        return { eligible: true };
+    }
+
+    const classification = classifyProgram(program);
+    if (!classification) {
+        return { eligible: true };
+    }
+
+    const effectiveLimits = resolveEffectiveParticipationLimits(participationLimits, student);
+    let limitField = '';
+    let label = '';
+    if (classification === 'general') {
+        limitField = 'generalPrograms';
+        label = 'General';
+    } else if (classification === 'group') {
+        limitField = 'groupPrograms';
+        label = 'Group';
+    } else if (classification === 'individual_stage') {
+        limitField = 'stageIndividual';
+        label = 'Individual Stage';
+    } else if (classification === 'individual_off_stage') {
+        limitField = 'offStageIndividual';
+        label = 'Individual Off Stage';
+    }
+
+    const limit = effectiveLimits[limitField];
+    if (limit === null || limit === undefined || limit === '') {
+        return { eligible: true };
+    }
+
+    const limitVal = parseInt(limit, 10);
+    if (isNaN(limitVal)) {
+        return { eligible: true };
+    }
+
+    const regProgramIds = studentRegistrationsMap.get(student.id) || new Set();
+
+    // Already registered in this program is always allowed
+    if (regProgramIds.has(program.id)) {
+        return { eligible: true, alreadyRegistered: true };
+    }
+
+    // Count registrations under same classification
+    let count = 0;
+    for (const pId of regProgramIds) {
+        const p = allProgramsMap.get(pId);
+        if (p) {
+            const cls = classifyProgram(p);
+            if (cls === classification) {
+                count++;
+            }
+        }
+    }
+
+    if (count >= limitVal) {
+        return {
+            eligible: false,
+            count,
+            limit: limitVal,
+            label
+        };
+    }
+
+    return {
+        eligible: true,
+        count,
+        limit: limitVal,
+        label
+    };
+}
+
+
 
 
 

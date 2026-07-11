@@ -1,4 +1,4 @@
-import { auth, db } from './firebase.js';
+import { auth, db, classifyProgram, resolveEffectiveParticipationLimits, checkStudentParticipationEligibility } from './firebase.js';
 import {
     signInAnonymously,
     onAuthStateChanged
@@ -87,6 +87,7 @@ let token = '';
 let teamId = '';
 let teamDetails = null;
 let instituteDetails = null;
+let eventConfig = null;
 
 let allPrograms = [];
 let teamStudents = [];
@@ -213,6 +214,16 @@ async function loadPortalData() {
             if (instBadge) {
                 instBadge.textContent = instituteDetails.name || instituteDetails.instituteName || "JK HIMAMI";
             }
+        }
+
+        // Fetch Event Config (for participation limits)
+        try {
+            const configSnap = await getDoc(doc(db, "institutes", instId, "metadata", "eventConfig"));
+            if (configSnap.exists()) {
+                eventConfig = configSnap.data();
+            }
+        } catch (e) {
+            console.error("Error loading event config on leader portal:", e);
         }
 
         // Fetch Team Details (Rule verified)
@@ -651,6 +662,23 @@ document.getElementById("btnBackToDashboard").onclick = () => {
     goBackToDashboard();
 };
 
+function getStudentRegistrationsMap() {
+    const map = new Map();
+    programParticipantsMap.forEach((studentIds, pId) => {
+        studentIds.forEach(sId => {
+            if (!map.has(sId)) {
+                map.set(sId, new Set());
+            }
+            map.get(sId).add(pId);
+        });
+    });
+    return map;
+}
+
+function getProgramsMap() {
+    return new Map(allPrograms.map(p => [p.id, p]));
+}
+
 function renderStudentsCheklist() {
     const listEl = document.getElementById('assignStudentList');
     if (!listEl) return;
@@ -723,6 +751,9 @@ function renderStudentsCheklist() {
         return;
     }
 
+    const studentRegistrationsMap = getStudentRegistrationsMap();
+    const programsMap = getProgramsMap();
+
     listEl.innerHTML = filtered.map(s => {
         const isSelected = selectedStudentIds.has(s.id);
         const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && allEventGroups.some(g => g.teamId === teamId && g.members?.some(m => m.studentId === s.id)));
@@ -731,10 +762,24 @@ function renderStudentsCheklist() {
         let statusClass = 'pw-badge-eligible';
         let statusDot = '🟢';
 
+        const limitEligibility = checkStudentParticipationEligibility(
+            s,
+            prog,
+            eventConfig?.participationLimits,
+            studentRegistrationsMap,
+            programsMap
+        );
+
+        const isLimitReached = !isAssigned && !limitEligibility.eligible;
+
         if (isAssigned) {
             statusText = isGroupEvent ? 'Already in Group' : 'Registered Here';
             statusClass = 'pw-badge-registered';
             statusDot = '🔵';
+        } else if (isLimitReached) {
+            statusText = `${limitEligibility.label.toUpperCase()} LIMIT REACHED · ${limitEligibility.count}/${limitEligibility.limit}`;
+            statusClass = 'pw-badge-cannot';
+            statusDot = '🔴';
         } else {
             const hasOtherRegs = registrationsMap.has(s.id) && registrationsMap.get(s.id).size > 0;
             if (hasOtherRegs) {
@@ -761,7 +806,7 @@ function renderStudentsCheklist() {
         const cardClass = `stu-card ${isSelected ? 'is-selected' : ''} ${isAssigned ? 'is-assigned' : ''}`;
 
         return `
-            <div class="${cardClass}" data-stu-id="${s.id}">
+            <div class="${cardClass}" data-stu-id="${s.id}" style="${isLimitReached ? 'opacity: 0.7; cursor: not-allowed;' : ''}">
                 <div class="stu-card-check">
                     <span class="pw-checkbox"></span>
                 </div>
@@ -804,6 +849,19 @@ function renderStudentsCheklist() {
             if (selectedStudentIds.has(id)) {
                 selectedStudentIds.delete(id);
             } else {
+                const studentRegistrationsMap = getStudentRegistrationsMap();
+                const programsMap = getProgramsMap();
+                const limitEligibility = checkStudentParticipationEligibility(
+                    s,
+                    prog,
+                    eventConfig?.participationLimits,
+                    studentRegistrationsMap,
+                    programsMap
+                );
+                if (!limitEligibility.eligible) {
+                    window.showToast(`Cannot select ${s.name}. Limit reached for ${limitEligibility.label} (${limitEligibility.count}/${limitEligibility.limit}).`, "error");
+                    return;
+                }
                 selectedStudentIds.add(id);
             }
 
@@ -1005,6 +1063,32 @@ async function saveIndividualRegistrations(btn) {
             .map(id => teamStudents.find(s => s.id === id))
             .filter(Boolean);
 
+        const studentRegistrationsMap = getStudentRegistrationsMap();
+        const programsMap = getProgramsMap();
+        const blockedStudents = [];
+        for (const s of toAdd) {
+            const limitEligibility = checkStudentParticipationEligibility(
+                s,
+                prog,
+                eventConfig?.participationLimits,
+                studentRegistrationsMap,
+                programsMap
+            );
+            if (!limitEligibility.eligible) {
+                blockedStudents.push(`${s.name} — ${limitEligibility.label} ${limitEligibility.count}/${limitEligibility.limit}`);
+            }
+        }
+
+        if (blockedStudents.length > 0) {
+            const errorMsg = `Cannot save participants.\n\nParticipation limit reached:\n` + blockedStudents.join('\n');
+            window.customAlert ? window.customAlert(errorMsg, "Limit Reached") : alert(errorMsg);
+            
+            if (statusEl) statusEl.textContent = 'Save cancelled. Limit reached.';
+            btn.disabled = false;
+            btn.textContent = '💾 Save Participants';
+            return;
+        }
+
         if (toAdd.length === 0) {
             window.showToast("All selected students are already assigned.", "success");
             selectedStudentIds.clear();
@@ -1075,6 +1159,34 @@ async function createGroupRegistration(groupName) {
                 studentId: s.id || '',
                 studentName: s.name || ''
             }));
+
+        // Save-time group registration validation (Only for controlled General/Group Program rules)
+        const classification = classifyProgram(prog);
+        if (classification === 'general' || classification === 'group') {
+            const studentRegistrationsMap = getStudentRegistrationsMap();
+            const programsMap = getProgramsMap();
+            const blockedStudents = [];
+            const selectedStudents = teamStudents.filter(s => selectedStudentIds.has(s.id));
+            for (const s of selectedStudents) {
+                const limitEligibility = checkStudentParticipationEligibility(
+                    s,
+                    prog,
+                    eventConfig?.participationLimits,
+                    studentRegistrationsMap,
+                    programsMap
+                );
+                if (!limitEligibility.eligible) {
+                    blockedStudents.push(`${s.name} — ${limitEligibility.label} ${limitEligibility.count}/${limitEligibility.limit}`);
+                }
+            }
+
+            if (blockedStudents.length > 0) {
+                const errorMsg = `Cannot save participants.\n\nParticipation limit reached:\n` + blockedStudents.join('\n');
+                window.customAlert ? window.customAlert(errorMsg, "Limit Reached") : alert(errorMsg);
+                createBtn.disabled = false;
+                return;
+            }
+        }
 
         const newGroup = { id: uid('group'), name: groupName, members };
         const updatedGroups = [...existingGroups, newGroup];
