@@ -4430,7 +4430,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
     const isCompact = f.compactPacking !== false; // compact layout true by default
 
     // Phase 5 to 11: Dynamic, Participant-Aware Evaluation Card Renderer
-    const renderValuationCard = (p, partsSlice, pageNum = null, totalPages = null) => {
+    const renderValuationCard = (p, partsSlice, isTall = false, gridStyle = '', pageNum = null, totalPages = null) => {
         const totalCount = partsSlice.length;
 
         const progName = p.programName || '';
@@ -4441,23 +4441,76 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             titleFontSize = '0.82rem';
         }
 
-        // Smart Row Compression based on actual registered count (Phase 9)
+        // Density level configuration based on participant count (0-8, 9-12, 13-15, 16+)
         let rowHeight = '23px';
         let fontSize = '0.65rem';
         let padding = '0.2rem 0.35rem';
+        let remarksHeight = '90px';
+        let headerMarginBottom = '0.25rem';
+        let metadataPadding = '0.15rem 0.3rem';
+        let tableMarginTop = '0.25rem';
+        let footerMarginTop = '0.3rem';
+        let footerPaddingTop = '0.25rem';
 
-        if (totalCount > 25) {
-            rowHeight = '17px';
-            fontSize = '0.6rem';
-            padding = '0.1rem 0.2rem';
-        } else if (totalCount > 15) {
-            rowHeight = '19px';
-            fontSize = '0.62rem';
-            padding = '0.12rem 0.25rem';
-        } else if (totalCount > 10) {
-            rowHeight = '21px';
-            fontSize = '0.65rem';
-            padding = '0.15rem 0.3rem';
+        if (isTall) {
+            // Comfortable density for tall vertical cards
+            if (totalCount > 35) {
+                rowHeight = '15.5px';
+                fontSize = '0.54rem';
+                padding = '0.05rem 0.15rem';
+                remarksHeight = '25px';
+                headerMarginBottom = '0.08rem';
+                metadataPadding = '0.04rem 0.15rem';
+                tableMarginTop = '0.08rem';
+                footerMarginTop = '0.08rem';
+                footerPaddingTop = '0.08rem';
+            } else {
+                rowHeight = '19.5px';
+                fontSize = '0.62rem';
+                padding = '0.12rem 0.25rem';
+                remarksHeight = '65px';
+                headerMarginBottom = '0.15rem';
+                metadataPadding = '0.1rem 0.2rem';
+                tableMarginTop = '0.15rem';
+                footerMarginTop = '0.2rem';
+                footerPaddingTop = '0.15rem';
+            }
+        } else {
+            // Standard card constraints
+            if (totalCount >= 16) {
+                // Ultra-compact mode (16+ entries)
+                rowHeight = '14.5px';
+                fontSize = '0.52rem';
+                padding = '0.04rem 0.15rem';
+                remarksHeight = '12px';
+                headerMarginBottom = '0.04rem';
+                metadataPadding = '0.02rem 0.1rem';
+                tableMarginTop = '0.04rem';
+                footerMarginTop = '0.04rem';
+                footerPaddingTop = '0.04rem';
+            } else if (totalCount >= 13) {
+                // Dense mode (13-15 entries)
+                rowHeight = '17px';
+                fontSize = '0.58rem';
+                padding = '0.08rem 0.2rem';
+                remarksHeight = '25px';
+                headerMarginBottom = '0.08rem';
+                metadataPadding = '0.04rem 0.15rem';
+                tableMarginTop = '0.08rem';
+                footerMarginTop = '0.08rem';
+                footerPaddingTop = '0.08rem';
+            } else if (totalCount >= 9) {
+                // Compact density (9-12 entries)
+                rowHeight = '19.5px';
+                fontSize = '0.62rem';
+                padding = '0.12rem 0.25rem';
+                remarksHeight = '45px';
+                headerMarginBottom = '0.15rem';
+                metadataPadding = '0.1rem 0.2rem';
+                tableMarginTop = '0.15rem';
+                footerMarginTop = '0.2rem';
+                footerPaddingTop = '0.15rem';
+            }
         }
 
         const rowsHtml = partsSlice.map((item, idx) => {
@@ -4478,9 +4531,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             `<span style="font-size:0.6rem; font-weight:800; color:#dc2626; background:#fee2e2; padding:0.1rem 0.4rem; border-radius:4px; border:1px solid #fecaca; text-transform:uppercase;">Page ${pageNum} of ${totalPages}</span>` : '';
 
         return `
-            <div class="val-card">
+            <div class="val-card" style="${gridStyle}">
                 <!-- Header Group at the Top (Phase 2) -->
-                <div class="val-card-header" style="margin-bottom: 0.15rem; width:100%; box-sizing:border-box;">
+                <div class="val-card-header" style="margin-bottom: ${headerMarginBottom}; width:100%; box-sizing:border-box;">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
                         <div style="flex:1;">
                             <div style="display:flex; justify-content:space-between; align-items:center; width:100%; box-sizing:border-box;">
@@ -4497,7 +4550,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     </div>
                     
                     <!-- High-Density Metadata Ribbon (Program Type, Gender, Stage / Location) -->
-                    <div class="val-metadata-grid" style="display:flex; gap:0.4rem; font-size:0.6rem; color:#475569; background:#f1f5f9; padding:0.15rem 0.3rem; border-radius:4px; margin-top:0.15rem; font-weight:700; border:1px solid #cbd5e1; box-sizing:border-box;">
+                    <div class="val-metadata-grid" style="display:flex; gap:0.4rem; font-size:0.6rem; color:#475569; background:#f1f5f9; padding:${metadataPadding}; border-radius:4px; margin-top:${headerMarginBottom}; font-weight:700; border:1px solid #cbd5e1; box-sizing:border-box;">
                         <span style="flex:1;"><strong>Type:</strong> ${window.escapeHTML(formatLabel(p.type))}</span>
                         <span style="flex:1; text-align:center; border-left:1px solid #cbd5e1; border-right:1px solid #cbd5e1;"><strong>Gender:</strong> ${window.escapeHTML(formatLabel(p.genderCategory))}</span>
                         <span style="flex:1; text-align:right;"><strong>Location:</strong> ${window.escapeHTML(formatLabel(p.programLocation))}</span>
@@ -4505,7 +4558,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 </div>
                 
                 <!-- Valuation Scoring Table starts immediately below headers (Phase 2 & 11) -->
-                <div class="val-card-body" style="width:100%; box-sizing:border-box;">
+                <div class="val-card-body" style="width:100%; box-sizing:border-box; margin-top:${tableMarginTop};">
                     <table class="val-card-table">
                         <thead>
                             <tr>
@@ -4523,12 +4576,12 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 </div>
                 
                 <!-- Flex-Growable Notes Area for Judge Remarks (Phase 3) -->
-                <div class="val-notes-area" style="flex:1; border:1px dashed #cbd5e1; border-radius:6px; margin-top:0.3rem; padding:0.4rem; font-size:0.65rem; color:#94a3b8; box-sizing:border-box; display:flex; flex-direction:column; justify-content:flex-start;">
+                <div class="val-notes-area" style="min-height: ${remarksHeight}; flex:1; border:1px dashed #cbd5e1; border-radius:6px; margin-top:${footerMarginTop}; padding:0.4rem; font-size:0.65rem; color:#94a3b8; box-sizing:border-box; display:flex; flex-direction:column; justify-content:flex-start;">
                     <span style="font-weight:800; color:#475569; display:block; margin-bottom:0.1rem; font-size:0.6rem;">JUDGE REMARKS / OBSERVATIONS / CALCULATIONS:</span>
                 </div>
                 
                 <!-- Fixed Judge Footer Pinned to Absolute Bottom (Phase 4) -->
-                <div class="val-judge-row" style="display:flex; justify-content:space-between; align-items:center; font-size:0.65rem; color:#1e293b; margin-top:0.3rem; border-top:1.5px solid #475569; padding-top:0.25rem; font-weight:800; width:100%; box-sizing:border-box;">
+                <div class="val-judge-row" style="display:flex; justify-content:space-between; align-items:center; font-size:0.65rem; color:#1e293b; margin-top:${footerMarginTop}; border-top:1.5px solid #475569; padding-top:${footerPaddingTop}; font-weight:800; width:100%; box-sizing:border-box;">
                     <span>Judge Name: _________________</span>
                     <span>Signature: _________________</span>
                 </div>
@@ -4601,89 +4654,80 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         // Sort programs alphabetically
         programs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
 
-        // Phase 5 to 10 Redesign: Partition programs into four distinct scale buckets based on participant volume
-        const bucket4 = []; // 1 to 10 participants -> 4 cards per A4 page (2x2 Grid)
-        const bucket3 = []; // 11 to 20 participants -> 3 cards per A4 page (1x3 Vertical stack)
-        const bucket2 = []; // 21 to 35 participants -> 2 cards per A4 page (1x2 Vertical stack)
-        const bucket1 = []; // 35+ participants -> 1 card per page with continuation pagination
+        // Packing programs into pages with 4 slots (2x2 grid)
+        const pagesList = []; // array of { slots: [null, null, null, null], cards: [] }
 
         programs.forEach(p => {
             const parts = participantsMap[p.id] || [];
             const count = parts.length;
-            if (count <= 10) {
-                bucket4.push({ p, parts });
-            } else if (count <= 20) {
-                bucket3.push({ p, parts });
-            } else if (count <= 35) {
-                bucket2.push({ p, parts });
-            } else {
-                bucket1.push({ p, parts });
+            const isTall = count > 20;
+
+            let placed = false;
+
+            // Search for an existing page that can fit this card
+            for (let page of pagesList) {
+                if (isTall) {
+                    // Needs a column fully empty: Left (slots 0 and 2) or Right (slots 1 and 3)
+                    if (page.slots[0] === null && page.slots[2] === null) {
+                        page.slots[0] = p.id;
+                        page.slots[2] = p.id;
+                        page.cards.push({ p, parts, isTall: true, gridStyle: 'grid-row: 1 / span 2; grid-column: 1;' });
+                        placed = true;
+                        break;
+                    } else if (page.slots[1] === null && page.slots[3] === null) {
+                        page.slots[1] = p.id;
+                        page.slots[3] = p.id;
+                        page.cards.push({ p, parts, isTall: true, gridStyle: 'grid-row: 1 / span 2; grid-column: 2;' });
+                        placed = true;
+                        break;
+                    }
+                } else {
+                    // Normal card: fits in any single empty slot
+                    for (let slotIdx = 0; slotIdx < 4; slotIdx++) {
+                        if (page.slots[slotIdx] === null) {
+                            page.slots[slotIdx] = p.id;
+                            let gridStyle = '';
+                            if (slotIdx === 0) gridStyle = 'grid-row: 1; grid-column: 1;';
+                            else if (slotIdx === 1) gridStyle = 'grid-row: 1; grid-column: 2;';
+                            else if (slotIdx === 2) gridStyle = 'grid-row: 2; grid-column: 1;';
+                            else if (slotIdx === 3) gridStyle = 'grid-row: 2; grid-column: 2;';
+                            
+                            page.cards.push({ p, parts, isTall: false, gridStyle });
+                            placed = true;
+                            break;
+                        }
+                    }
+                    if (placed) break;
+                }
+            }
+
+            // Create new page if not placed
+            if (!placed) {
+                const newPage = { slots: [null, null, null, null], cards: [] };
+                if (isTall) {
+                    newPage.slots[0] = p.id;
+                    newPage.slots[2] = p.id;
+                    newPage.cards.push({ p, parts, isTall: true, gridStyle: 'grid-row: 1 / span 2; grid-column: 1;' });
+                } else {
+                    newPage.slots[0] = p.id;
+                    newPage.cards.push({ p, parts, isTall: false, gridStyle: 'grid-row: 1; grid-column: 1;' });
+                }
+                pagesList.push(newPage);
             }
         });
 
-        // 1. Process bucket4 (4 Cards / A4 Page, 2x2 Grid)
-        const cardsPerSheet4 = 4;
-        const totalSheets4 = Math.ceil(bucket4.length / cardsPerSheet4);
-        for (let sheetIdx = 0; sheetIdx < totalSheets4; sheetIdx++) {
-            const slice = bucket4.slice(sheetIdx * cardsPerSheet4, (sheetIdx + 1) * cardsPerSheet4);
+        // Generate pages HTML
+        pagesList.forEach(page => {
             htmlContent += `
                 <div class="valuation-grid-sheet-2x2">
-                    ${slice.map(item => renderValuationCard(item.p, item.parts)).join('')}
+                    ${page.cards.map(item => renderValuationCard(item.p, item.parts, item.isTall, item.gridStyle)).join('')}
                 </div>
             `;
-        }
-
-        // 2. Process bucket3 (3 Cards / A4 Page, 1x3 Stack)
-        const cardsPerSheet3 = 3;
-        const totalSheets3 = Math.ceil(bucket3.length / cardsPerSheet3);
-        for (let sheetIdx = 0; sheetIdx < totalSheets3; sheetIdx++) {
-            const slice = bucket3.slice(sheetIdx * cardsPerSheet3, (sheetIdx + 1) * cardsPerSheet3);
-            htmlContent += `
-                <div class="valuation-grid-sheet-3pack">
-                    ${slice.map(item => renderValuationCard(item.p, item.parts)).join('')}
-                </div>
-            `;
-        }
-
-        // 3. Process bucket2 (2 Cards / A4 Page, 1x2 Stack)
-        const cardsPerSheet2 = 2;
-        const totalSheets2 = Math.ceil(bucket2.length / cardsPerSheet2);
-        for (let sheetIdx = 0; sheetIdx < totalSheets2; sheetIdx++) {
-            const slice = bucket2.slice(sheetIdx * cardsPerSheet2, (sheetIdx + 1) * cardsPerSheet2);
-            htmlContent += `
-                <div class="valuation-grid-sheet-2pack">
-                    ${slice.map(item => renderValuationCard(item.p, item.parts)).join('')}
-                </div>
-            `;
-        }
-
-        // 4. Process bucket1 (1 Card / Page, Auto-Paginating Continuation Sheets)
-        bucket1.forEach(item => {
-            const p = item.p;
-            const parts = item.parts;
-            const rowsPerPage = 30;
-            const totalPages = Math.ceil(parts.length / rowsPerPage);
-
-            for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-                const slice = parts.slice((pageNum - 1) * rowsPerPage, pageNum * rowsPerPage);
-                htmlContent += `
-                    <div class="valuation-grid-sheet-full">
-                        ${renderValuationCard(p, slice, pageNum, totalPages)}
-                    </div>
-                `;
-            }
         });
 
         // 5. Append SaaS dynamic Print Audit & Operations Report (Phase 14)
         let auditRowsHtml = '';
-        let totalPageCount = 0;
-
-        totalPageCount += Math.ceil(bucket4.length / 4);
-        totalPageCount += Math.ceil(bucket3.length / 3);
-        totalPageCount += Math.ceil(bucket2.length / 2);
-        bucket1.forEach(item => {
-            totalPageCount += Math.ceil(item.parts.length / 30);
-        });
+        let totalPageCount = pagesList.length;
 
         const buildAuditRow = (p, count, mode, pageWeight, compression, overflow) => {
             return `
@@ -4698,18 +4742,33 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             `;
         };
 
-        bucket4.forEach(item => {
-            auditRowsHtml += buildAuditRow(item.p, item.parts.length, "4 Cards / A4 (2x2 Grid)", "0.25", "None (Standard 23px)", "None");
-        });
-        bucket3.forEach(item => {
-            auditRowsHtml += buildAuditRow(item.p, item.parts.length, "3 Cards / A4 (1x3 Stack)", "0.33", "Medium (21px)", "None");
-        });
-        bucket2.forEach(item => {
-            auditRowsHtml += buildAuditRow(item.p, item.parts.length, "2 Cards / A4 (1x2 Stack)", "0.50", "Compact (19px)", "None");
-        });
-        bucket1.forEach(item => {
-            const pages = Math.ceil(item.parts.length / 30);
-            auditRowsHtml += buildAuditRow(item.p, item.parts.length, "1 Card / Page (Full A4)", pages.toFixed(2), "High (17px)", pages > 1 ? `Continuation (${pages} pages)` : "None");
+        pagesList.forEach(page => {
+            page.cards.forEach(item => {
+                const count = item.parts.length;
+                let compression = "None (Standard 23px)";
+                let mode = "4 Cards / A4 (2x2 Grid)";
+                let pageWeight = "0.25";
+
+                if (item.isTall) {
+                    mode = "Tall Vertical Card (span 2)";
+                    pageWeight = "0.50";
+                    if (count > 35) {
+                        compression = "Compact (15.5px)";
+                    } else {
+                        compression = "Comfortable (19.5px)";
+                    }
+                } else {
+                    if (count >= 16) {
+                        compression = "Ultra-compact (14.5px)";
+                    } else if (count >= 13) {
+                        compression = "Dense (17px)";
+                    } else if (count >= 9) {
+                        compression = "Compact (19.5px)";
+                    }
+                }
+
+                auditRowsHtml += buildAuditRow(item.p, count, mode, pageWeight, compression, "None");
+            });
         });
 
         htmlContent += `
@@ -5755,65 +5814,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 page-break-after: avoid;
             }
 
-            /* Valuation 1x3 vertical stack layout sheets (Phase 3 & 4) */
-            .valuation-grid-sheet-3pack {
-                display: flex;
-                flex-direction: column;
-                gap: 6mm;
-                height: ${gridSheetHeight};
-                width: 100%;
-                box-sizing: border-box;
-                padding: 2px;
-                page-break-after: always;
-                break-after: page;
-                page-break-inside: avoid;
-                break-inside: avoid;
-            }
-            .valuation-grid-sheet-3pack:last-child {
-                page-break-after: avoid;
-            }
-            .valuation-grid-sheet-3pack .val-card {
-                height: calc(33.3% - 4mm) !important;
-            }
-
-            /* Valuation 1x2 vertical stack layout sheets (Phase 3 & 4) */
-            .valuation-grid-sheet-2pack {
-                display: flex;
-                flex-direction: column;
-                gap: 6mm;
-                height: ${gridSheetHeight};
-                width: 100%;
-                box-sizing: border-box;
-                padding: 2px;
-                page-break-after: always;
-                break-after: page;
-                page-break-inside: avoid;
-                break-inside: avoid;
-            }
-            .valuation-grid-sheet-2pack:last-child {
-                page-break-after: avoid;
-            }
-            .valuation-grid-sheet-2pack .val-card {
-                height: calc(50% - 3mm) !important;
-            }
-
-            /* Valuation 1 Card / Full Page layout sheets (Phase 3 & 4) */
-            .valuation-grid-sheet-full {
-                display: flex;
-                flex-direction: column;
-                height: ${gridSheetHeight};
-                width: 100%;
-                box-sizing: border-box;
-                padding: 2px;
-                page-break-after: always;
-                break-after: page;
-                page-break-inside: avoid;
-                break-inside: avoid;
-            }
-            .valuation-grid-sheet-full:last-child {
-                page-break-after: avoid;
-            }
-            .valuation-grid-sheet-full .val-card {
+            .valuation-grid-sheet-2x2 .val-card {
                 height: 100% !important;
             }
 
