@@ -1,6 +1,6 @@
 import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS } from './firebase.js';
 import {
-    collection, getDocs, doc, getDoc, setDoc, onSnapshot, serverTimestamp, writeBatch
+    collection, getDocs, doc, getDoc, setDoc, onSnapshot, serverTimestamp, writeBatch, runTransaction
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 // ─────────────────────────────────────────────
@@ -418,7 +418,32 @@ function renderMarkEntryGrid() {
     if (!grid) return;
     grid.innerHTML = '';
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const isStandalone = urlParams.get('mode') === 'standalone';
+
     const filtered = allPrograms.filter(p => {
+        if (isStandalone) {
+            const sJudgeId = sessionStorage.getItem('standaloneJudgeId');
+            if (sJudgeId) {
+                const sComps = sessionStorage.getItem('standaloneCompetitions') ? JSON.parse(sessionStorage.getItem('standaloneCompetitions')) : [];
+                const sCompIds = sessionStorage.getItem('standaloneCompetitionIds') ? JSON.parse(sessionStorage.getItem('standaloneCompetitionIds')) : [];
+                
+                let isEligible = false;
+                if (sCompIds.length > 0) {
+                    isEligible = sCompIds.includes(p.id);
+                } else {
+                    // Legacy unique name resolver
+                    const matches = allPrograms.filter(progItem => 
+                        sComps.some(compName => compName.toLowerCase().trim() === progItem.programName.toLowerCase().trim())
+                    );
+                    if (matches.length === 1 && matches[0].id === p.id) {
+                        isEligible = true;
+                    }
+                }
+                if (!isEligible) return false;
+            }
+        }
+
         // Text Search
         if (markEntryFilter.search) {
             const q = markEntryFilter.search;
@@ -602,6 +627,78 @@ export async function openMarkEntryModal(prog) {
         modal.classList.remove('result-fullscreen-modal');
     };
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const isStandalone = urlParams.get('mode') === 'standalone';
+
+    if (isStandalone) {
+        const sJudgeId = sessionStorage.getItem('standaloneJudgeId');
+        if (sJudgeId) {
+            try {
+                const judgeSnap = await getDoc(doc(db, "institutes", window.currentInstituteId, "judges", sJudgeId));
+                if (!judgeSnap.exists() || judgeSnap.data().status === 'disabled') {
+                    modalBody.innerHTML = `
+                        <div style="text-align:center; padding:3rem; color:#ef4444;">
+                            <strong>🔒 Access Denied</strong><br><br>
+                            <p style="color:#64748b; font-size:0.875rem;">Your judge account is invalid or has been deactivated.</p>
+                            <button class="btn btn-secondary btn-sm mt-4" id="jCloseNoticeBtn">Close</button>
+                        </div>`;
+                    document.getElementById('jCloseNoticeBtn').onclick = () => {
+                        modal.classList.add('hidden');
+                        modal.classList.remove('result-fullscreen-modal');
+                    };
+                    return;
+                }
+
+                const judgeData = judgeSnap.data();
+                const compIds = Array.isArray(judgeData.competitionIds) ? judgeData.competitionIds : [];
+                const comps = Array.isArray(judgeData.competitions) ? judgeData.competitions : [];
+
+                let isEligible = false;
+                if (compIds.length > 0) {
+                    isEligible = compIds.includes(prog.id);
+                } else {
+                    // Legacy unique program resolver
+                    const matches = allPrograms.filter(progItem => 
+                        comps.some(compName => compName.toLowerCase().trim() === progItem.programName.toLowerCase().trim())
+                    );
+                    if (matches.length > 1) {
+                        modalBody.innerHTML = `
+                            <div style="text-align:center; padding:3rem; color:#ef4444;">
+                                <strong>⚠️ Ambiguous Assignment</strong><br><br>
+                                <p style="color:#64748b; font-size:0.875rem;">This legacy judge assignment matches multiple programs. Please update the judge's program assignment from the admin panel.</p>
+                                <button class="btn btn-secondary btn-sm mt-4" id="jCloseNoticeBtn">Close</button>
+                            </div>`;
+                        document.getElementById('jCloseNoticeBtn').onclick = () => {
+                            modal.classList.add('hidden');
+                            modal.classList.remove('result-fullscreen-modal');
+                        };
+                        return;
+                    } else if (matches.length === 1) {
+                        isEligible = (matches[0].id === prog.id);
+                    }
+                }
+
+                if (!isEligible) {
+                    modalBody.innerHTML = `
+                        <div style="text-align:center; padding:3rem; color:#ef4444;">
+                            <strong>🔒 Access Denied</strong><br><br>
+                            <p style="color:#64748b; font-size:0.875rem;">You are not assigned to judge this competition (${window.escapeHTML(prog.programName)}).</p>
+                            <button class="btn btn-secondary btn-sm mt-4" id="jCloseNoticeBtn">Close</button>
+                        </div>`;
+                    document.getElementById('jCloseNoticeBtn').onclick = () => {
+                        modal.classList.add('hidden');
+                        modal.classList.remove('result-fullscreen-modal');
+                    };
+                    return;
+                }
+            } catch (err) {
+                console.error("Verification error:", err);
+                modalBody.innerHTML = `<div style="text-align:center;padding:2rem;color:#ef4444;">Failed to verify access.</div>`;
+                return;
+            }
+        }
+    }
+
     try {
         // Fetch all active judges from judges module
         const judgesSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "judges"));
@@ -648,6 +745,166 @@ export async function openMarkEntryModal(prog) {
 }
 
 function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participants, existingResult) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isStandalone = urlParams.get('mode') === 'standalone';
+    const hasUrlJudgeId = urlParams.get('judgeId');
+    const sJudgeName = sessionStorage.getItem('standaloneJudgeName');
+    const sJudgeId = sessionStorage.getItem('standaloneJudgeId');
+
+    if (isStandalone && sJudgeId && sJudgeName) {
+        modalBody.innerHTML = `
+            <div style="max-width:520px; margin:0 auto; display:flex; flex-direction:column; gap:1.25rem; padding:0.5rem 0;">
+                <div style="background:#e0e7ff; border:1px solid #c7d2fe; border-radius:12px; padding:1.25rem; text-align:center; color:#1e1b4b;">
+                    <span style="font-size:2.2rem; display:block; margin-bottom:0.25rem;">🧑‍⚖️</span>
+                    <h3 style="margin:0; font-size:1.2rem; font-weight:800;">Confirm Judge Identity</h3>
+                    <p style="font-size:0.85rem; color:#4338ca; font-weight:700; margin-top:0.35rem; margin-bottom:0;">
+                        ${prog.programNumber ? `[#${prog.programNumber}] ` : ''}${window.escapeHTML(prog.programName)} [${window.escapeHTML(prog.categoryName)}]
+                    </p>
+                </div>
+                
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:1.25rem; text-align:center;">
+                    <p style="font-size:0.95rem; color:#334155; margin:0;">
+                        You are entering marks as:<br>
+                        <strong style="font-size:1.2rem; color:#1e1b4b; display:block; margin-top:0.5rem;">🧑‍⚖️ ${window.escapeHTML(sJudgeName)}</strong>
+                    </p>
+                    ${!hasUrlJudgeId ? `
+                    <button type="button" class="btn btn-secondary btn-sm mt-3" id="jChangeIdentityBtn" style="font-size:0.75rem; padding:0.25rem 0.5rem; font-weight:700;">
+                        🔄 Change Judge Identity
+                    </button>` : ''}
+                </div>
+
+                <div class="modal-actions" style="margin-top:0.25rem;">
+                    <button type="button" class="btn btn-secondary" id="jSelectCancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="jSelectProceedBtn" style="margin-left:auto; font-weight:700;">
+                        Proceed to Spreadsheet ➔
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('jSelectCancelBtn').onclick = () => {
+            modal.classList.add('hidden');
+            modal.classList.remove('result-fullscreen-modal');
+        };
+
+        if (!hasUrlJudgeId) {
+            document.getElementById('jChangeIdentityBtn').onclick = () => {
+                sessionStorage.removeItem('standaloneJudgeId');
+                sessionStorage.removeItem('standaloneJudgeName');
+                sessionStorage.removeItem('standaloneCompetitions');
+                sessionStorage.removeItem('standaloneCompetitionIds');
+                renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participants, existingResult);
+            };
+        }
+        
+        document.getElementById('jSelectProceedBtn').onclick = () => {
+            let judgesList = existingResult && Array.isArray(existingResult.judges) ? [...existingResult.judges] : [];
+            if (!judgesList.includes(sJudgeName)) {
+                judgesList.push(sJudgeName);
+            }
+            document.getElementById('dynamicModalTitle').textContent = `🖋️ Mark Entry — ${sJudgeName}`;
+            renderSpreadsheetUI(modalBody, modal, prog, judgesList, participants, existingResult);
+        };
+        return;
+    }
+
+    if (isStandalone) {
+        const listHTML = activeJudges.map((j, i) => `
+            <label style="display:flex; align-items:center; gap:0.6rem; padding:0.6rem 0.75rem; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc; cursor:pointer; font-weight:600; font-size:0.875rem; color:#1e293b; transition:all 0.2s;">
+                <input type="radio" name="jStandaloneRadio" class="j-select-radio" data-id="${window.escapeHTML(j.id)}" data-name="${window.escapeHTML(j.name)}" ${i === 0 ? 'checked' : ''} style="cursor:pointer;" />
+                <span>🧑‍⚖️ ${window.escapeHTML(j.name)}</span>
+            </label>
+        `).join('');
+
+        modalBody.innerHTML = `
+            <div style="max-width:520px; margin:0 auto; display:flex; flex-direction:column; gap:1.25rem; padding:0.5rem 0;">
+                <div style="background:#e0e7ff; border:1px solid #c7d2fe; border-radius:12px; padding:1.25rem; text-align:center; color:#1e1b4b;">
+                    <span style="font-size:2.2rem; display:block; margin-bottom:0.25rem;">🧑‍⚖️</span>
+                    <h3 style="margin:0; font-size:1.2rem; font-weight:800;">Select Your Judge Identity</h3>
+                    <p style="font-size:0.85rem; color:#4338ca; font-weight:700; margin-top:0.35rem; margin-bottom:0;">
+                        ${prog.programNumber ? `[#${prog.programNumber}] ` : ''}${window.escapeHTML(prog.programName)} [${window.escapeHTML(prog.categoryName)}]
+                    </p>
+                </div>
+                
+                <div>
+                    <label class="form-label" style="font-weight:700; color:#475569; margin-bottom:0.45rem;">CHOOSE YOUR IDENTITY *</label>
+                    <div style="display:flex; flex-direction:column; gap:0.45rem; max-height:260px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:10px; padding:0.75rem; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.02);">
+                        ${listHTML}
+                    </div>
+                </div>
+
+                <div class="modal-actions" style="margin-top:0.25rem;">
+                    <button type="button" class="btn btn-secondary" id="jSelectCancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="jSelectProceedBtn" style="margin-left:auto; font-weight:700;">
+                        Proceed to Spreadsheet ➔
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('jSelectCancelBtn').onclick = () => {
+            modal.classList.add('hidden');
+            modal.classList.remove('result-fullscreen-modal');
+        };
+        
+        document.getElementById('jSelectProceedBtn').onclick = async () => {
+            const selectedRadio = modalBody.querySelector('.j-select-radio:checked');
+            if (!selectedRadio) {
+                window.showToast("Please select your judge identity.", "error");
+                return;
+            }
+            
+            const selectedId = selectedRadio.getAttribute('data-id');
+            const selectedName = selectedRadio.getAttribute('data-name');
+            
+            try {
+                const judgeSnap = await getDoc(doc(db, "institutes", window.currentInstituteId, "judges", selectedId));
+                if (!judgeSnap.exists() || judgeSnap.data().status === 'disabled') {
+                    window.showToast("The selected judge account is disabled or invalid.", "error");
+                    return;
+                }
+                
+                const jData = judgeSnap.data();
+                const compIds = Array.isArray(jData.competitionIds) ? jData.competitionIds : [];
+                const comps = Array.isArray(jData.competitions) ? jData.competitions : [];
+                
+                let isEligible = false;
+                if (compIds.length > 0) {
+                    isEligible = compIds.includes(prog.id);
+                } else if (comps.length > 0) {
+                    const matches = allPrograms.filter(progItem => 
+                        comps.some(compName => compName.toLowerCase().trim() === progItem.programName.toLowerCase().trim())
+                    );
+                    if (matches.length === 1) {
+                        isEligible = (matches[0].id === prog.id);
+                    }
+                }
+                
+                if (!isEligible) {
+                    window.showToast(`Access Denied: You are not assigned to judge this competition (${window.escapeHTML(prog.programName)}).`, "error");
+                    return;
+                }
+
+                sessionStorage.setItem('standaloneJudgeId', selectedId);
+                sessionStorage.setItem('standaloneJudgeName', selectedName);
+                sessionStorage.setItem('standaloneCompetitions', JSON.stringify(comps));
+                sessionStorage.setItem('standaloneCompetitionIds', JSON.stringify(compIds));
+                
+                let judgesList = existingResult && Array.isArray(existingResult.judges) ? [...existingResult.judges] : [];
+                if (!judgesList.includes(selectedName)) {
+                    judgesList.push(selectedName);
+                }
+                document.getElementById('dynamicModalTitle').textContent = `🖋️ Mark Entry — ${selectedName}`;
+                renderSpreadsheetUI(modalBody, modal, prog, judgesList, participants, existingResult);
+                
+            } catch (err) {
+                console.error("Verification error:", err);
+                window.showToast("Failed to verify judge profile.", "error");
+            }
+        };
+        return;
+    }
+
     const savedJudges = existingResult && Array.isArray(existingResult.judges) ? existingResult.judges : [];
 
     const listHTML = activeJudges.map(j => {
@@ -677,17 +934,38 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
                 </div>
             </div>
 
-            <div class="modal-actions" style="margin-top:0.25rem;">
+            <div class="modal-actions" style="margin-top:0.25rem; display:flex; gap:0.5rem; justify-content:flex-end;">
                 <button type="button" class="btn btn-secondary" id="jSelectCancelBtn">Cancel</button>
-                <button type="button" class="btn btn-primary" id="jSelectProceedBtn" style="margin-left:auto; font-weight:700;">
+                <button type="button" class="btn btn-secondary" id="jSelectProceedBtn" style="margin-left:auto; font-weight:700;">
                     Proceed to Spreadsheet ➔
+                </button>
+                <button type="button" class="btn btn-primary" id="jSelectAssignBtn" style="font-weight:700;">
+                    <span class="btn-text">Assign Judges</span>
+                    <span class="btn-spinner hidden"></span>
                 </button>
             </div>
         </div>
     `;
 
-    document.getElementById('jSelectCancelBtn').onclick = () => modal.classList.add('hidden');
+    document.getElementById('jSelectCancelBtn').onclick = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('result-fullscreen-modal');
+    };
     
+    document.getElementById('jSelectAssignBtn').onclick = async () => {
+        const checkedNames = [];
+        modalBody.querySelectorAll('.j-select-checkbox:checked').forEach(cb => {
+            checkedNames.push(cb.getAttribute('data-name'));
+        });
+
+        if (checkedNames.length === 0) {
+            window.showToast("Please assign at least one judge.", "error");
+            return;
+        }
+
+        await saveJudgeAssignment(prog, checkedNames, activeJudges, existingResult, modal);
+    };
+
     document.getElementById('jSelectProceedBtn').onclick = () => {
         const checkedNames = [];
         modalBody.querySelectorAll('.j-select-checkbox:checked').forEach(cb => {
@@ -709,6 +987,11 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
     const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
     const savedMarksMap = new Map();
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const isStandalone = urlParams.get('mode') === 'standalone';
+    const sJudgeName = isStandalone ? sessionStorage.getItem('standaloneJudgeName') : '';
+    const sJudgeId = isStandalone ? sessionStorage.getItem('standaloneJudgeId') : '';
+
     if (existingResult && Array.isArray(existingResult.marksData)) {
         existingResult.marksData.forEach(m => {
             const key = m.studentId || m.groupId || '';
@@ -718,31 +1001,59 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
         });
     }
 
+    const isResultSubmitted = existingResult && existingResult.markEntryStatus === 'submitted';
+    const showCalculations = !isStandalone || isResultSubmitted;
+
     // Dynamic Columns count
-    const judgeHeadersHTML = judges.map((name, i) => `
-        <th style="padding:0.6rem 0.75rem; border:1px solid #cbd5e1; text-align:center; color:#1e293b;">
-            <div style="font-size:0.85rem; font-weight:700; color:#0f172a; line-height:1.2;">${window.escapeHTML(name)}</div>
-            <div style="font-size:0.72rem; font-weight:600; color:#64748b; margin-top:0.15rem; text-transform:uppercase; letter-spacing:0.3px;">Judge ${i + 1}</div>
-        </th>`).join('');
+    let judgeHeadersHTML = '';
+    if (isStandalone) {
+        judgeHeadersHTML = `
+            <th style="padding:0.6rem 0.75rem; border:1px solid #cbd5e1; text-align:center; color:#1e293b; width:150px;">
+                <div style="font-size:0.85rem; font-weight:700; color:#0f172a; line-height:1.2;">${window.escapeHTML(sJudgeName)}</div>
+                <div style="font-size:0.72rem; font-weight:600; color:#64748b; margin-top:0.15rem; text-transform:uppercase; letter-spacing:0.3px;">Your Scores</div>
+            </th>`;
+    } else {
+        judgeHeadersHTML = judges.map((name, i) => `
+            <th style="padding:0.6rem 0.75rem; border:1px solid #cbd5e1; text-align:center; color:#1e293b;">
+                <div style="font-size:0.85rem; font-weight:700; color:#0f172a; line-height:1.2;">${window.escapeHTML(name)}</div>
+                <div style="font-size:0.72rem; font-weight:600; color:#64748b; margin-top:0.15rem; text-transform:uppercase; letter-spacing:0.3px;">Judge ${i + 1}</div>
+            </th>`).join('');
+    }
 
     const rowsHTML = participants.map((p, idx) => {
         const saved = savedMarksMap.get(p.id) || {};
         const savedMarks = Array.isArray(saved.marks) ? saved.marks : [];
         const codeLetter = saved.codeLetter || '';
         
-        // Generate inputs for each judge
-        const judgeInputsHTML = judges.map((name, jIdx) => {
+        let judgeInputsHTML = '';
+        if (isStandalone) {
+            const jIdx = judges.indexOf(sJudgeName);
             const savedJudges = existingResult && Array.isArray(existingResult.judges) ? existingResult.judges : [];
-            const oldIdx = savedJudges.indexOf(name);
+            const oldIdx = savedJudges.indexOf(sJudgeName);
             const val = (oldIdx !== -1 && savedMarks[oldIdx] !== undefined && savedMarks[oldIdx] !== null) ? savedMarks[oldIdx] : '';
-            return `
+            judgeInputsHTML = `
                 <td style="padding:0.5rem; border:1px solid #cbd5e1; text-align:center;">
                     <input type="number" class="form-input judge-mark-input" 
                         data-judge-idx="${jIdx}" min="0" max="100" placeholder="0" 
                         value="${val}" 
+                        data-initial-val="${val}"
                         style="width:70px; text-align:center; font-size:0.85rem; padding:0.35rem 0.5rem; margin:0 auto; background:#fff; border-color:#cbd5e1;" />
                 </td>`;
-        }).join('');
+        } else {
+            judgeInputsHTML = judges.map((name, jIdx) => {
+                const savedJudges = existingResult && Array.isArray(existingResult.judges) ? existingResult.judges : [];
+                const oldIdx = savedJudges.indexOf(name);
+                const val = (oldIdx !== -1 && savedMarks[oldIdx] !== undefined && savedMarks[oldIdx] !== null) ? savedMarks[oldIdx] : '';
+                return `
+                    <td style="padding:0.5rem; border:1px solid #cbd5e1; text-align:center;">
+                        <input type="number" class="form-input judge-mark-input" 
+                            data-judge-idx="${jIdx}" min="0" max="100" placeholder="0" 
+                            value="${val}" 
+                            data-initial-val="${val}"
+                            style="width:70px; text-align:center; font-size:0.85rem; padding:0.35rem 0.5rem; margin:0 auto; background:#fff; border-color:#cbd5e1;" />
+                    </td>`;
+            }).join('');
+        }
 
         return `
             <tr class="mark-entry-row" data-student-id="${p.id}" data-student-name="${window.escapeHTML(p.name)}" data-team-id="${p.teamId}" data-team-name="${window.escapeHTML(p.teamName)}">
@@ -759,6 +1070,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
                     <div style="font-weight:700; color:#1e293b;">${window.escapeHTML(p.name)}</div>
                 </td>
                 ${judgeInputsHTML}
+                ${showCalculations ? `
                 <td style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-weight:800; color:#1e293b; background:#f8fafc;" class="cell-final-mark">
                     —
                 </td>
@@ -767,10 +1079,49 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
                 </td>
                 <td style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-weight:700; color:#64748b;" class="cell-rank">
                     —
-                </td>
+                </td>` : ''}
             </tr>
         `;
     }).join('');
+
+    let statusBannerHTML = '';
+    if (isStandalone) {
+        const submissionStatus = existingResult && existingResult.judgeSubmissionStatus ? existingResult.judgeSubmissionStatus[sJudgeId] : '';
+        if (submissionStatus === 'submitted' || submissionStatus === true) {
+            statusBannerHTML = `
+                <div style="background:#d1fae5; border:1px solid #10b981; color:#065f46; border-radius:8px; padding:0.75rem 1rem; font-size:0.85rem; font-weight:700; margin-bottom:0.75rem;">
+                    ✓ Your marks have been saved and submitted successfully.
+                </div>
+            `;
+        } else {
+            statusBannerHTML = `
+                <div style="background:#fef3c7; border:1px solid #f59e0b; color:#92400e; border-radius:8px; padding:0.75rem 1rem; font-size:0.85rem; font-weight:700; margin-bottom:0.75rem;">
+                    ⏳ Your marks are currently in draft. Please submit them when completed.
+                </div>
+            `;
+        }
+
+        const savedJudges = existingResult && Array.isArray(existingResult.judges) ? existingResult.judges : [];
+        const judgeIds = existingResult && Array.isArray(existingResult.judgeIds) ? existingResult.judgeIds : [];
+        
+        let otherPending = false;
+        if (!isResultSubmitted) {
+            const submissionStatusMap = existingResult && existingResult.judgeSubmissionStatus ? existingResult.judgeSubmissionStatus : {};
+            if (judgeIds.length > 0) {
+                otherPending = judgeIds.some(jid => jid !== sJudgeId && submissionStatusMap[jid] !== 'submitted' && submissionStatusMap[jid] !== true);
+            } else {
+                otherPending = judges.length > 1;
+            }
+        }
+        
+        if (otherPending) {
+            statusBannerHTML += `
+                <div style="background:#eff6ff; border:1px solid #3b82f6; color:#1e40af; border-radius:8px; padding:0.75rem 1rem; font-size:0.85rem; font-weight:600; margin-bottom:0.75rem;">
+                    ℹ️ Waiting for the other assigned judge to complete marking.
+                </div>
+            `;
+        }
+    }
 
     modalBody.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:1.25rem;">
@@ -790,6 +1141,8 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
                 </div>
             </div>
 
+            ${statusBannerHTML}
+
             <!-- Spreadsheet Table Wrapper -->
             <div style="overflow-x:auto; background:#fff; border:1px solid #cbd5e1; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
                 <table style="width:100%; border-collapse:collapse; min-width:800px;">
@@ -799,9 +1152,10 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
                             <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:90px;">CODE LETTER</th>
                             <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:left; font-size:0.78rem; font-weight:700; color:#475569;">${isGroup ? 'TEAM NAME' : 'STUDENT NAME'}</th>
                             ${judgeHeadersHTML}
+                            ${showCalculations ? `
                             <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:95px;">FINAL MARK</th>
                             <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:90px;">GRADE</th>
-                            <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:80px;">RANK</th>
+                            <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:80px;">RANK</th>` : ''}
                         </tr>
                     </thead>
                     <tbody id="meSpreadsheetBody">
@@ -830,23 +1184,25 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
     // Hook listeners
     const tbody = document.getElementById('meSpreadsheetBody');
     
-    // Keystroke input validator and auto calculator
-    tbody.querySelectorAll('.judge-mark-input').forEach(input => {
-        input.addEventListener('input', () => {
-            let val = input.value.trim();
-            if (val === '') {
-                recalculateSpreadsheet(judges.length);
-                return;
-            }
-            let num = parseFloat(val);
-            if (isNaN(num)) num = 0;
-            if (num < 0) num = 0;
-            if (num > 100) num = 100;
-            input.value = num;
+    // Keystroke input validator and auto calculator (only if showing calculations)
+    if (showCalculations) {
+        tbody.querySelectorAll('.judge-mark-input').forEach(input => {
+            input.addEventListener('input', () => {
+                let val = input.value.trim();
+                if (val === '') {
+                    recalculateSpreadsheet(judges.length);
+                    return;
+                }
+                let num = parseFloat(val);
+                if (isNaN(num)) num = 0;
+                if (num < 0) num = 0;
+                if (num > 100) num = 100;
+                input.value = num;
 
-            recalculateSpreadsheet(judges.length);
+                recalculateSpreadsheet(judges.length);
+            });
         });
-    });
+    }
 
     tbody.querySelectorAll('.code-letter-input').forEach(input => {
         input.addEventListener('input', () => {
@@ -854,8 +1210,10 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
         });
     });
 
-    // Run first calculations on load
-    recalculateSpreadsheet(judges.length);
+    // Run first calculations on load (only if showing calculations)
+    if (showCalculations) {
+        recalculateSpreadsheet(judges.length);
+    }
 
     // Save Handlers
     document.getElementById('meCancelBtn').onclick = () => {
@@ -942,19 +1300,16 @@ function recalculateSpreadsheet(judgesCount) {
 // Save Marks & Synchronize Judges Assigned Lists
 // ─────────────────────────────────────────────
 async function persistMarks(prog, judges, isSubmit) {
-    // 1. Database reference exists validation
     if (!db) {
         window.showToast("Unable to save: Database reference is not initialized.", "error");
         return;
     }
 
-    // 2. Program exists validation
     if (!prog || !prog.id) {
         window.showToast("Unable to save: Program information is missing.", "error");
         return;
     }
 
-    // 3. Judge IDs/Names exist validation
     if (!judges || judges.length === 0) {
         window.showToast("Unable to save: No judges assigned to this competition.", "error");
         return;
@@ -962,13 +1317,11 @@ async function persistMarks(prog, judges, isSubmit) {
 
     const rows = document.querySelectorAll('.mark-entry-row');
 
-    // 4. Participants exist validation
     if (rows.length === 0) {
         window.showToast("Unable to save: No registered participants found for this program.", "error");
         return;
     }
 
-    // 5. Marks are between 0–100 validation
     let marksValid = true;
     let outOfRangeValue = null;
     rows.forEach(tr => {
@@ -990,99 +1343,511 @@ async function persistMarks(prog, judges, isSubmit) {
     }
 
     const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
-    const marksData = [];
-    let filledCount = 0;
+    const urlParams = new URLSearchParams(window.location.search);
+    const isStandalone = urlParams.get('mode') === 'standalone';
+    const sJudgeName = isStandalone ? sessionStorage.getItem('standaloneJudgeName') : '';
+    const sJudgeId = isStandalone ? sessionStorage.getItem('standaloneJudgeId') : '';
 
-    // First, recalculate locally to get correct final ranks
-    recalculateSpreadsheet(judges.length);
+    const btn = isSubmit ? document.getElementById('meSubmitBtn') : document.getElementById('meDraftBtn');
+    const text = btn ? btn.querySelector('.btn-text') : null;
+    const spinner = btn ? btn.querySelector('.btn-spinner') : null;
 
-    // Re-verify rows with ranks
-    const sortedRows = [];
-    rows.forEach(tr => {
-        const studentId = tr.getAttribute('data-student-id') || '';
-        const studentName = tr.getAttribute('data-student-name') || '';
-        const teamId = tr.getAttribute('data-team-id') || '';
-        const teamName = tr.getAttribute('data-team-name') || '';
-        const codeLetter = tr.querySelector('.code-letter-input').value.trim().toUpperCase();
+    if (btn) {
+        btn.disabled = true;
+        if (text) text.classList.add('hidden');
+        if (spinner) spinner.classList.remove('hidden');
+    }
 
-        const marks = [];
-        let sum = 0;
-        let enteredCount = 0;
+    try {
+        const judgesSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "judges"));
+        const nameToIdMap = new Map();
+        judgesSnap.forEach(d => {
+            nameToIdMap.set(d.data().name, d.id);
+        });
 
-        tr.querySelectorAll('.judge-mark-input').forEach(input => {
-            const val = input.value.trim();
-            if (val !== '') {
-                const num = parseFloat(val) || 0;
-                marks.push(num);
-                sum += num;
-                enteredCount++;
+        const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
+        const docRef = doc(resultsRef, `result_${prog.id}`);
+
+        await runTransaction(db, async (transaction) => {
+            const docSnap = await transaction.get(docRef);
+            let existingDoc = docSnap.exists() ? docSnap.data() : null;
+
+            let dbJudges = existingDoc && Array.isArray(existingDoc.judges) ? [...existingDoc.judges] : [];
+            let dbJudgeIds = existingDoc && Array.isArray(existingDoc.judgeIds) ? [...existingDoc.judgeIds] : [];
+            let dbJudgeSubmissionStatus = existingDoc && existingDoc.judgeSubmissionStatus ? { ...existingDoc.judgeSubmissionStatus } : {};
+
+            if (isStandalone) {
+                if (!dbJudges.includes(sJudgeName)) {
+                    dbJudges.push(sJudgeName);
+                }
+                const currentJudgeId = nameToIdMap.get(sJudgeName) || sJudgeId;
+                if (!dbJudgeIds.includes(currentJudgeId)) {
+                    dbJudgeIds.push(currentJudgeId);
+                }
+                
+                const currentJudgeIdx = dbJudges.indexOf(sJudgeName);
+                
+                const judgeRef = doc(db, "institutes", window.currentInstituteId, "judges", sJudgeId);
+                const judgeSnap = await transaction.get(judgeRef);
+                if (!judgeSnap.exists() || judgeSnap.data().status === 'disabled') {
+                    throw new Error("Your judge profile is disabled or not found.");
+                }
+                
+                const jData = judgeSnap.data();
+                const compIds = Array.isArray(jData.competitionIds) ? jData.competitionIds : [];
+                const comps = Array.isArray(jData.competitions) ? jData.competitions : [];
+                
+                let isEligible = false;
+                if (compIds.length > 0) {
+                    isEligible = compIds.includes(prog.id);
+                } else {
+                    const matches = allPrograms.filter(progItem => 
+                        comps.some(compName => compName.toLowerCase().trim() === progItem.programName.toLowerCase().trim())
+                    );
+                    if (matches.length === 1 && matches[0].id === prog.id) {
+                        isEligible = true;
+                    }
+                }
+                if (!isEligible) {
+                    throw new Error("You are not assigned to judge this competition.");
+                }
+
+                const inputMarksMap = new Map();
+                rows.forEach(tr => {
+                    const studentId = tr.getAttribute('data-student-id') || '';
+                    const codeLetter = tr.querySelector('.code-letter-input').value.trim().toUpperCase();
+                    const input = tr.querySelector('.judge-mark-input');
+                    const val = input ? input.value.trim() : '';
+                    const markVal = val !== '' ? parseFloat(val) : null;
+                    inputMarksMap.set(studentId, { codeLetter, markVal });
+                });
+
+                let dbMarksData = existingDoc && Array.isArray(existingDoc.marksData) ? [...existingDoc.marksData] : [];
+                const updatedMarksData = [];
+
+                rows.forEach(tr => {
+                    const studentId = tr.getAttribute('data-student-id') || '';
+                    const studentName = tr.getAttribute('data-student-name') || '';
+                    const teamId = tr.getAttribute('data-team-id') || '';
+                    const teamName = tr.getAttribute('data-team-name') || '';
+
+                    const screenInfo = inputMarksMap.get(studentId);
+                    const codeLetter = screenInfo ? screenInfo.codeLetter : '';
+                    const screenMark = screenInfo ? screenInfo.markVal : null;
+
+                    const dbEntry = dbMarksData.find(m => (isGroup ? m.groupId === studentId : m.studentId === studentId));
+                    let marks = dbEntry && Array.isArray(dbEntry.marks) ? [...dbEntry.marks] : [];
+
+                    while (marks.length < dbJudges.length) {
+                        marks.push(null);
+                    }
+
+                    marks[currentJudgeIdx] = screenMark;
+
+                    updatedMarksData.push({
+                        studentId: isGroup ? '' : studentId,
+                        groupId: isGroup ? studentId : '',
+                        studentName,
+                        teamId,
+                        teamName,
+                        codeLetter: codeLetter || (dbEntry ? dbEntry.codeLetter : ''),
+                        marks,
+                        finalMark: 0,
+                        grade: '',
+                        gradePoints: 0,
+                        rank: null,
+                        position: '',
+                        positionPoints: 0,
+                        totalPoints: 0
+                    });
+                });
+
+                dbJudgeSubmissionStatus[currentJudgeId] = isSubmit ? 'submitted' : 'saved';
+
+                // Check legacy compatibility resolver too
+                const allSubmitted = dbJudges.every(name => {
+                    const jId = nameToIdMap.get(name);
+                    return jId && (dbJudgeSubmissionStatus[jId] === 'submitted' || dbJudgeSubmissionStatus[jId] === true);
+                });
+
+                let winners = [];
+                let markEntryStatus = 'in-progress';
+                if (allSubmitted) {
+                    markEntryStatus = 'submitted';
+                    updatedMarksData.forEach(entry => {
+                        let sum = 0;
+                        let count = 0;
+                        entry.marks.forEach(m => {
+                            if (m !== null && m !== undefined) {
+                                sum += m;
+                                count++;
+                            }
+                        });
+                        entry.finalMark = count > 0 ? Number((sum / dbJudges.length).toFixed(2)) : 0;
+                    });
+
+                    const activeEntries = updatedMarksData.filter(e => e.marks.some(m => m !== null && m !== undefined));
+                    computeDenseRanking(activeEntries, e => e.finalMark, 'rank');
+
+                    const pType = (prog.programType || prog.type || 'individual').toLowerCase();
+                    let classType = 'individual';
+                    if (pType === 'general') classType = 'general';
+                    else if (pType === 'group') classType = 'group';
+
+                    const config = activePointsConfig[classType] || DEFAULT_POINTS[classType];
+                    const positionPointsMap = {
+                        'First': config.first !== undefined ? Number(config.first) : 10,
+                        'Second': config.second !== undefined ? Number(config.second) : 8,
+                        'Third': config.third !== undefined ? Number(config.third) : 6,
+                        'Participation': 0
+                    };
+
+                    updatedMarksData.forEach(entry => {
+                        const hasScores = entry.marks.some(m => m !== null && m !== undefined);
+                        if (hasScores) {
+                            const { grade, points: gp } = getGradeAndPoints(entry.finalMark, classType);
+                            const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
+                            const position = posMap[entry.rank] || '';
+                            const pp = positionPointsMap[position] || 0;
+                            entry.grade = grade || '';
+                            entry.gradePoints = gp || 0;
+                            entry.position = position || '';
+                            entry.positionPoints = pp || 0;
+                            entry.totalPoints = gp + pp;
+                        }
+                    });
+
+                    const activeWinners = updatedMarksData.filter(r => r.finalMark > 0 && r.rank !== null && r.rank <= 3);
+                    activeWinners.sort((a, b) => a.rank - b.rank);
+                    activeWinners.forEach(r => {
+                        winners.push({
+                            studentId: isGroup ? '' : (r.studentId || ''),
+                            groupId: isGroup ? (r.groupId || '') : '',
+                            studentName: r.studentName || '',
+                            teamId: r.teamId || '',
+                            teamName: r.teamName || '',
+                            position: r.position || '',
+                            grade: r.grade || '',
+                            marks: r.totalPoints || 0,
+                            remarks: `Average: ${r.finalMark} (Grade Points: ${r.gradePoints} + Position Points: ${r.positionPoints})`
+                        });
+                    });
+                }
+
+                const payload = {
+                    programId: prog.id,
+                    programName: prog.programName,
+                    programType: prog.programType,
+                    registrationType: prog.registrationType || '',
+                    categoryId: prog.categoryId || '',
+                    categoryName: prog.categoryName || '',
+                    classId: prog.classId || '',
+                    className: prog.className || '',
+                    genderCategory: prog.genderCategory || '',
+                    programLocation: prog.programLocation || '',
+                    participantCount: rows.length,
+                    judges: dbJudges,
+                    judgeIds: dbJudgeIds,
+                    marksData: updatedMarksData,
+                    winners,
+                    status: existingDoc?.status || 'draft',
+                    markEntryStatus,
+                    judgeSubmissionStatus: dbJudgeSubmissionStatus,
+                    updatedAt: serverTimestamp()
+                };
+
+                if (existingDoc && existingDoc.publishedAt) payload.publishedAt = existingDoc.publishedAt;
+                if (existingDoc && existingDoc.status === 'published') {
+                    payload.status = 'published';
+                    payload.markEntryStatus = 'submitted';
+                }
+
+                transaction.set(docRef, payload, { merge: true });
+
             } else {
-                marks.push(null);
+                dbJudges = [...judges];
+                dbJudgeIds = judges.map(name => nameToIdMap.get(name) || '');
+
+                judges.forEach(name => {
+                    const jId = nameToIdMap.get(name);
+                    if (jId) {
+                        dbJudgeSubmissionStatus[jId] = isSubmit ? 'submitted' : 'saved';
+                    }
+                });
+
+                let dbMarksData = existingDoc && Array.isArray(existingDoc.marksData) ? [...existingDoc.marksData] : [];
+                const updatedMarksData = [];
+
+                rows.forEach(tr => {
+                    const studentId = tr.getAttribute('data-student-id') || '';
+                    const studentName = tr.getAttribute('data-student-name') || '';
+                    const teamId = tr.getAttribute('data-team-id') || '';
+                    const teamName = tr.getAttribute('data-team-name') || '';
+                    const codeLetter = tr.querySelector('.code-letter-input').value.trim().toUpperCase();
+
+                    const dbEntry = dbMarksData.find(m => (isGroup ? m.groupId === studentId : m.studentId === studentId));
+                    let marks = dbEntry && Array.isArray(dbEntry.marks) ? [...dbEntry.marks] : [];
+
+                    while (marks.length < dbJudges.length) {
+                        marks.push(null);
+                    }
+
+                    judges.forEach((name, screenIdx) => {
+                        const dbIdx = dbJudges.indexOf(name);
+                        if (dbIdx !== -1) {
+                            const input = tr.querySelector(`.judge-mark-input[data-judge-idx="${screenIdx}"]`);
+                            const val = input ? input.value.trim() : '';
+                            const isChanged = input && (val !== input.getAttribute('data-initial-val'));
+                            if (isChanged) {
+                                marks[dbIdx] = val !== '' ? parseFloat(val) : null;
+                            } else {
+                                const existingVal = dbEntry && Array.isArray(dbEntry.marks) && dbEntry.marks[dbIdx] !== undefined ? dbEntry.marks[dbIdx] : null;
+                                marks[dbIdx] = existingVal;
+                            }
+                        }
+                    });
+
+                    updatedMarksData.push({
+                        studentId: isGroup ? '' : studentId,
+                        groupId: isGroup ? studentId : '',
+                        studentName,
+                        teamId,
+                        teamName,
+                        codeLetter,
+                        marks,
+                        finalMark: 0,
+                        grade: '',
+                        gradePoints: 0,
+                        rank: null,
+                        position: '',
+                        positionPoints: 0,
+                        totalPoints: 0
+                    });
+                });
+
+                updatedMarksData.forEach(entry => {
+                    let sum = 0;
+                    let count = 0;
+                    entry.marks.forEach(m => {
+                        if (m !== null && m !== undefined) {
+                            sum += m;
+                            count++;
+                        }
+                    });
+                    entry.finalMark = count > 0 ? Number((sum / dbJudges.length).toFixed(2)) : 0;
+                });
+
+                const activeEntries = updatedMarksData.filter(e => e.marks.some(m => m !== null && m !== undefined));
+                computeDenseRanking(activeEntries, e => e.finalMark, 'rank');
+
+                const pType = (prog.programType || prog.type || 'individual').toLowerCase();
+                let classType = 'individual';
+                if (pType === 'general') classType = 'general';
+                else if (pType === 'group') classType = 'group';
+
+                const config = activePointsConfig[classType] || DEFAULT_POINTS[classType];
+                const positionPointsMap = {
+                    'First': config.first !== undefined ? Number(config.first) : 10,
+                    'Second': config.second !== undefined ? Number(config.second) : 8,
+                    'Third': config.third !== undefined ? Number(config.third) : 6,
+                    'Participation': 0
+                };
+
+                updatedMarksData.forEach(entry => {
+                    const hasScores = entry.marks.some(m => m !== null && m !== undefined);
+                    if (hasScores) {
+                        const { grade, points: gp } = getGradeAndPoints(entry.finalMark, classType);
+                        const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
+                        const position = posMap[entry.rank] || '';
+                        const pp = positionPointsMap[position] || 0;
+                        entry.grade = grade || '';
+                        entry.gradePoints = gp || 0;
+                        entry.position = position || '';
+                        entry.positionPoints = pp || 0;
+                        entry.totalPoints = gp + pp;
+                    }
+                });
+
+                const winners = [];
+                const activeWinners = updatedMarksData.filter(r => r.finalMark > 0 && r.rank !== null && r.rank <= 3);
+                activeWinners.sort((a, b) => a.rank - b.rank);
+                activeWinners.forEach(r => {
+                    winners.push({
+                        studentId: isGroup ? '' : (r.studentId || ''),
+                        groupId: isGroup ? (r.groupId || '') : '',
+                        studentName: r.studentName || '',
+                        teamId: r.teamId || '',
+                        teamName: r.teamName || '',
+                        position: r.position || '',
+                        grade: r.grade || '',
+                        marks: r.totalPoints || 0,
+                        remarks: `Average: ${r.finalMark} (Grade Points: ${r.gradePoints} + Position Points: ${r.positionPoints})`
+                    });
+                });
+
+                const payload = {
+                    programId: prog.id,
+                    programName: prog.programName,
+                    programType: prog.programType,
+                    registrationType: prog.registrationType || '',
+                    categoryId: prog.categoryId || '',
+                    categoryName: prog.categoryName || '',
+                    classId: prog.classId || '',
+                    className: prog.className || '',
+                    genderCategory: prog.genderCategory || '',
+                    programLocation: prog.programLocation || '',
+                    participantCount: rows.length,
+                    judges: dbJudges,
+                    judgeIds: dbJudgeIds,
+                    marksData: updatedMarksData,
+                    winners,
+                    status: existingDoc?.status || 'draft',
+                    markEntryStatus: isSubmit ? 'submitted' : 'in-progress',
+                    judgeSubmissionStatus: dbJudgeSubmissionStatus,
+                    updatedAt: serverTimestamp()
+                };
+
+                if (existingDoc && existingDoc.publishedAt) payload.publishedAt = existingDoc.publishedAt;
+                if (existingDoc && existingDoc.status === 'published') {
+                    payload.status = 'published';
+                    payload.markEntryStatus = 'submitted';
+                }
+
+                transaction.set(docRef, payload, { merge: true });
             }
         });
 
-        const hasScores = enteredCount > 0;
-        const finalMark = enteredCount > 0 ? Number((sum / judges.length).toFixed(2)) : 0;
+        if (!isStandalone) {
+            const batch = writeBatch(db);
+            const existingDoc = allResults.get(prog.id);
+            const judgesSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "judges"));
+            judgesSnap.forEach(d => {
+                const j = d.data();
+                const jName = j.name;
+                const comps = Array.isArray(j.competitions) ? j.competitions : [];
+                const compIds = Array.isArray(j.competitionIds) ? j.competitionIds : [];
+                const wasAssigned = existingDoc && Array.isArray(existingDoc.judges) && existingDoc.judges.includes(jName);
+                const isNowAssigned = judges.includes(jName);
 
-        if (hasScores) filledCount++;
-
-        sortedRows.push({
-            studentId, studentName, teamId, teamName, codeLetter, marks, finalMark, hasScores, rank: null
-        });
-    });
-
-    // Re-apply dense ranks accurately using the centralized helper
-    const activeRows = sortedRows.filter(r => r.hasScores);
-    computeDenseRanking(activeRows, r => r.finalMark, 'rank');
-
-    const pType = (prog.programType || prog.type || 'individual').toLowerCase();
-    let classType = 'individual';
-    if (pType === 'general') classType = 'general';
-    else if (pType === 'group') classType = 'group';
-
-    const config = activePointsConfig[classType] || DEFAULT_POINTS[classType];
-    const positionPointsMap = {
-        'First': config.first !== undefined ? Number(config.first) : 10,
-        'Second': config.second !== undefined ? Number(config.second) : 8,
-        'Third': config.third !== undefined ? Number(config.third) : 6,
-        'Participation': 0
-    };
-
-    // Build final marksData payload
-    sortedRows.forEach(r => {
-        if (r.hasScores) {
-            const { grade, points: gp } = getGradeAndPoints(r.finalMark, classType);
-            const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
-            const position = posMap[r.rank] || '';
-            const pp = positionPointsMap[position] || 0;
-            const totalPoints = gp + pp;
-
-            marksData.push({
-                studentId: isGroup ? '' : r.studentId,
-                groupId: isGroup ? r.studentId : '',
-                studentName: r.studentName || '',
-                teamId: r.teamId || '',
-                teamName: r.teamName || '',
-                codeLetter: r.codeLetter || '',
-                marks: r.marks || [],
-                finalMark: r.finalMark || 0,
-                grade: grade || '',
-                gradePoints: gp || 0,
-                rank: r.rank || null,
-                position: position || '',
-                positionPoints: pp || 0,
-                totalPoints: totalPoints || 0
+                if (isNowAssigned) {
+                    let compsUpdated = false;
+                    let newComps = [...comps];
+                    let newCompIds = [...compIds];
+                    if (!comps.includes(prog.programName)) {
+                        newComps.push(prog.programName);
+                        compsUpdated = true;
+                    }
+                    if (!compIds.includes(prog.id)) {
+                        newCompIds.push(prog.id);
+                        compsUpdated = true;
+                    }
+                    if (compsUpdated) {
+                        batch.update(d.ref, { competitions: newComps, competitionIds: newCompIds, updatedAt: serverTimestamp() });
+                    }
+                } else if (wasAssigned) {
+                    const newComps = comps.filter(c => c !== prog.programName);
+                    const newCompIds = compIds.filter(id => id !== prog.id);
+                    batch.update(d.ref, { competitions: newComps, competitionIds: newCompIds, updatedAt: serverTimestamp() });
+                }
             });
-        } else {
-            // Keep empty entries intact for drafting
+            await batch.commit();
+        }
+
+        await updateDashboardMetadata(window.currentInstituteId);
+        window.showToast(isSubmit ? "📤 Marks submitted successfully!" : "📝 Draft saved successfully!", "success");
+        document.getElementById('dynamicModal').classList.add('hidden');
+        document.getElementById('dynamicModal').classList.remove('result-fullscreen-modal');
+
+    } catch (err) {
+        console.error("Failed persisting marks:", err);
+        window.showToast(`Unable to save: ${err.message || err}`, "error");
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            if (text) text.classList.remove('hidden');
+            if (spinner) spinner.classList.add('hidden');
+        }
+    }
+}
+
+async function saveJudgeAssignment(prog, selectedJudgeNames, activeJudges, existingResult, modal) {
+    if (!db) {
+        window.showToast("Database reference not initialized.", "error");
+        return;
+    }
+
+    const btn = document.getElementById('jSelectAssignBtn');
+    const text = btn ? btn.querySelector('.btn-text') : null;
+    const spinner = btn ? btn.querySelector('.btn-spinner') : null;
+
+    if (btn) {
+        btn.disabled = true;
+        if (text) text.classList.add('hidden');
+        if (spinner) spinner.classList.remove('hidden');
+    }
+
+    try {
+        // 1. Verify existing marks
+        if (existingResult && Array.isArray(existingResult.marksData)) {
+            const hasMarks = existingResult.marksData.some(m => Array.isArray(m.marks) && m.marks.some(mark => mark !== null && mark !== undefined));
+            if (hasMarks) {
+                const currentJudges = existingResult.judges || [];
+                const isDifferent = (selectedJudgeNames.length !== currentJudges.length) ||
+                                    selectedJudgeNames.some((name, idx) => currentJudges[idx] !== name);
+                if (isDifferent) {
+                    alert("Marks already exist for this competition. Judge assignment cannot be changed until the existing marks are cleared or handled by the administrator.");
+                    return;
+                }
+            }
+        }
+
+        const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
+
+        // Load/create active judges map name -> docId
+        const judgesSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "judges"));
+        const nameToIdMap = new Map();
+        judgesSnap.forEach(d => {
+            nameToIdMap.set(d.data().name, d.id);
+        });
+
+        const judgeIds = selectedJudgeNames.map(name => nameToIdMap.get(name) || '');
+        const dbJudgeSubmissionStatus = existingResult && existingResult.judgeSubmissionStatus ? { ...existingResult.judgeSubmissionStatus } : {};
+
+        // Remove status for removed judges
+        Object.keys(dbJudgeSubmissionStatus).forEach(jid => {
+            if (!judgeIds.includes(jid)) {
+                delete dbJudgeSubmissionStatus[jid];
+            }
+        });
+        // Initialize new judges to 'in-progress'
+        judgeIds.forEach(jid => {
+            if (jid && !dbJudgeSubmissionStatus[jid]) {
+                dbJudgeSubmissionStatus[jid] = 'in-progress';
+            }
+        });
+
+        // 2. Prepare marksData
+        const participants = await loadStudentsForProgram(prog);
+        const marksData = [];
+
+        participants.forEach(p => {
+            let existingEntry = null;
+            if (existingResult && Array.isArray(existingResult.marksData)) {
+                existingEntry = existingResult.marksData.find(m => (isGroup ? m.groupId === p.id : m.studentId === p.id));
+            }
+            const codeLetter = existingEntry ? existingEntry.codeLetter || '' : '';
+
+            // We construct a clean null array matching selected judges count
+            const marks = new Array(selectedJudgeNames.length).fill(null);
+
             marksData.push({
-                studentId: isGroup ? '' : r.studentId,
-                groupId: isGroup ? r.studentId : '',
-                studentName: r.studentName || '',
-                teamId: r.teamId || '',
-                teamName: r.teamName || '',
-                codeLetter: r.codeLetter || '',
-                marks: r.marks || [],
+                studentId: isGroup ? '' : p.id,
+                groupId: isGroup ? p.id : '',
+                studentName: p.name || '',
+                teamId: p.teamId || '',
+                teamName: p.teamName || '',
+                codeLetter: codeLetter,
+                marks: marks,
                 finalMark: 0,
                 grade: '',
                 gradePoints: 0,
@@ -1091,39 +1856,8 @@ async function persistMarks(prog, judges, isSubmit) {
                 positionPoints: 0,
                 totalPoints: 0
             });
-        }
-    });
-
-    // Build winners array (ranks 1, 2, 3 only) for backward compatibility in portals
-    const winners = [];
-    const activeWinners = marksData.filter(r => r.finalMark > 0 && r.rank !== null && r.rank <= 3);
-    
-    // Sort active winners strictly by rank ascending (so Rank 1 comes first, then 2, then 3)
-    activeWinners.sort((a, b) => a.rank - b.rank);
-
-    activeWinners.forEach(r => {
-        winners.push({
-            studentId: isGroup ? '' : (r.studentId || ''),
-            groupId: isGroup ? (r.groupId || '') : '',
-            studentName: r.studentName || '',
-            teamId: r.teamId || '',
-            teamName: r.teamName || '',
-            position: r.position || '',
-            grade: r.grade || '',
-            marks: r.totalPoints || 0, // standard points mapped to marks in results card
-            remarks: `Average: ${r.finalMark} (Grade Points: ${r.gradePoints} + Position Points: ${r.positionPoints})`
         });
-    });
 
-    const btn = isSubmit ? document.getElementById('meSubmitBtn') : document.getElementById('meDraftBtn');
-    const text = btn.querySelector('.btn-text');
-    const spinner = btn.querySelector('.btn-spinner');
-
-    btn.disabled = true;
-    text.classList.add('hidden');
-    spinner.classList.remove('hidden');
-
-    try {
         const payload = {
             programId: prog.id,
             programName: prog.programName,
@@ -1135,92 +1869,79 @@ async function persistMarks(prog, judges, isSubmit) {
             className: prog.className || '',
             genderCategory: prog.genderCategory || '',
             programLocation: prog.programLocation || '',
-            participantCount: rows.length,
-            judges,
-            marksData,
-            winners,
-            status: 'draft',
-            markEntryStatus: isSubmit ? 'submitted' : 'in-progress',
+            participantCount: participants.length,
+            judges: selectedJudgeNames,
+            judgeIds: judgeIds,
+            marksData: marksData,
+            winners: [],
+            status: existingResult?.status || 'draft',
+            markEntryStatus: existingResult?.markEntryStatus || 'in-progress',
+            judgeSubmissionStatus: dbJudgeSubmissionStatus,
             updatedAt: serverTimestamp()
         };
 
-        // 6. Detailed Console Logging
-        console.log("=== PERSISTING MARKS ===");
-        console.log("Program ID:", prog.id);
-        console.log("Program Name:", prog.programName);
-        console.log("Program Type:", prog.programType);
-        console.log("Is Group Program:", isGroup);
-        console.log("Judge IDs/Names:", judges);
-        console.log("Status (Firestore):", isSubmit ? 'submitted' : 'in-progress');
-        marksData.forEach((m, idx) => {
-            console.log(`Row #${idx + 1} (${isGroup ? 'Group/Team ID' : 'Student ID'}: ${isGroup ? m.groupId : m.studentId}):`, {
-                studentId: m.studentId,
-                groupId: m.groupId,
-                studentName: m.studentName,
-                teamId: m.teamId,
-                teamName: m.teamName,
-                marks: m.marks,
-                finalMark: m.finalMark,
-                grade: m.grade,
-                rank: m.rank,
-                totalPoints: m.totalPoints
-            });
-        });
-        console.log("Winners Array:", winners);
-        console.log("Payload:", payload);
-        console.log("========================");
-
-        const existingDoc = allResults.get(prog.id);
-        const ref = collection(db, "institutes", window.currentInstituteId, "results");
-
         const batch = writeBatch(db);
+        const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
 
-        // Bilateral synchronization of judge assigned competitions
-        const judgesSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "judges"));
+        if (existingResult) {
+            if (existingResult.publishedAt) payload.publishedAt = existingResult.publishedAt;
+            if (existingResult.status === 'published') {
+                payload.status = 'published';
+                payload.markEntryStatus = 'submitted';
+            }
+            batch.set(doc(resultsRef, existingResult.id), payload, { merge: true });
+        } else {
+            payload.createdAt = serverTimestamp();
+            batch.set(doc(resultsRef, `result_${prog.id}`), payload);
+        }
+
+        // Bilateral synchronization
         judgesSnap.forEach(d => {
             const j = d.data();
             const jName = j.name;
             const comps = Array.isArray(j.competitions) ? j.competitions : [];
-            const wasAssigned = existingDoc && Array.isArray(existingDoc.judges) && existingDoc.judges.includes(jName);
-            const isNowAssigned = judges.includes(jName);
+            const compIds = Array.isArray(j.competitionIds) ? j.competitionIds : [];
+            
+            const wasAssigned = existingResult && Array.isArray(existingResult.judges) && existingResult.judges.includes(jName);
+            const isNowAssigned = selectedJudgeNames.includes(jName);
 
-            if (isNowAssigned && !comps.includes(prog.programName)) {
-                // Add Malayalam Essay to Mushaid profile
-                const newComps = [...comps, prog.programName];
-                batch.update(d.ref, { competitions: newComps, updatedAt: serverTimestamp() });
-            } else if (!isNowAssigned && wasAssigned && comps.includes(prog.programName)) {
-                // Remove Malayalam Essay from Marshad profile
+            if (isNowAssigned) {
+                let compsUpdated = false;
+                let newComps = [...comps];
+                let newCompIds = [...compIds];
+                if (!comps.includes(prog.programName)) {
+                    newComps.push(prog.programName);
+                    compsUpdated = true;
+                }
+                if (!compIds.includes(prog.id)) {
+                    newCompIds.push(prog.id);
+                    compsUpdated = true;
+                }
+                if (compsUpdated) {
+                    batch.update(d.ref, { competitions: newComps, competitionIds: newCompIds, updatedAt: serverTimestamp() });
+                }
+            } else if (wasAssigned) {
                 const newComps = comps.filter(c => c !== prog.programName);
-                batch.update(d.ref, { competitions: newComps, updatedAt: serverTimestamp() });
+                const newCompIds = compIds.filter(id => id !== prog.id);
+                batch.update(d.ref, { competitions: newComps, competitionIds: newCompIds, updatedAt: serverTimestamp() });
             }
         });
 
-        // Save Results Document
-        if (existingDoc) {
-            if (existingDoc.publishedAt) payload.publishedAt = existingDoc.publishedAt;
-            if (existingDoc.status === 'published') {
-                payload.status = 'published';
-                payload.markEntryStatus = 'submitted';
-            }
-            batch.set(doc(ref, existingDoc.id), payload, { merge: true });
-        } else {
-            payload.createdAt = serverTimestamp();
-            batch.set(doc(ref, `result_${prog.id}`), payload);
-        }
-
         await batch.commit();
         await updateDashboardMetadata(window.currentInstituteId);
-        window.showToast(isSubmit ? "📤 Marks submitted successfully!" : "📝 Draft saved successfully!", "success");
-        document.getElementById('dynamicModal').classList.add('hidden');
-        document.getElementById('dynamicModal').classList.remove('result-fullscreen-modal');
+
+        window.showToast("🧑‍⚖️ Judge assignments updated successfully!", "success");
+        modal.classList.add('hidden');
+        modal.classList.remove('result-fullscreen-modal');
 
     } catch (err) {
-        console.error("Failed persisting marks:", err);
-        // 7. Descriptive error reporting
-        window.showToast(`Unable to save: ${err.message || err}`, "error");
+        console.error("Failed saving judge assignments:", err);
+        window.showToast(`Unable to save assignments: ${err.message || err}`, "error");
     } finally {
-        btn.disabled = false;
-        text.classList.remove('hidden');
-        spinner.classList.add('hidden');
+        if (btn) {
+            btn.disabled = false;
+            if (text) text.classList.remove('hidden');
+            if (spinner) spinner.classList.add('hidden');
+        }
     }
 }

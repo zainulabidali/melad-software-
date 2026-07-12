@@ -5,8 +5,13 @@
     <title>Redirecting to Mark Entry...</title>
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const instId = urlParams.get('instituteId') || urlParams.get('id') || urlParams.get('token') || '';
-        window.location.href = './admin-dashboard.html?mode=standalone&instituteId=' + instId;
+        const token = urlParams.get('token') || '';
+        const parts = token.split('_');
+        const instId = urlParams.get('instituteId') || urlParams.get('id') || parts[0] || '';
+        const judgeId = urlParams.get('judgeId') || parts[1] || '';
+        window.location.href = './admin-dashboard.html?mode=standalone&instituteId=' + instId + 
+            (judgeId ? '&judgeId=' + judgeId : '') + 
+            (token ? '&token=' + token : '');
     </script>
 </head>
 <body>

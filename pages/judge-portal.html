@@ -8,7 +8,11 @@
         const token = urlParams.get('token') || '';
         const parts = token.split('_');
         const instId = parts[0] || '';
-        window.location.href = './public-mark-entry.html' + (instId ? '?instituteId=' + instId : '');
+        const judgeId = parts[1] || '';
+        window.location.href = './public-mark-entry.html' + 
+            (instId ? '?instituteId=' + instId : '') + 
+            (judgeId ? '&judgeId=' + judgeId : '') + 
+            (token ? '&token=' + token : '');
     </script>
 </head>
 <body>

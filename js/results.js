@@ -665,11 +665,17 @@ function openResultDetailPopup(r) {
                     const j = d.data();
                     const jName = j.name;
                     const comps = Array.isArray(j.competitions) ? j.competitions : [];
+                    const compIds = Array.isArray(j.competitionIds) ? j.competitionIds : [];
                     
                     const wasAssigned = Array.isArray(r.judges) && r.judges.includes(jName);
                     if (wasAssigned && comps.includes(r.programName)) {
                         const newComps = comps.filter(c => c !== r.programName);
-                        batch.update(d.ref, { competitions: newComps, updatedAt: serverTimestamp() });
+                        const newCompIds = compIds.filter(id => id !== r.programId);
+                        batch.update(d.ref, { 
+                            competitions: newComps, 
+                            competitionIds: newCompIds, 
+                            updatedAt: serverTimestamp() 
+                        });
                     }
                 });
 

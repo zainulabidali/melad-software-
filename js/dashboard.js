@@ -61,6 +61,35 @@ async function initStandaloneMode(instId) {
     window.currentInstituteId = instId;
     document.body.classList.add('standalone-mode');
     
+    const urlParams = new URLSearchParams(window.location.search);
+    const judgeId = urlParams.get('judgeId') || '';
+    
+    if (judgeId) {
+        try {
+            const judgeSnap = await getDoc(doc(db, "institutes", instId, "judges", judgeId));
+            if (judgeSnap.exists()) {
+                const jData = judgeSnap.data();
+                if (jData.status === 'disabled') {
+                    alert("Your judge account has been deactivated by the administrator.");
+                    window.location.href = '../pages/login.html';
+                    return;
+                }
+                sessionStorage.setItem('standaloneJudgeId', judgeId);
+                sessionStorage.setItem('standaloneJudgeName', jData.name);
+                sessionStorage.setItem('standaloneCompetitions', JSON.stringify(jData.competitions || []));
+                sessionStorage.setItem('standaloneCompetitionIds', JSON.stringify(jData.competitionIds || []));
+            } else {
+                alert("Judge profile not found.");
+                window.location.href = '../pages/login.html';
+                return;
+            }
+        } catch (e) {
+            console.error("Error verifying judge:", e);
+        }
+    } else {
+        // Preserve existing sessionStorage identity if already set via selection or previous load
+    }
+
     try {
         const instRef = doc(db, "institutes", instId);
         onSnapshot(instRef, (instSnap) => {

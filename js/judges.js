@@ -224,6 +224,7 @@ function openJudgeModal(judgeId = null, existing = {}) {
                 mobile: cleanedMobile,
                 notes,
                 competitions: existing.competitions || [],
+                competitionIds: existing.competitionIds || [],
                 status: existing.status || 'active',
                 updatedAt: serverTimestamp()
             };

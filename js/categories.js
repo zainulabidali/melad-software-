@@ -612,10 +612,16 @@ async function deleteCategory(catId) {
                     judgesSnap.forEach(jDoc => {
                         const j = jDoc.data();
                         const comps = Array.isArray(j.competitions) ? j.competitions : [];
+                        const compIds = Array.isArray(j.competitionIds) ? j.competitionIds : [];
                         const wasAssigned = Array.isArray(r.judges) && r.judges.includes(j.name);
                         if (wasAssigned && comps.includes(progName)) {
                             const newComps = comps.filter(c => c !== progName);
-                            batch.update(jDoc.ref, { competitions: newComps, updatedAt: serverTimestamp() });
+                            const newCompIds = compIds.filter(cid => cid !== r.programId);
+                            batch.update(jDoc.ref, { 
+                                competitions: newComps, 
+                                competitionIds: newCompIds, 
+                                updatedAt: serverTimestamp() 
+                            });
                         }
                     });
                 }
