@@ -636,7 +636,7 @@ function renderHistoryLogs() {
     // Helper: resolve Scope information
     const getScopeHtml = (exp) => {
         const f = exp.filters || {};
-        
+
         // Category Name
         let categoryName = 'All Categories';
         if (f.categoryId) {
@@ -711,7 +711,7 @@ function renderHistoryLogs() {
         const dateObj = new Date(queuedAt.seconds * 1000);
         const day = String(dateObj.getDate()).padStart(2, '0');
         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-        
+
         let hours = dateObj.getHours();
         const minutes = String(dateObj.getMinutes()).padStart(2, '0');
         const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -793,7 +793,7 @@ function renderHistoryLogs() {
 
         // Extract raw date for inline mobile view
         const dateObj = exp.queuedAt ? new Date(exp.queuedAt.seconds * 1000) : null;
-        const mobileDateStr = dateObj ? 
+        const mobileDateStr = dateObj ?
             `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')} ${dateObj.getHours() % 12 || 12}:${String(dateObj.getMinutes()).padStart(2, '0')} ${dateObj.getHours() >= 12 ? 'PM' : 'AM'}` : '—';
 
         return `
@@ -862,7 +862,7 @@ function openExportsDropdown(btn) {
     // 2. Create the dropdown element
     const dropdown = document.createElement('div');
     dropdown.className = 'actions-dropdown-menu active-body-dropdown';
-    
+
     // Get datasets
     const id = btn.dataset.id;
     const canDownload = btn.dataset.canDownload === 'true';
@@ -1197,6 +1197,7 @@ function renderDrawerContent() {
                             <select id="expOrientation" class="exp-input" style="background:#fff;">
                                 <option value="portrait">A4 Portrait (Vertical)</option>
                                 <option value="landscape">A4 Landscape (Horizontal)</option>
+                                <option value="a3_portrait">A3 Portrait (Vertical)</option>
                             </select>
                         </div>
                         <div style="flex:1; min-width:140px;">
@@ -1261,11 +1262,25 @@ function renderDrawerContent() {
                 }
                 if (expOrientation) {
                     expOrientation.value = 'portrait';
+                    if (expOrientation.options[1]) {
+                        expOrientation.options[1].style.display = 'none'; // hide A4 Landscape
+                    }
+                    if (expOrientation.options[2]) {
+                        expOrientation.options[2].style.display = 'block'; // show A3 Portrait
+                    }
                 }
             } else {
                 chestListModeContainer.style.display = 'flex';
                 if (expFormat && expFormat.options[1]) {
                     expFormat.options[1].disabled = false;
+                }
+                if (expOrientation) {
+                    if (expOrientation.options[1]) {
+                        expOrientation.options[1].style.display = 'block'; // show A4 Landscape
+                    }
+                    if (expOrientation.options[2]) {
+                        expOrientation.options[2].style.display = 'none'; // hide A3 Portrait
+                    }
                 }
             }
             updateClassFilterState();
@@ -1275,6 +1290,11 @@ function renderDrawerContent() {
 
     cards.forEach(card => {
         card.onclick = () => {
+            const expOrientation = document.getElementById('expOrientation');
+            if (expOrientation) {
+                if (expOrientation.options[1]) expOrientation.options[1].style.display = 'block';
+                if (expOrientation.options[2]) expOrientation.options[2].style.display = 'none';
+            }
             cards.forEach(c => {
                 c.style.border = '2px solid #e2e8f0';
                 c.style.background = '#fff';
@@ -1337,9 +1357,20 @@ function renderDrawerContent() {
                         const expOrientation = document.getElementById('expOrientation');
                         if (expOrientation) {
                             expOrientation.value = 'portrait';
+                            if (expOrientation.options[1]) {
+                                expOrientation.options[1].style.display = 'none'; // hide landscape
+                            }
+                            if (expOrientation.options[2]) {
+                                expOrientation.options[2].style.display = 'block'; // show A3 Portrait
+                            }
                         }
                     } else {
                         chestListModeContainer.style.display = 'flex';
+                        const expOrientation = document.getElementById('expOrientation');
+                        if (expOrientation) {
+                            if (expOrientation.options[1]) expOrientation.options[1].style.display = 'block';
+                            if (expOrientation.options[2]) expOrientation.options[2].style.display = 'none';
+                        }
                     }
                 } else {
                     chestListModeContainer.style.display = 'flex';
@@ -1454,6 +1485,12 @@ function renderDrawerContent() {
     }
 
     updateProgramsDropdown();
+
+    // Trigger initial click on the default card to synchronize UI state
+    const defaultActiveCard = body.querySelector('.exp-type-card.active') || body.querySelector('.exp-type-card');
+    if (defaultActiveCard && typeof defaultActiveCard.onclick === 'function') {
+        defaultActiveCard.onclick();
+    }
 
     document.getElementById('btnNewExpCancel').onclick = closeExportDrawer;
 
@@ -1852,7 +1889,7 @@ async function triggerDownload(exp, isDownload = false) {
 // Helper to construct verbose program labels for exports
 function getProgramExportLabel(p) {
     const numStr = p.programNumber ? `${p.programNumber} – ` : '';
-    
+
     // Determine type label
     let typeLabel = 'Individual';
     if (p.categoryId === 'general_programs' || p.programType === 'general') {
@@ -1862,7 +1899,7 @@ function getProgramExportLabel(p) {
     }
 
     const locLabel = p.programLocation || p.location || 'Stage';
-    
+
     return `${numStr}${p.programName} (${typeLabel} • ${locLabel})`;
 }
 
@@ -1935,7 +1972,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         if (f.categoryId) {
             studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
         }
-        
+
         // In card submode, always apply the classId filter if present. In list submode, check chestMode.
         const shouldApplyClassFilter = f.chestSubmode === 'card' ? !!f.classId : (f.chestMode !== 'category-wise' && f.classId);
         if (shouldApplyClassFilter) {
@@ -2059,17 +2096,19 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 const testStyle = document.createElement('style');
                 testStyle.textContent = `
                     .student-card-item {
-                        border: 1.5px solid #cbd5e1;
-                        border-radius: 8px;
-                        padding: 12px;
+                        border: none !important;
+                        border-radius: 0 !important;
+                        box-shadow: none !important;
+                        outline: none !important;
+                        padding: 10px;
                         background: #fff;
                         box-sizing: border-box;
-                        width: 353px;
-                        height: 252px;
+                        width: 6.7cm;
+                        height: 10cm;
                         overflow: hidden;
                         display: flex;
                         flex-direction: column;
-                        gap: 8px;
+                        gap: 6px;
                         font-size: 0.72rem;
                     }
                     .card-header {
@@ -2084,7 +2123,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         display: flex;
                         flex-direction: column;
                         gap: 2px;
-                        max-width: 244px;
+                        max-width: 160px;
                     }
                     .card-student-name {
                         font-weight: 800;
@@ -2112,83 +2151,256 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         background: #f8fafc;
                         min-width: 65px;
                     }
-                    .card-chest-label {
-                        font-size: 0.55rem;
-                        font-weight: 800;
-                        color: #64748b;
-                        text-transform: uppercase;
-                        letter-spacing: 0.05em;
-                        line-height: 1;
-                        margin-bottom: 2px;
-                    }
-                    .card-chest-number {
-                        font-size: 1.05rem;
-                        font-weight: 900;
-                        color: #0f172a;
-                        line-height: 1;
-                    }
-                    .card-section {
-                        margin-top: 0;
-                    }
-                    .card-section-title {
-                        font-size: 0.68rem;
-                        font-weight: 800;
-                        color: #0f172a;
-                        text-transform: uppercase;
-                        display: flex;
-                        align-items: center;
-                        gap: 4px;
-                        margin-bottom: 4px;
-                    }
-                    .card-section-title::before {
-                        content: "";
-                        display: inline-block;
-                        width: 3px;
-                        height: 9px;
-                        background: #0f172a;
-                        border-radius: 1px;
-                    }
-                    .card-program-list {
-                        margin: 0;
-                        padding: 0;
-                        list-style: none;
-                        display: flex;
-                        flex-direction: column;
-                    }
-                    .card-program-item {
-                        font-size: 0.68rem;
-                        font-weight: 600;
-                        color: #334155;
-                        width: 100%;
-                        display: block;
-                    }
-                    .program-left {
-                        white-space: normal;
-                        word-break: break-word;
-                        display: -webkit-box;
-                        -webkit-line-clamp: 2;
-                        -webkit-box-orient: vertical;
+                    .team-art-theme-0 {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 0;
                         overflow: hidden;
+                        pointer-events: none;
+                        background: #ecfeff;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    .team-art-theme-0 .shape-1 {
+                        position: absolute;
+                        top: -40px;
+                        right: -40px;
+                        width: 130px;
+                        height: 130px;
+                        border-radius: 50%;
+                        background: rgba(6, 182, 212, 0.16);
+                    }
+                    .team-art-theme-0 .shape-2 {
+                        position: absolute;
+                        bottom: -10px;
+                        left: 45%;
+                        width: 60px;
+                        height: 40px;
+                        border-radius: 30px 30px 0 0;
+                        background: rgba(37, 99, 235, 0.12);
+                    }
+                    .team-art-theme-0 .shape-3 {
+                        position: absolute;
+                        top: 130px;
+                        right: 12px;
+                        width: 16px;
+                        height: 32px;
+                        background-image: radial-gradient(rgba(29, 78, 216, 0.22) 2px, transparent 2px);
+                        background-size: 8px 8px;
+                    }
+                    .team-art-theme-0 .shape-4 {
+                        position: absolute;
+                        bottom: -30px;
+                        left: -30px;
+                        width: 90px;
+                        height: 90px;
+                        border-radius: 50%;
+                        border: 1.5px solid rgba(30, 41, 59, 0.15);
+                    }
+                    .team-art-theme-0 .shape-5 {
+                        position: absolute;
+                        top: 20px;
+                        left: 10px;
+                        width: 30px;
+                        height: 15px;
+                        background: repeating-linear-gradient(90deg, rgba(6, 182, 212, 0.18) 0px, rgba(6, 182, 212, 0.18) 2px, transparent 2px, transparent 6px);
+                    }
+
+                    .team-art-theme-1 {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 0;
+                        overflow: hidden;
+                        pointer-events: none;
+                    .team-art-theme-1::before {
+                        content: '';
+                        position: absolute;
+                        bottom: -40px;
+                        left: -40px;
+                        width: 100px;
+                        height: 100px;
+                        border-radius: 50%;
+                        border: 2px solid rgba(236, 72, 153, 0.25);
+                        box-sizing: border-box;
+                    }
+                    .team-art-theme-1::after {
+                        content: '';
+                        position: absolute;
+                        top: 50px;
+                        right: 50px;
+                        width: 8px;
+                        height: 8px;
+                        border-radius: 50%;
+                        background: rgba(249, 115, 22, 0.65);
+                    }
+
+                    .team-art-theme-2 {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 0;
+                        overflow: hidden;
+                        pointer-events: none;
+                        background: #ffffff;
+                        background-image:
+                            radial-gradient(circle at 105% -5%, rgba(52, 211, 153, 0.75) 0%, rgba(52, 211, 153, 0) 55%),
+                            radial-gradient(circle at 82% 10%, rgba(167, 139, 250, 0.58) 0%, rgba(167, 139, 250, 0) 50%),
+                            radial-gradient(circle at 72% -10%, rgba(103, 232, 249, 0.48) 0%, rgba(103, 232, 249, 0) 45%),
+                            radial-gradient(circle at -5% 105%, rgba(45, 212, 191, 0.68) 0%, rgba(45, 212, 191, 0) 60%),
+                            radial-gradient(circle at 15% 88%, rgba(96, 165, 250, 0.48) 0%, rgba(96, 165, 250, 0) 50%);
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    .team-art-theme-2::before {
+                        content: '';
+                        position: absolute;
+                        bottom: -30px;
+                        left: -30px;
+                        width: 110px;
+                        height: 110px;
+                        border-radius: 0 110px 0 0;
+                        background: rgba(251, 146, 60, 0.45);
+                    }
+                    .team-art-theme-2 .shape-3 {
+                        position: absolute;
+                        bottom: 40px;
+                        right: -30px;
+                        width: 90px;
+                        height: 90px;
+                        border-radius: 50%;
+                        border: 1.5px solid rgba(244, 63, 94, 0.35);
+                    }
+                    .team-art-theme-2 .shape-4 {
+                        position: absolute;
+                        top: 130px;
+                        left: 10px;
+                        width: 32px;
+                        height: 40px;
+                        background-image: radial-gradient(rgba(120, 53, 4, 0.20) 1.5px, transparent 1.5px);
+                        background-size: 8px 8px;
+                    }
+                    .team-art-theme-2 .shape-5 {
+                        position: absolute;
+                        top: 90px;
+                        right: 25px;
+                        width: 12px;
+                        height: 12px;
+                        background: rgba(234, 88, 12, 0.70);
+                        border-radius: 3px;
+                        transform: rotate(45deg);
+                    }
+                    .team-art-theme-3 {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 0;
+                        overflow: hidden;
+                        pointer-events: none;
+                        background: #f7fbfb;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    .team-art-theme-3 .shape-1 {
+                        position: absolute;
+                        top: -40px;
+                        right: -40px;
+                        width: 130px;
+                        height: 130px;
+                        border-radius: 50%;
+                        border: 2px solid rgba(13, 148, 136, 0.55);
+                    }
+                    .team-art-theme-3 .shape-1::after {
+                        content: '';
+                        position: absolute;
+                        inset: 15px;
+                        border-radius: 50%;
+                        border: 1.5px solid rgba(37, 99, 235, 0.35);
+                    }
+                    .team-art-theme-3 .shape-2 {
+                        position: absolute;
+                        bottom: -20px;
+                        left: -20px;
+                        width: 80px;
+                        height: 100px;
+                        border-radius: 40px 40px 0 0;
+                        border: 2px solid rgba(13, 148, 136, 0.45);
+                        border-bottom: none;
+                        background: rgba(13, 148, 136, 0.08);
+                    }
+                    .team-art-theme-3 .shape-3 {
+                        position: absolute;
+                        top: 90px;
+                        left: 12px;
+                        width: 25px;
+                        height: 40px;
+                        background: repeating-linear-gradient(90deg, rgba(30, 41, 59, 0.35) 0px, rgba(30, 41, 59, 0.35) 2px, transparent 2px, transparent 6px);
+                    }
+                    .team-art-theme-3 .shape-4 {
+                        position: absolute;
+                        bottom: 90px;
+                        right: -25px;
+                        width: 50px;
+                        height: 50px;
+                        border-radius: 50%;
+                        background: rgba(52, 211, 153, 0.65);
+                        clip-path: inset(0 0 0 25px);
+                    }
+                    .team-art-theme-3 .shape-5 {
+                        position: absolute;
+                        top: 25px;
+                        left: 20px;
+                        width: 16px;
+                        height: 16px;
+                        background: rgba(30, 41, 59, 0.50);
+                        border-radius: 2px;
                     }
                 `;
                 testContainer.appendChild(testStyle);
                 document.body.appendChild(testContainer);
 
-                for (let pageIdx = 0; pageIdx < studentsList.length; pageIdx += 8) {
-                    const pageStudents = studentsList.slice(pageIdx, pageIdx + 8);
+                // Collect unique teams in the current export dataset (studentsList)
+                const uniqueTeams = [];
+                studentsList.forEach(stu => {
+                    const teamName = teamNamesMap[stu.teamId] || stu.teamName || '';
+                    const teamVal = teamName && teamName.trim() !== '' && teamName !== '—' ? teamName : 'NO TEAM';
+                    const key = stu.teamId || teamVal.toLowerCase().trim();
+                    if (!uniqueTeams.includes(key)) {
+                        uniqueTeams.push(key);
+                    }
+                });
+
+                const cardsPerPage = orientation === 'a3_portrait' ? 18 : 8;
+                for (let pageIdx = 0; pageIdx < studentsList.length; pageIdx += cardsPerPage) {
+                    const pageStudents = studentsList.slice(pageIdx, pageIdx + cardsPerPage);
                     let pageCardsHTML = '';
 
                     pageStudents.forEach(stu => {
                         const stuProgs = studentProgramsMap[stu.id] || [];
 
+                        // Load settings header dynamically
+                        const eventDetails = window.currentEventDetails || {};
+                        const eventName = eventDetails.eventName || window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+                        const eventTagline = eventDetails.eventTagline || '';
+                        const madrasaName = eventDetails.madrasaName || '';
+                        const eventLocation = eventDetails.eventLocation || '';
+                        const eventLogo = eventDetails.eventLogo || null;
+
+                        const eventHeaderHTML = `
+                            <div class="card-event-header" style="display: flex; flex-direction: column; align-items: center; text-align: center; border-bottom: 1.5px solid #000; padding-bottom: 4px; margin-bottom: 4px; gap: 2px; width: 100%;">
+                                ${eventLogo ? `<img src="${eventLogo}" style="width: 30px; height: 30px; object-fit: contain; margin-bottom: 2px;" />` : ''}
+                                <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; line-height: 1.1; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #000;">${window.escapeHTML(eventName)}</div>
+                                ${eventTagline ? `<div style="font-size: 0.52rem; font-weight: 600; color: #475569; line-height: 1.1; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${window.escapeHTML(eventTagline)}</div>` : ''}
+                                <div style="font-size: 0.55rem; font-weight: 700; text-transform: uppercase; line-height: 1.1; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #000;">${window.escapeHTML(madrasaName)}</div>
+                                ${eventLocation ? `<div style="font-size: 0.52rem; font-weight: 600; color: #475569; line-height: 1.1; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${window.escapeHTML(eventLocation)}</div>` : ''}
+                            </div>
+                        `;
+
                         // 1. Participant name font fitting (starts at 18px ~ 13.5pt, min 11px ~ 8pt)
                         let nameFontSize = 18;
                         const minNameFontSize = 11;
                         const nameStr = stu.name.toUpperCase();
-                        
+
                         while (nameFontSize > minNameFontSize) {
                             const fontSpec = `900 ${nameFontSize}px sans-serif`;
-                            if (getTextWidth(nameStr, fontSpec) <= 244) {
+                            if (getTextWidth(nameStr, fontSpec) <= 160) {
                                 break;
                             }
                             nameFontSize -= 0.5;
@@ -2200,6 +2412,25 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         const genderVal = stu.gender || '—';
                         const teamVal = teamName && teamName.trim() !== '' && teamName !== '—' ? teamName : 'NO TEAM';
                         const metaText = `Class ${classVal} • ${catVal} • ${genderVal} • ${teamVal}`;
+
+                        // Determine cyclic theme index (0-3) based on team ID or team name within the current dataset
+                        const getTeamThemeIndex = (tId, tVal) => {
+                            const key = tId || (tVal || '').toString().trim().toLowerCase();
+                            const idx = uniqueTeams.indexOf(key);
+                            if (idx === -1) return 0;
+                            return idx % 4; // returns 0, 1, 2, 3
+                        };
+                        const themeIdx = getTeamThemeIndex(stu.teamId, teamVal);
+
+                        let artLayerHTML = `
+                            <div class="team-art-theme-${themeIdx}" aria-hidden="true">
+                                <div class="shape-1"></div>
+                                <div class="shape-2"></div>
+                                <div class="shape-3"></div>
+                                <div class="shape-4"></div>
+                                <div class="shape-5"></div>
+                            </div>
+                        `;
 
                         // Separate programs into sections (Pass 1 — Build)
                         const stageProgs = [];
@@ -2240,12 +2471,15 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         // Create test card inside our offscreen container
                         const testCard = document.createElement('div');
                         testCard.className = 'student-card-item';
+                        if (orientation === 'a3_portrait') {
+                            testCard.style.height = '9.8cm';
+                        }
                         testContainer.appendChild(testCard);
 
                         // Initialize spacing and typography variables
                         let metaFontSize = 10.5; // ~8pt
                         let headingFontSize = 9.3; // ~7pt default
-                        let itemFontSize = 8.6; // ~6.5pt default
+                        let itemFontSize = 9.8; // ~7.5pt default (slightly increased default font size for readability)
 
                         let headerMargin = 2;
                         let metaMargin = 4;
@@ -2264,7 +2498,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                         label = p.groupName;
                                     }
                                     const pNameStr = label ? `${p.programName || 'Unknown Program'} (${label})` : (p.programName || 'Unknown Program');
-                                    const availableProgWidth = 309;
+                                    const availableProgWidth = 233;
 
                                     let pFontSize = itemFontSize;
                                     while (pFontSize > 5.3) { // absolute minimum program font size is ~4pt (5.3px)
@@ -2283,27 +2517,29 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 const isLast = sIdx === sections.length - 1;
                                 const currentSecGap = isLast ? 0 : sectionGap;
                                 sectionsHTML += `
-                                    <div class="card-section" style="margin-top: 4px; margin-bottom: ${currentSecGap}px; page-break-inside: avoid; break-inside: avoid;">
-                                        <div class="card-section-title" style="font-size: ${headingFontSize}px; margin-bottom: ${headingItemGap}px;">${sec.title}</div>
-                                        <ul class="card-program-list" style="gap: ${programRowGap}px;">
+                                    <div class="card-section" style="margin-top: 2px; margin-bottom: ${currentSecGap}px; page-break-inside: avoid; break-inside: avoid; display: flex; justify-content: center; width: 100%;">
+                                        <ul class="card-program-list" style="gap: ${programRowGap}px; display: flex; flex-direction: column; align-items: flex-start; width: max-content; max-width: 100%;">
                                             ${sec.items.map(p => {
-                                                let label = '';
-                                                if (p.groupName && p.groupName !== teamNamesMap[p.teamId]) {
-                                                    label = p.groupName;
-                                                }
-                                                const displayName = label ? `${p.programName || 'Unknown Program'} (${label})` : (p.programName || 'Unknown Program');
-                                                return `
-                                                    <li class="card-program-item" style="font-size: ${p.finalFontSize}px; line-height: ${progLineHeight}; margin-bottom: ${programRowGap}px;">
-                                                        <span class="program-left">• ${window.escapeHTML(displayName)}</span>
+                                    let label = '';
+                                    if (p.groupName && p.groupName !== teamNamesMap[p.teamId]) {
+                                        label = p.groupName;
+                                    }
+                                    const displayName = label ? `${p.programName || 'Unknown Program'} (${label})` : (p.programName || 'Unknown Program');
+                                    return `
+                                                    <li class="card-program-item" style="font-size: ${p.finalFontSize}px; line-height: ${progLineHeight}; margin-bottom: ${programRowGap}px; display: flex; align-items: flex-start; gap: 5px;">
+                                                        <span style="flex-shrink: 0; font-size: 0.7em; margin-top: 0.15em;">•</span>
+                                                        <span class="program-left" style="font-weight: 600;">${window.escapeHTML(displayName)}</span>
                                                     </li>
                                                 `;
-                                            }).join('')}
+                                }).join('')}
                                         </ul>
                                     </div>
                                 `;
                             });
 
                             testCard.innerHTML = `
+                                ${artLayerHTML}
+                                ${eventHeaderHTML}
                                 <div class="card-header">
                                     <div class="card-header-left">
                                         <div class="card-student-name" style="font-size: ${nameFontSize}px;">${window.escapeHTML(stu.name).toUpperCase()}</div>
@@ -2313,7 +2549,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     </div>
                                     <div class="card-chest-badge">
                                         <div class="card-chest-label">Chest No.</div>
-                                        <div class="card-chest-number">#${window.escapeHTML(stu.chestNumber || '—')}</div>
+                                        <div class="card-chest-number">${window.escapeHTML(stu.chestNumber || '—')}</div>
                                     </div>
                                 </div>
                                 ${sectionsHTML}
@@ -2326,7 +2562,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         // Fit loop (Pass 2 — Fit using REAL browser DOM measurements)
                         let attempts = 0;
                         const tolerance = 1; // 1px subpixel tolerance
-                        
+
                         while ((testCard.scrollHeight > testCard.clientHeight + tolerance) && attempts < 25) {
                             attempts++;
                             if (attempts === 1) {
@@ -2353,7 +2589,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         // Programmatic Verification Check for ABID card
                         if (stu.name.toUpperCase().includes('ABID')) {
                             console.log(`[ABID Verification] scrollHeight: ${testCard.scrollHeight}, clientHeight: ${testCard.clientHeight}`);
-                            const burdhaRow = Array.from(testCard.querySelectorAll('.card-program-item')).find(item => 
+                            const burdhaRow = Array.from(testCard.querySelectorAll('.card-program-item')).find(item =>
                                 item.textContent.toUpperCase().includes('BURDHA')
                             );
                             if (burdhaRow) {
@@ -2363,15 +2599,19 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             }
                         }
 
-                        pageCardsHTML += testCard.outerHTML;
+                        pageCardsHTML += `<div class="card-slot">${testCard.outerHTML}</div>`;
 
                         // Cleanup test card from offscreen container
                         testContainer.removeChild(testCard);
                     });
 
+                    const wrapperClass = orientation === 'a3_portrait' ? 'page-wrapper format-a3' : 'page-wrapper';
+                    const gridClass = orientation === 'a3_portrait' ? 'cards-print-grid format-a3' : 'cards-print-grid';
                     pagesHTML += `
-                        <div class="cards-print-grid">
-                            ${pageCardsHTML}
+                        <div class="${wrapperClass}">
+                            <div class="${gridClass}">
+                                ${pageCardsHTML}
+                            </div>
                         </div>
                     `;
                 }
@@ -2568,11 +2808,18 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
         let styleBlock = '';
         if (f.chestSubmode === 'card') {
+            const isA3 = orientation === 'a3_portrait';
+            const pageSizeStr = isA3 ? 'A3 portrait' : 'A4 portrait';
+            const gridCols = isA3 ? 'repeat(3, 9.8cm)' : '10cm 10cm';
+            const gridRows = isA3 ? 'repeat(6, 6.7cm)' : 'repeat(4, 6.7cm)';
+            const gridWidth = isA3 ? '29.4cm' : '20cm';
+            const gridHeight = isA3 ? '40.2cm' : '26.8cm';
+
             styleBlock = `
                 <style>
                     @page {
-                        size: A4 portrait;
-                        margin: 10mm;
+                        size: ${pageSizeStr};
+                        margin: 0;
                     }
                     body {
                         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -2583,39 +2830,83 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         font-size: 0.75rem;
                         line-height: 1.25;
                     }
-                    .cards-print-grid {
-                        display: grid;
-                        grid-template-columns: repeat(2, 353px);
-                        grid-template-rows: repeat(4, 252px);
-                        gap: 12px;
-                        width: 718px;
-                        height: 1044px;
+                    .page-wrapper {
+                        width: 21cm;
+                        height: 29.7cm;
                         box-sizing: border-box;
-                        page-break-inside: avoid;
-                        break-inside: avoid;
+                        overflow: hidden;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
                         page-break-after: always;
                         break-after: page;
                         margin: 0 auto;
+                        background: #fff;
+                    }
+                    .page-wrapper:last-child {
+                        page-break-after: avoid;
+                        break-after: avoid;
+                    }
+                    .page-wrapper.format-a3 {
+                        width: 29.7cm;
+                        height: 42.0cm;
+                    }
+                    .cards-print-grid {
+                        display: grid;
+                        grid-template-columns: ${gridCols};
+                        grid-template-rows: ${gridRows};
+                        gap: 0;
+                        width: ${gridWidth};
+                        height: ${gridHeight};
+                        box-sizing: border-box;
+                        page-break-inside: avoid;
+                        break-inside: avoid;
+                        margin: 0;
                     }
                     .cards-print-grid:last-child {
                         page-break-after: avoid;
                         break-after: avoid;
                     }
+                    .card-slot {
+                        width: 10cm;
+                        height: 6.7cm;
+                        box-sizing: border-box;
+                        overflow: hidden;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        position: relative;
+                        border: 0.2mm dashed #d0d0d0 !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                    }
                     .student-card-item {
-                        border: 1.5px solid #cbd5e1;
-                        border-radius: 8px;
-                        padding: 12px;
+                        border: none !important;
+                        border-radius: 0 !important;
+                        box-shadow: none !important;
+                        outline: none !important;
+                        padding: 10px;
                         background: #fff;
-                        page-break-inside: avoid;
-                        break-inside: avoid;
+                        box-sizing: border-box;
+                        width: 6.7cm;
+                        height: 10cm;
+                        overflow: hidden;
                         display: flex;
                         flex-direction: column;
-                        gap: 8px;
+                        gap: 6px;
                         font-size: 0.72rem;
-                        box-sizing: border-box;
-                        width: 353px;
-                        height: 252px;
-                        overflow: hidden;
+                        position: absolute;
+                        transform: rotate(90deg);
+                        transform-origin: center center;
+                        flex-shrink: 0;
+                    }
+                    .cards-print-grid.format-a3 .card-slot {
+                        width: 9.8cm;
+                        height: 6.7cm;
+                    }
+                    .cards-print-grid.format-a3 .student-card-item {
+                        width: 6.7cm;
+                        height: 9.8cm;
                     }
                     .card-header {
                         display: flex;
@@ -2629,7 +2920,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         display: flex;
                         flex-direction: column;
                         gap: 2px;
-                        max-width: 244px;
+                        max-width: 160px;
                     }
                     .card-student-name {
                         font-size: 0.95rem;
@@ -2741,6 +3032,231 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         -webkit-box-orient: vertical;
                         overflow: hidden;
                     }
+                    .card-event-header,
+                    .card-header,
+                    .card-section {
+                        position: relative;
+                        z-index: 2;
+                    }
+                    .team-art-theme-0 {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 0;
+                        overflow: hidden;
+                        pointer-events: none;
+                        background: #ecfeff;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    .team-art-theme-0 .shape-1 {
+                        position: absolute;
+                        top: -40px;
+                        right: -40px;
+                        width: 130px;
+                        height: 130px;
+                        border-radius: 50%;
+                        background: rgba(6, 182, 212, 0.16);
+                    }
+                    .team-art-theme-0 .shape-2 {
+                        position: absolute;
+                        bottom: -10px;
+                        left: 45%;
+                        width: 60px;
+                        height: 40px;
+                        border-radius: 30px 30px 0 0;
+                        background: rgba(37, 99, 235, 0.12);
+                    }
+                    .team-art-theme-0 .shape-3 {
+                        position: absolute;
+                        top: 130px;
+                        right: 12px;
+                        width: 16px;
+                        height: 32px;
+                        background-image: radial-gradient(rgba(29, 78, 216, 0.22) 2px, transparent 2px);
+                        background-size: 8px 8px;
+                    }
+                    .team-art-theme-0 .shape-4 {
+                        position: absolute;
+                        bottom: -30px;
+                        left: -30px;
+                        width: 90px;
+                        height: 90px;
+                        border-radius: 50%;
+                        border: 1.5px solid rgba(30, 41, 59, 0.15);
+                    }
+                    .team-art-theme-0 .shape-5 {
+                        position: absolute;
+                        top: 20px;
+                        left: 10px;
+                        width: 30px;
+                        height: 15px;
+                        background: repeating-linear-gradient(90deg, rgba(6, 182, 212, 0.18) 0px, rgba(6, 182, 212, 0.18) 2px, transparent 2px, transparent 6px);
+                    }
+
+                    .team-art-theme-1 {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 0;
+                        overflow: hidden;
+                        pointer-events: none;
+                        background: #faf5ff;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    .team-art-theme-1 .shape-1 {
+                        position: absolute;
+                        top: -40px;
+                        right: -40px;
+                        width: 130px;
+                        height: 130px;
+                        border-radius: 50%;
+                        background: rgba(147, 51, 234, 0.15);
+                    }
+                    .team-art-theme-1 .shape-2 {
+                        position: absolute;
+                        bottom: -10px;
+                        left: 45%;
+                        width: 60px;
+                        height: 40px;
+                        border-radius: 30px 30px 0 0;
+                        background: rgba(139, 92, 246, 0.12);
+                    }
+                    .team-art-theme-1 .shape-3 {
+                        position: absolute;
+                        top: 130px;
+                        right: 12px;
+                        width: 16px;
+                        height: 32px;
+                        background-image: radial-gradient(rgba(219, 39, 119, 0.22) 2px, transparent 2px);
+                        background-size: 8px 8px;
+                    }
+                    .team-art-theme-1 .shape-4 {
+                        position: absolute;
+                        bottom: -30px;
+                        left: -30px;
+                        width: 90px;
+                        height: 90px;
+                        border-radius: 50%;
+                        border: 1.5px solid rgba(147, 51, 234, 0.15);
+                    }
+                    .team-art-theme-1 .shape-5 {
+                        position: absolute;
+                        top: 20px;
+                        left: 10px;
+                        width: 30px;
+                        height: 15px;
+                        background: repeating-linear-gradient(90deg, rgba(219, 39, 119, 0.18) 0px, rgba(219, 39, 119, 0.18) 2px, transparent 2px, transparent 6px);
+                    }
+
+                    .team-art-theme-2 {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 0;
+                        overflow: hidden;
+                        pointer-events: none;
+                        background: #f0fdf4;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    .team-art-theme-2 .shape-1 {
+                        position: absolute;
+                        top: -40px;
+                        right: -40px;
+                        width: 130px;
+                        height: 130px;
+                        border-radius: 50%;
+                        background: rgba(52, 211, 153, 0.16);
+                    }
+                    .team-art-theme-2 .shape-2 {
+                        position: absolute;
+                        bottom: -10px;
+                        left: 45%;
+                        width: 60px;
+                        height: 40px;
+                        border-radius: 30px 30px 0 0;
+                        background: rgba(16, 185, 129, 0.12);
+                    }
+                    .team-art-theme-2 .shape-3 {
+                        position: absolute;
+                        top: 130px;
+                        right: 12px;
+                        width: 16px;
+                        height: 32px;
+                        background-image: radial-gradient(rgba(132, 204, 22, 0.22) 2px, transparent 2px);
+                        background-size: 8px 8px;
+                    }
+                    .team-art-theme-2 .shape-4 {
+                        position: absolute;
+                        bottom: -30px;
+                        left: -30px;
+                        width: 90px;
+                        height: 90px;
+                        border-radius: 50%;
+                        border: 1.5px solid rgba(16, 185, 129, 0.15);
+                    }
+                    .team-art-theme-2 .shape-5 {
+                        position: absolute;
+                        top: 20px;
+                        left: 10px;
+                        width: 30px;
+                        height: 15px;
+                        background: repeating-linear-gradient(90deg, rgba(52, 211, 153, 0.18) 0px, rgba(52, 211, 153, 0.18) 2px, transparent 2px, transparent 6px);
+                    }
+
+                    .team-art-theme-3 {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 0;
+                        overflow: hidden;
+                        pointer-events: none;
+                        background: #fff7ed;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    .team-art-theme-3 .shape-1 {
+                        position: absolute;
+                        top: -40px;
+                        right: -40px;
+                        width: 130px;
+                        height: 130px;
+                        border-radius: 50%;
+                        background: rgba(244, 63, 94, 0.15);
+                    }
+                    .team-art-theme-3 .shape-2 {
+                        position: absolute;
+                        bottom: -10px;
+                        left: 45%;
+                        width: 60px;
+                        height: 40px;
+                        border-radius: 30px 30px 0 0;
+                        background: rgba(249, 115, 22, 0.12);
+                    }
+                    .team-art-theme-3 .shape-3 {
+                        position: absolute;
+                        top: 130px;
+                        right: 12px;
+                        width: 16px;
+                        height: 32px;
+                        background-image: radial-gradient(rgba(251, 113, 133, 0.22) 2px, transparent 2px);
+                        background-size: 8px 8px;
+                    }
+                    .team-art-theme-3 .shape-4 {
+                        position: absolute;
+                        bottom: -30px;
+                        left: -30px;
+                        width: 90px;
+                        height: 90px;
+                        border-radius: 50%;
+                        border: 1.5px solid rgba(244, 63, 94, 0.15);
+                    }
+                    .team-art-theme-3 .shape-5 {
+                        position: absolute;
+                        top: 20px;
+                        left: 10px;
+                        width: 30px;
+                        height: 15px;
+                        background: repeating-linear-gradient(90deg, rgba(249, 115, 22, 0.18) 0px, rgba(249, 115, 22, 0.18) 2px, transparent 2px, transparent 6px);
+                    }
                 </style>
             `;
         } else {
@@ -2848,18 +3364,20 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             setTimeout(async () => {
                 try {
                     window.showToast("Preparing PDF download...", "info");
-                    
+
                     const prevWidth = printIframe.style.width;
                     const prevHeight = printIframe.style.height;
-                    
+
                     if (orientation === 'landscape') {
+                        printIframe.style.width = '1123px';
+                    } else if (orientation === 'a3_portrait') {
                         printIframe.style.width = '1123px';
                     } else {
                         printIframe.style.width = '794px';
                     }
                     printIframe.style.height = 'auto';
                     await new Promise(resolve => setTimeout(resolve, 150));
-                    
+
                     const scrollHeight = Math.max(
                         doc.body.scrollHeight,
                         doc.documentElement.scrollHeight,
@@ -2870,17 +3388,19 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     await new Promise(resolve => setTimeout(resolve, 50));
 
                     const html2pdf = await loadHtml2Pdf();
+                    const pdfFormat = orientation === 'a3_portrait' ? 'a3' : 'a4';
+                    const pdfOrientation = orientation === 'a3_portrait' ? 'portrait' : orientation;
                     const opt = {
-                        margin:       10,
-                        filename:     exp.fileName || 'export.pdf',
-                        image:        { type: 'jpeg', quality: 0.98 },
-                        html2canvas:  { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
-                        jsPDF:        { unit: 'mm', format: 'a4', orientation: orientation },
-                        pagebreak:    { mode: ['css', 'legacy'] }
+                        margin: 10,
+                        filename: exp.fileName || 'export.pdf',
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+                        jsPDF: { unit: 'mm', format: pdfFormat, orientation: pdfOrientation },
+                        pagebreak: { mode: ['css', 'legacy'] }
                     };
                     const element = doc.body;
                     await html2pdf().set(opt).from(element).save();
-                    
+
                     printIframe.style.width = prevWidth;
                     printIframe.style.height = prevHeight;
                 } catch (err) {
@@ -2921,7 +3441,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 matchingPrograms = matchingPrograms.filter(p => p.programType === 'individual');
             }
         }
-        
+
         const columnItems = buildColumnItems(matchingPrograms);
 
         if (f.categoryId === 'general_programs') {
@@ -2986,16 +3506,16 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.35rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
                                     <th style="width:180px; min-width:180px; max-width:180px; padding:0.35rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
                                     ${columnItems.map(item => {
-                                        if (item.type === 'separator') {
-                                            return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
-                                        }
-                                        const p = item.program;
-                                        return `
+                    if (item.type === 'separator') {
+                        return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
+                    }
+                    const p = item.program;
+                    return `
                                             <th class="rotated-th program-col" style="height:${headerHeight};">
                                                 <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
                                             </th>
                                         `;
-                                    }).join('')}
+                }).join('')}
                                     <th style="border-left: none; border-right: none; background: #fff !important;"></th>
                                 </tr>
                             </thead>
@@ -3005,11 +3525,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                         <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:0.35rem 0.2rem; border: 1px solid #000;">${idx + 1}</td>
                                         <td style="width:180px; min-width:180px; max-width:180px; border: 1px solid #000;"></td>
                                         ${columnItems.map(item => {
-                                            if (item.type === 'separator') {
-                                                return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
-                                            }
-                                            return `<td class="program-col" style="border:1px solid #000;"></td>`;
-                                        }).join('')}
+                    if (item.type === 'separator') {
+                        return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
+                    }
+                    return `<td class="program-col" style="border:1px solid #000;"></td>`;
+                }).join('')}
                                         <td style="border-left: none; border-right: none;"></td>
                                     </tr>
                                 `).join('')}
@@ -3155,10 +3675,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 setTimeout(async () => {
                     try {
                         window.showToast("Preparing PDF download...", "info");
-                        
+
                         const prevWidth = printIframe.style.width;
                         const prevHeight = printIframe.style.height;
-                        
+
                         if (orientation === 'landscape') {
                             printIframe.style.width = '1123px';
                         } else {
@@ -3166,7 +3686,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         }
                         printIframe.style.height = 'auto';
                         await new Promise(resolve => setTimeout(resolve, 150));
-                        
+
                         const scrollHeight = Math.max(
                             doc.body.scrollHeight,
                             doc.documentElement.scrollHeight,
@@ -3178,16 +3698,16 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                         const html2pdf = await loadHtml2Pdf();
                         const opt = {
-                            margin:       10,
-                            filename:     exp.fileName || 'export.pdf',
-                            image:        { type: 'jpeg', quality: 0.98 },
-                            html2canvas:  { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
-                            jsPDF:        { unit: 'mm', format: 'a4', orientation: orientation },
-                            pagebreak:    { mode: ['css', 'legacy'] }
+                            margin: 10,
+                            filename: exp.fileName || 'export.pdf',
+                            image: { type: 'jpeg', quality: 0.98 },
+                            html2canvas: { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+                            jsPDF: { unit: 'mm', format: 'a4', orientation: orientation },
+                            pagebreak: { mode: ['css', 'legacy'] }
                         };
                         const element = doc.body;
                         await html2pdf().set(opt).from(element).save();
-                        
+
                         printIframe.style.width = prevWidth;
                         printIframe.style.height = prevHeight;
                     } catch (err) {
@@ -3454,23 +3974,23 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                 <th style="width:180px; min-width:180px; max-width:180px; padding:0.25rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
                                                 <th style="width:60px; min-width:60px; max-width:60px; padding:0.25rem 0.5rem; text-align:center; border: 1px solid #000;">CLASS</th>
                                                 ${columnItems.map(item => {
-                                                    if (item.type === 'separator') {
-                                                        return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
-                                                    }
-                                                    const p = item.program;
-                                                    return `
+                                if (item.type === 'separator') {
+                                    return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
+                                }
+                                const p = item.program;
+                                return `
                                                         <th class="rotated-th program-col" style="height:${headerHeight};">
                                                             <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
                                                         </th>
                                                     `;
-                                                }).join('')}
+                            }).join('')}
                                                 <th style="border-left: none; border-right: none; background: #fff !important;"></th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             ${chunk.map((item, idx) => {
-                                                const globalIdx = chunkIdx * pageSize + idx;
-                                                return `
+                                const globalIdx = chunkIdx * pageSize + idx;
+                                return `
                                                     <tr style="height:${rowHeightVal}; page-break-inside:avoid;">
                                                         <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; border: 1px solid #000;">${globalIdx + 1}</td>
                                                         <td style="width:180px; min-width:180px; max-width:180px; font-weight:bold; color:#000; padding:${nameCellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.name)}">
@@ -3480,20 +4000,20 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                             ${window.escapeHTML(item.className || item.classId || '').toUpperCase()}
                                                         </td>
                                                         ${columnItems.map(col => {
-                                                            if (col.type === 'separator') {
-                                                                return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
-                                                            }
-                                                            const p = col.program;
-                                                            return `
+                                    if (col.type === 'separator') {
+                                        return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
+                                    }
+                                    const p = col.program;
+                                    return `
                                                                 <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
                                                                     ${isRegistered(item.id, p.id) ? '✔' : ''}
                                                                 </td>
                                                             `;
-                                                        }).join('')}
+                                }).join('')}
                                                         <td style="border-left: none; border-right: none;"></td>
                                                     </tr>
                                                 `;
-                                            }).join('')}
+                            }).join('')}
                                         </tbody>
                                     </table>
 
@@ -3673,43 +4193,43 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                     <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
                                                     <th style="width:180px; min-width:180px; max-width:180px; padding:0.25rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
                                                     ${columnItems.map(item => {
-                                                        if (item.type === 'separator') {
-                                                            return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
-                                                        }
-                                                        const p = item.program;
-                                                        return `
+                                    if (item.type === 'separator') {
+                                        return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
+                                    }
+                                    const p = item.program;
+                                    return `
                                                             <th class="rotated-th program-col" style="height:${headerHeight};">
                                                                 <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
                                                             </th>
                                                         `;
-                                                    }).join('')}
+                                }).join('')}
                                                     <th style="border-left: none; border-right: none; background: #fff !important;"></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 ${chunk.map((item, idx) => {
-                                                    const globalIdx = chunkIdx * pageSize + idx;
-                                                    return `
+                                    const globalIdx = chunkIdx * pageSize + idx;
+                                    return `
                                                         <tr style="height:${rowHeightVal}; page-break-inside:avoid;">
                                                             <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; border: 1px solid #000;">${globalIdx + 1}</td>
                                                             <td style="width:180px; min-width:180px; max-width:180px; font-weight:bold; color:#000; padding:${nameCellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.name)}">
                                                                 ${window.escapeHTML(item.name).toUpperCase()}
                                                             </td>
                                                             ${columnItems.map(col => {
-                                                                if (col.type === 'separator') {
-                                                                    return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
-                                                                }
-                                                                const p = col.program;
-                                                                return `
+                                        if (col.type === 'separator') {
+                                            return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
+                                        }
+                                        const p = col.program;
+                                        return `
                                                                     <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
                                                                         ${isRegistered(item.id, p.id) ? '✔' : ''}
                                                                     </td>
                                                                 `;
-                                                            }).join('')}
+                                    }).join('')}
                                                             <td style="border-left: none; border-right: none;"></td>
                                                         </tr>
                                                     `;
-                                                }).join('')}
+                                }).join('')}
                                             </tbody>
                                         </table>
 
@@ -3857,10 +4377,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             setTimeout(async () => {
                 try {
                     window.showToast("Preparing PDF download...", "info");
-                    
+
                     const prevWidth = printIframe.style.width;
                     const prevHeight = printIframe.style.height;
-                    
+
                     if (orientation === 'landscape') {
                         printIframe.style.width = '1123px';
                     } else {
@@ -3868,7 +4388,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     }
                     printIframe.style.height = 'auto';
                     await new Promise(resolve => setTimeout(resolve, 150));
-                    
+
                     const scrollHeight = Math.max(
                         doc.body.scrollHeight,
                         doc.documentElement.scrollHeight,
@@ -3880,16 +4400,16 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                     const html2pdf = await loadHtml2Pdf();
                     const opt = {
-                        margin:       10,
-                        filename:     exp.fileName || 'export.pdf',
-                        image:        { type: 'jpeg', quality: 0.98 },
-                        html2canvas:  { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
-                        jsPDF:        { unit: 'mm', format: 'a4', orientation: orientation },
-                        pagebreak:    { mode: ['css', 'legacy'] }
+                        margin: 10,
+                        filename: exp.fileName || 'export.pdf',
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: orientation },
+                        pagebreak: { mode: ['css', 'legacy'] }
                     };
                     const element = doc.body;
                     await html2pdf().set(opt).from(element).save();
-                    
+
                     printIframe.style.width = prevWidth;
                     printIframe.style.height = prevHeight;
                 } catch (err) {
@@ -4061,7 +4581,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         </thead>
                         <tbody>
                             ${parts.length === 0 ? `<tr><td colspan="5" style="text-align:center; padding:1rem; color:#666; border: 1px solid #000;">No registered entries.</td></tr>` :
-                            parts.map((item, idx) => `
+                    parts.map((item, idx) => `
                                 <tr style="height:28px; page-break-inside:avoid;">
                                     <td style="text-align:center; font-weight:700; color:#000; border: 1px solid #000;">${idx + 1}</td>
                                     <td style="text-align:center; font-weight:800; color:#000; border: 1px solid #000;">${window.escapeHTML(item.chestNumber || '—')}</td>
@@ -5352,10 +5872,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         setTimeout(async () => {
             try {
                 window.showToast("Preparing PDF download...", "info");
-                
+
                 const prevWidth = printIframe.style.width;
                 const prevHeight = printIframe.style.height;
-                
+
                 if ((orientation || 'portrait') === 'landscape') {
                     printIframe.style.width = '1123px';
                 } else {
@@ -5363,7 +5883,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 }
                 printIframe.style.height = 'auto';
                 await new Promise(resolve => setTimeout(resolve, 150));
-                
+
                 const scrollHeight = Math.max(
                     doc.body.scrollHeight,
                     doc.documentElement.scrollHeight,
@@ -5375,16 +5895,16 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                 const html2pdf = await loadHtml2Pdf();
                 const opt = {
-                    margin:       10,
-                    filename:     exp.fileName || 'export.pdf',
-                    image:        { type: 'jpeg', quality: 0.98 },
-                    html2canvas:  { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
-                    jsPDF:        { unit: 'mm', format: 'a4', orientation: orientation || 'portrait' },
-                    pagebreak:    { mode: ['css', 'legacy'] }
+                    margin: 10,
+                    filename: exp.fileName || 'export.pdf',
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: orientation || 'portrait' },
+                    pagebreak: { mode: ['css', 'legacy'] }
                 };
                 const element = doc.body;
                 await html2pdf().set(opt).from(element).save();
-                
+
                 printIframe.style.width = prevWidth;
                 printIframe.style.height = prevHeight;
             } catch (err) {
@@ -5440,7 +5960,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             if (idxA !== idxB) {
                 return idxA - idxB;
             }
-            
+
             const classA = a.className || '';
             const classB = b.className || '';
             const classComp = classA.localeCompare(classB, undefined, { numeric: true });
@@ -5510,16 +6030,16 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 matchingPrograms = matchingPrograms.filter(p => p.programType === 'individual');
             }
         }
-        
+
         const stageProgs = matchingPrograms.filter(p => (p.programLocation || p.location || 'Off Stage') === 'Stage');
         const offStageProgs = matchingPrograms.filter(p => (p.programLocation || p.location || 'Off Stage') !== 'Stage');
-        
+
         stageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
         offStageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
-        
+
         const columnItems = [];
         stageProgs.forEach(p => columnItems.push({ type: 'program', program: p }));
-        
+
         if (stageProgs.length > 0 && offStageProgs.length > 0) {
             columnItems.push({ type: 'separator' });
         }
@@ -5626,7 +6146,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             if (idxA !== idxB) {
                 return idxA - idxB;
             }
-            
+
             const classA = a.className || '';
             const classB = b.className || '';
             const classComp = classA.localeCompare(classB, undefined, { numeric: true });
