@@ -4855,32 +4855,38 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     </table>
                 `;
             } else {
-                // Individual Programs: 4-column compact table
+                // Individual Programs: 5-column compact table
                 const tableHeaderHtml = `
                     <tr>
                         <th style="width:50px; text-align:center;">SL</th>
                         <th style="width:110px; text-align:center;">Chest No</th>
                         <th>Participant Name</th>
+                        <th style="width:100px; text-align:left;">Class</th>
                         <th style="width:160px;">Team</th>
                     </tr>
                 `;
 
                 const tableBodyHtml = parts.length === 0 ? `
                     <tr>
-                        <td colspan="4" style="text-align:center; padding:0.6rem; color:#64748b;">No registered entries.</td>
+                        <td colspan="5" style="text-align:center; padding:0.6rem; color:#64748b;">No registered entries.</td>
                     </tr>
-                ` : parts.map((item, idx) => `
-                    <tr style="height:28px; page-break-inside:avoid;">
-                        <td style="text-align:center; font-weight:800; color:#64748b;">${idx + 1}</td>
-                        <td style="text-align:center;">
-                            <span class="call-chest-badge">${window.escapeHTML(item.chestNumber || '—')}</span>
-                        </td>
-                        <td style="font-weight:800; color:#1e1b4b;">${window.escapeHTML(item.name)}</td>
-                        <td>
-                            <span class="call-team-badge">${window.escapeHTML(item.teamName || '—')}</span>
-                        </td>
-                    </tr>
-                `).join('');
+                ` : parts.map((item, idx) => {
+                    const resolvedStudent = item.studentId ? studentMap[item.studentId] : null;
+                    const className = resolvedStudent ? (resolvedStudent.className || resolvedStudent.classId || '—') : '—';
+                    return `
+                        <tr style="height:28px; page-break-inside:avoid;">
+                            <td style="text-align:center; font-weight:800; color:#64748b;">${idx + 1}</td>
+                            <td style="text-align:center;">
+                                <span class="call-chest-badge">${window.escapeHTML(item.chestNumber || '—')}</span>
+                            </td>
+                            <td style="font-weight:800; color:#1e1b4b;">${window.escapeHTML(item.name)}</td>
+                            <td style="font-weight:700; color:#475569;">${window.escapeHTML(className)}</td>
+                            <td>
+                                <span class="call-team-badge">${window.escapeHTML(item.teamName || '—')}</span>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
 
                 bodyHtml = `
                     <table class="report-table call-list-table" style="margin-top: 0.15rem; width:100%;">
@@ -6232,12 +6238,14 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
     }
 
     else if (f.type === 'Call List') {
-        csvContent += "PROGRAM,CATEGORY,TYPE,SL NO,CHEST NUMBER,PARTICIPANT NAME,TEAM NAME\n";
+        csvContent += "PROGRAM,CATEGORY,TYPE,SL NO,CHEST NUMBER,PARTICIPANT NAME,CLASS,TEAM NAME\n";
 
         programs.forEach(p => {
             const parts = participantsMap[p.id] || [];
             parts.forEach((item, idx) => {
-                csvContent += `"${p.programName}","${p.categoryName}","${p.type}",${idx + 1},"${item.chestNumber || '—'}","${item.name}","${item.teamName || ''}"\n`;
+                const resolvedStudent = item.studentId ? studentMap[item.studentId] : null;
+                const className = resolvedStudent ? (resolvedStudent.className || resolvedStudent.classId || '—') : '—';
+                csvContent += `"${p.programName}","${p.categoryName}","${p.type}",${idx + 1},"${item.chestNumber || '—'}","${item.name}","${className}","${item.teamName || ''}"\n`;
             });
         });
     }
