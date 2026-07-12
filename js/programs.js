@@ -681,7 +681,6 @@ function openProgramModal(progId = null, data = {}) {
                         <label class="form-label-compact" style="font-size:0.68rem; font-weight:700; color:#64748b; text-transform:uppercase;">Type Scope</label>
                         <select id="bulkTypeScope" class="form-input-compact select-premium" style="font-size:0.78rem; padding:0.35rem 0.5rem; border-radius:6px; border:1px solid #e2e8f0;">
                             <option value="competition" selected>Competition Program</option>
-                            <option value="general">General Program</option>
                         </select>
                     </div>
                     <div class="form-group-compact" style="display:flex; flex-direction:column; gap:0.15rem;">

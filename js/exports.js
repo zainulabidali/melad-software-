@@ -1491,7 +1491,11 @@ function renderDrawerContent() {
             filteredProgs = allPrograms.filter(p => p.id === programId);
         } else {
             filteredProgs = allPrograms.filter(p => {
-                if (categoryId && p.categoryId !== categoryId) return false;
+                if (participationType === 'general') {
+                    if (p.categoryId !== 'general_programs' && p.programType !== 'general') return false;
+                } else {
+                    if (categoryId && p.categoryId !== categoryId) return false;
+                }
                 if (classId && p.classId !== classId) return false;
                 if (gender && p.genderCategory !== gender) return false;
                 if (programLocation && p.programLocation !== programLocation) return false;
@@ -1778,7 +1782,11 @@ async function triggerDownload(exp, isDownload = false) {
             programs = allPrograms.filter(p => p.id === f.programId);
         } else {
             programs = allPrograms.filter(p => {
-                if (f.categoryId && p.categoryId !== f.categoryId) return false;
+                if (f.participationType === 'general') {
+                    if (p.categoryId !== 'general_programs' && p.programType !== 'general') return false;
+                } else {
+                    if (f.categoryId && p.categoryId !== f.categoryId) return false;
+                }
                 if (f.classId && p.classId && p.classId !== f.classId) return false;
                 if (f.gender && p.genderCategory !== f.gender) return false;
                 if (f.programLocation && p.programLocation !== f.programLocation) return false;
@@ -1878,8 +1886,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
     const orientation = f.orientation || 'portrait';
 
     const buildColumnItems = (progsList) => {
-        // Exclude General Programs completely
-        const filteredList = progsList.filter(p => p.categoryId !== 'general_programs' && p.programType !== 'general');
+        // Exclude General Programs completely unless we are exporting general programs
+        const isGeneralExport = f.categoryId === 'general_programs' || f.participationType === 'general';
+        const filteredList = isGeneralExport
+            ? progsList
+            : progsList.filter(p => p.categoryId !== 'general_programs' && p.programType !== 'general');
 
         // Group into Stage Individual, Off-Stage Individual, and Group programs
         const indStageProgs = filteredList.filter(p => p.type === 'Individual' && p.programLocation === 'Stage');
@@ -3220,6 +3231,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 });
             });
             studentsList = studentsList.filter(s => registeredStudentIds.has(s.id));
+            if (f.categoryId && f.categoryId !== 'general_programs') {
+                studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
+            }
         } else if (f.categoryId) {
             studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
         }
@@ -3321,7 +3335,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const sortedTeamIds = Object.keys(cat.teams).sort((a, b) => cat.teams[a].name.localeCompare(cat.teams[b].name));
 
                     // Filter matching programs for this specific Category
-                    const progs = matchingPrograms.filter(p => p.categoryId === catId);
+                    const progs = f.categoryId === 'general_programs' || f.participationType === 'general'
+                        ? matchingPrograms
+                        : matchingPrograms.filter(p => p.categoryId === catId);
 
                     if (progs.length === 0) {
                         htmlContent += `
@@ -5579,6 +5595,9 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 });
             });
             studentsList = studentsList.filter(s => registeredStudentIds.has(s.id));
+            if (f.categoryId && f.categoryId !== 'general_programs') {
+                studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
+            }
         } else if (f.categoryId) {
             studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
         }
