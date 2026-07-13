@@ -160,6 +160,31 @@ export async function updateDashboardMetadata(instituteId) {
         const stagesSet = new Set(programs.map(p => p.programLocation).filter(Boolean));
         const totalStages = stagesSet.size;
 
+        const stageProgramCount = programs.filter(p => {
+            const loc = (p.programLocation || p.location || '').trim().toLowerCase();
+            return loc === 'stage';
+        }).length;
+
+        const offStageProgramCount = programs.filter(p => {
+            const loc = (p.programLocation || p.location || '').trim().toLowerCase();
+            return loc === 'off stage';
+        }).length;
+
+        const individualProgramCount = programs.filter(p => {
+            const pType = (p.programType || p.type || 'individual').toLowerCase();
+            return pType === 'individual';
+        }).length;
+
+        const groupProgramCount = programs.filter(p => {
+            const pType = (p.programType || p.type || 'individual').toLowerCase();
+            return pType === 'group';
+        }).length;
+
+        const generalProgramCount = programs.filter(p => {
+            const pType = (p.programType || p.type || 'individual').toLowerCase();
+            return pType === 'general';
+        }).length;
+
         // 2. Real-time Live Team Leaderboard
         const teamPoints = new Map();
         teams.forEach(t => {
@@ -264,6 +289,11 @@ export async function updateDashboardMetadata(instituteId) {
             maleStudentsCount: maleCount,
             femaleStudentsCount: femaleCount,
             programsCount: totalCompetitions,
+            stageProgramCount: stageProgramCount,
+            offStageProgramCount: offStageProgramCount,
+            individualProgramCount: individualProgramCount,
+            groupProgramCount: groupProgramCount,
+            generalProgramCount: generalProgramCount,
             teamsCount: totalTeams,
             categoriesCount: totalCategories,
             judgesCount: totalJudges,

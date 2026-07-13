@@ -63,6 +63,12 @@ export async function initProgramsView(container, topActions) {
                         <option value="Stage">Stage</option>
                         <option value="Off Stage">Off Stage</option>
                     </select>
+                    <select id="progTypeSelect" class="form-input select-premium">
+                        <option value="">All Program Types</option>
+                        <option value="individual">Individual</option>
+                        <option value="group">Group</option>
+                        <option value="general">General</option>
+                    </select>
                 </div>
                 <div class="programs-actions-group">
                     <button class="btn btn-general" id="btnCreateGeneralProgram">+ General</button>
@@ -122,6 +128,13 @@ export async function initProgramsView(container, topActions) {
 
     if (stageSel) {
         stageSel.addEventListener('change', () => {
+            applyProgramFiltersAndRender();
+        });
+    }
+
+    const typeSel = document.getElementById('progTypeSelect');
+    if (typeSel) {
+        typeSel.addEventListener('change', () => {
             applyProgramFiltersAndRender();
         });
     }
@@ -193,6 +206,7 @@ function applyProgramFiltersAndRender() {
     const q = (document.getElementById('progSearchInput')?.value || '').trim().toLowerCase();
     const genderVal = document.getElementById('progGenderSelect')?.value || '';
     const stageVal = document.getElementById('progStageSelect')?.value || '';
+    const typeVal = document.getElementById('progTypeSelect')?.value || '';
 
     let filtered = localProgramsAll;
 
@@ -240,6 +254,14 @@ function applyProgramFiltersAndRender() {
         filtered = filtered.filter(p => {
             const progLoc = (p.programLocation || p.location || 'Off Stage').trim().toLowerCase();
             return progLoc === stageVal.toLowerCase();
+        });
+    }
+
+    // 5. Program Type post-filter
+    if (typeVal) {
+        filtered = filtered.filter(p => {
+            const pType = (p.programType || p.type || 'individual').toLowerCase();
+            return pType === typeVal.toLowerCase();
         });
     }
 

@@ -1980,7 +1980,8 @@
 }
 
 #progGenderSelect,
-#progStageSelect {
+#progStageSelect,
+#progTypeSelect {
     width: 150px;
 }
 
@@ -2348,6 +2349,10 @@
         grid-template-columns: repeat(2, 1fr) !important;
         gap: 0.5rem !important;
         width: 100% !important;
+    }
+
+    .programs-filters-grid .search-input-wrapper {
+        grid-column: 1 / -1 !important;
     }
 
     .programs-filters-grid .search-input-wrapper,

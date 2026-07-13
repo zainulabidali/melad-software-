@@ -2497,7 +2497,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     if (p.groupName && p.groupName !== teamNamesMap[p.teamId]) {
                                         label = p.groupName;
                                     }
-                                    const pNameStr = label ? `${p.programName || 'Unknown Program'} (${label})` : (p.programName || 'Unknown Program');
+                                    const numStr = p.programNumber ? `${p.programNumber} - ` : '';
+                                    const pNameStr = label ? `${numStr}${p.programName || 'Unknown Program'} (${label})` : `${numStr}${p.programName || 'Unknown Program'}`;
                                     const availableProgWidth = 233;
 
                                     let pFontSize = itemFontSize;
@@ -2516,19 +2517,27 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             sections.forEach((sec, sIdx) => {
                                 const isLast = sIdx === sections.length - 1;
                                 const currentSecGap = isLast ? 0 : sectionGap;
+                                
+                                const headingTitle = sec.title === 'OFF-STAGE PROGRAMS' ? 'OFF STAGE PROGRAMS' : sec.title;
+                                const sectionFontSize = (itemFontSize * 0.75).toFixed(1);
+
                                 sectionsHTML += `
-                                    <div class="card-section" style="margin-top: 2px; margin-bottom: ${currentSecGap}px; page-break-inside: avoid; break-inside: avoid; display: flex; justify-content: center; width: 100%;">
-                                        <ul class="card-program-list" style="gap: ${programRowGap}px; display: flex; flex-direction: column; align-items: flex-start; width: max-content; max-width: 100%;">
+                                    <div class="card-section" style="margin-top: 2px; margin-bottom: ${currentSecGap}px; page-break-inside: avoid; break-inside: avoid; display: flex; flex-direction: column; align-items: center; width: 100%;">
+                                        <div style="font-size: ${sectionFontSize}px; font-weight: 700; text-transform: uppercase; text-align: center; letter-spacing: 0.5px; line-height: 1.1; margin-top: ${sIdx === 0 ? 0 : sectionGap}px; margin-bottom: 2px; color: #0f172a; width: 100%; display: block;">
+                                            ${headingTitle}
+                                        </div>
+                                        <ul class="card-program-list" style="gap: ${programRowGap}px; display: flex; flex-direction: column; align-items: center; width: 100%; margin: 0; padding: 0; list-style: none;">
                                             ${sec.items.map(p => {
                                     let label = '';
                                     if (p.groupName && p.groupName !== teamNamesMap[p.teamId]) {
                                         label = p.groupName;
                                     }
-                                    const displayName = label ? `${p.programName || 'Unknown Program'} (${label})` : (p.programName || 'Unknown Program');
+                                    const numStr = p.programNumber ? `${p.programNumber} - ` : '';
+                                    const displayName = label ? `${numStr}${p.programName || 'Unknown Program'} (${label})` : `${numStr}${p.programName || 'Unknown Program'}`;
                                     return `
-                                                    <li class="card-program-item" style="font-size: ${p.finalFontSize}px; line-height: ${progLineHeight}; margin-bottom: ${programRowGap}px; display: flex; align-items: flex-start; gap: 5px;">
-                                                        <span style="flex-shrink: 0; font-size: 0.7em; margin-top: 0.15em;">•</span>
-                                                        <span class="program-left" style="font-weight: 600;">${window.escapeHTML(displayName)}</span>
+                                                    <li class="card-program-item" style="font-size: ${p.finalFontSize}px; line-height: ${progLineHeight}; margin-bottom: ${programRowGap}px; display: flex !important; align-items: center !important; justify-content: center !important; text-align: center !important; gap: 4px; width: 100%;">
+                                                        <span style="flex-shrink: 0; font-size: 0.7em; display: inline-flex; align-items: center; justify-content: center;">🔹</span>
+                                                        <span class="program-left" style="font-weight: 600; text-align: center !important;">${window.escapeHTML(displayName)}</span>
                                                     </li>
                                                 `;
                                 }).join('')}

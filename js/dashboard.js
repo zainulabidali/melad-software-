@@ -931,6 +931,19 @@ function recalculateDashboard() {
         elStudentsDesc.textContent = `Male: ${maleCount} | Female: ${femaleCount}`;
     }
     if (elCompetitions) elCompetitions.textContent = totalCompetitions;
+    const elCompetitionsDesc = document.getElementById('statCompetitionsDesc');
+    if (elCompetitionsDesc) {
+        const stageCount = metadataCache.stageProgramCount || 0;
+        const offStageCount = metadataCache.offStageProgramCount || 0;
+        elCompetitionsDesc.textContent = `Stage: ${stageCount} | Off Stage: ${offStageCount}`;
+    }
+    const elCompetitionsTypes = document.getElementById('statCompetitionsTypes');
+    if (elCompetitionsTypes) {
+        const individualCount = metadataCache.individualProgramCount || 0;
+        const groupCount = metadataCache.groupProgramCount || 0;
+        const generalCount = metadataCache.generalProgramCount || 0;
+        elCompetitionsTypes.textContent = `Indiv: ${individualCount} | Grou: ${groupCount} | Gen: ${generalCount}`;
+    }
     if (elTeams) elTeams.textContent = totalTeams;
     if (elCategories) elCategories.textContent = totalCategories;
     if (elStages) elStages.textContent = totalStages;
@@ -1054,7 +1067,8 @@ async function initDashboardOverview(container, topActions) {
                         </div>
                     </div>
                     <h2 class="stat-value" id="statCompetitions">-</h2>
-                    <span class="stat-desc">Active events</span>
+                    <span class="stat-desc" id="statCompetitionsDesc" style="display: block;">Active events</span>
+                    <span class="stat-desc" id="statCompetitionsTypes" style="display: block; font-size: 11px; margin-top: 2px; opacity: 0.85; white-space: normal !important; line-height: 1.2;">-</span>
                 </div>
 
                 <!-- Card 👥 TEAMS -->
@@ -1235,6 +1249,11 @@ async function initDashboardOverview(container, topActions) {
                 const needsSelfHealing = 
                     data.maleStudentsCount === undefined || 
                     data.femaleStudentsCount === undefined || 
+                    data.stageProgramCount === undefined || 
+                    data.offStageProgramCount === undefined || 
+                    data.individualProgramCount === undefined || 
+                    data.groupProgramCount === undefined || 
+                    data.generalProgramCount === undefined || 
                     catTotal !== metadataCache.studentsCount;
 
                 if (needsSelfHealing) {
