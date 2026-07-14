@@ -1,6 +1,6 @@
 import { db, getCachedCategories, getCachedTeams, getCachedPrograms } from './firebase.js';
 import {
-    collection, doc, getDocs, onSnapshot, serverTimestamp, addDoc, deleteDoc, updateDoc, query, orderBy, limit
+    collection, doc, getDoc, getDocs, onSnapshot, serverTimestamp, addDoc, deleteDoc, updateDoc, query, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 import { normalizeClasses } from './categories.js';
 
@@ -18,6 +18,7 @@ function formatLabel(str) {
 let allPrograms = [];
 let allCategories = [];
 let allTeams = [];
+let allAwardTypes = [];
 let unsubscribeExports = null;
 let exportsList = [];
 
@@ -384,9 +385,14 @@ export async function initExportsView(container, topActions) {
 
             <!-- History Logs Grid/List -->
             <div class="card" style="padding:1.25rem; border-color:#cbd5e1; width:100%; box-shadow:0 1px 3px rgba(0,0,0,0.05); box-sizing:border-box;">
-                <h3 style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0; margin-bottom:1.25rem; display:flex; align-items:center; gap:0.4rem;">
-                    📜 Export History Logs
-                </h3>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+                    <h3 style="font-size:1rem; font-weight:800; color:#0f172a; margin:0; display:flex; align-items:center; gap:0.4rem;">
+                        📜 Export History Logs
+                    </h3>
+                    <button id="btnClearExportHistory" class="btn btn-danger btn-sm" style="min-height:28px; padding:0 0.75rem; font-size:0.75rem; font-weight:700; display:flex; align-items:center; gap:0.25rem;" disabled>
+                        🗑️ Clear
+                    </button>
+                </div>
                 
                 <!-- Desktop Table Grid -->
                 <div class="exp-desktop-table" style="overflow-x:auto; background:#fff; border:1px solid #e2e8f0; border-radius:12px; width:100%;">
@@ -455,6 +461,39 @@ export async function initExportsView(container, topActions) {
         renderHistoryLogs();
     };
 
+    const clearBtn = document.getElementById("btnClearExportHistory");
+    if (clearBtn) {
+        clearBtn.onclick = async () => {
+            const confirmed = await window.customConfirm(
+                "Are you sure you want to clear all export history logs?",
+                "Confirm Action",
+                { danger: true, okText: "Clear All", cancelText: "Cancel" }
+            );
+            if (!confirmed) return;
+
+            clearBtn.disabled = true;
+            clearBtn.textContent = '⏳ Clearing...';
+
+            try {
+                const instId = window.currentInstituteId;
+                const querySnap = await getDocs(collection(db, "institutes", instId, "exports"));
+                
+                const deletePromises = querySnap.docs.map(docSnap => 
+                    deleteDoc(doc(db, "institutes", instId, "exports", docSnap.id))
+                );
+                await Promise.all(deletePromises);
+
+                window.showToast("Export history cleared successfully.", "success");
+            } catch (err) {
+                console.error("Failed to clear export history:", err);
+                window.showToast("Failed to clear export history.", "error");
+            } finally {
+                clearBtn.disabled = false;
+                clearBtn.innerHTML = '🗑️ Clear';
+            }
+        };
+    }
+
     // Scroll handler to close fixed menus when scrolling to prevent floating drifts
     const handleScroll = () => {
         const activeDropdown = document.querySelector('.active-body-dropdown');
@@ -511,6 +550,23 @@ async function loadStaticData(force = false) {
 
         // Teams Preloaded Memory Cache
         allTeams = await getCachedTeams(instId, force) || [];
+
+        // Load configured dynamic award types
+        allAwardTypes = [
+            { id: "attendance", name: "Attendance" },
+            { id: "examination", name: "Examination" }
+        ];
+        try {
+            const configSnap = await getDoc(doc(db, "institutes", instId, "metadata", "awardTypesConfig"));
+            if (configSnap.exists()) {
+                const data = configSnap.data();
+                if (Array.isArray(data.awardTypes)) {
+                    allAwardTypes = data.awardTypes;
+                }
+            }
+        } catch (err) {
+            console.error("Error loading award types config:", err);
+        }
 
     } catch (e) {
         console.error("Failed loading cached collections:", e);
@@ -597,6 +653,11 @@ function renderHistoryLogs() {
     const tbody = document.getElementById('exportHistoryBody');
     const mContainer = document.getElementById('exportHistoryMobile');
     if (!tbody || !mContainer) return;
+
+    const clearBtn = document.getElementById("btnClearExportHistory");
+    if (clearBtn) {
+        clearBtn.disabled = exportsList.length === 0;
+    }
 
     // Apply Client side filters
     let filtered = exportsList.filter(e => {
@@ -1084,6 +1145,16 @@ function renderDrawerContent() {
                             <option value="Program Wise">Program Wise Podiums</option>
                             <option value="Student Prize Distribution">Student Prize Distribution Register</option>
                             <option value="Participants Without Major Prizes">Participants Without Major Prizes</option>
+                            <option value="Class Wise Academic & Attendance">Class Wise Academic & Attendance Awards</option>
+                        </select>
+                    </div>
+
+                    <!-- Award Type filter (Only visible for Class Wise Academic & Attendance Results) -->
+                    <div id="expAwardTypeContainer" style="display:none; flex-direction:column; gap:0.45rem;">
+                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">AWARD TYPE</label>
+                        <select id="expAwardTypeVal" class="exp-input" style="background:#fff;">
+                            <option value="All">All Awards</option>
+                            ${allAwardTypes.map(t => `<option value="${t.id}">${window.escapeHTML(t.name)}</option>`).join('')}
                         </select>
                     </div>
 
@@ -1315,6 +1386,27 @@ function renderDrawerContent() {
                 expFormat.options[1].disabled = false;
             }
 
+            const expResultSubVal = document.getElementById('expResultSubVal');
+            const expAwardTypeContainer = document.getElementById('expAwardTypeContainer');
+
+            const updateAwardTypeFilterVisibility = () => {
+                const activeCard = document.querySelector('.exp-type-card.active');
+                const selType = activeCard ? activeCard.getAttribute('data-type') : '';
+                if (selType === 'Results' && expResultSubVal && expResultSubVal.value === 'Class Wise Academic & Attendance') {
+                    if (expAwardTypeContainer) expAwardTypeContainer.style.display = 'flex';
+                } else {
+                    if (expAwardTypeContainer) expAwardTypeContainer.style.display = 'none';
+                }
+            };
+
+            if (expResultSubVal) {
+                expResultSubVal.onchange = () => {
+                    updateAwardTypeFilterVisibility();
+                    updateClassFilterState();
+                    updateProgramsDropdown();
+                };
+            }
+
             if (selectedType === 'Results') {
                 if (chestExportModeSelector) chestExportModeSelector.style.display = 'none';
                 resultsSourceContainer.style.display = 'flex';
@@ -1325,6 +1417,7 @@ function renderDrawerContent() {
                 if (locCont) locCont.style.display = 'none';
                 if (partCont) partCont.style.display = 'none';
                 if (regModeCont) regModeCont.style.display = 'none';
+                updateAwardTypeFilterVisibility();
             } else if (selectedType === 'Valuation Sheet') {
                 if (chestExportModeSelector) chestExportModeSelector.style.display = 'none';
                 resultsSourceContainer.style.display = 'none';
@@ -1398,6 +1491,7 @@ function renderDrawerContent() {
                 if (partCont) partCont.style.display = 'none';
                 if (regModeCont) regModeCont.style.display = 'none';
             }
+            updateAwardTypeFilterVisibility();
             updateClassFilterState();
             updateProgramsDropdown();
         };
@@ -1407,6 +1501,7 @@ function renderDrawerContent() {
     function updateClassFilterState() {
         const activeCard = document.querySelector('.exp-type-card.active');
         const selectedType = activeCard ? activeCard.getAttribute('data-type') : '';
+        const resultSubOption = document.getElementById('expResultSubVal')?.value || '';
         let isCategoryWise = false;
 
         if (selectedType === 'Program Participation Register') {
@@ -1422,7 +1517,20 @@ function renderDrawerContent() {
 
         const catId = expCatFilter.value;
 
-        if (isCategoryWise) {
+        if (selectedType === 'Results' && resultSubOption === 'Class Wise Academic & Attendance') {
+            expClassFilter.innerHTML = '<option value="">All Classes</option>';
+            const seen = new Set();
+            allCategories.forEach(cat => {
+                if (catId && catId !== 'general_programs' && cat.id !== catId) return;
+                cat.classes.forEach(c => {
+                    if (!seen.has(c.id)) {
+                        seen.add(c.id);
+                        expClassFilter.innerHTML += `<option value="${c.id}">${window.escapeHTML(c.name)}</option>`;
+                    }
+                });
+            });
+            expClassFilter.disabled = false;
+        } else if (isCategoryWise) {
             expClassFilter.value = '';
             expClassFilter.disabled = true;
         } else {
@@ -1503,7 +1611,16 @@ function renderDrawerContent() {
         const categoryId = expCatFilter.value;
         const categoryName = categoryId === 'general_programs' ? 'General' : (categoryId ? allCategories.find(c => c.id === categoryId)?.name : 'All');
         const classId = expClassFilter.value;
-        const className = classId ? allCategories.find(c => c.id === categoryId)?.classes.find(cls => cls.id === classId)?.name : '';
+        let className = '';
+        if (classId) {
+            for (const cat of allCategories) {
+                const found = cat.classes && cat.classes.find(cls => cls.id === classId);
+                if (found) {
+                    className = found.name;
+                    break;
+                }
+            }
+        }
         const programId = expProgFilter.value;
         const programName = programId ? allPrograms.find(p => p.id === programId)?.programName : 'All';
         const gender = document.getElementById('expGenderFilter').value;
@@ -1511,6 +1628,9 @@ function renderDrawerContent() {
         const teamName = teamId ? allTeams.find(t => t.id === teamId)?.name : 'All';
 
         const resultSubOption = selectedType === 'Results' ? document.getElementById('expResultSubVal').value : 'Team Wise';
+        const awardTypeFilter = (selectedType === 'Results' && resultSubOption === 'Class Wise Academic & Attendance')
+            ? document.getElementById('expAwardTypeVal').value
+            : 'All';
         const format = document.getElementById('expFormat').value;
         const orientation = document.getElementById('expOrientation').value;
         const srcIncludeSubmitted = selectedType === 'Results' && document.getElementById('srcIncludeSubmitted').checked;
@@ -1587,13 +1707,15 @@ function renderDrawerContent() {
             const payload = {
                 type: selectedType,
                 fileName: finalFilename,
-                summary: selectedType === 'Program Participation Register'
+                summary: selectedType === 'Results' && resultSubOption === 'Class Wise Academic & Attendance'
+                    ? `Scope: ${classId ? className : 'All Classes'} | Award Type: ${awardTypeFilter} [${format.toUpperCase()}]`
+                    : (selectedType === 'Program Participation Register'
                     ? `Scope: ${categoryName} | Mode: ${registerMode === 'category-wise' ? 'Category-wise' : 'Class-wise'} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`
                     : (selectedType === 'Chest Number List'
                         ? (activeSubmode === 'card'
                             ? `Scope: ${categoryName}${className ? ` (${className})` : ''} | Mode: Chest Number & Program Card | Team: ${teamName} [${format.toUpperCase()}]`
                             : `Scope: ${categoryName}${className ? ` (${className})` : ''} | Mode: ${chestMode === 'category-wise' ? 'Category-wise' : 'Class-wise'} | Team: ${teamName} [${format.toUpperCase()}]`)
-                        : `Scope: ${categoryName}${className ? ` (${className})` : ''} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`),
+                        : `Scope: ${categoryName}${className ? ` (${className})` : ''} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`)),
                 status: 'Pending',
                 queuedAt: serverTimestamp(),
                 completedIn: '—',
@@ -1602,6 +1724,7 @@ function renderDrawerContent() {
                     type: selectedType,
                     chestSubmode: activeSubmode,
                     resultSubOption,
+                    awardTypeFilter,
                     categoryId,
                     classId,
                     programId,
@@ -1847,9 +1970,17 @@ async function triggerDownload(exp, isDownload = false) {
 
         // Phase 8 query scoping optimization: Only load results when explicitly requested
         let resultsList = [];
+        let classAwards = [];
         if (f.type === 'Results') {
-            const resultsSnap = await getDocs(collection(db, "institutes", instId, "results"));
-            resultsList = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (f.resultSubOption === 'Class Wise Academic & Attendance') {
+                const awardsSnap = await getDocs(collection(db, "institutes", instId, "metadata"));
+                classAwards = awardsSnap.docs
+                    .filter(d => d.id.startsWith("class_award_"))
+                    .map(d => ({ id: d.id, ...d.data() }));
+            } else {
+                const resultsSnap = await getDocs(collection(db, "institutes", instId, "results"));
+                resultsList = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            }
         }
 
         // Resolve students cache map dynamically to ensure chest numbers are up-to-date
@@ -1865,7 +1996,7 @@ async function triggerDownload(exp, isDownload = false) {
 
         // Phase 7 Firestore Parallel Fetch Optimization using Promise.all
         let participantsMap = {};
-        if (f.type !== 'Results' || f.resultSubOption === 'Participants Without Major Prizes') {
+        if (f.type !== 'Results' || f.resultSubOption === 'Participants Without Major Prizes' || f.resultSubOption === 'Student Prize Distribution') {
             const participantPromises = programs.map(p => loadParticipants(p, f.teamId, studentMap));
             const allParts = await Promise.all(participantPromises);
             programs.forEach((p, idx) => {
@@ -1875,9 +2006,9 @@ async function triggerDownload(exp, isDownload = false) {
 
         // 3. Compile and trigger
         if (f.format === 'csv') {
-            compileCSV(exp, f, programs, resultsList, participantsMap, studentMap);
+            compileCSV(exp, f, programs, resultsList, participantsMap, studentMap, classAwards);
         } else {
-            compilePDF(exp, f, programs, resultsList, participantsMap, studentMap, isDownload);
+            compilePDF(exp, f, programs, resultsList, participantsMap, studentMap, isDownload, classAwards);
         }
 
     } catch (err) {
@@ -1918,7 +2049,7 @@ async function loadHtml2Pdf() {
 // ─────────────────────────────────────────────
 // PDF Dynamic Document Compiler (Iframe Printing)
 // ─────────────────────────────────────────────
-async function compilePDF(exp, f, programs, resultsList, participantsMap, studentMap = {}, isDownload = false) {
+async function compilePDF(exp, f, programs, resultsList, participantsMap, studentMap = {}, isDownload = false, classAwards = []) {
     let htmlContent = '';
     const orientation = f.orientation || 'portrait';
 
@@ -4988,9 +5119,159 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
     }
 
     else if (f.type === 'Results') {
-        const filteredResults = filterResultsBySource(resultsList, f);
+        if (f.resultSubOption === 'Class Wise Academic & Attendance') {
+            let targetClasses = [];
+            const seenClassIds = new Set();
+            allCategories.forEach(cat => {
+                cat.classes.forEach(c => {
+                    if (!seenClassIds.has(c.id)) {
+                        if (f.classId && c.id !== f.classId) return;
+                        seenClassIds.add(c.id);
+                        targetClasses.push(c);
+                    }
+                });
+            });
+            targetClasses.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
-        if (filteredResults.length === 0) {
+            let filteredAwards = classAwards.filter(aw => {
+                if (f.classId && aw.classId !== f.classId) return false;
+                const awTypeId = aw.awardTypeId || (aw.awardType ? aw.awardType.toLowerCase() : '');
+                if (f.awardTypeFilter && f.awardTypeFilter !== 'All' && awTypeId !== f.awardTypeFilter && aw.awardType !== f.awardTypeFilter) return false;
+                return true;
+            });
+
+            let awardHTML = '';
+            const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+
+            targetClasses.forEach(cls => {
+                const classAwardsList = filteredAwards.filter(aw => aw.classId === cls.id);
+                if (classAwardsList.length === 0) return;
+
+                // Collect unique award types present in this class's awards
+                const classAwardTypes = [];
+                classAwardsList.forEach(aw => {
+                    const typeId = aw.awardTypeId || (aw.awardType ? aw.awardType.toLowerCase() : '');
+                    const typeName = aw.awardType || formatLabel(typeId);
+                    if (!classAwardTypes.some(t => t.id === typeId)) {
+                        classAwardTypes.push({ id: typeId, name: typeName });
+                    }
+                });
+
+                const awardTypes = classAwardTypes.filter(t => {
+                    if (f.awardTypeFilter && f.awardTypeFilter !== 'All' && t.id !== f.awardTypeFilter) return false;
+                    return true;
+                });
+
+                if (awardTypes.length === 0) return;
+
+                awardHTML += `
+                    <div class="program-page-standard" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid; width: 100%;">
+                        <div class="report-header" style="border-bottom: 2px solid #000; padding-bottom: 0.4rem; margin-bottom: 1rem; width: 100%;">
+                            <div>
+                                <div style="font-size: 0.8rem; font-weight: 800; color: #000; letter-spacing: 0.05em; text-transform: uppercase;">
+                                    CLASS WISE ACADEMIC & ATTENDANCE AWARDS
+                                </div>
+                                <h2 style="margin: 0.15rem 0 0 0; color: #1e1b4b; font-size: 1.5rem; font-weight: 900; text-transform: uppercase;">
+                                    ${window.escapeHTML(cls.name).toUpperCase()}
+                                </h2>
+                                <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; margin-top: 0.1rem; text-transform: uppercase;">
+                                    ${window.escapeHTML(instName).toUpperCase()}
+                                </div>
+                            </div>
+                        </div>
+                `;
+
+                awardTypes.forEach(type => {
+                    const award = classAwardsList.find(aw => {
+                        const typeId = aw.awardTypeId || (aw.awardType ? aw.awardType.toLowerCase() : '');
+                        return typeId === type.id;
+                    });
+                    if (!award) return;
+
+                    let firstWinners = [];
+                    if (Array.isArray(award.firstPlaceWinners)) {
+                        firstWinners = award.firstPlaceWinners;
+                    } else if (award.firstPlace) {
+                        firstWinners = [award.firstPlace];
+                    } else if (award.firstPlaceWinner) {
+                        firstWinners = [award.firstPlaceWinner];
+                    }
+
+                    let secondWinners = [];
+                    if (Array.isArray(award.secondPlaceWinners)) {
+                        secondWinners = award.secondPlaceWinners;
+                    } else if (award.secondPlace) {
+                        secondWinners = [award.secondPlace];
+                    } else if (award.secondPlaceWinner) {
+                        secondWinners = [award.secondPlaceWinner];
+                    }
+
+                    awardHTML += `
+                        <div style="margin-bottom: 1.5rem; page-break-inside: avoid;">
+                            <h3 style="font-size: 1.1rem; font-weight: 800; color: #4338ca; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 0.25rem; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                                🏆 ${type.name} Award
+                            </h3>
+                            <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                                <thead>
+                                    <tr style="background: #f8fafc;">
+                                        <th style="width: 150px; padding: 0.5rem; border: 1px solid #cbd5e1; font-weight: 800; text-align: center;">PLACE</th>
+                                        <th style="width: 150px; padding: 0.5rem; border: 1px solid #cbd5e1; font-weight: 800; text-align: center;">CHEST NO</th>
+                                        <th style="padding: 0.5rem; border: 1px solid #cbd5e1; font-weight: 800; text-align: left;">STUDENT NAME</th>
+                                        <th style="width: 180px; padding: 0.5rem; border: 1px solid #cbd5e1; font-weight: 800; text-align: left;">CLASS</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+
+                    firstWinners.forEach(w => {
+                        awardHTML += `
+                            <tr style="height: 36px;">
+                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b;">🥇 1st Place</td>
+                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b;">${window.escapeHTML(w.chestNumber || '—')}</td>
+                                <td style="padding: 0.5rem; font-weight: 700; border: 1px solid #cbd5e1; color: #1e293b;">${window.escapeHTML(w.name).toUpperCase()}</td>
+                                <td style="padding: 0.5rem; border: 1px solid #cbd5e1; color: #475569;">${window.escapeHTML(w.className || cls.name)}</td>
+                            </tr>
+                        `;
+                    });
+
+                    secondWinners.forEach(w => {
+                        awardHTML += `
+                            <tr style="height: 36px;">
+                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b;">🥈 2nd Place</td>
+                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b;">${window.escapeHTML(w.chestNumber || '—')}</td>
+                                <td style="padding: 0.5rem; font-weight: 700; border: 1px solid #cbd5e1; color: #1e293b;">${window.escapeHTML(w.name).toUpperCase()}</td>
+                                <td style="padding: 0.5rem; border: 1px solid #cbd5e1; color: #475569;">${window.escapeHTML(w.className || cls.name)}</td>
+                            </tr>
+                        `;
+                    });
+
+                    awardHTML += `
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                });
+
+                awardHTML += `
+                    </div>
+                `;
+            });
+
+            if (!awardHTML) {
+                htmlContent = `
+                    <div style="text-align:center; padding:4rem; color:#dc2626; border:1px solid #fecaca; border-radius:12px; background:#fef2f2;">
+                        <h3 style="margin:0;">⚠️ No class award records found for the selected filters.</h3>
+                        <p style="color:#64748b; margin-top:0.25rem; font-weight:600;">Please add class award winners first.</p>
+                    </div>
+                `;
+            } else {
+                htmlContent = awardHTML;
+            }
+        }
+        else {
+            const filteredResults = filterResultsBySource(resultsList, f);
+
+            if (filteredResults.length === 0) {
             htmlContent = `
                 <div style="text-align:center; padding:4rem; color:#dc2626; border:1px solid #fecaca; border-radius:12px; background:#fef2f2;">
                     <h3 style="margin:0;">⚠️ No matching published results found.</h3>
@@ -5349,39 +5630,125 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 const studentPrizes = new Map();
 
                 filteredResults.forEach(r => {
+                    const isGeneral = (r.programType || '').toLowerCase() === 'general' || r.categoryId === 'general_programs';
+                    const isGroup = (r.programType || '').toLowerCase() === 'group';
+                    const pLoc = (r.programLocation || '').toLowerCase();
+                    
+                    let prizeCat = 2; // Default to Off Stage Individual
+                    if (isGeneral) {
+                        prizeCat = 4;
+                    } else if (isGroup) {
+                        prizeCat = 3;
+                    } else if (pLoc === 'stage') {
+                        prizeCat = 1;
+                    }
+
                     const winnersList = Array.isArray(r.winners) ? r.winners : [];
                     winnersList.forEach(w => {
-                        if (r.programType === 'group') return;
+                        const associatedStudents = [];
 
-                        let resolvedStudent = null;
-                        if (w.studentId && studentMap[w.studentId]) {
-                            resolvedStudent = studentMap[w.studentId];
-                        } else if (w.studentName) {
-                            resolvedStudent = Object.values(studentMap).find(s => s.name === w.studentName);
+                        if (isGroup) {
+                            const parts = participantsMap[r.programId || r.id] || [];
+                            const winningGroup = (w.groupId && parts.find(p => p.isGroup && p.id === w.groupId)) ||
+                                                 (w.studentName && parts.find(p => p.isGroup && p.name === w.studentName)) ||
+                                                 (w.teamName && parts.find(p => p.isGroup && p.teamName === w.teamName));
+                            
+                            if (winningGroup && Array.isArray(winningGroup.members)) {
+                                winningGroup.members.forEach(m => {
+                                    let student = studentMap[m.studentId];
+                                    if (!student && m.name) {
+                                        const cleanName = m.name.trim().toLowerCase();
+                                        student = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
+                                    }
+                                    if (student) {
+                                        associatedStudents.push({
+                                            studentId: m.studentId,
+                                            studentName: student.name,
+                                            chestNumber: student.chestNumber || m.chestNumber,
+                                            className: student.className || '—',
+                                            categoryName: student.categoryName || '—',
+                                            teamName: student.teamName || winningGroup.teamName || '—'
+                                        });
+                                    }
+                                });
+                            }
+                        } else {
+                            let student = null;
+                            if (w.studentId && studentMap[w.studentId]) {
+                                student = studentMap[w.studentId];
+                            } else if (w.studentName) {
+                                const cleanName = w.studentName.trim().toLowerCase();
+                                student = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
+                            }
+
+                            if (student) {
+                                associatedStudents.push({
+                                    studentId: w.studentId || '',
+                                    studentName: student.name,
+                                    chestNumber: student.chestNumber || w.chestNumber,
+                                    className: student.className || '—',
+                                    categoryName: student.categoryName || '—',
+                                    teamName: student.teamName || w.teamName || '—'
+                                });
+                            } else {
+                                const parts = participantsMap[r.programId || r.id] || [];
+                                const winningGroup = (w.groupId && parts.find(p => p.isGroup && p.id === w.groupId)) ||
+                                                     (w.studentName && parts.find(p => p.isGroup && p.name === w.studentName));
+                                if (winningGroup && Array.isArray(winningGroup.members)) {
+                                    winningGroup.members.forEach(m => {
+                                        let gst = studentMap[m.studentId];
+                                        if (!gst && m.name) {
+                                            const cleanName = m.name.trim().toLowerCase();
+                                            gst = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
+                                        }
+                                        if (gst) {
+                                            associatedStudents.push({
+                                                studentId: m.studentId,
+                                                studentName: gst.name,
+                                                chestNumber: gst.chestNumber || m.chestNumber,
+                                                className: gst.className || '—',
+                                                categoryName: gst.categoryName || '—',
+                                                teamName: gst.teamName || winningGroup.teamName || '—'
+                                            });
+                                        }
+                                    });
+                                } else {
+                                    associatedStudents.push({
+                                        studentId: w.studentId || '',
+                                        studentName: w.studentName || '—',
+                                        chestNumber: w.chestNumber || '—',
+                                        className: '—',
+                                        categoryName: '—',
+                                        teamName: w.teamName || '—'
+                                    });
+                                }
+                            }
                         }
 
-                        const chestNumber = resolvedStudent ? (resolvedStudent.chestNumber || '—') : (w.chestNumber || '—');
-                        const className = resolvedStudent ? (resolvedStudent.className || '—') : '—';
-                        const categoryName = resolvedStudent ? (resolvedStudent.categoryName || '—') : '—';
-                        const teamName = resolvedStudent ? (resolvedStudent.teamName || w.teamName || '—') : (w.teamName || '—');
+                        associatedStudents.forEach(stu => {
+                            const chestNo = stu.chestNumber || '—';
+                            const stuKey = (chestNo && chestNo !== '—') ? chestNo : (stu.studentId || stu.studentName || 'unknown');
+                            
+                            if (!studentPrizes.has(stuKey)) {
+                                studentPrizes.set(stuKey, {
+                                    studentName: stu.studentName,
+                                    chestNumber: chestNo,
+                                    className: stu.className,
+                                    categoryName: stu.categoryName,
+                                    teamName: stu.teamName,
+                                    prizes: []
+                                });
+                            }
 
-                        const stuKey = w.studentId || w.studentName;
-                        if (!stuKey) return;
-
-                        if (!studentPrizes.has(stuKey)) {
-                            studentPrizes.set(stuKey, {
-                                studentName: w.studentName,
-                                chestNumber: chestNumber,
-                                className: className,
-                                categoryName: categoryName,
-                                teamName: teamName,
-                                prizes: []
-                            });
-                        }
-
-                        studentPrizes.get(stuKey).prizes.push({
-                            programName: r.programName,
-                            position: w.position
+                            const listObj = studentPrizes.get(stuKey);
+                            const alreadyAdded = listObj.prizes.some(p => p.programName === r.programName && p.position === w.position);
+                            if (!alreadyAdded) {
+                                listObj.prizes.push({
+                                    programName: r.programName,
+                                    position: w.position,
+                                    categoryIndex: prizeCat
+                                });
+                            }
                         });
                     });
                 });
@@ -5390,61 +5757,56 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     htmlContent = `<div style="text-align:center; padding:3rem; color:#64748b; font-weight:600;">No student prizes recorded under the selected parameters.</div>`;
                 } else {
                     const sortedStudents = [...studentPrizes.values()].sort((a, b) => {
-                        const catA = a.categoryName || '';
-                        const catB = b.categoryName || '';
-
-                        const idxA = allCategories.findIndex(c => c.name === catA);
-                        const idxB = allCategories.findIndex(c => c.name === catB);
-                        if (idxA !== -1 && idxB !== -1 && idxA !== idxB) {
-                            return idxA - idxB;
-                        }
-                        const catCompare = catA.localeCompare(catB, undefined, { sensitivity: 'base' });
-                        if (catCompare !== 0) return catCompare;
-
                         const classA = a.className || '';
                         const classB = b.className || '';
                         const classCompare = classA.localeCompare(classB, undefined, { numeric: true, sensitivity: 'base' });
                         if (classCompare !== 0) return classCompare;
 
-                        return a.studentName.localeCompare(b.studentName);
+                        const chestA = a.chestNumber || '';
+                        const chestB = b.chestNumber || '';
+                        return chestA.localeCompare(chestB, undefined, { numeric: true, sensitivity: 'base' });
                     });
 
                     htmlContent = `
                         <div class="program-page-standard">
-                            <div style="border-bottom:3px solid #4338ca; padding-bottom:0.6rem; margin-bottom:1rem;">
-                                <h2 style="color:#1e1b4b; margin:0; font-weight:900;">🎖️ STUDENT PRIZE DISTRIBUTION REGISTER</h2>
-                                <p style="margin:0.2rem 0 0 0; font-size:0.75rem; color:#64748b; font-weight:600;">Aggregated chronological individual student prizes list.</p>
+                            <div style="border-bottom:3px solid #4338ca; padding-bottom:0.4rem; margin-bottom:0.75rem;">
+                                <h2 style="color:#1e1b4b; margin:0; font-weight:900;">STUDENT PRIZE DISTRIBUTION REGISTER</h2>
+                                <p style="margin:0.15rem 0 0 0; font-size:0.7rem; color:#64748b; font-weight:600;">Aggregated chronological individual student prizes list.</p>
                             </div>
 
-                            <table class="report-table">
+                            <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 8.5px; margin-top: 0.5rem;">
                                 <thead>
-                                    <tr>
-                                        <th style="width:100px; text-align:center;">Chest No</th>
-                                        <th>Student Name</th>
-                                        <th>Class</th>
-                                        <th>Category</th>
-                                        <th>Team</th>
-                                        <th>Prize Details</th>
+                                    <tr style="background-color: #f8fafc;">
+                                        <th style="width: 60px; text-align: center; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 8.5px;">Chest No</th>
+                                        <th style="text-align: left; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 8.5px;">Student Name</th>
+                                        <th style="width: 70px; text-align: left; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 8.5px;">Class</th>
+                                        <th style="width: 80px; text-align: left; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 8.5px;">Category</th>
+                                        <th style="width: 90px; text-align: left; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 8.5px;">Team</th>
+                                        <th style="text-align: left; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 8.5px;">Prize Details</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${sortedStudents.map(stu => `
-                                        <tr>
-                                            <td style="text-align:center; font-weight:900; color:#0f172a; font-size:1.05rem;">${window.escapeHTML(stu.chestNumber)}</td>
-                                            <td style="font-weight:800; color:#1e1b4b;">${window.escapeHTML(stu.studentName)}</td>
-                                            <td style="font-weight:700; color:#475569;">${window.escapeHTML(stu.className)}</td>
-                                            <td style="font-weight:700; color:#475569;">${window.escapeHTML(stu.categoryName)}</td>
-                                            <td style="font-weight:700; color:#475569;">🏛️ ${window.escapeHTML(stu.teamName)}</td>
-                                            <td style="padding:0.4rem 0.75rem;">
-                                                <div style="display:flex; flex-direction:column; gap:0.25rem;">
-                                                    ${stu.prizes.map(p => {
-                        const icon = p.position === 'First' ? '🥇' : (p.position === 'Second' ? '🥈' : '🥉');
-                        return `<span style="font-size:0.78rem; font-weight:700; color:#1e293b;">${icon} ${window.escapeHTML(p.programName)} ➔ <strong>${p.position}</strong></span>`;
-                    }).join('')}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    `).join('')}
+                                    ${sortedStudents.map(stu => {
+                                        stu.prizes.sort((a, b) => a.categoryIndex - b.categoryIndex);
+                                        const prizeDetailsHtml = stu.prizes.map(p => {
+                                            return `<div style="font-size: 8px; font-weight: 600; color: #1e293b; line-height: 1.1; margin-bottom: 2px;">${window.escapeHTML(p.programName)} - ${window.escapeHTML(p.position)}</div>`;
+                                        }).join('');
+
+                                        return `
+                                            <tr style="height: 18px; page-break-inside: avoid;">
+                                                <td style="text-align:center; font-weight:900; color:#0f172a; font-size:9px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.chestNumber)}</td>
+                                                <td style="font-weight:800; color:#1e1b4b; font-size:8.5px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.studentName)}</td>
+                                                <td style="font-weight:700; color:#475569; font-size:8px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.className)}</td>
+                                                <td style="font-weight:700; color:#475569; font-size:8px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.categoryName)}</td>
+                                                <td style="font-weight:700; color:#475569; font-size:8px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.teamName)}</td>
+                                                <td style="padding: 3px 4px; border: 1px solid #cbd5e1; vertical-align: top;">
+                                                    <div style="display:flex; flex-direction:column; gap:1px;">
+                                                        ${prizeDetailsHtml}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
                                 </tbody>
                             </table>
                         </div>
@@ -5674,6 +6036,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             }
         }
     }
+}
 
     // ─────────────────────────────────────────────
     // Hidden Iframe Print Engine execution (Phase 8 popup blocker fix)
@@ -5940,7 +6303,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 // ─────────────────────────────────────────────
 // CSV Dynamic Spreadsheet Blob Generator
 // ─────────────────────────────────────────────
-async function compileCSV(exp, f, programs, resultsList, participantsMap, studentMap = {}) {
+async function compileCSV(exp, f, programs, resultsList, participantsMap, studentMap = {}, classAwards = []) {
     let csvContent = '';
 
     if (f.type === 'Chest Number List') {
@@ -6347,64 +6710,145 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
 
             const studentPrizes = new Map();
             filteredResults.forEach(r => {
+                const isGeneral = (r.programType || '').toLowerCase() === 'general' || r.categoryId === 'general_programs';
+                const isGroup = (r.programType || '').toLowerCase() === 'group';
+                const pLoc = (r.programLocation || '').toLowerCase();
+                
+                let prizeCat = 2; // Default to Off Stage Individual
+                if (isGeneral) {
+                    prizeCat = 4;
+                } else if (isGroup) {
+                    prizeCat = 3;
+                } else if (pLoc === 'stage') {
+                    prizeCat = 1;
+                }
+
                 const winnersList = Array.isArray(r.winners) ? r.winners : [];
                 winnersList.forEach(w => {
-                    const pType = (r.programType || r.type || 'individual').toLowerCase();
-                    if (pType !== 'individual') return;
+                    const associatedStudents = [];
 
-                    let resolvedStudent = null;
-                    if (w.studentId && studentMap[w.studentId]) {
-                        resolvedStudent = studentMap[w.studentId];
-                    } else if (w.studentName) {
-                        resolvedStudent = Object.values(studentMap).find(s => s.name === w.studentName);
+                    if (isGroup) {
+                        const parts = participantsMap[r.programId || r.id] || [];
+                        const winningGroup = (w.groupId && parts.find(p => p.isGroup && p.id === w.groupId)) ||
+                                             (w.studentName && parts.find(p => p.isGroup && p.name === w.studentName)) ||
+                                             (w.teamName && parts.find(p => p.isGroup && p.teamName === w.teamName));
+                        
+                        if (winningGroup && Array.isArray(winningGroup.members)) {
+                            winningGroup.members.forEach(m => {
+                                let student = studentMap[m.studentId];
+                                if (!student && m.name) {
+                                    const cleanName = m.name.trim().toLowerCase();
+                                    student = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
+                                }
+                                if (student) {
+                                    associatedStudents.push({
+                                        studentId: m.studentId,
+                                        studentName: student.name,
+                                        chestNumber: student.chestNumber || m.chestNumber,
+                                        className: student.className || '—',
+                                        categoryName: student.categoryName || '—',
+                                        teamName: student.teamName || winningGroup.teamName || '—'
+                                    });
+                                }
+                            });
+                        }
+                    } else {
+                        let student = null;
+                        if (w.studentId && studentMap[w.studentId]) {
+                            student = studentMap[w.studentId];
+                        } else if (w.studentName) {
+                            const cleanName = w.studentName.trim().toLowerCase();
+                            student = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
+                        }
+
+                        if (student) {
+                            associatedStudents.push({
+                                studentId: w.studentId || '',
+                                studentName: student.name,
+                                chestNumber: student.chestNumber || w.chestNumber,
+                                className: student.className || '—',
+                                categoryName: student.categoryName || '—',
+                                teamName: student.teamName || w.teamName || '—'
+                            });
+                        } else {
+                            const parts = participantsMap[r.programId || r.id] || [];
+                            const winningGroup = (w.groupId && parts.find(p => p.isGroup && p.id === w.groupId)) ||
+                                                 (w.studentName && parts.find(p => p.isGroup && p.name === w.studentName));
+                            if (winningGroup && Array.isArray(winningGroup.members)) {
+                                winningGroup.members.forEach(m => {
+                                    let gst = studentMap[m.studentId];
+                                    if (!gst && m.name) {
+                                        const cleanName = m.name.trim().toLowerCase();
+                                        gst = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
+                                    }
+                                    if (gst) {
+                                        associatedStudents.push({
+                                            studentId: m.studentId,
+                                            studentName: gst.name,
+                                            chestNumber: gst.chestNumber || m.chestNumber,
+                                            className: gst.className || '—',
+                                            categoryName: gst.categoryName || '—',
+                                            teamName: gst.teamName || winningGroup.teamName || '—'
+                                        });
+                                    }
+                                });
+                            } else {
+                                associatedStudents.push({
+                                    studentId: w.studentId || '',
+                                    studentName: w.studentName || '—',
+                                    chestNumber: w.chestNumber || '—',
+                                    className: '—',
+                                    categoryName: '—',
+                                    teamName: w.teamName || '—'
+                                });
+                            }
+                        }
                     }
 
-                    const chestNumber = resolvedStudent ? (resolvedStudent.chestNumber || '—') : (w.chestNumber || '—');
-                    const className = resolvedStudent ? (resolvedStudent.className || '—') : '—';
-                    const categoryName = resolvedStudent ? (resolvedStudent.categoryName || '—') : '—';
-                    const teamName = resolvedStudent ? (resolvedStudent.teamName || w.teamName || '—') : (w.teamName || '—');
+                    associatedStudents.forEach(stu => {
+                        const chestNo = stu.chestNumber || '—';
+                        const stuKey = (chestNo && chestNo !== '—') ? chestNo : (stu.studentId || stu.studentName || 'unknown');
+                        
+                        if (!studentPrizes.has(stuKey)) {
+                            studentPrizes.set(stuKey, {
+                                studentName: stu.studentName,
+                                chestNumber: chestNo,
+                                className: stu.className,
+                                categoryName: stu.categoryName,
+                                teamName: stu.teamName,
+                                prizes: []
+                            });
+                        }
 
-                    const stuKey = w.studentId || w.studentName;
-                    if (!stuKey) return;
-
-                    if (!studentPrizes.has(stuKey)) {
-                        studentPrizes.set(stuKey, {
-                            studentName: w.studentName,
-                            chestNumber: chestNumber,
-                            className: className,
-                            categoryName: categoryName,
-                            teamName: teamName,
-                            prizes: []
-                        });
-                    }
-
-                    studentPrizes.get(stuKey).prizes.push(`${r.programName} -> ${w.position}`);
+                        const listObj = studentPrizes.get(stuKey);
+                        const alreadyAdded = listObj.prizes.some(p => p.programName === r.programName && p.position === w.position);
+                        if (!alreadyAdded) {
+                            listObj.prizes.push({
+                                programName: r.programName,
+                                position: w.position,
+                                categoryIndex: prizeCat
+                            });
+                        }
+                    });
                 });
             });
 
             // Sort systematically: Category ➔ Class ➔ Student
             const sortedStudents = [...studentPrizes.values()].sort((a, b) => {
-                const catA = a.categoryName || '';
-                const catB = b.categoryName || '';
-
-                const idxA = allCategories.findIndex(c => c.name === catA);
-                const idxB = allCategories.findIndex(c => c.name === catB);
-                if (idxA !== -1 && idxB !== -1 && idxA !== idxB) {
-                    return idxA - idxB;
-                }
-                const catCompare = catA.localeCompare(catB, undefined, { sensitivity: 'base' });
-                if (catCompare !== 0) return catCompare;
-
                 const classA = a.className || '';
                 const classB = b.className || '';
                 const classCompare = classA.localeCompare(classB, undefined, { numeric: true, sensitivity: 'base' });
                 if (classCompare !== 0) return classCompare;
 
-                return a.studentName.localeCompare(b.studentName);
+                const chestA = a.chestNumber || '';
+                const chestB = b.chestNumber || '';
+                return chestA.localeCompare(chestB, undefined, { numeric: true, sensitivity: 'base' });
             });
 
             sortedStudents.forEach(stu => {
-                csvContent += `"${stu.chestNumber}","${stu.studentName}","${stu.className}","${stu.categoryName}","${stu.teamName}","${stu.prizes.join('; ')}"\n`;
+                stu.prizes.sort((a, b) => a.categoryIndex - b.categoryIndex);
+                const prizeList = stu.prizes.map(p => `${p.programName} - ${p.position}`);
+                csvContent += `"${stu.chestNumber}","${stu.studentName}","${stu.className}","${stu.categoryName}","${stu.teamName}","${prizeList.join('; ')}"\n`;
             });
         }
 
@@ -6532,6 +6976,82 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 csvContent += `"${s.categoryName}","${s.chestNumber}","${s.name}","${s.className}","${s.teamName}",${s.participationsCount},"${s.status}","${s.participationsList.join('; ')}"\n`;
             });
         }
+    }
+    else if (f.type === 'Results' && f.resultSubOption === 'Class Wise Academic & Attendance') {
+        csvContent += "CLASS,AWARD TYPE,PLACE,CHEST NUMBER,STUDENT NAME\n";
+
+        let targetClasses = [];
+        const seenClassIds = new Set();
+        allCategories.forEach(cat => {
+            cat.classes.forEach(c => {
+                if (!seenClassIds.has(c.id)) {
+                    if (f.classId && c.id !== f.classId) return;
+                    seenClassIds.add(c.id);
+                    targetClasses.push(c);
+                }
+            });
+        });
+        targetClasses.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+        let filteredAwards = classAwards.filter(aw => {
+            if (f.classId && aw.classId !== f.classId) return false;
+            const awTypeId = aw.awardTypeId || (aw.awardType ? aw.awardType.toLowerCase() : '');
+            if (f.awardTypeFilter && f.awardTypeFilter !== 'All' && awTypeId !== f.awardTypeFilter && aw.awardType !== f.awardTypeFilter) return false;
+            return true;
+        });
+
+        targetClasses.forEach(cls => {
+            const classAwardsList = filteredAwards.filter(aw => aw.classId === cls.id);
+            if (classAwardsList.length === 0) return;
+
+            // Collect unique award types present in this class's awards
+            const classAwardTypes = [];
+            classAwardsList.forEach(aw => {
+                const typeId = aw.awardTypeId || (aw.awardType ? aw.awardType.toLowerCase() : '');
+                const typeName = aw.awardType || formatLabel(typeId);
+                if (!classAwardTypes.some(t => t.id === typeId)) {
+                    classAwardTypes.push({ id: typeId, name: typeName });
+                }
+            });
+
+            const awardTypes = classAwardTypes.filter(t => {
+                if (f.awardTypeFilter && f.awardTypeFilter !== 'All' && t.id !== f.awardTypeFilter) return false;
+                return true;
+            });
+
+            awardTypes.forEach(type => {
+                const award = classAwardsList.find(aw => {
+                    const typeId = aw.awardTypeId || (aw.awardType ? aw.awardType.toLowerCase() : '');
+                    return typeId === type.id;
+                });
+                if (!award) return;
+
+                let firstWinners = [];
+                if (Array.isArray(award.firstPlaceWinners)) {
+                    firstWinners = award.firstPlaceWinners;
+                } else if (award.firstPlace) {
+                    firstWinners = [award.firstPlace];
+                } else if (award.firstPlaceWinner) {
+                    firstWinners = [award.firstPlaceWinner];
+                }
+
+                let secondWinners = [];
+                if (Array.isArray(award.secondPlaceWinners)) {
+                    secondWinners = award.secondPlaceWinners;
+                } else if (award.secondPlace) {
+                    secondWinners = [award.secondPlace];
+                } else if (award.secondPlaceWinner) {
+                    secondWinners = [award.secondPlaceWinner];
+                }
+
+                firstWinners.forEach(w => {
+                    csvContent += `"${cls.name.replace(/"/g, '""')}","${type.name.replace(/"/g, '""')}","1st Place","${(w.chestNumber || '').replace(/"/g, '""')}","${(w.name || '').replace(/"/g, '""')}"\n`;
+                });
+                secondWinners.forEach(w => {
+                    csvContent += `"${cls.name.replace(/"/g, '""')}","${type.name.replace(/"/g, '""')}","2nd Place","${(w.chestNumber || '').replace(/"/g, '""')}","${(w.name || '').replace(/"/g, '""')}"\n`;
+                });
+            });
+        });
     }
 
     // Trigger standard File Download Blob

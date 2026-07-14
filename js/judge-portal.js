@@ -500,6 +500,13 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
             marks[judgeIdx] = null;
         }
 
+        const manualGrades = existing.manualGrades && Array.isArray(existing.manualGrades) ? [...existing.manualGrades] : [];
+        while (manualGrades.length < judgesList.length) {
+            manualGrades.push(null);
+        }
+        const adminManualGrade = existing.adminManualGrade || null;
+        const legacyManualGrade = existing.manualGrade || null;
+
         // Calculate average finalMark across filled judge scores
         let sum = 0;
         let validJudgesCount = 0;
@@ -514,13 +521,25 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
         const finalMark = validJudgesCount > 0 ? Number((sum / validJudgesCount).toFixed(2)) : 0;
 
         sortedRows.push({
-            id, name, teamId, teamName, codeLetter, marks, finalMark, hasScores, rank: null
+            id, name, teamId, teamName, codeLetter, marks, finalMark, hasScores, rank: null,
+            adminManualGrade,
+            manualGrade: legacyManualGrade,
+            manualGrades
         });
     });
 
     // Compute ranks using dense ranking helper
     const activeRows = sortedRows.filter(r => r.hasScores);
     computeDenseRanking(activeRows, r => r.finalMark, 'rank');
+
+    const dbJudges = existingResDoc && Array.isArray(existingResDoc.judges) ? existingResDoc.judges : judgesList;
+    const dbJudgeIds = existingResDoc && Array.isArray(existingResDoc.judgeIds) ? existingResDoc.judgeIds : [];
+    let dbJudgeSubmissionStatus = existingResDoc && existingResDoc.judgeSubmissionStatus ? { ...existingResDoc.judgeSubmissionStatus } : {};
+
+    const currentJudgeId = sessionStorage.getItem('standaloneJudgeId') || '';
+    if (currentJudgeId) {
+        dbJudgeSubmissionStatus[currentJudgeId] = isSubmit ? 'submitted' : 'saved';
+    }
 
     const pType = (prog.programType || prog.type || 'individual').toLowerCase();
     let classType = 'individual';
@@ -537,7 +556,25 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
 
     sortedRows.forEach(r => {
         if (r.hasScores) {
-            const { grade, points: gp } = getGradeAndPoints(r.finalMark, classType);
+            const { grade: automaticGrade } = getGradeAndPoints(r.finalMark, classType);
+            const effectiveGrade = resolveEffectiveGrade({
+                automaticGrade,
+                adminManualGrade: r.adminManualGrade,
+                legacyManualGrade: r.manualGrade,
+                manualGrades: r.manualGrades,
+                judgeSubmissionStatus: dbJudgeSubmissionStatus,
+                judgeIds: dbJudgeIds
+            });
+
+            const gradePointsMap = {
+                'A+': config.gradeAPlus !== undefined ? Number(config.gradeAPlus) : 5,
+                'A': config.gradeA !== undefined ? Number(config.gradeA) : 4,
+                'B+': config.gradeBPlus !== undefined ? Number(config.gradeBPlus) : 3,
+                'B': config.gradeB !== undefined ? Number(config.gradeB) : 2,
+                'C': config.gradeC !== undefined ? Number(config.gradeC) : 1
+            };
+            const gp = effectiveGrade ? (gradePointsMap[effectiveGrade] || 0) : 0;
+
             const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
             const position = posMap[r.rank] || '';
             const pp = positionPointsMap[position] || 0;
@@ -552,8 +589,11 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
                 codeLetter: r.codeLetter || '',
                 marks: r.marks || [],
                 finalMark: r.finalMark || 0,
-                grade: grade || '',
+                grade: effectiveGrade,
                 gradePoints: gp || 0,
+                adminManualGrade: r.adminManualGrade,
+                manualGrade: r.manualGrade,
+                manualGrades: r.manualGrades,
                 rank: r.rank || null,
                 position: position || '',
                 positionPoints: pp || 0,
@@ -571,6 +611,9 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
                 finalMark: 0,
                 grade: '',
                 gradePoints: 0,
+                adminManualGrade: r.adminManualGrade,
+                manualGrade: r.manualGrade,
+                manualGrades: r.manualGrades,
                 rank: null,
                 position: '',
                 positionPoints: 0,
@@ -593,6 +636,9 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
             teamName: r.teamName || '',
             position: r.position || '',
             grade: r.grade || '',
+            adminManualGrade: r.adminManualGrade || null,
+            manualGrade: r.manualGrade || null,
+            manualGrades: r.manualGrades || [],
             marks: r.totalPoints || 0,
             remarks: `Average: ${r.finalMark} (Grade Points: ${r.gradePoints} + Position Points: ${r.positionPoints})`
         });
@@ -616,7 +662,9 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
             genderCategory: prog.genderCategory || '',
             programLocation: prog.programLocation || '',
             participantCount: participants.length,
-            judges: judgesList,
+            judges: dbJudges,
+            judgeIds: dbJudgeIds,
+            judgeSubmissionStatus: dbJudgeSubmissionStatus,
             marksData,
             winners,
             status: existingResDoc?.status || 'draft',
@@ -643,4 +691,67 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
         if (draftBtn) draftBtn.disabled = false;
         if (submitBtn) submitBtn.disabled = false;
     }
+}
+
+const GRADE_LEVEL_SCORE = {
+    'A+': 5,
+    'A': 4,
+    'B+': 3,
+    'B': 2,
+    'C': 1
+};
+const SCORE_TO_GRADE = {
+    5: 'A+',
+    4: 'A',
+    3: 'B+',
+    2: 'B',
+    1: 'C'
+};
+
+function isValidManualGrade(grade) {
+    return grade === 'A+' || grade === 'A' || grade === 'B+' || grade === 'B' || grade === 'C';
+}
+
+function resolveEffectiveGrade({
+    automaticGrade,
+    adminManualGrade,
+    legacyManualGrade,
+    manualGrades,
+    judgeSubmissionStatus,
+    judgeIds
+}) {
+    if (isValidManualGrade(adminManualGrade)) {
+        return adminManualGrade;
+    }
+    if (isValidManualGrade(legacyManualGrade)) {
+        return legacyManualGrade;
+    }
+    if (Array.isArray(manualGrades) && manualGrades.length > 0) {
+        const validJudgeGrades = [];
+        manualGrades.forEach((g, idx) => {
+            if (isValidManualGrade(g)) {
+                let isSubmitted = true;
+                if (Array.isArray(judgeIds) && judgeIds[idx]) {
+                    const jid = judgeIds[idx];
+                    const status = judgeSubmissionStatus ? judgeSubmissionStatus[jid] : null;
+                    isSubmitted = (status === 'submitted' || status === true);
+                }
+                if (isSubmitted) {
+                    validJudgeGrades.push(g);
+                }
+            }
+        });
+        if (validJudgeGrades.length > 0) {
+            return aggregateManualGrades(validJudgeGrades);
+        }
+    }
+    return automaticGrade || '';
+}
+
+function aggregateManualGrades(grades) {
+    const scores = grades.map(g => GRADE_LEVEL_SCORE[g]).filter(s => s !== undefined);
+    if (scores.length === 0) return '';
+    const average = scores.reduce((sum, val) => sum + val, 0) / scores.length;
+    const resolvedLevel = Math.round(average);
+    return SCORE_TO_GRADE[resolvedLevel] || '';
 }

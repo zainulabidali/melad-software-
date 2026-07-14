@@ -510,6 +510,7 @@ function navigateTo(viewName) {
     // Clear previous
     mainContent.innerHTML = '<div class="loader-container mt-4"><div class="spinner"></div></div>';
     topActions.innerHTML = '';
+    topActions.style.display = 'flex';
 
     // Titles Mapping
     const titles = {

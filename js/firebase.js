@@ -1092,16 +1092,25 @@ export async function recalculateAllResultsPoints(instituteId) {
         let updatedMarksData = [];
         if (Array.isArray(res.marksData)) {
             updatedMarksData = res.marksData.map(m => {
-                const gp = gradePointsMap[m.grade] || 0;
+                const effectiveGrade = resolveEffectiveGrade({
+                    automaticGrade: m.grade,
+                    adminManualGrade: m.adminManualGrade,
+                    legacyManualGrade: m.manualGrade,
+                    manualGrades: m.manualGrades,
+                    judgeSubmissionStatus: res.judgeSubmissionStatus,
+                    judgeIds: res.judgeIds
+                });
+                const gp = gradePointsMap[effectiveGrade] || 0;
                 const pp = positionPointsMap[m.position] || 0;
                 const totalPoints = gp + pp;
 
-                if (m.gradePoints !== gp || m.positionPoints !== pp || m.totalPoints !== totalPoints) {
+                if (m.grade !== effectiveGrade || m.gradePoints !== gp || m.positionPoints !== pp || m.totalPoints !== totalPoints) {
                     changed = true;
                 }
 
                 return {
                     ...m,
+                    grade: effectiveGrade,
                     gradePoints: gp,
                     positionPoints: pp,
                     totalPoints: totalPoints
@@ -1113,16 +1122,25 @@ export async function recalculateAllResultsPoints(instituteId) {
         let updatedWinners = [];
         if (Array.isArray(res.winners)) {
             updatedWinners = res.winners.map(w => {
-                const gp = gradePointsMap[w.grade] || 0;
+                const effectiveGrade = resolveEffectiveGrade({
+                    automaticGrade: w.grade,
+                    adminManualGrade: w.adminManualGrade,
+                    legacyManualGrade: w.manualGrade,
+                    manualGrades: w.manualGrades,
+                    judgeSubmissionStatus: res.judgeSubmissionStatus,
+                    judgeIds: res.judgeIds
+                });
+                const gp = gradePointsMap[effectiveGrade] || 0;
                 const pp = positionPointsMap[w.position] || 0;
                 const totalPoints = gp + pp;
 
-                if (w.gradePoints !== gp || w.positionPoints !== pp || w.marks !== totalPoints) {
+                if (w.grade !== effectiveGrade || w.gradePoints !== gp || w.positionPoints !== pp || w.marks !== totalPoints) {
                     changed = true;
                 }
 
                 return {
                     ...w,
+                    grade: effectiveGrade,
                     gradePoints: gp,
                     positionPoints: pp,
                     marks: totalPoints
@@ -1319,6 +1337,69 @@ export function checkStudentParticipationEligibility(
         limit: limitVal,
         label
     };
+}
+
+export const GRADE_LEVEL_SCORE = {
+    'A+': 5,
+    'A': 4,
+    'B+': 3,
+    'B': 2,
+    'C': 1
+};
+export const SCORE_TO_GRADE = {
+    5: 'A+',
+    4: 'A',
+    3: 'B+',
+    2: 'B',
+    1: 'C'
+};
+
+export function isValidManualGrade(grade) {
+    return grade === 'A+' || grade === 'A' || grade === 'B+' || grade === 'B' || grade === 'C';
+}
+
+export function resolveEffectiveGrade({
+    automaticGrade,
+    adminManualGrade,
+    legacyManualGrade,
+    manualGrades,
+    judgeSubmissionStatus,
+    judgeIds
+}) {
+    if (isValidManualGrade(adminManualGrade)) {
+        return adminManualGrade;
+    }
+    if (isValidManualGrade(legacyManualGrade)) {
+        return legacyManualGrade;
+    }
+    if (Array.isArray(manualGrades) && manualGrades.length > 0) {
+        const validJudgeGrades = [];
+        manualGrades.forEach((g, idx) => {
+            if (isValidManualGrade(g)) {
+                let isSubmitted = true;
+                if (Array.isArray(judgeIds) && judgeIds[idx]) {
+                    const jid = judgeIds[idx];
+                    const status = judgeSubmissionStatus ? judgeSubmissionStatus[jid] : null;
+                    isSubmitted = (status === 'submitted' || status === true);
+                }
+                if (isSubmitted) {
+                    validJudgeGrades.push(g);
+                }
+            }
+        });
+        if (validJudgeGrades.length > 0) {
+            return aggregateManualGrades(validJudgeGrades);
+        }
+    }
+    return automaticGrade || '';
+}
+
+export function aggregateManualGrades(grades) {
+    const scores = grades.map(g => GRADE_LEVEL_SCORE[g]).filter(s => s !== undefined);
+    if (scores.length === 0) return '';
+    const average = scores.reduce((sum, val) => sum + val, 0) / scores.length;
+    const resolvedLevel = Math.round(average);
+    return SCORE_TO_GRADE[resolvedLevel] || '';
 }
 
 

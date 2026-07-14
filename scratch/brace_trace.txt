@@ -1,0 +1,423 @@
+DEPTH 1: Line 5059 OPEN: else if (f.type === 'Results') {
+DEPTH 2: Line 5060 OPEN: if (f.resultSubOption === 'Class Wise Academic & Attendance') {
+DEPTH 3: Line 5063 OPEN: allCategories.forEach(cat => {
+DEPTH 4: Line 5064 OPEN: cat.classes.forEach(c => {
+DEPTH 5: Line 5065 OPEN: if (!seenClassIds.has(c.id)) {
+DEPTH 4: Line 5069 CLOSE matching line 5065
+DEPTH 3: Line 5070 CLOSE matching line 5064
+DEPTH 2: Line 5071 CLOSE matching line 5063
+DEPTH 3: Line 5072 OPEN: targetClasses.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+DEPTH 2: Line 5072 CLOSE matching line 5072
+DEPTH 3: Line 5074 OPEN: let filteredAwards = classAwards.filter(aw => {
+DEPTH 2: Line 5078 CLOSE matching line 5074
+DEPTH 3: Line 5083 OPEN: targetClasses.forEach(cls => {
+DEPTH 4: Line 5087 OPEN: const awardTypes = ['Attendance', 'Examination'].filter(type => {
+DEPTH 3: Line 5090 CLOSE matching line 5087
+DEPTH 4: Line 5102 OPEN: ${window.escapeHTML(cls.name).toUpperCase()}
+DEPTH 3: Line 5102 CLOSE matching line 5102
+DEPTH 4: Line 5105 OPEN: ${window.escapeHTML(instName).toUpperCase()}
+DEPTH 3: Line 5105 CLOSE matching line 5105
+DEPTH 4: Line 5111 OPEN: awardTypes.forEach(type => {
+DEPTH 5: Line 5118 OPEN: 🏆 ${type} Award
+DEPTH 4: Line 5118 CLOSE matching line 5118
+DEPTH 5: Line 5132 OPEN: if (award.firstPlace) {
+DEPTH 6: Line 5136 OPEN: <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b;">${window.escapeHTML(award.firstPlace.chestNumber || '—')}</td>
+DEPTH 5: Line 5136 CLOSE matching line 5136
+DEPTH 6: Line 5137 OPEN: <td style="padding: 0.5rem; font-weight: 700; border: 1px solid #cbd5e1; color: #1e293b;">${window.escapeHTML(award.firstPlace.name).toUpperCase()}</td>
+DEPTH 5: Line 5137 CLOSE matching line 5137
+DEPTH 6: Line 5138 OPEN: <td style="padding: 0.5rem; border: 1px solid #cbd5e1; color: #475569;">${window.escapeHTML(award.firstPlace.className || cls.name)}</td>
+DEPTH 5: Line 5138 CLOSE matching line 5138
+DEPTH 4: Line 5141 CLOSE matching line 5132
+DEPTH 5: Line 5143 OPEN: if (award.secondPlace) {
+DEPTH 6: Line 5147 OPEN: <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b;">${window.escapeHTML(award.secondPlace.chestNumber || '—')}</td>
+DEPTH 5: Line 5147 CLOSE matching line 5147
+DEPTH 6: Line 5148 OPEN: <td style="padding: 0.5rem; font-weight: 700; border: 1px solid #cbd5e1; color: #1e293b;">${window.escapeHTML(award.secondPlace.name).toUpperCase()}</td>
+DEPTH 5: Line 5148 CLOSE matching line 5148
+DEPTH 6: Line 5149 OPEN: <td style="padding: 0.5rem; border: 1px solid #cbd5e1; color: #475569;">${window.escapeHTML(award.secondPlace.className || cls.name)}</td>
+DEPTH 5: Line 5149 CLOSE matching line 5149
+DEPTH 4: Line 5152 CLOSE matching line 5143
+DEPTH 3: Line 5159 CLOSE matching line 5111
+DEPTH 2: Line 5164 CLOSE matching line 5083
+DEPTH 3: Line 5166 OPEN: if (!awardHTML) {
+DEPTH 2: Line 5173 CLOSE matching line 5166
+DEPTH 3: Line 5173 OPEN: } else {
+DEPTH 2: Line 5175 CLOSE matching line 5173
+DEPTH 1: Line 5176 CLOSE matching line 5060
+DEPTH 2: Line 5177 OPEN: else {
+DEPTH 3: Line 5180 OPEN: if (filteredResults.length === 0) {
+DEPTH 2: Line 5187 CLOSE matching line 5180
+DEPTH 3: Line 5189 OPEN: else {
+DEPTH 4: Line 5192 OPEN: const categoryScores = new Map(); // categoryId -> Map(studentKey -> { name, team, points })
+DEPTH 3: Line 5192 CLOSE matching line 5192
+DEPTH 4: Line 5197 OPEN: filteredResults.forEach(r => {
+DEPTH 5: Line 5201 OPEN: if (Array.isArray(r.marksData) && r.marksData.length > 0) {
+DEPTH 6: Line 5202 OPEN: r.marksData.forEach(w => {
+DEPTH 7: Line 5205 OPEN: if (w.teamId && w.teamId !== 'teamless' && team && team !== 'No Team' && pts > 0) {
+DEPTH 6: Line 5207 CLOSE matching line 5205
+DEPTH 7: Line 5209 OPEN: if (w.studentName && prog.categoryId) {
+DEPTH 8: Line 5211 OPEN: if (map) {
+DEPTH 9: Line 5213 OPEN: if (!map.has(key)) {
+DEPTH 10: Line 5214 OPEN: map.set(key, { name: w.studentName, teamName: w.teamName || '—', points: 0 });
+DEPTH 9: Line 5214 CLOSE matching line 5214
+DEPTH 8: Line 5215 CLOSE matching line 5213
+DEPTH 7: Line 5217 CLOSE matching line 5211
+DEPTH 6: Line 5218 CLOSE matching line 5209
+DEPTH 5: Line 5219 CLOSE matching line 5202
+DEPTH 4: Line 5220 CLOSE matching line 5201
+DEPTH 5: Line 5220 OPEN: } else if (Array.isArray(r.winners)) {
+DEPTH 6: Line 5221 OPEN: r.winners.forEach(w => {
+DEPTH 7: Line 5224 OPEN: if (w.teamId && w.teamId !== 'teamless' && team && team !== 'No Team' && pts > 0) {
+DEPTH 6: Line 5226 CLOSE matching line 5224
+DEPTH 7: Line 5228 OPEN: if (w.studentName && prog.categoryId) {
+DEPTH 8: Line 5230 OPEN: if (map) {
+DEPTH 9: Line 5232 OPEN: if (!map.has(key)) {
+DEPTH 10: Line 5233 OPEN: map.set(key, { name: w.studentName, teamName: w.teamName || '—', points: 0 });
+DEPTH 9: Line 5233 CLOSE matching line 5233
+DEPTH 8: Line 5234 CLOSE matching line 5232
+DEPTH 7: Line 5236 CLOSE matching line 5230
+DEPTH 6: Line 5237 CLOSE matching line 5228
+DEPTH 5: Line 5238 CLOSE matching line 5221
+DEPTH 4: Line 5239 CLOSE matching line 5220
+DEPTH 3: Line 5240 CLOSE matching line 5197
+DEPTH 4: Line 5245 OPEN: .map(([name, points], idx) => ({ rank: idx + 1, team: name, points }));
+DEPTH 3: Line 5245 CLOSE matching line 5245
+DEPTH 4: Line 5263 OPEN: ${sortedTeamStandings.map(t => `
+DEPTH 5: Line 5264 OPEN: <tr style="height:42px; background:${t.rank === 1 ? '#fffbeb' : 'none'};">
+DEPTH 4: Line 5264 CLOSE matching line 5264
+DEPTH 5: Line 5266 OPEN: ${t.rank === 1 ? '🥇 1' : (t.rank === 2 ? '🥈 2' : (t.rank === 3 ? '🥉 3' : t.rank))}
+DEPTH 4: Line 5266 CLOSE matching line 5266
+DEPTH 5: Line 5268 OPEN: <td style="font-weight:800; color:#1e293b; font-size:1.05rem;">${window.escapeHTML(t.team)}</td>
+DEPTH 4: Line 5268 CLOSE matching line 5268
+DEPTH 5: Line 5269 OPEN: <td style="text-align:center; font-weight:900; color:#16a34a; font-size:1.15rem;">${t.points} pts</td>
+DEPTH 4: Line 5269 CLOSE matching line 5269
+DEPTH 3: Line 5271 CLOSE matching line 5263
+DEPTH 4: Line 5279 OPEN: allCategories.forEach(cat => {
+DEPTH 5: Line 5291 OPEN: 🏷️ CATEGORY CHAMPIONSHIP: ${window.escapeHTML(cat.name)}
+DEPTH 4: Line 5291 CLOSE matching line 5291
+DEPTH 5: Line 5295 OPEN: ${champ ? `
+DEPTH 6: Line 5299 OPEN: <div style="font-weight:800; color:#1e1b4b; font-size:0.85rem; margin-top:0.2rem;">${window.escapeHTML(champ.name)}</div>
+DEPTH 5: Line 5299 CLOSE matching line 5299
+DEPTH 6: Line 5300 OPEN: <div style="font-size:0.7rem; color:#475569; font-weight:600;">${window.escapeHTML(champ.teamName)}</div>
+DEPTH 5: Line 5300 CLOSE matching line 5300
+DEPTH 6: Line 5301 OPEN: <div style="font-weight:900; color:#16a34a; font-size:0.9rem; margin-top:0.2rem;">${champ.points} points</div>
+DEPTH 5: Line 5301 CLOSE matching line 5301
+DEPTH 4: Line 5303 CLOSE matching line 5295
+DEPTH 5: Line 5305 OPEN: ${runner ? `
+DEPTH 6: Line 5309 OPEN: <div style="font-weight:800; color:#1e1b4b; font-size:0.85rem; margin-top:0.2rem;">${window.escapeHTML(runner.name)}</div>
+DEPTH 5: Line 5309 CLOSE matching line 5309
+DEPTH 6: Line 5310 OPEN: <div style="font-size:0.7rem; color:#475569; font-weight:600;">${window.escapeHTML(runner.teamName)}</div>
+DEPTH 5: Line 5310 CLOSE matching line 5310
+DEPTH 6: Line 5311 OPEN: <div style="font-weight:900; color:#475569; font-size:0.9rem; margin-top:0.2rem;">${runner.points} points</div>
+DEPTH 5: Line 5311 CLOSE matching line 5311
+DEPTH 4: Line 5313 CLOSE matching line 5305
+DEPTH 5: Line 5315 OPEN: ${third ? `
+DEPTH 6: Line 5319 OPEN: <div style="font-weight:800; color:#1e1b4b; font-size:0.85rem; margin-top:0.2rem;">${window.escapeHTML(third.name)}</div>
+DEPTH 5: Line 5319 CLOSE matching line 5319
+DEPTH 6: Line 5320 OPEN: <div style="font-size:0.7rem; color:#475569; font-weight:600;">${window.escapeHTML(third.teamName)}</div>
+DEPTH 5: Line 5320 CLOSE matching line 5320
+DEPTH 6: Line 5321 OPEN: <div style="font-weight:900; color:#ea580c; font-size:0.9rem; margin-top:0.2rem;">${third.points} points</div>
+DEPTH 5: Line 5321 CLOSE matching line 5321
+DEPTH 4: Line 5323 CLOSE matching line 5315
+DEPTH 3: Line 5328 CLOSE matching line 5279
+DEPTH 4: Line 5330 OPEN: if (categoryHTML) {
+DEPTH 5: Line 5337 OPEN: ${categoryHTML}
+DEPTH 4: Line 5337 CLOSE matching line 5337
+DEPTH 3: Line 5340 CLOSE matching line 5330
+DEPTH 4: Line 5343 OPEN: if (f.resultSubOption === 'Team Wise') {
+DEPTH 5: Line 5345 OPEN: filteredResults.forEach(r => {
+DEPTH 6: Line 5347 OPEN: winners.forEach(w => {
+DEPTH 7: Line 5351 OPEN: if (!teamWinners.has(w.teamName)) {
+DEPTH 8: Line 5352 OPEN: teamWinners.set(w.teamName, { First: [], Second: [], Third: [] });
+DEPTH 7: Line 5352 CLOSE matching line 5352
+DEPTH 6: Line 5353 CLOSE matching line 5351
+DEPTH 7: Line 5355 OPEN: if (w.studentId && studentMap[w.studentId]) {
+DEPTH 6: Line 5357 CLOSE matching line 5355
+DEPTH 7: Line 5357 OPEN: } else if (w.studentName) {
+DEPTH 8: Line 5359 OPEN: if (found) {
+DEPTH 7: Line 5361 CLOSE matching line 5359
+DEPTH 6: Line 5362 CLOSE matching line 5357
+DEPTH 7: Line 5363 OPEN: const entry = {
+DEPTH 6: Line 5368 CLOSE matching line 5363
+DEPTH 5: Line 5373 CLOSE matching line 5347
+DEPTH 4: Line 5374 CLOSE matching line 5345
+DEPTH 5: Line 5377 OPEN: sortedTeamNames.forEach(teamName => {
+DEPTH 6: Line 5380 OPEN: const renderRows = (list, posLabel, actualPos) => {
+DEPTH 7: Line 5381 OPEN: if (list.length === 0) return `<tr><td colspan="6" style="color:#94a3b8; font-style:italic; font-size:0.75rem;">No ${posLabel} place winners recorded.</td></tr>`;
+DEPTH 6: Line 5381 CLOSE matching line 5381
+DEPTH 7: Line 5384 OPEN: <td style="text-align:center; font-weight:800;">${window.escapeHTML(item.chestNumber)}</td>
+DEPTH 6: Line 5384 CLOSE matching line 5384
+DEPTH 7: Line 5385 OPEN: <td style="font-weight:700; color:#1e293b;">${window.escapeHTML(item.studentName)}</td>
+DEPTH 6: Line 5385 CLOSE matching line 5385
+DEPTH 7: Line 5386 OPEN: <td style="font-weight:600; color:#475569;">${window.escapeHTML(teamName)}</td>
+DEPTH 6: Line 5386 CLOSE matching line 5386
+DEPTH 7: Line 5387 OPEN: <td style="color:#475569; font-weight:600;">${window.escapeHTML(item.categoryName)}</td>
+DEPTH 6: Line 5387 CLOSE matching line 5387
+DEPTH 7: Line 5388 OPEN: <td style="text-align:center; font-weight:700; color:#4338ca;">${window.escapeHTML(actualPos)}</td>
+DEPTH 6: Line 5388 CLOSE matching line 5388
+DEPTH 7: Line 5389 OPEN: <td style="font-weight:800; color:#1e293b;">${window.escapeHTML(item.programName)}</td>
+DEPTH 6: Line 5389 CLOSE matching line 5389
+DEPTH 5: Line 5392 CLOSE matching line 5380
+DEPTH 6: Line 5397 OPEN: <h2 style="color:#1e1b4b; margin:0;">👥 TEAM WINNERS INDEX: ${window.escapeHTML(teamName)}</h2>
+DEPTH 5: Line 5397 CLOSE matching line 5397
+DEPTH 6: Line 5412 OPEN: <tbody>${renderRows(data.First, 'first', 'First')}</tbody>
+DEPTH 5: Line 5412 CLOSE matching line 5412
+DEPTH 6: Line 5427 OPEN: <tbody>${renderRows(data.Second, 'second', 'Second')}</tbody>
+DEPTH 5: Line 5427 CLOSE matching line 5427
+DEPTH 6: Line 5442 OPEN: <tbody>${renderRows(data.Third, 'third', 'Third')}</tbody>
+DEPTH 5: Line 5442 CLOSE matching line 5442
+DEPTH 4: Line 5446 CLOSE matching line 5377
+DEPTH 3: Line 5447 CLOSE matching line 5343
+DEPTH 4: Line 5449 OPEN: else if (f.resultSubOption === 'Program Wise') {
+DEPTH 5: Line 5451 OPEN: filteredResults.forEach(r => {
+DEPTH 6: Line 5454 OPEN: const posOrder = { 'First': 1, 'Second': 2, 'Third': 3 };
+DEPTH 5: Line 5454 CLOSE matching line 5454
+DEPTH 6: Line 5458 OPEN: <div class="${pageDivClass}">
+DEPTH 5: Line 5458 CLOSE matching line 5458
+DEPTH 6: Line 5462 OPEN: <h2 style="margin-top:0.3rem; margin-bottom:0.1rem; color:#1e1b4b; font-size:1.3rem;">${window.escapeHTML(r.programName)}</h2>
+DEPTH 5: Line 5462 CLOSE matching line 5462
+DEPTH 6: Line 5464 OPEN: Category: ${window.escapeHTML(r.categoryName)} ${r.className ? `· Class: ${window.escapeHTML(r.className)}` : ''} ·
+DEPTH 5: Line 5464 CLOSE matching line 5464
+DEPTH 6: Line 5464 OPEN: Category: ${window.escapeHTML(r.categoryName)} ${r.className ? `· Class: ${window.escapeHTML(r.className)}` : ''} ·
+DEPTH 7: Line 5464 OPEN: Category: ${window.escapeHTML(r.categoryName)} ${r.className ? `· Class: ${window.escapeHTML(r.className)}` : ''} ·
+DEPTH 6: Line 5464 CLOSE matching line 5464
+DEPTH 5: Line 5464 CLOSE matching line 5464
+DEPTH 6: Line 5465 OPEN: Type: ${r.programType === 'group' ? 'Group Event' : 'Individual Event'}
+DEPTH 5: Line 5465 CLOSE matching line 5465
+DEPTH 6: Line 5470 OPEN: <span style="font-weight:900; font-size:1rem; color:#1e1b4b;">📍 ${window.escapeHTML(r.programLocation || 'Stage')}</span>
+DEPTH 5: Line 5470 CLOSE matching line 5470
+DEPTH 6: Line 5485 OPEN: ${sortedWinners.length === 0 ? `<tr><td colspan="5" style="text-align:center; padding:1.5rem; color:#64748b;">No winners recorded for this program.</td></tr>` :
+DEPTH 7: Line 5486 OPEN: sortedWinners.map(w => {
+DEPTH 8: Line 5493 OPEN: let points = w.marks !== undefined ? `${w.marks} pts` : '0 pts';
+DEPTH 7: Line 5493 CLOSE matching line 5493
+DEPTH 8: Line 5495 OPEN: if (Array.isArray(r.marksData)) {
+DEPTH 9: Line 5501 OPEN: if (match) {
+DEPTH 10: Line 5502 OPEN: points = match.totalPoints !== undefined ? `${match.totalPoints} pts` : points;
+DEPTH 9: Line 5502 CLOSE matching line 5502
+DEPTH 8: Line 5503 CLOSE matching line 5501
+DEPTH 7: Line 5504 CLOSE matching line 5495
+DEPTH 8: Line 5507 OPEN: if (r.programType !== 'group') {
+DEPTH 9: Line 5508 OPEN: if (w.studentId && studentMap[w.studentId]) {
+DEPTH 8: Line 5510 CLOSE matching line 5508
+DEPTH 9: Line 5510 OPEN: } else if (w.studentName) {
+DEPTH 10: Line 5512 OPEN: if (found) {
+DEPTH 9: Line 5514 CLOSE matching line 5512
+DEPTH 8: Line 5515 CLOSE matching line 5510
+DEPTH 7: Line 5516 CLOSE matching line 5507
+DEPTH 8: Line 5520 OPEN: <td style="text-align:center; font-weight:900; color:#1e1b4b;">${posBadge}</td>
+DEPTH 7: Line 5520 CLOSE matching line 5520
+DEPTH 8: Line 5521 OPEN: <td style="text-align:center; font-weight:800; color:#0f172a;">${window.escapeHTML(chestNumber)}</td>
+DEPTH 7: Line 5521 CLOSE matching line 5521
+DEPTH 8: Line 5522 OPEN: <td style="font-weight:700; color:#1e293b;">${window.escapeHTML(r.programType === 'group' ? w.teamName : w.studentName)}</td>
+DEPTH 7: Line 5522 CLOSE matching line 5522
+DEPTH 8: Line 5523 OPEN: <td style="font-weight:600; color:#475569;">${window.escapeHTML(w.teamName || '—')}</td>
+DEPTH 7: Line 5523 CLOSE matching line 5523
+DEPTH 8: Line 5524 OPEN: <td style="text-align:center; font-weight:900; color:#16a34a;">${points}</td>
+DEPTH 7: Line 5524 CLOSE matching line 5524
+DEPTH 6: Line 5527 CLOSE matching line 5486
+DEPTH 5: Line 5527 CLOSE matching line 5485
+DEPTH 4: Line 5532 CLOSE matching line 5451
+DEPTH 3: Line 5533 CLOSE matching line 5449
+DEPTH 4: Line 5535 OPEN: else if (f.resultSubOption === 'Student Prize Distribution') {
+DEPTH 5: Line 5538 OPEN: filteredResults.forEach(r => {
+DEPTH 6: Line 5544 OPEN: if (isGeneral) {
+DEPTH 5: Line 5546 CLOSE matching line 5544
+DEPTH 6: Line 5546 OPEN: } else if (isGroup) {
+DEPTH 5: Line 5548 CLOSE matching line 5546
+DEPTH 6: Line 5548 OPEN: } else if (pLoc === 'stage') {
+DEPTH 5: Line 5550 CLOSE matching line 5548
+DEPTH 6: Line 5553 OPEN: winnersList.forEach(w => {
+DEPTH 7: Line 5556 OPEN: if (isGroup) {
+DEPTH 8: Line 5562 OPEN: if (winningGroup && Array.isArray(winningGroup.members)) {
+DEPTH 9: Line 5563 OPEN: winningGroup.members.forEach(m => {
+DEPTH 10: Line 5565 OPEN: if (!student && m.name) {
+DEPTH 9: Line 5568 CLOSE matching line 5565
+DEPTH 10: Line 5569 OPEN: if (student) {
+DEPTH 11: Line 5570 OPEN: associatedStudents.push({
+DEPTH 10: Line 5577 CLOSE matching line 5570
+DEPTH 9: Line 5578 CLOSE matching line 5569
+DEPTH 8: Line 5579 CLOSE matching line 5563
+DEPTH 7: Line 5580 CLOSE matching line 5562
+DEPTH 6: Line 5581 CLOSE matching line 5556
+DEPTH 7: Line 5581 OPEN: } else {
+DEPTH 8: Line 5583 OPEN: if (w.studentId && studentMap[w.studentId]) {
+DEPTH 7: Line 5585 CLOSE matching line 5583
+DEPTH 8: Line 5585 OPEN: } else if (w.studentName) {
+DEPTH 7: Line 5588 CLOSE matching line 5585
+DEPTH 8: Line 5590 OPEN: if (student) {
+DEPTH 9: Line 5591 OPEN: associatedStudents.push({
+DEPTH 8: Line 5598 CLOSE matching line 5591
+DEPTH 7: Line 5599 CLOSE matching line 5590
+DEPTH 8: Line 5599 OPEN: } else {
+DEPTH 9: Line 5603 OPEN: if (winningGroup && Array.isArray(winningGroup.members)) {
+DEPTH 10: Line 5604 OPEN: winningGroup.members.forEach(m => {
+DEPTH 11: Line 5606 OPEN: if (!gst && m.name) {
+DEPTH 10: Line 5609 CLOSE matching line 5606
+DEPTH 11: Line 5610 OPEN: if (gst) {
+DEPTH 12: Line 5611 OPEN: associatedStudents.push({
+DEPTH 11: Line 5618 CLOSE matching line 5611
+DEPTH 10: Line 5619 CLOSE matching line 5610
+DEPTH 9: Line 5620 CLOSE matching line 5604
+DEPTH 8: Line 5621 CLOSE matching line 5603
+DEPTH 9: Line 5621 OPEN: } else {
+DEPTH 10: Line 5622 OPEN: associatedStudents.push({
+DEPTH 9: Line 5629 CLOSE matching line 5622
+DEPTH 8: Line 5630 CLOSE matching line 5621
+DEPTH 7: Line 5631 CLOSE matching line 5599
+DEPTH 6: Line 5632 CLOSE matching line 5581
+DEPTH 7: Line 5634 OPEN: associatedStudents.forEach(stu => {
+DEPTH 8: Line 5638 OPEN: if (!studentPrizes.has(stuKey)) {
+DEPTH 9: Line 5639 OPEN: studentPrizes.set(stuKey, {
+DEPTH 8: Line 5646 CLOSE matching line 5639
+DEPTH 7: Line 5647 CLOSE matching line 5638
+DEPTH 8: Line 5651 OPEN: if (!alreadyAdded) {
+DEPTH 9: Line 5652 OPEN: listObj.prizes.push({
+DEPTH 8: Line 5656 CLOSE matching line 5652
+DEPTH 7: Line 5657 CLOSE matching line 5651
+DEPTH 6: Line 5658 CLOSE matching line 5634
+DEPTH 5: Line 5659 CLOSE matching line 5553
+DEPTH 4: Line 5660 CLOSE matching line 5538
+DEPTH 5: Line 5662 OPEN: if (studentPrizes.size === 0) {
+DEPTH 4: Line 5664 CLOSE matching line 5662
+DEPTH 5: Line 5664 OPEN: } else {
+DEPTH 6: Line 5665 OPEN: const sortedStudents = [...studentPrizes.values()].sort((a, b) => {
+DEPTH 7: Line 5668 OPEN: const classCompare = classA.localeCompare(classB, undefined, { numeric: true, sensitivity: 'base' });
+DEPTH 6: Line 5668 CLOSE matching line 5668
+DEPTH 7: Line 5673 OPEN: return chestA.localeCompare(chestB, undefined, { numeric: true, sensitivity: 'base' });
+DEPTH 6: Line 5673 CLOSE matching line 5673
+DEPTH 5: Line 5674 CLOSE matching line 5665
+DEPTH 6: Line 5695 OPEN: ${sortedStudents.map(stu => {
+DEPTH 7: Line 5695 OPEN: ${sortedStudents.map(stu => {
+DEPTH 8: Line 5697 OPEN: const prizeDetailsHtml = stu.prizes.map(p => {
+DEPTH 9: Line 5698 OPEN: return `<div style="font-size: 8px; font-weight: 600; color: #1e293b; line-height: 1.1; margin-bottom: 2px;">${window.escapeHTML(p.programName)} - ${window.escapeHTML(p.position)}</div>`;
+DEPTH 8: Line 5698 CLOSE matching line 5698
+DEPTH 9: Line 5698 OPEN: return `<div style="font-size: 8px; font-weight: 600; color: #1e293b; line-height: 1.1; margin-bottom: 2px;">${window.escapeHTML(p.programName)} - ${window.escapeHTML(p.position)}</div>`;
+DEPTH 8: Line 5698 CLOSE matching line 5698
+DEPTH 7: Line 5699 CLOSE matching line 5697
+DEPTH 8: Line 5703 OPEN: <td style="text-align:center; font-weight:900; color:#0f172a; font-size:9px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.chestNumber)}</td>
+DEPTH 7: Line 5703 CLOSE matching line 5703
+DEPTH 8: Line 5704 OPEN: <td style="font-weight:800; color:#1e1b4b; font-size:8.5px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.studentName)}</td>
+DEPTH 7: Line 5704 CLOSE matching line 5704
+DEPTH 8: Line 5705 OPEN: <td style="font-weight:700; color:#475569; font-size:8px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.className)}</td>
+DEPTH 7: Line 5705 CLOSE matching line 5705
+DEPTH 8: Line 5706 OPEN: <td style="font-weight:700; color:#475569; font-size:8px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.categoryName)}</td>
+DEPTH 7: Line 5706 CLOSE matching line 5706
+DEPTH 8: Line 5707 OPEN: <td style="font-weight:700; color:#475569; font-size:8px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.teamName)}</td>
+DEPTH 7: Line 5707 CLOSE matching line 5707
+DEPTH 8: Line 5710 OPEN: ${prizeDetailsHtml}
+DEPTH 7: Line 5710 CLOSE matching line 5710
+DEPTH 6: Line 5715 CLOSE matching line 5695
+DEPTH 5: Line 5715 CLOSE matching line 5695
+DEPTH 4: Line 5720 CLOSE matching line 5664
+DEPTH 3: Line 5721 CLOSE matching line 5535
+DEPTH 4: Line 5723 OPEN: else if (f.resultSubOption === 'Participants Without Major Prizes') {
+DEPTH 5: Line 5724 OPEN: const teamNamesMap = {};
+DEPTH 4: Line 5724 CLOSE matching line 5724
+DEPTH 5: Line 5725 OPEN: allTeams.forEach(t => {
+DEPTH 4: Line 5727 CLOSE matching line 5725
+DEPTH 5: Line 5730 OPEN: Object.entries(studentMap).forEach(([studentId, stu]) => {
+DEPTH 6: Line 5740 OPEN: programs.forEach(p => {
+DEPTH 7: Line 5742 OPEN: const isPart = pList.some(part => {
+DEPTH 8: Line 5743 OPEN: if (part.isGroup === true || Array.isArray(part.members)) {
+DEPTH 9: Line 5744 OPEN: if (part.members && part.members.length > 0) {
+DEPTH 8: Line 5746 CLOSE matching line 5744
+DEPTH 9: Line 5746 OPEN: } else {
+DEPTH 8: Line 5748 CLOSE matching line 5746
+DEPTH 7: Line 5749 CLOSE matching line 5743
+DEPTH 8: Line 5749 OPEN: } else {
+DEPTH 7: Line 5751 CLOSE matching line 5749
+DEPTH 6: Line 5752 CLOSE matching line 5742
+DEPTH 7: Line 5753 OPEN: if (isPart) {
+DEPTH 6: Line 5755 CLOSE matching line 5753
+DEPTH 5: Line 5756 CLOSE matching line 5740
+DEPTH 6: Line 5758 OPEN: filteredResults.forEach(r => {
+DEPTH 7: Line 5761 OPEN: winners.forEach(w => {
+DEPTH 8: Line 5762 OPEN: if (w.studentId === studentId || w.studentName === stu.name) {
+DEPTH 7: Line 5764 CLOSE matching line 5762
+DEPTH 8: Line 5764 OPEN: } else if (rIsGroup) {
+DEPTH 9: Line 5770 OPEN: matchingGroups.forEach(matchingGroup => {
+DEPTH 10: Line 5771 OPEN: if (matchingGroup.members && matchingGroup.members.length > 0) {
+DEPTH 11: Line 5773 OPEN: if (isMember) {
+DEPTH 10: Line 5775 CLOSE matching line 5773
+DEPTH 9: Line 5776 CLOSE matching line 5771
+DEPTH 10: Line 5776 OPEN: } else {
+DEPTH 11: Line 5777 OPEN: if (stu.teamId && stu.teamId === matchingGroup.teamId) {
+DEPTH 10: Line 5779 CLOSE matching line 5777
+DEPTH 9: Line 5780 CLOSE matching line 5776
+DEPTH 8: Line 5781 CLOSE matching line 5770
+DEPTH 7: Line 5782 CLOSE matching line 5764
+DEPTH 6: Line 5783 CLOSE matching line 5761
+DEPTH 5: Line 5784 CLOSE matching line 5758
+DEPTH 6: Line 5790 OPEN: if (participations.length === 0) {
+DEPTH 5: Line 5792 CLOSE matching line 5790
+DEPTH 6: Line 5792 OPEN: } else {
+DEPTH 5: Line 5795 CLOSE matching line 5792
+DEPTH 6: Line 5797 OPEN: studentDataList.push({
+DEPTH 5: Line 5809 CLOSE matching line 5797
+DEPTH 4: Line 5810 CLOSE matching line 5730
+DEPTH 5: Line 5812 OPEN: if (studentDataList.length === 0) {
+DEPTH 4: Line 5819 CLOSE matching line 5812
+DEPTH 5: Line 5819 OPEN: } else {
+DEPTH 6: Line 5820 OPEN: const grouped = {};
+DEPTH 5: Line 5820 CLOSE matching line 5820
+DEPTH 6: Line 5821 OPEN: studentDataList.forEach(stu => {
+DEPTH 7: Line 5827 OPEN: if (!grouped[catId]) {
+DEPTH 8: Line 5828 OPEN: grouped[catId] = {
+DEPTH 9: Line 5830 OPEN: classes: {}
+DEPTH 8: Line 5830 CLOSE matching line 5830
+DEPTH 7: Line 5831 CLOSE matching line 5828
+DEPTH 6: Line 5832 CLOSE matching line 5827
+DEPTH 7: Line 5834 OPEN: if (!grouped[catId].classes[classId]) {
+DEPTH 8: Line 5835 OPEN: grouped[catId].classes[classId] = {
+DEPTH 7: Line 5838 CLOSE matching line 5835
+DEPTH 6: Line 5839 CLOSE matching line 5834
+DEPTH 5: Line 5842 CLOSE matching line 5821
+DEPTH 6: Line 5846 OPEN: sortedCatIds.forEach(catId => {
+DEPTH 7: Line 5853 OPEN: Object.values(cat.classes).forEach(cls => {
+DEPTH 8: Line 5854 OPEN: cls.students.forEach(s => {
+DEPTH 7: Line 5858 CLOSE matching line 5854
+DEPTH 6: Line 5859 CLOSE matching line 5853
+DEPTH 7: Line 5868 OPEN: <h3 style="color:#4338ca; margin-top:0.25rem; font-size:1.1rem; font-weight:700;">${window.escapeHTML(cat.name)}</h3>
+DEPTH 6: Line 5868 CLOSE matching line 5868
+DEPTH 7: Line 5872 OPEN: <div>No Participation: <strong>${noParticipationCount}</strong></div>
+DEPTH 6: Line 5872 CLOSE matching line 5872
+DEPTH 7: Line 5873 OPEN: <div>No Prize: <strong>${noPrizeCount}</strong></div>
+DEPTH 6: Line 5873 CLOSE matching line 5873
+DEPTH 7: Line 5874 OPEN: <div>Third Prize Only: <strong>${thirdPrizeCount}</strong></div>
+DEPTH 6: Line 5874 CLOSE matching line 5874
+DEPTH 7: Line 5875 OPEN: <div style="font-weight:700; color:#4338ca; margin-top:0.25rem;">Total Eligible: <strong>${totalEligible}</strong></div>
+DEPTH 6: Line 5875 CLOSE matching line 5875
+DEPTH 7: Line 5880 OPEN: const sortedClassIds = Object.keys(cat.classes).sort((a, b) => {
+DEPTH 8: Line 5883 OPEN: return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+DEPTH 7: Line 5883 CLOSE matching line 5883
+DEPTH 6: Line 5884 CLOSE matching line 5880
+DEPTH 7: Line 5886 OPEN: sortedClassIds.forEach(classId => {
+DEPTH 8: Line 5889 OPEN: const statusPriority = {
+DEPTH 7: Line 5893 CLOSE matching line 5889
+DEPTH 8: Line 5894 OPEN: const students = [...cls.students].sort((a, b) => {
+DEPTH 7: Line 5899 CLOSE matching line 5894
+DEPTH 8: Line 5901 OPEN: const statusColors = {
+DEPTH 7: Line 5905 CLOSE matching line 5901
+DEPTH 8: Line 5909 OPEN: <h4 style="color:#1e1b4b; font-size:0.85rem; font-weight:800; margin-bottom:0.35rem;">Class: ${window.escapeHTML(cls.name)}</h4>
+DEPTH 7: Line 5909 CLOSE matching line 5909
+DEPTH 8: Line 5923 OPEN: ${students.map(s => `
+DEPTH 9: Line 5925 OPEN: <td style="text-align:center; font-weight:900; color:#0f172a;">${window.escapeHTML(s.chestNumber)}</td>
+DEPTH 8: Line 5925 CLOSE matching line 5925
+DEPTH 9: Line 5926 OPEN: <td style="font-weight:800; color:#1e1b4b;">${window.escapeHTML(s.name)}</td>
+DEPTH 8: Line 5926 CLOSE matching line 5926
+DEPTH 9: Line 5927 OPEN: <td style="font-weight:700; color:#475569;">${window.escapeHTML(s.teamName)}</td>
+DEPTH 8: Line 5927 CLOSE matching line 5927
+DEPTH 9: Line 5928 OPEN: <td style="text-align:center; font-weight:800; color:#4338ca;">${s.participationsCount}</td>
+DEPTH 8: Line 5928 CLOSE matching line 5928
+DEPTH 9: Line 5929 OPEN: <td style="text-align:center; font-weight:700; color:${statusColors[s.status] || '#475569'}; font-size:0.75rem;">${s.status}</td>
+DEPTH 8: Line 5929 CLOSE matching line 5929
+DEPTH 9: Line 5929 OPEN: <td style="text-align:center; font-weight:700; color:${statusColors[s.status] || '#475569'}; font-size:0.75rem;">${s.status}</td>
+DEPTH 8: Line 5929 CLOSE matching line 5929
+DEPTH 9: Line 5930 OPEN: <td style="font-size:0.72rem; color:#475569; font-weight:500;">${window.escapeHTML(s.participationsList.join(', ') || 'None')}</td>
+DEPTH 8: Line 5930 CLOSE matching line 5930
+DEPTH 7: Line 5932 CLOSE matching line 5923
+DEPTH 6: Line 5937 CLOSE matching line 5886
+DEPTH 5: Line 5940 CLOSE matching line 5846
+DEPTH 4: Line 5941 CLOSE matching line 5819
+DEPTH 3: Line 5942 CLOSE matching line 5723
+DEPTH 2: Line 5943 CLOSE matching line 5189
+DEPTH 1: Line 5944 CLOSE matching line 5177

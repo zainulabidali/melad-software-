@@ -8,6 +8,114 @@ import {
 // ─────────────────────────────────────────────
 let activePointsConfig = DEFAULT_POINTS;
 
+// Inject Grade Selector CSS Styles
+const gradeOverrideStyle = document.createElement('style');
+gradeOverrideStyle.textContent = `
+    .grade-selector-popover {
+        position: absolute;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+        z-index: 99999;
+        min-width: 90px;
+        padding: 0.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .grade-selector-option {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #334155;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: all 0.15s;
+        text-align: center;
+    }
+    .grade-selector-option:hover {
+        background: #f1f5f9;
+        color: #0f172a;
+    }
+    .grade-selector-option.active {
+        background: #e0e7ff;
+        color: #4338ca;
+    }
+    .cell-grade.interactive {
+        cursor: pointer;
+        position: relative;
+        transition: background-color 0.2s;
+    }
+    .cell-grade.interactive:hover {
+        background-color: #f8fafc;
+    }
+`;
+document.head.appendChild(gradeOverrideStyle);
+
+const GRADE_LEVEL_SCORE = {
+    'A+': 5,
+    'A': 4,
+    'B+': 3,
+    'B': 2,
+    'C': 1
+};
+const SCORE_TO_GRADE = {
+    5: 'A+',
+    4: 'A',
+    3: 'B+',
+    2: 'B',
+    1: 'C'
+};
+
+function isValidManualGrade(grade) {
+    return grade === 'A+' || grade === 'A' || grade === 'B+' || grade === 'B' || grade === 'C';
+}
+
+function resolveEffectiveGrade({
+    automaticGrade,
+    adminManualGrade,
+    legacyManualGrade,
+    manualGrades,
+    judgeSubmissionStatus,
+    judgeIds
+}) {
+    if (isValidManualGrade(adminManualGrade)) {
+        return adminManualGrade;
+    }
+    if (isValidManualGrade(legacyManualGrade)) {
+        return legacyManualGrade;
+    }
+    if (Array.isArray(manualGrades) && manualGrades.length > 0) {
+        const validJudgeGrades = [];
+        manualGrades.forEach((g, idx) => {
+            if (isValidManualGrade(g)) {
+                let isSubmitted = true;
+                if (Array.isArray(judgeIds) && judgeIds[idx]) {
+                    const jid = judgeIds[idx];
+                    const status = judgeSubmissionStatus ? judgeSubmissionStatus[jid] : null;
+                    isSubmitted = (status === 'submitted' || status === true);
+                }
+                if (isSubmitted) {
+                    validJudgeGrades.push(g);
+                }
+            }
+        });
+        if (validJudgeGrades.length > 0) {
+            return aggregateManualGrades(validJudgeGrades);
+        }
+    }
+    return automaticGrade || '';
+}
+
+function aggregateManualGrades(grades) {
+    const scores = grades.map(g => GRADE_LEVEL_SCORE[g]).filter(s => s !== undefined);
+    if (scores.length === 0) return '';
+    const average = scores.reduce((sum, val) => sum + val, 0) / scores.length;
+    const resolvedLevel = Math.round(average);
+    return SCORE_TO_GRADE[resolvedLevel] || '';
+}
+
 function getGradeAndPoints(score, classType = 'individual') {
     const config = activePointsConfig[classType] || DEFAULT_POINTS[classType];
     const gradePointsMap = {
@@ -1025,6 +1133,20 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
         const savedMarks = Array.isArray(saved.marks) ? saved.marks : [];
         const codeLetter = saved.codeLetter || '';
         
+        const legacyGrade = saved.manualGrade || '';
+        const adminManualGrade = saved.adminManualGrade || '';
+        const manualGrades = Array.isArray(saved.manualGrades) ? saved.manualGrades : [];
+
+        let screenManualGrade = '';
+        if (isStandalone) {
+            const jIdx = judges.indexOf(sJudgeName);
+            if (jIdx !== -1 && manualGrades[jIdx]) {
+                screenManualGrade = manualGrades[jIdx];
+            }
+        } else {
+            screenManualGrade = adminManualGrade || legacyGrade;
+        }
+        
         let judgeInputsHTML = '';
         if (isStandalone) {
             const jIdx = judges.indexOf(sJudgeName);
@@ -1056,7 +1178,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
         }
 
         return `
-            <tr class="mark-entry-row" data-student-id="${p.id}" data-student-name="${window.escapeHTML(p.name)}" data-team-id="${p.teamId}" data-team-name="${window.escapeHTML(p.teamName)}">
+            <tr class="mark-entry-row" data-student-id="${p.id}" data-student-name="${window.escapeHTML(p.name)}" data-team-id="${p.teamId}" data-team-name="${window.escapeHTML(p.teamName)}" data-manual-grade="${window.escapeHTML(screenManualGrade)}" data-judge-manual-grades="${window.escapeHTML(JSON.stringify(manualGrades))}">
                 ${!isGroup ? `
                 <td style="padding:0.75rem; border:1px solid #cbd5e1; font-weight:700; color:#475569;">
                     ${window.escapeHTML(p.chestNumber)}
@@ -1070,16 +1192,15 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
                     <div style="font-weight:700; color:#1e293b;">${window.escapeHTML(p.name)}</div>
                 </td>
                 ${judgeInputsHTML}
-                ${showCalculations ? `
-                <td style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-weight:800; color:#1e293b; background:#f8fafc;" class="cell-final-mark">
+                <td style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-weight:800; color:#1e293b; background:#f8fafc; ${!showCalculations ? 'display:none;' : ''}" class="cell-final-mark">
                     —
                 </td>
-                <td style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-weight:700;" class="cell-grade">
+                <td style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-weight:700; ${!showCalculations ? 'display:none;' : ''}" class="cell-grade">
                     —
                 </td>
-                <td style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-weight:700; color:#64748b;" class="cell-rank">
+                <td style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-weight:700; color:#64748b; ${!showCalculations ? 'display:none;' : ''}" class="cell-rank">
                     —
-                </td>` : ''}
+                </td>
             </tr>
         `;
     }).join('');
@@ -1143,6 +1264,13 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
 
             ${statusBannerHTML}
 
+            <!-- Manual Grade Toggle Button Bar -->
+            <div style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:-0.25rem; padding:0 0.25rem;">
+                <button type="button" id="meManualGradeToggleBtn" class="btn btn-secondary" style="padding:0.4rem 0.75rem; font-size:0.78rem; font-weight:700; border-radius:8px; display:inline-flex; align-items:center; gap:0.3rem; cursor:pointer; height:32px;">
+                    Manual Grade
+                </button>
+            </div>
+
             <!-- Spreadsheet Table Wrapper -->
             <div style="overflow-x:auto; background:#fff; border:1px solid #cbd5e1; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
                 <table style="width:100%; border-collapse:collapse; min-width:800px;">
@@ -1152,13 +1280,12 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
                             <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:90px;">CODE LETTER</th>
                             <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:left; font-size:0.78rem; font-weight:700; color:#475569;">${isGroup ? 'TEAM NAME' : 'STUDENT NAME'}</th>
                             ${judgeHeadersHTML}
-                            ${showCalculations ? `
-                            <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:95px;">FINAL MARK</th>
-                            <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:90px;">GRADE</th>
-                            <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:80px;">RANK</th>` : ''}
+                            <th class="cell-calc-header" style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:95px; ${!showCalculations ? 'display:none;' : ''}">FINAL MARK</th>
+                            <th class="cell-calc-header" style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:90px; ${!showCalculations ? 'display:none;' : ''}">GRADE</th>
+                            <th class="cell-calc-header" style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:80px; ${!showCalculations ? 'display:none;' : ''}">RANK</th>
                         </tr>
                     </thead>
-                    <tbody id="meSpreadsheetBody">
+                    <tbody id="meSpreadsheetBody" data-is-standalone="${isStandalone}" data-judge-idx="${isStandalone ? judges.indexOf(sJudgeName) : -1}">
                         ${rowsHTML}
                     </tbody>
                 </table>
@@ -1184,25 +1311,136 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
     // Hook listeners
     const tbody = document.getElementById('meSpreadsheetBody');
     
-    // Keystroke input validator and auto calculator (only if showing calculations)
-    if (showCalculations) {
-        tbody.querySelectorAll('.judge-mark-input').forEach(input => {
-            input.addEventListener('input', () => {
-                let val = input.value.trim();
-                if (val === '') {
-                    recalculateSpreadsheet(judges.length);
-                    return;
-                }
-                let num = parseFloat(val);
-                if (isNaN(num)) num = 0;
-                if (num < 0) num = 0;
-                if (num > 100) num = 100;
-                input.value = num;
+    let manualGradeMode = false;
 
-                recalculateSpreadsheet(judges.length);
+    // Toggle button click listener
+    const meManualGradeToggleBtn = document.getElementById('meManualGradeToggleBtn');
+    if (meManualGradeToggleBtn) {
+        meManualGradeToggleBtn.onclick = () => {
+            manualGradeMode = !manualGradeMode;
+            updateManualGradeUI();
+        };
+    }
+
+    function updateManualGradeUI() {
+        const toggleBtn = document.getElementById('meManualGradeToggleBtn');
+        if (!toggleBtn) return;
+
+        if (manualGradeMode) {
+            toggleBtn.innerHTML = '✓ Manual Grade';
+            toggleBtn.style.background = '#e0e7ff';
+            toggleBtn.style.color = '#4338ca';
+            toggleBtn.style.borderColor = '#c7d2fe';
+        } else {
+            toggleBtn.innerHTML = 'Manual Grade';
+            toggleBtn.style.background = '#f8fafc';
+            toggleBtn.style.color = '#475569';
+            toggleBtn.style.borderColor = '#cbd5e1';
+        }
+
+        // Toggle visibility of columns if showCalculations is false
+        if (!showCalculations) {
+            document.querySelectorAll('.cell-calc-header, .cell-final-mark, .cell-grade, .cell-rank').forEach(el => {
+                el.style.display = manualGradeMode ? '' : 'none';
             });
+        }
+
+        // Toggle interaction on Grade cells
+        const gradeCells = tbody.querySelectorAll('.cell-grade');
+        gradeCells.forEach(cell => {
+            if (manualGradeMode) {
+                cell.classList.add('interactive');
+                cell.style.cursor = 'pointer';
+            } else {
+                cell.classList.remove('interactive');
+                cell.style.cursor = '';
+            }
         });
     }
+
+    // Event delegation for cell-grade clicks
+    tbody.addEventListener('click', (e) => {
+        const cell = e.target.closest('.cell-grade');
+        if (!cell) return;
+        if (!manualGradeMode) return;
+
+        const tr = cell.closest('.mark-entry-row');
+        if (!tr) return;
+
+        openGradeSelector(cell, tr);
+    });
+
+    function openGradeSelector(cell, tr) {
+        const existing = document.querySelector('.grade-selector-popover');
+        if (existing) existing.remove();
+
+        const popover = document.createElement('div');
+        popover.className = 'grade-selector-popover';
+
+        const currentManualGrade = tr.getAttribute('data-manual-grade') || '';
+        const options = ['AUTO', 'A+', 'A', 'B+', 'B', 'C'];
+
+        options.forEach(opt => {
+            const optDiv = document.createElement('div');
+            optDiv.className = 'grade-selector-option';
+            optDiv.textContent = opt;
+
+            if (opt === 'AUTO' && !currentManualGrade) {
+                optDiv.classList.add('active');
+            } else if (opt === currentManualGrade) {
+                optDiv.classList.add('active');
+            }
+
+            optDiv.addEventListener('click', (event) => {
+                event.stopPropagation();
+                if (opt === 'AUTO') {
+                    tr.removeAttribute('data-manual-grade');
+                } else {
+                    tr.setAttribute('data-manual-grade', opt);
+                }
+                recalculateSpreadsheet(judges.length);
+                popover.remove();
+            });
+
+            popover.appendChild(optDiv);
+        });
+
+        document.body.appendChild(popover);
+        const rect = cell.getBoundingClientRect();
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+        popover.style.top = `${rect.bottom + scrollTop + 4}px`;
+        popover.style.left = `${rect.left + scrollLeft}px`;
+
+        const closeHandler = (event) => {
+            if (!popover.contains(event.target) && event.target !== cell) {
+                popover.remove();
+                document.removeEventListener('click', closeHandler);
+            }
+        };
+        setTimeout(() => {
+            document.addEventListener('click', closeHandler);
+        }, 10);
+    }
+    
+    // Keystroke input validator and auto calculator
+    tbody.querySelectorAll('.judge-mark-input').forEach(input => {
+        input.addEventListener('input', () => {
+            let val = input.value.trim();
+            if (val === '') {
+                recalculateSpreadsheet(judges.length);
+                return;
+            }
+            let num = parseFloat(val);
+            if (isNaN(num)) num = 0;
+            if (num < 0) num = 0;
+            if (num > 100) num = 100;
+            input.value = num;
+
+            recalculateSpreadsheet(judges.length);
+        });
+    });
 
     tbody.querySelectorAll('.code-letter-input').forEach(input => {
         input.addEventListener('input', () => {
@@ -1210,10 +1448,8 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
         });
     });
 
-    // Run first calculations on load (only if showing calculations)
-    if (showCalculations) {
-        recalculateSpreadsheet(judges.length);
-    }
+    // Run first calculations on load (always recalculate so calculations are ready)
+    recalculateSpreadsheet(judges.length);
 
     // Save Handlers
     document.getElementById('meCancelBtn').onclick = () => {
@@ -1233,6 +1469,9 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
 // Real-time Spreadsheet Calculation
 // ─────────────────────────────────────────────
 function recalculateSpreadsheet(judgesCount) {
+    const tbody = document.getElementById('meSpreadsheetBody');
+    const isStandalone = tbody ? (tbody.getAttribute('data-is-standalone') === 'true') : false;
+
     const rows = [];
     document.querySelectorAll('.mark-entry-row').forEach(tr => {
         let sum = 0;
@@ -1273,20 +1512,60 @@ function recalculateSpreadsheet(judgesCount) {
         const gradeCell = r.tr.querySelector('.cell-grade');
         const rankCell = r.tr.querySelector('.cell-rank');
 
-        if (r.hasScores) {
-            finalCell.textContent = r.finalMark;
-            const { grade } = getGradeAndPoints(r.finalMark);
-            gradeCell.innerHTML = grade ? `<span class="badge" style="background:#e0e7ff; color:#4338ca; font-size:0.75rem; font-weight:700; border:1px solid #c7d2fe;">${grade}</span>` : '—';
+        const activeScreenManualGrade = r.tr.getAttribute('data-manual-grade') || null;
+
+        if (r.hasScores || activeScreenManualGrade) {
+            finalCell.textContent = r.hasScores ? r.finalMark : '—';
+            
+            const { grade: automaticGrade } = getGradeAndPoints(r.finalMark);
+            
+            let effectiveGrade = '';
+            let isOverridden = false;
+
+            if (isStandalone) {
+                effectiveGrade = activeScreenManualGrade || automaticGrade || '';
+                isOverridden = isValidManualGrade(activeScreenManualGrade);
+            } else {
+                const adminManualGrade = activeScreenManualGrade;
+                let aggregatedJudgeGrade = '';
+                const jGradesStr = r.tr.getAttribute('data-judge-manual-grades');
+                if (jGradesStr) {
+                    try {
+                        const jGrades = JSON.parse(jGradesStr);
+                        const validJudgeGrades = jGrades.filter(isValidManualGrade);
+                        if (validJudgeGrades.length > 0) {
+                            aggregatedJudgeGrade = aggregateManualGrades(validJudgeGrades);
+                        }
+                        isOverridden = isValidManualGrade(adminManualGrade) || jGrades.some(isValidManualGrade);
+                    } catch (e) {
+                        console.error("Failed to parse judge manual grades:", e);
+                    }
+                } else {
+                    isOverridden = isValidManualGrade(adminManualGrade);
+                }
+                effectiveGrade = adminManualGrade || aggregatedJudgeGrade || automaticGrade || '';
+            }
+            
+            if (effectiveGrade) {
+                const indicator = isOverridden ? ' <span style="font-size:0.65rem; color:#6366f1; margin-left:2px;">✎</span>' : '';
+                gradeCell.innerHTML = `<span class="badge" style="background:#e0e7ff; color:#4338ca; font-size:0.75rem; font-weight:700; border:1px solid #c7d2fe;">${effectiveGrade}${indicator}</span>`;
+            } else {
+                gradeCell.textContent = '—';
+            }
             
             // Highlight ranks 1, 2, 3
-            if (r.rank === 1) {
-                rankCell.innerHTML = `<span style="background:#fef3c7; color:#d97706; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.82rem; border:1px solid #fde68a;">🥇 1st</span>`;
-            } else if (r.rank === 2) {
-                rankCell.innerHTML = `<span style="background:#f1f5f9; color:#475569; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.82rem; border:1px solid #cbd5e1;">🥈 2nd</span>`;
-            } else if (r.rank === 3) {
-                rankCell.innerHTML = `<span style="background:#fff7ed; color:#ea580c; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.82rem; border:1px solid #ffedd5;">🥉 3rd</span>`;
+            if (r.hasScores) {
+                if (r.rank === 1) {
+                    rankCell.innerHTML = `<span style="background:#fef3c7; color:#d97706; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.82rem; border:1px solid #fde68a;">🥇 1st</span>`;
+                } else if (r.rank === 2) {
+                    rankCell.innerHTML = `<span style="background:#f1f5f9; color:#475569; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.82rem; border:1px solid #cbd5e1;">🥈 2nd</span>`;
+                } else if (r.rank === 3) {
+                    rankCell.innerHTML = `<span style="background:#fff7ed; color:#ea580c; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.82rem; border:1px solid #ffedd5;">🥉 3rd</span>`;
+                } else {
+                    rankCell.textContent = `${r.rank}th`;
+                }
             } else {
-                rankCell.textContent = `${r.rank}th`;
+                rankCell.textContent = '—';
             }
         } else {
             finalCell.textContent = '—';
@@ -1444,6 +1723,16 @@ async function persistMarks(prog, judges, isSubmit) {
 
                     marks[currentJudgeIdx] = screenMark;
 
+                    let manualGrades = dbEntry && Array.isArray(dbEntry.manualGrades) ? [...dbEntry.manualGrades] : [];
+                    while (manualGrades.length < dbJudges.length) {
+                        manualGrades.push(null);
+                    }
+                    const rowManualGrade = tr.getAttribute('data-manual-grade') || null;
+                    manualGrades[currentJudgeIdx] = rowManualGrade;
+
+                    const adminManualGrade = dbEntry ? (dbEntry.adminManualGrade || null) : null;
+                    const legacyManualGrade = dbEntry ? (dbEntry.manualGrade || null) : null;
+
                     updatedMarksData.push({
                         studentId: isGroup ? '' : studentId,
                         groupId: isGroup ? studentId : '',
@@ -1455,6 +1744,9 @@ async function persistMarks(prog, judges, isSubmit) {
                         finalMark: 0,
                         grade: '',
                         gradePoints: 0,
+                        adminManualGrade: adminManualGrade,
+                        manualGrade: legacyManualGrade,
+                        manualGrades: manualGrades,
                         rank: null,
                         position: '',
                         positionPoints: 0,
@@ -1505,12 +1797,30 @@ async function persistMarks(prog, judges, isSubmit) {
                     updatedMarksData.forEach(entry => {
                         const hasScores = entry.marks.some(m => m !== null && m !== undefined);
                         if (hasScores) {
-                            const { grade, points: gp } = getGradeAndPoints(entry.finalMark, classType);
+                            const { grade: automaticGrade } = getGradeAndPoints(entry.finalMark, classType);
+                            const effectiveGrade = resolveEffectiveGrade({
+                                automaticGrade,
+                                adminManualGrade: entry.adminManualGrade,
+                                legacyManualGrade: entry.manualGrade,
+                                manualGrades: entry.manualGrades,
+                                judgeSubmissionStatus: dbJudgeSubmissionStatus,
+                                judgeIds: dbJudgeIds
+                            });
+
+                            const gradePointsMap = {
+                                'A+': config.gradeAPlus !== undefined ? Number(config.gradeAPlus) : 5,
+                                'A': config.gradeA !== undefined ? Number(config.gradeA) : 4,
+                                'B+': config.gradeBPlus !== undefined ? Number(config.gradeBPlus) : 3,
+                                'B': config.gradeB !== undefined ? Number(config.gradeB) : 2,
+                                'C': config.gradeC !== undefined ? Number(config.gradeC) : 1
+                            };
+                            const gp = effectiveGrade ? (gradePointsMap[effectiveGrade] || 0) : 0;
+
                             const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
                             const position = posMap[entry.rank] || '';
                             const pp = positionPointsMap[position] || 0;
-                            entry.grade = grade || '';
-                            entry.gradePoints = gp || 0;
+                            entry.grade = effectiveGrade;
+                            entry.gradePoints = gp;
                             entry.position = position || '';
                             entry.positionPoints = pp || 0;
                             entry.totalPoints = gp + pp;
@@ -1528,6 +1838,7 @@ async function persistMarks(prog, judges, isSubmit) {
                             teamName: r.teamName || '',
                             position: r.position || '',
                             grade: r.grade || '',
+                            manualGrade: r.manualGrade || null,
                             marks: r.totalPoints || 0,
                             remarks: `Average: ${r.finalMark} (Grade Points: ${r.gradePoints} + Position Points: ${r.positionPoints})`
                         });
@@ -1607,6 +1918,10 @@ async function persistMarks(prog, judges, isSubmit) {
                         }
                     });
 
+                    const rowManualGrade = tr.getAttribute('data-manual-grade') || null;
+                    const manualGrades = dbEntry && Array.isArray(dbEntry.manualGrades) ? [...dbEntry.manualGrades] : [];
+                    const legacyManualGrade = dbEntry ? (dbEntry.manualGrade || null) : null;
+
                     updatedMarksData.push({
                         studentId: isGroup ? '' : studentId,
                         groupId: isGroup ? studentId : '',
@@ -1618,6 +1933,9 @@ async function persistMarks(prog, judges, isSubmit) {
                         finalMark: 0,
                         grade: '',
                         gradePoints: 0,
+                        adminManualGrade: rowManualGrade,
+                        manualGrade: legacyManualGrade,
+                        manualGrades: manualGrades,
                         rank: null,
                         position: '',
                         positionPoints: 0,
@@ -1656,12 +1974,30 @@ async function persistMarks(prog, judges, isSubmit) {
                 updatedMarksData.forEach(entry => {
                     const hasScores = entry.marks.some(m => m !== null && m !== undefined);
                     if (hasScores) {
-                        const { grade, points: gp } = getGradeAndPoints(entry.finalMark, classType);
+                        const { grade: automaticGrade } = getGradeAndPoints(entry.finalMark, classType);
+                        const effectiveGrade = resolveEffectiveGrade({
+                            automaticGrade,
+                            adminManualGrade: entry.adminManualGrade,
+                            legacyManualGrade: entry.manualGrade,
+                            manualGrades: entry.manualGrades,
+                            judgeSubmissionStatus: dbJudgeSubmissionStatus,
+                            judgeIds: dbJudgeIds
+                        });
+
+                        const gradePointsMap = {
+                            'A+': config.gradeAPlus !== undefined ? Number(config.gradeAPlus) : 5,
+                            'A': config.gradeA !== undefined ? Number(config.gradeA) : 4,
+                            'B+': config.gradeBPlus !== undefined ? Number(config.gradeBPlus) : 3,
+                            'B': config.gradeB !== undefined ? Number(config.gradeB) : 2,
+                            'C': config.gradeC !== undefined ? Number(config.gradeC) : 1
+                        };
+                        const gp = effectiveGrade ? (gradePointsMap[effectiveGrade] || 0) : 0;
+
                         const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
                         const position = posMap[entry.rank] || '';
                         const pp = positionPointsMap[position] || 0;
-                        entry.grade = grade || '';
-                        entry.gradePoints = gp || 0;
+                        entry.grade = effectiveGrade;
+                        entry.gradePoints = gp;
                         entry.position = position || '';
                         entry.positionPoints = pp || 0;
                         entry.totalPoints = gp + pp;
@@ -1680,6 +2016,7 @@ async function persistMarks(prog, judges, isSubmit) {
                         teamName: r.teamName || '',
                         position: r.position || '',
                         grade: r.grade || '',
+                        manualGrade: r.manualGrade || null,
                         marks: r.totalPoints || 0,
                         remarks: `Average: ${r.finalMark} (Grade Points: ${r.gradePoints} + Position Points: ${r.positionPoints})`
                     });
