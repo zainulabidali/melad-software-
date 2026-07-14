@@ -1160,7 +1160,7 @@ function renderDrawerContent() {
 
                     <!-- Category / Class filters -->
                     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; width:100%;">
-                        <div style="flex:1; min-width:140px;">
+                        <div id="expCatFilterContainer" style="flex:1; min-width:140px;">
                             <label style="font-weight:700; color:#475569; font-size:0.78rem;">CATEGORY</label>
                             <select id="expCatFilter" class="exp-input" style="background:#fff;">${catOptions}</select>
                         </div>
@@ -1230,7 +1230,7 @@ function renderDrawerContent() {
                                 <option value="Mixed">Mixed</option>
                             </select>
                         </div>
-                        <div style="flex:1; min-width:140px;">
+                        <div id="expTeamFilterContainer" style="flex:1; min-width:140px;">
                             <label style="font-weight:700; color:#475569; font-size:0.78rem;">TEAM / INSTITUTE FILTER</label>
                             <select id="expTeamFilter" class="exp-input" style="background:#fff;">${teamOptions}</select>
                         </div>
@@ -1389,19 +1389,46 @@ function renderDrawerContent() {
             const expResultSubVal = document.getElementById('expResultSubVal');
             const expAwardTypeContainer = document.getElementById('expAwardTypeContainer');
 
-            const updateAwardTypeFilterVisibility = () => {
+            const updateConditionalFilters = () => {
                 const activeCard = document.querySelector('.exp-type-card.active');
                 const selType = activeCard ? activeCard.getAttribute('data-type') : '';
-                if (selType === 'Results' && expResultSubVal && expResultSubVal.value === 'Class Wise Academic & Attendance') {
-                    if (expAwardTypeContainer) expAwardTypeContainer.style.display = 'flex';
-                } else {
-                    if (expAwardTypeContainer) expAwardTypeContainer.style.display = 'none';
+                const isClassAwards = (selType === 'Results' && expResultSubVal && expResultSubVal.value === 'Class Wise Academic & Attendance');
+
+                // 1. Award Type Container
+                if (expAwardTypeContainer) {
+                    expAwardTypeContainer.style.display = isClassAwards ? 'flex' : 'none';
+                }
+
+                // 2. Category Filter Container
+                const expCatFilterContainer = document.getElementById('expCatFilterContainer');
+                if (expCatFilterContainer) {
+                    expCatFilterContainer.style.display = isClassAwards ? 'none' : 'block';
+                }
+
+                // 3. Specific Program Container
+                if (expProgFilterContainer) {
+                    if (isClassAwards) {
+                        expProgFilterContainer.style.display = 'none';
+                    } else {
+                        // Keep existing logic for other types
+                        if (selType === 'Chest Number List' || selType === 'Program Participation Register') {
+                            expProgFilterContainer.style.display = 'none';
+                        } else {
+                            expProgFilterContainer.style.display = 'block';
+                        }
+                    }
+                }
+
+                // 4. Team / Institute Filter Container
+                const expTeamFilterContainer = document.getElementById('expTeamFilterContainer');
+                if (expTeamFilterContainer) {
+                    expTeamFilterContainer.style.display = isClassAwards ? 'none' : 'block';
                 }
             };
 
             if (expResultSubVal) {
                 expResultSubVal.onchange = () => {
-                    updateAwardTypeFilterVisibility();
+                    updateConditionalFilters();
                     updateClassFilterState();
                     updateProgramsDropdown();
                 };
@@ -1417,7 +1444,7 @@ function renderDrawerContent() {
                 if (locCont) locCont.style.display = 'none';
                 if (partCont) partCont.style.display = 'none';
                 if (regModeCont) regModeCont.style.display = 'none';
-                updateAwardTypeFilterVisibility();
+                updateConditionalFilters();
             } else if (selectedType === 'Valuation Sheet') {
                 if (chestExportModeSelector) chestExportModeSelector.style.display = 'none';
                 resultsSourceContainer.style.display = 'none';
@@ -1491,7 +1518,7 @@ function renderDrawerContent() {
                 if (partCont) partCont.style.display = 'none';
                 if (regModeCont) regModeCont.style.display = 'none';
             }
-            updateAwardTypeFilterVisibility();
+            updateConditionalFilters();
             updateClassFilterState();
             updateProgramsDropdown();
         };
