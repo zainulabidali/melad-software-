@@ -1335,8 +1335,26 @@ async function initClassAwardsUI(container) {
             // Update Label
             configLabel.innerHTML = `${window.escapeHTML(selectedClassName)} &bull; ${window.escapeHTML(selectedAwardTypeName)}`;
 
-            // Filter class students - Allow selecting from all students in current institute
-            classStudents = allStudents;
+            // Filter class students - Allow selecting only from students in the selected class (X) or the next class (X + 1)
+            const extractClassNumber = (nameOrId) => {
+                if (!nameOrId) return null;
+                const match = nameOrId.match(/\d+/);
+                return match ? parseInt(match[0], 10) : null;
+            };
+
+            const selectedClassNum = extractClassNumber(selectedClassName);
+            if (selectedClassNum !== null) {
+                classStudents = allStudents.filter(s => {
+                    const studentClassNum = extractClassNumber(s.className || s.classId);
+                    return studentClassNum === selectedClassNum || studentClassNum === (selectedClassNum + 1);
+                });
+            } else {
+                // Fallback for non-numeric classes
+                classStudents = allStudents.filter(s => 
+                    s.classId === selectedClassId || 
+                    (s.className && s.className.toLowerCase() === selectedClassName.toLowerCase())
+                );
+            }
 
             if (classStudents.length === 0) {
                 winnersCard.style.display = 'flex';
