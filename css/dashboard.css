@@ -589,6 +589,13 @@
     max-width: 180px;
 }
 
+.res-detail-td-code {
+    color: #475569;
+    font-weight: 600;
+    word-break: break-word;
+    max-width: 100px;
+}
+
 .res-detail-td-mark {
     text-align: center;
     font-weight: 800;
@@ -1099,6 +1106,10 @@
 
     .res-detail-td-name {
         max-width: 150px;
+    }
+
+    .res-detail-td-code {
+        max-width: 80px;
     }
 
     .res-detail-td-team {

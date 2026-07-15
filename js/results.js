@@ -602,6 +602,23 @@ function openResultDetailPopup(r) {
             }
 
             const displayName = item.studentName || item.groupName || item.name || '—';
+            
+            // Extract and clean Code Letter
+            const rawCodeLetter = item.codeLetter;
+            let codeLetterDisplay = '';
+            if (rawCodeLetter !== undefined && rawCodeLetter !== null) {
+                const valStr = String(rawCodeLetter).trim();
+                const valLower = valStr.toLowerCase();
+                if (valStr !== '' && 
+                    valLower !== 'n/a' && 
+                    valLower !== '-' && 
+                    valLower !== 'none' && 
+                    valLower !== 'null' && 
+                    valLower !== 'undefined') {
+                    codeLetterDisplay = valStr;
+                }
+            }
+
             const teamDisplay = item.teamName || '—';
             const finalMark = hasScore ? item.finalMark : '—';
             const grade = hasScore ? (item.grade || '—') : '—';
@@ -611,6 +628,7 @@ function openResultDetailPopup(r) {
                 <tr class="res-detail-table-row">
                     <td class="res-detail-td-rank">${positionHTML}</td>
                     <td class="res-detail-td-name">${window.escapeHTML(displayName)}</td>
+                    <td class="res-detail-td-code">${window.escapeHTML(codeLetterDisplay)}</td>
                     <td class="res-detail-td-team">${window.escapeHTML(teamDisplay)}</td>
                     <td class="res-detail-td-mark">${finalMark}</td>
                     <td class="res-detail-td-grade">
@@ -652,6 +670,7 @@ function openResultDetailPopup(r) {
                         <tr class="res-detail-table-header-row">
                             <th style="text-align:center; width:80px;">Rank</th>
                             <th>Contestant Name</th>
+                            <th style="width:100px;">Code Letter</th>
                             <th style="width:180px;">Team</th>
                             <th style="width:110px; text-align:center;">Avg Mark</th>
                             <th style="width:90px; text-align:center;">Grade</th>
