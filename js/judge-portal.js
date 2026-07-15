@@ -162,17 +162,52 @@ function setupRealtimeSync() {
 
 async function loadAssignedPrograms() {
     try {
+        if (currentJudge && currentJudge.id) {
+            const judgeSnap = await getDoc(doc(db, "institutes", currentInstituteId, "judges", currentJudge.id));
+            if (judgeSnap.exists()) {
+                currentJudge = { id: judgeSnap.id, ...judgeSnap.data() };
+            }
+        }
         const progSnap = await getDocs(collection(db, "institutes", currentInstituteId, "programs"));
         const comps = Array.isArray(currentJudge.competitions) ? currentJudge.competitions : [];
+        const compIds = Array.isArray(currentJudge.competitionIds) ? currentJudge.competitionIds : [];
         
         assignedPrograms = [];
         progSnap.docs.forEach(d => {
             const p = d.data();
             const pName = (p.programName || p.name || '').trim();
-            if (comps.some(c => c.toLowerCase().trim() === pName.toLowerCase())) {
+            const isNameEligible = comps.some(c => c.toLowerCase().trim() === pName.toLowerCase());
+            const isIdEligible = compIds.includes(d.id);
+            
+            let isResultEligible = false;
+            const resDoc = resultsMap.get(d.id);
+            if (resDoc) {
+                if (resDoc.judgeSubmissionStatus && typeof resDoc.judgeSubmissionStatus === 'object') {
+                    if (currentJudge.id in resDoc.judgeSubmissionStatus) {
+                        isResultEligible = true;
+                    }
+                }
+                if (Array.isArray(resDoc.judgeIds) && resDoc.judgeIds.includes(currentJudge.id)) {
+                    isResultEligible = true;
+                }
+                if (currentJudge.name && Array.isArray(resDoc.judges)) {
+                    if (resDoc.judges.some(name => name.toLowerCase().trim() === currentJudge.name.toLowerCase().trim())) {
+                        isResultEligible = true;
+                    }
+                }
+            }
+
+            if (isNameEligible || isIdEligible || isResultEligible) {
                 assignedPrograms.push({ id: d.id, ...p });
             }
         });
+
+        // Debug Requirements
+        console.log("Total programs fetched from Firestore (Judge Portal):", progSnap.docs.length);
+        console.log("Judge ID (Judge Portal):", currentJudge.id);
+        console.log("Judge competitionIds (Judge Portal):", compIds);
+        console.log("Judge competitions (Judge Portal):", comps);
+        console.log("Final filtered program IDs (Judge Portal):", assignedPrograms.map(p => p.id));
 
         renderHomeScreen();
     } catch (e) {
@@ -196,6 +231,8 @@ function renderHomeScreen() {
         }
         return true;
     });
+
+    console.log("Final rendered program IDs (Judge Portal):", filtered.map(p => p.id));
 
     // Segment into pending vs completed for judge
     let pendingCount = 0;
@@ -317,7 +354,7 @@ async function openScoringView(prog) {
                     <p style="font-size:0.85rem; color:#64748b; margin-top:0.25rem;">There are no registered participants for this program yet.</p>
                 </div>
             `;
-            document.getElementById('jpBackHome').onclick = () => renderHomeScreen();
+            document.getElementById('jpBackHome').onclick = () => loadAssignedPrograms();
             return;
         }
 
@@ -443,7 +480,7 @@ function renderScoringUI(prog, participants, resDoc) {
         </div>
     `;
 
-    document.getElementById('jpBackHome').onclick = () => renderHomeScreen();
+    document.getElementById('jpBackHome').onclick = () => loadAssignedPrograms();
 
     // Set initial Grade Mode value
     const jpGradeModeSelect = document.getElementById('jpGradeModeSelect');
@@ -706,7 +743,7 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
         }
 
         window.showToast(isSubmit ? "📤 Marks submitted successfully!" : "📝 Draft saved successfully!", "success");
-        setTimeout(() => renderHomeScreen(), 600);
+        setTimeout(() => loadAssignedPrograms(), 600);
     } catch (e) {
         console.error("Failed to save judge scores:", e);
         window.showToast("Failed to save marks.", "error");

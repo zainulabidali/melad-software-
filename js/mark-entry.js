@@ -533,19 +533,36 @@ function renderMarkEntryGrid() {
         if (isStandalone) {
             const sJudgeId = sessionStorage.getItem('standaloneJudgeId');
             if (sJudgeId) {
+                const sJudgeName = sessionStorage.getItem('standaloneJudgeName') || '';
                 const sComps = sessionStorage.getItem('standaloneCompetitions') ? JSON.parse(sessionStorage.getItem('standaloneCompetitions')) : [];
                 const sCompIds = sessionStorage.getItem('standaloneCompetitionIds') ? JSON.parse(sessionStorage.getItem('standaloneCompetitionIds')) : [];
                 
                 let isEligible = false;
-                if (sCompIds.length > 0) {
-                    isEligible = sCompIds.includes(p.id);
+                if (sCompIds.includes(p.id)) {
+                    isEligible = true;
                 } else {
-                    // Legacy unique name resolver
                     const matches = allPrograms.filter(progItem => 
                         sComps.some(compName => compName.toLowerCase().trim() === progItem.programName.toLowerCase().trim())
                     );
-                    if (matches.length === 1 && matches[0].id === p.id) {
+                    if (matches.some(m => m.id === p.id)) {
                         isEligible = true;
+                    } else {
+                        const resDoc = allResults.get(p.id);
+                        if (resDoc) {
+                            if (resDoc.judgeSubmissionStatus && typeof resDoc.judgeSubmissionStatus === 'object') {
+                                if (sJudgeId in resDoc.judgeSubmissionStatus) {
+                                    isEligible = true;
+                                }
+                            }
+                            if (Array.isArray(resDoc.judgeIds) && resDoc.judgeIds.includes(sJudgeId)) {
+                                isEligible = true;
+                            }
+                            if (sJudgeName && Array.isArray(resDoc.judges)) {
+                                if (resDoc.judges.some(name => name.toLowerCase().trim() === sJudgeName.toLowerCase().trim())) {
+                                    isEligible = true;
+                                }
+                            }
+                        }
                     }
                 }
                 if (!isEligible) return false;
@@ -575,6 +592,16 @@ function renderMarkEntryGrid() {
 
         return true;
     });
+
+    // Debug Requirements
+    const debugJudgeId = sessionStorage.getItem('standaloneJudgeId');
+    const debugComps = sessionStorage.getItem('standaloneCompetitions') ? JSON.parse(sessionStorage.getItem('standaloneCompetitions')) : [];
+    const debugCompIds = sessionStorage.getItem('standaloneCompetitionIds') ? JSON.parse(sessionStorage.getItem('standaloneCompetitionIds')) : [];
+    console.log("Total programs in allPrograms (Mark Entry Standalone):", allPrograms.length);
+    console.log("Standalone Judge ID (Mark Entry Standalone):", debugJudgeId);
+    console.log("Judge competitionIds (Mark Entry Standalone):", debugCompIds);
+    console.log("Judge competitions (Mark Entry Standalone):", debugComps);
+    console.log("Final filtered program IDs (Mark Entry Standalone):", filtered.map(p => p.id));
 
     if (filtered.length === 0) {
         grid.innerHTML = `
@@ -762,27 +789,31 @@ export async function openMarkEntryModal(prog) {
                 const comps = Array.isArray(judgeData.competitions) ? judgeData.competitions : [];
 
                 let isEligible = false;
-                if (compIds.length > 0) {
-                    isEligible = compIds.includes(prog.id);
+                if (compIds.includes(prog.id)) {
+                    isEligible = true;
                 } else {
-                    // Legacy unique program resolver
                     const matches = allPrograms.filter(progItem => 
                         comps.some(compName => compName.toLowerCase().trim() === progItem.programName.toLowerCase().trim())
                     );
-                    if (matches.length > 1) {
-                        modalBody.innerHTML = `
-                            <div style="text-align:center; padding:3rem; color:#ef4444;">
-                                <strong>⚠️ Ambiguous Assignment</strong><br><br>
-                                <p style="color:#64748b; font-size:0.875rem;">This legacy judge assignment matches multiple programs. Please update the judge's program assignment from the admin panel.</p>
-                                <button class="btn btn-secondary btn-sm mt-4" id="jCloseNoticeBtn">Close</button>
-                            </div>`;
-                        document.getElementById('jCloseNoticeBtn').onclick = () => {
-                            modal.classList.add('hidden');
-                            modal.classList.remove('result-fullscreen-modal');
-                        };
-                        return;
-                    } else if (matches.length === 1) {
-                        isEligible = (matches[0].id === prog.id);
+                    if (matches.some(m => m.id === prog.id)) {
+                        isEligible = true;
+                    } else {
+                        const resDoc = allResults.get(prog.id);
+                        if (resDoc) {
+                            if (resDoc.judgeSubmissionStatus && typeof resDoc.judgeSubmissionStatus === 'object') {
+                                if (judgeSnap.id in resDoc.judgeSubmissionStatus) {
+                                    isEligible = true;
+                                }
+                            }
+                            if (Array.isArray(resDoc.judgeIds) && resDoc.judgeIds.includes(judgeSnap.id)) {
+                                isEligible = true;
+                            }
+                            if (judgeData.name && Array.isArray(resDoc.judges)) {
+                                if (resDoc.judges.some(name => name.toLowerCase().trim() === judgeData.name.toLowerCase().trim())) {
+                                    isEligible = true;
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -977,14 +1008,31 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
                 const comps = Array.isArray(jData.competitions) ? jData.competitions : [];
                 
                 let isEligible = false;
-                if (compIds.length > 0) {
-                    isEligible = compIds.includes(prog.id);
-                } else if (comps.length > 0) {
+                if (compIds.includes(prog.id)) {
+                    isEligible = true;
+                } else {
                     const matches = allPrograms.filter(progItem => 
                         comps.some(compName => compName.toLowerCase().trim() === progItem.programName.toLowerCase().trim())
                     );
-                    if (matches.length === 1) {
-                        isEligible = (matches[0].id === prog.id);
+                    if (matches.some(m => m.id === prog.id)) {
+                        isEligible = true;
+                    } else {
+                        const resDoc = allResults.get(prog.id);
+                        if (resDoc) {
+                            if (resDoc.judgeSubmissionStatus && typeof resDoc.judgeSubmissionStatus === 'object') {
+                                if (selectedId in resDoc.judgeSubmissionStatus) {
+                                    isEligible = true;
+                                }
+                            }
+                            if (Array.isArray(resDoc.judgeIds) && resDoc.judgeIds.includes(selectedId)) {
+                                isEligible = true;
+                            }
+                            if (selectedName && Array.isArray(resDoc.judges)) {
+                                if (resDoc.judges.some(name => name.toLowerCase().trim() === selectedName.toLowerCase().trim())) {
+                                    isEligible = true;
+                                }
+                            }
+                        }
                     }
                 }
                 
@@ -1586,6 +1634,7 @@ function recalculateSpreadsheet(judgesCount) {
 // Save Marks & Synchronize Judges Assigned Lists
 // ─────────────────────────────────────────────
 async function persistMarks(prog, judges, isSubmit) {
+    const gradeMode = document.getElementById('meGradeModeSelect')?.value || 'auto';
     if (!db) {
         window.showToast("Unable to save: Database reference is not initialized.", "error");
         return;
@@ -1801,7 +1850,6 @@ async function persistMarks(prog, judges, isSubmit) {
                         'Participation': 0
                     };
 
-                    const gradeMode = document.getElementById('meGradeModeSelect')?.value || 'auto';
                     updatedMarksData.forEach(entry => {
                         const hasScores = entry.marks.some(m => m !== null && m !== undefined);
                         if (hasScores) {
@@ -1983,7 +2031,6 @@ async function persistMarks(prog, judges, isSubmit) {
                     'Participation': 0
                 };
 
-                const gradeMode = document.getElementById('meGradeModeSelect')?.value || 'auto';
                 updatedMarksData.forEach(entry => {
                     const hasScores = entry.marks.some(m => m !== null && m !== undefined);
                     if (hasScores) {
