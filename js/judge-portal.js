@@ -419,6 +419,16 @@ function renderScoringUI(prog, participants, resDoc) {
             </div>
         </div>
 
+        <!-- Grade Mode Selector Dropdown -->
+        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:0.75rem 1rem; margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:center;">
+            <label style="font-size:0.85rem; font-weight:700; color:#475569; margin:0;">Grade Mode:</label>
+            <select id="jpGradeModeSelect" class="form-input" style="height:36px; padding:0.2rem 0.5rem; font-size:0.85rem; font-weight:700; border-radius:8px; width:160px; background:#fff; border:1px solid #cbd5e1; cursor:pointer; margin-top:0;">
+                <option value="auto">Automatic Grade</option>
+                <option value="manual">Manual Grade</option>
+                <option value="none">Remove Grade</option>
+            </select>
+        </div>
+
         <div id="jpScoringList">
             ${rowsHTML}
         </div>
@@ -434,6 +444,12 @@ function renderScoringUI(prog, participants, resDoc) {
     `;
 
     document.getElementById('jpBackHome').onclick = () => renderHomeScreen();
+
+    // Set initial Grade Mode value
+    const jpGradeModeSelect = document.getElementById('jpGradeModeSelect');
+    if (jpGradeModeSelect) {
+        jpGradeModeSelect.value = resDoc?.gradeMode || 'auto';
+    }
 
     // Input constraints validation
     mainContainer.querySelectorAll('.jp-mark-input').forEach(input => {
@@ -554,6 +570,9 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
         'Participation': 0
     };
 
+    const gradeModeSelect = document.getElementById('jpGradeModeSelect');
+    const gradeMode = gradeModeSelect ? gradeModeSelect.value : (existingResDoc?.gradeMode || 'auto');
+
     sortedRows.forEach(r => {
         if (r.hasScores) {
             const { grade: automaticGrade } = getGradeAndPoints(r.finalMark, classType);
@@ -573,7 +592,10 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
                 'B': config.gradeB !== undefined ? Number(config.gradeB) : 2,
                 'C': config.gradeC !== undefined ? Number(config.gradeC) : 1
             };
-            const gp = effectiveGrade ? (gradePointsMap[effectiveGrade] || 0) : 0;
+            
+            const savedGrade = (gradeMode === 'none') ? '' : effectiveGrade;
+            const pointsGrade = (gradeMode === 'none') ? (automaticGrade || '') : effectiveGrade;
+            const gp = pointsGrade ? (gradePointsMap[pointsGrade] || 0) : 0;
 
             const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
             const position = posMap[r.rank] || '';
@@ -589,7 +611,7 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
                 codeLetter: r.codeLetter || '',
                 marks: r.marks || [],
                 finalMark: r.finalMark || 0,
-                grade: effectiveGrade,
+                grade: savedGrade,
                 gradePoints: gp || 0,
                 adminManualGrade: r.adminManualGrade,
                 manualGrade: r.manualGrade,
@@ -669,6 +691,7 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
             winners,
             status: existingResDoc?.status || 'draft',
             markEntryStatus: isSubmit ? 'submitted' : 'in-progress',
+            gradeMode,
             updatedAt: serverTimestamp()
         };
 

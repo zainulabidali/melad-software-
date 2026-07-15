@@ -5721,7 +5721,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                         <th style="width:100px; text-align:center;">Chest No</th>
                                         <th>Student / Team Name</th>
                                         <th>Team</th>
-                                        <th style="width:80px; text-align:center;">Grade</th>
+                                        <th style="width:80px; text-align:center;">${(r.gradeMode !== 'none') ? 'Grade' : ''}</th>
                                         <th style="width:80px; text-align:center;">Marks</th>
                                     </tr>
                                 </thead>
@@ -5750,7 +5750,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                                 const prog = allPrograms.find(p => p.id === r.programId);
                                 const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
-                                const gradeVal = w.grade || (match && match.grade) || '—';
+                                const showGrade = r.gradeMode !== 'none';
+                                const gradeVal = showGrade ? (w.grade || (match && match.grade) || '—') : '';
 
                                 return `
                                             <tr>
@@ -6750,7 +6751,8 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     if (!prog) return;
 
                     const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
-                    const gradeVal = w.grade || (match && match.grade) || '—';
+                    const showGrade = r.gradeMode !== 'none';
+                    const gradeVal = showGrade ? (w.grade || (match && match.grade) || '—') : '';
 
                     csvContent += `"${w.position}","${resolved.chestNumbers}","${resolved.displayName}","${resolved.teamName || ''}","${gradeVal}",${points}\n`;
                 });

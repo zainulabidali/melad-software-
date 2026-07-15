@@ -585,6 +585,7 @@ function openResultDetailPopup(r) {
         }
     });
 
+    const showGrade = r.gradeMode !== 'none';
     let tableRowsHTML = '';
     if (sortedData.length === 0) {
         tableRowsHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:#64748b;">No standings recorded for this program yet.</td></tr>`;
@@ -621,7 +622,7 @@ function openResultDetailPopup(r) {
 
             const teamDisplay = item.teamName || '—';
             const finalMark = hasScore ? item.finalMark : '—';
-            const grade = hasScore ? (item.grade || '—') : '—';
+            const grade = (showGrade && hasScore) ? (item.grade || '') : '';
             const points = hasScore ? `${item.totalPoints || 0}pts` : '—';
 
             return `
@@ -632,7 +633,7 @@ function openResultDetailPopup(r) {
                     <td class="res-detail-td-team">${window.escapeHTML(teamDisplay)}</td>
                     <td class="res-detail-td-mark">${finalMark}</td>
                     <td class="res-detail-td-grade">
-                        ${grade !== '—' ? `<span class="badge" style="background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe; font-size:0.75rem; font-weight:700; padding:0.15rem 0.5rem;">${grade}</span>` : '—'}
+                        ${(showGrade && grade && grade !== '—') ? `<span class="badge" style="background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe; font-size:0.75rem; font-weight:700; padding:0.15rem 0.5rem;">${grade}</span>` : ''}
                     </td>
                     <td class="res-detail-td-points">
                         ${points !== '—' ? `<span class="badge" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; font-size:0.75rem; font-weight:700; padding:0.15rem 0.5rem;">${points}</span>` : '—'}
@@ -673,7 +674,7 @@ function openResultDetailPopup(r) {
                             <th style="width:100px;">Code Letter</th>
                             <th style="width:180px;">Team</th>
                             <th style="width:110px; text-align:center;">Avg Mark</th>
-                            <th style="width:90px; text-align:center;">Grade</th>
+                            <th style="width:90px; text-align:center;">${showGrade ? 'Grade' : ''}</th>
                             <th style="width:90px; text-align:center;">Points</th>
                         </tr>
                     </thead>
