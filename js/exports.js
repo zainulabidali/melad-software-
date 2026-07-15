@@ -1912,6 +1912,162 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
     return list;
 }
 
+// Helper to resolve winner participant/group name, team, and member chest numbers
+function resolveWinnerParticipant(prog, w, participantsList, studentMap) {
+    const parts = participantsList || [];
+    const pType = (prog.programType || prog.type || '').toLowerCase();
+    const isGroupEvent = pType === 'group' || prog.type === 'Group';
+
+    let matchedPart = null;
+    
+    // 1. Match by groupId
+    if (w.groupId) {
+        matchedPart = parts.find(p => p.id === w.groupId);
+    }
+    // 2. Match by exact registered name (group name or student name)
+    if (!matchedPart && w.studentName) {
+        const cleanWName = w.studentName.trim().toLowerCase();
+        matchedPart = parts.find(p => (p.name || '').trim().toLowerCase() === cleanWName);
+    }
+    // 3. Match by name and teamId
+    if (!matchedPart && w.studentName && w.teamId) {
+        const cleanWName = w.studentName.trim().toLowerCase();
+        matchedPart = parts.find(p => (p.name || '').trim().toLowerCase() === cleanWName && p.teamId === w.teamId);
+    }
+    // 4. Match by teamId if it's a group program and there's only one group for that team
+    if (!matchedPart && isGroupEvent && w.teamId) {
+        const teamGroups = parts.filter(p => p.isGroup && p.teamId === w.teamId);
+        if (teamGroups.length === 1) {
+            matchedPart = teamGroups[0];
+        }
+    }
+    // 5. Match by teamName if it's a group program and there's only one group for that team name
+    if (!matchedPart && isGroupEvent && w.teamName) {
+        const teamGroups = parts.filter(p => p.isGroup && p.teamName === w.teamName);
+        if (teamGroups.length === 1) {
+            matchedPart = teamGroups[0];
+        }
+    }
+
+    if (matchedPart) {
+        if (matchedPart.isGroup === true || Array.isArray(matchedPart.members)) {
+            // Group participant
+            const members = matchedPart.members || [];
+            const memberStudents = [];
+            const chestNos = [];
+
+            members.forEach(m => {
+                let resolvedStudent = studentMap[m.studentId];
+                if (!resolvedStudent && m.name) {
+                    const cleanName = m.name.trim().toLowerCase();
+                    resolvedStudent = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
+                }
+
+                if (resolvedStudent) {
+                    chestNos.push(resolvedStudent.chestNumber || m.chestNumber || '—');
+                    memberStudents.push({
+                        studentId: resolvedStudent.id || m.studentId || '',
+                        name: resolvedStudent.name || m.name || '—',
+                        chestNumber: resolvedStudent.chestNumber || m.chestNumber || '—',
+                        className: resolvedStudent.className || '—',
+                        categoryName: resolvedStudent.categoryName || '—',
+                        teamName: resolvedStudent.teamName || matchedPart.teamName || w.teamName || '—'
+                    });
+                } else {
+                    chestNos.push(m.chestNumber || '—');
+                    memberStudents.push({
+                        studentId: m.studentId || '',
+                        name: m.name || '—',
+                        chestNumber: m.chestNumber || '—',
+                        className: '—',
+                        categoryName: '—',
+                        teamName: matchedPart.teamName || w.teamName || '—'
+                    });
+                }
+            });
+
+            // Filter out empty/invalid chest numbers for display
+            const validChestNos = chestNos.filter(c => c && c !== '—');
+            const chestNumbersStr = validChestNos.length > 0 ? validChestNos.join(' · ') : '—';
+
+            return {
+                displayName: matchedPart.name || w.studentName || w.teamName || '—',
+                chestNumbers: chestNumbersStr,
+                memberStudents: memberStudents,
+                teamId: matchedPart.teamId || w.teamId || '',
+                teamName: matchedPart.teamName || w.teamName || '—'
+            };
+        } else {
+            // Individual participant entry
+            let resolvedStudent = studentMap[matchedPart.studentId] || studentMap[w.studentId];
+            if (!resolvedStudent && matchedPart.name) {
+                const cleanName = matchedPart.name.trim().toLowerCase();
+                resolvedStudent = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
+            }
+            if (!resolvedStudent && w.studentName) {
+                const cleanName = w.studentName.trim().toLowerCase();
+                resolvedStudent = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
+            }
+
+            const studentInfo = resolvedStudent ? {
+                studentId: resolvedStudent.id || matchedPart.studentId || w.studentId || '',
+                name: resolvedStudent.name || matchedPart.name || w.studentName || '—',
+                chestNumber: resolvedStudent.chestNumber || matchedPart.chestNumber || w.chestNumber || '—',
+                className: resolvedStudent.className || '—',
+                categoryName: resolvedStudent.categoryName || '—',
+                teamName: resolvedStudent.teamName || matchedPart.teamName || w.teamName || '—'
+            } : {
+                studentId: matchedPart.studentId || w.studentId || '',
+                name: matchedPart.name || w.studentName || '—',
+                chestNumber: matchedPart.chestNumber || w.chestNumber || '—',
+                className: '—',
+                categoryName: '—',
+                teamName: matchedPart.teamName || w.teamName || '—'
+            };
+
+            return {
+                displayName: studentInfo.name,
+                chestNumbers: studentInfo.chestNumber,
+                memberStudents: [studentInfo],
+                teamId: matchedPart.teamId || w.teamId || '',
+                teamName: matchedPart.teamName || w.teamName || '—'
+            };
+        }
+    } else {
+        // Fallback: No matched participant found in parts list
+        // Try to resolve student as individual
+        let resolvedStudent = studentMap[w.studentId];
+        if (!resolvedStudent && w.studentName) {
+            const cleanName = w.studentName.trim().toLowerCase();
+            resolvedStudent = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
+        }
+
+        const studentInfo = resolvedStudent ? {
+            studentId: resolvedStudent.id || w.studentId || '',
+            name: resolvedStudent.name || w.studentName || '—',
+            chestNumber: resolvedStudent.chestNumber || w.chestNumber || '—',
+            className: resolvedStudent.className || '—',
+            categoryName: resolvedStudent.categoryName || '—',
+            teamName: resolvedStudent.teamName || w.teamName || '—'
+        } : {
+            studentId: w.studentId || '',
+            name: w.studentName || '—',
+            chestNumber: w.chestNumber || '—',
+            className: '—',
+            categoryName: '—',
+            teamName: w.teamName || '—'
+        };
+
+        return {
+            displayName: studentInfo.name,
+            chestNumbers: studentInfo.chestNumber,
+            memberStudents: [studentInfo],
+            teamId: w.teamId || '',
+            teamName: w.teamName || '—'
+        };
+    }
+}
+
 // ─────────────────────────────────────────────
 // Dynamic Compilation & Download Router
 // ─────────────────────────────────────────────
@@ -2023,7 +2179,7 @@ async function triggerDownload(exp, isDownload = false) {
 
         // Phase 7 Firestore Parallel Fetch Optimization using Promise.all
         let participantsMap = {};
-        if (f.type !== 'Results' || f.resultSubOption === 'Participants Without Major Prizes' || f.resultSubOption === 'Student Prize Distribution') {
+        if (f.type !== 'Results' || f.resultSubOption === 'Participants Without Major Prizes' || f.resultSubOption === 'Student Prize Distribution' || f.resultSubOption === 'Team Wise' || f.resultSubOption === 'Program Wise') {
             const participantPromises = programs.map(p => loadParticipants(p, f.teamId, studentMap));
             const allParts = await Promise.all(participantPromises);
             programs.forEach((p, idx) => {
@@ -5360,40 +5516,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 }
             });
 
-            // 1. Team Championship Standings (Phase 6)
+            // 1. Team Championship Standings (Phase 6) - Omitted from result report export as requested
             const sortedTeamStandings = [...teamPoints.entries()]
                 .sort((a, b) => b[1] - a[1])
                 .map(([name, points], idx) => ({ rank: idx + 1, team: name, points }));
-
-            htmlContent += `
-                <div class="program-page-standard" style="page-break-after:always;">
-                    <div style="text-align:center; margin-bottom:2rem; border-bottom:3px double #4338ca; padding-bottom:1rem;">
-                        <span style="font-size:0.8rem; font-weight:800; color:#4338ca; letter-spacing:0.1em; text-transform:uppercase;">🏆 OFFICIAL TOURNAMENT RESULTS</span>
-                        <h1 style="color:#1e1b4b; margin:0.25rem 0 0 0; font-size:1.8rem; font-weight:900;">TEAM CHAMPIONSHIP STANDINGS</h1>
-                    </div>
-
-                    <table class="report-table" style="font-size:0.95rem;">
-                        <thead>
-                            <tr style="background:#f8fafc;">
-                                <th style="width:80px; text-align:center;">Rank</th>
-                                <th>Team / Institute Name</th>
-                                <th style="width:160px; text-align:center; font-weight:800;">Total Aggregate Points</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${sortedTeamStandings.map(t => `
-                                <tr style="height:42px; background:${t.rank === 1 ? '#fffbeb' : 'none'};">
-                                    <td style="text-align:center; font-weight:900; color:#1e1b4b; font-size:1.1rem;">
-                                        ${t.rank === 1 ? '🥇 1' : (t.rank === 2 ? '🥈 2' : (t.rank === 3 ? '🥉 3' : t.rank))}
-                                    </td>
-                                    <td style="font-weight:800; color:#1e293b; font-size:1.05rem;">${window.escapeHTML(t.team)}</td>
-                                    <td style="text-align:center; font-weight:900; color:#16a34a; font-size:1.15rem;">${t.points} pts</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            `;
 
             // 2. Category Champions Summaries (Phase 6)
             let categoryHTML = '';
@@ -5469,28 +5595,24 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         if (!w.teamName || w.teamName === 'No Team' || !w.teamId || w.teamId === 'teamless') return;
                         if (f.teamId && w.teamId !== f.teamId) return;
 
-                        if (!teamWinners.has(w.teamName)) {
-                            teamWinners.set(w.teamName, { First: [], Second: [], Third: [] });
-                        }
-                        let chestNumber = w.chestNumber || '—';
-                        if (w.studentId && studentMap[w.studentId]) {
-                            chestNumber = studentMap[w.studentId].chestNumber || chestNumber;
-                        } else if (w.studentName) {
-                            const found = Object.values(studentMap).find(s => s.name === w.studentName);
-                            if (found) {
-                                chestNumber = found.chestNumber || chestNumber;
-                            }
+                        const prog = allPrograms.find(p => p.id === r.programId);
+                        if (!prog) return;
+
+                        const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+
+                        if (!teamWinners.has(resolved.teamName)) {
+                            teamWinners.set(resolved.teamName, { First: [], Second: [], Third: [] });
                         }
                         const entry = {
                             programName: r.programName,
                             categoryName: r.categoryName,
-                            studentName: w.studentName,
-                            chestNumber: chestNumber
+                            studentName: resolved.displayName,
+                            chestNumber: resolved.chestNumbers
                         };
 
-                        if (w.position === 'First') teamWinners.get(w.teamName).First.push(entry);
-                        else if (w.position === 'Second') teamWinners.get(w.teamName).Second.push(entry);
-                        else if (w.position === 'Third') teamWinners.get(w.teamName).Third.push(entry);
+                        if (w.position === 'First') teamWinners.get(resolved.teamName).First.push(entry);
+                        else if (w.position === 'Second') teamWinners.get(resolved.teamName).Second.push(entry);
+                        else if (w.position === 'Third') teamWinners.get(resolved.teamName).Third.push(entry);
                     });
                 });
 
@@ -5523,7 +5645,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 <thead>
                                     <tr style="background:#fffbeb;">
                                         <th style="width:100px; text-align:center;">Chest No</th>
-                                        <th>Student Name</th>
+                                        <th>Student / Group Name</th>
                                         <th>Team</th>
                                         <th>Category</th>
                                         <th style="width:100px; text-align:center;">Position</th>
@@ -5538,7 +5660,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 <thead>
                                     <tr style="background:#f8fafc;">
                                         <th style="width:100px; text-align:center;">Chest No</th>
-                                        <th>Student Name</th>
+                                        <th>Student / Group Name</th>
                                         <th>Team</th>
                                         <th>Category</th>
                                         <th style="width:100px; text-align:center;">Position</th>
@@ -5553,7 +5675,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 <thead>
                                     <tr style="background:#fff7ed;">
                                         <th style="width:100px; text-align:center;">Chest No</th>
-                                        <th>Student Name</th>
+                                        <th>Student / Group Name</th>
                                         <th>Team</th>
                                         <th>Category</th>
                                         <th style="width:100px; text-align:center;">Position</th>
@@ -5595,15 +5717,16 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             <table class="report-table">
                                 <thead>
                                     <tr>
-                                        <th style="width:110px; text-align:center;">Position</th>
-                                        <th style="width:110px; text-align:center;">Chest No</th>
-                                        <th>Student Name</th>
+                                        <th style="width:100px; text-align:center;">Position</th>
+                                        <th style="width:100px; text-align:center;">Chest No</th>
+                                        <th>Student / Team Name</th>
                                         <th>Team</th>
-                                        <th style="width:100px; text-align:center;">Marks</th>
+                                        <th style="width:80px; text-align:center;">Grade</th>
+                                        <th style="width:80px; text-align:center;">Marks</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${sortedWinners.length === 0 ? `<tr><td colspan="5" style="text-align:center; padding:1.5rem; color:#64748b;">No winners recorded for this program.</td></tr>` :
+                                    ${sortedWinners.length === 0 ? `<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:#64748b;">No winners recorded for this program.</td></tr>` :
                             sortedWinners.map(w => {
                                 let posBadge = '';
                                 if (w.position === 'First') posBadge = '🥇 First';
@@ -5612,9 +5735,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 else posBadge = w.position;
 
                                 let points = w.marks !== undefined ? `${w.marks} pts` : '0 pts';
+                                let match = null;
 
                                 if (Array.isArray(r.marksData)) {
-                                    const match = r.marksData.find(m =>
+                                    match = r.marksData.find(m =>
                                         (r.programType === 'group' && m.teamName === w.teamName) ||
                                         (r.programType !== 'group' && m.studentId === w.studentId) ||
                                         (r.programType !== 'group' && m.studentName === w.studentName)
@@ -5624,24 +5748,17 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     }
                                 }
 
-                                let chestNumber = w.chestNumber || '—';
-                                if (r.programType !== 'group') {
-                                    if (w.studentId && studentMap[w.studentId]) {
-                                        chestNumber = studentMap[w.studentId].chestNumber || chestNumber;
-                                    } else if (w.studentName) {
-                                        const found = Object.values(studentMap).find(s => s.name === w.studentName);
-                                        if (found) {
-                                            chestNumber = found.chestNumber || chestNumber;
-                                        }
-                                    }
-                                }
+                                const prog = allPrograms.find(p => p.id === r.programId);
+                                const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                                const gradeVal = w.grade || (match && match.grade) || '—';
 
                                 return `
                                             <tr>
                                                 <td style="text-align:center; font-weight:900; color:#1e1b4b;">${posBadge}</td>
-                                                <td style="text-align:center; font-weight:800; color:#0f172a;">${window.escapeHTML(chestNumber)}</td>
-                                                <td style="font-weight:700; color:#1e293b;">${window.escapeHTML(r.programType === 'group' ? w.teamName : w.studentName)}</td>
-                                                <td style="font-weight:600; color:#475569;">${window.escapeHTML(w.teamName || '—')}</td>
+                                                <td style="text-align:center; font-weight:800; color:#0f172a;">${window.escapeHTML(resolved.chestNumbers)}</td>
+                                                <td style="font-weight:700; color:#1e293b;">${window.escapeHTML(resolved.displayName)}</td>
+                                                <td style="font-weight:600; color:#475569;">${window.escapeHTML(resolved.teamName || '—')}</td>
+                                                <td style="text-align:center; font-weight:700; color:#4338ca;">${window.escapeHTML(gradeVal)}</td>
                                                 <td style="text-align:center; font-weight:900; color:#16a34a;">${points}</td>
                                             </tr>
                                         `;
@@ -5672,93 +5789,18 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                     const winnersList = Array.isArray(r.winners) ? r.winners : [];
                     winnersList.forEach(w => {
-                        const associatedStudents = [];
+                        const prog = allPrograms.find(p => p.id === r.programId);
+                        if (!prog) return;
 
-                        if (isGroup) {
-                            const parts = participantsMap[r.programId || r.id] || [];
-                            const winningGroup = (w.groupId && parts.find(p => p.isGroup && p.id === w.groupId)) ||
-                                                 (w.studentName && parts.find(p => p.isGroup && p.name === w.studentName)) ||
-                                                 (w.teamName && parts.find(p => p.isGroup && p.teamName === w.teamName));
-                            
-                            if (winningGroup && Array.isArray(winningGroup.members)) {
-                                winningGroup.members.forEach(m => {
-                                    let student = studentMap[m.studentId];
-                                    if (!student && m.name) {
-                                        const cleanName = m.name.trim().toLowerCase();
-                                        student = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
-                                    }
-                                    if (student) {
-                                        associatedStudents.push({
-                                            studentId: m.studentId,
-                                            studentName: student.name,
-                                            chestNumber: student.chestNumber || m.chestNumber,
-                                            className: student.className || '—',
-                                            categoryName: student.categoryName || '—',
-                                            teamName: student.teamName || winningGroup.teamName || '—'
-                                        });
-                                    }
-                                });
-                            }
-                        } else {
-                            let student = null;
-                            if (w.studentId && studentMap[w.studentId]) {
-                                student = studentMap[w.studentId];
-                            } else if (w.studentName) {
-                                const cleanName = w.studentName.trim().toLowerCase();
-                                student = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
-                            }
-
-                            if (student) {
-                                associatedStudents.push({
-                                    studentId: w.studentId || '',
-                                    studentName: student.name,
-                                    chestNumber: student.chestNumber || w.chestNumber,
-                                    className: student.className || '—',
-                                    categoryName: student.categoryName || '—',
-                                    teamName: student.teamName || w.teamName || '—'
-                                });
-                            } else {
-                                const parts = participantsMap[r.programId || r.id] || [];
-                                const winningGroup = (w.groupId && parts.find(p => p.isGroup && p.id === w.groupId)) ||
-                                                     (w.studentName && parts.find(p => p.isGroup && p.name === w.studentName));
-                                if (winningGroup && Array.isArray(winningGroup.members)) {
-                                    winningGroup.members.forEach(m => {
-                                        let gst = studentMap[m.studentId];
-                                        if (!gst && m.name) {
-                                            const cleanName = m.name.trim().toLowerCase();
-                                            gst = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
-                                        }
-                                        if (gst) {
-                                            associatedStudents.push({
-                                                studentId: m.studentId,
-                                                studentName: gst.name,
-                                                chestNumber: gst.chestNumber || m.chestNumber,
-                                                className: gst.className || '—',
-                                                categoryName: gst.categoryName || '—',
-                                                teamName: gst.teamName || winningGroup.teamName || '—'
-                                            });
-                                        }
-                                    });
-                                } else {
-                                    associatedStudents.push({
-                                        studentId: w.studentId || '',
-                                        studentName: w.studentName || '—',
-                                        chestNumber: w.chestNumber || '—',
-                                        className: '—',
-                                        categoryName: '—',
-                                        teamName: w.teamName || '—'
-                                    });
-                                }
-                            }
-                        }
-
-                        associatedStudents.forEach(stu => {
+                        const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                        
+                        resolved.memberStudents.forEach(stu => {
                             const chestNo = stu.chestNumber || '—';
-                            const stuKey = (chestNo && chestNo !== '—') ? chestNo : (stu.studentId || stu.studentName || 'unknown');
+                            const stuKey = (chestNo && chestNo !== '—') ? chestNo : (stu.studentId || stu.name || 'unknown');
                             
                             if (!studentPrizes.has(stuKey)) {
                                 studentPrizes.set(stuKey, {
-                                    studentName: stu.studentName,
+                                    studentName: stu.name,
                                     chestNumber: chestNo,
                                     className: stu.className,
                                     categoryName: stu.categoryName,
@@ -5801,32 +5843,32 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 <p style="margin:0.15rem 0 0 0; font-size:0.7rem; color:#64748b; font-weight:600;">Aggregated chronological individual student prizes list.</p>
                             </div>
 
-                            <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 8.5px; margin-top: 0.5rem;">
+                            <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 10.5px; margin-top: 0.5rem;">
                                 <thead>
                                     <tr style="background-color: #f8fafc;">
-                                        <th style="width: 60px; text-align: center; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 8.5px;">Chest No</th>
-                                        <th style="text-align: left; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 8.5px;">Student Name</th>
-                                        <th style="width: 70px; text-align: left; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 8.5px;">Class</th>
-                                        <th style="width: 80px; text-align: left; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 8.5px;">Category</th>
-                                        <th style="width: 90px; text-align: left; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 8.5px;">Team</th>
-                                        <th style="text-align: left; padding: 3px 4px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 8.5px;">Prize Details</th>
+                                        <th style="width: 70px; text-align: center; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10.5px;">Chest No</th>
+                                        <th style="text-align: left; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10.5px;">Student Name</th>
+                                        <th style="width: 80px; text-align: left; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10px;">Class</th>
+                                        <th style="width: 90px; text-align: left; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10px;">Category</th>
+                                        <th style="width: 100px; text-align: left; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10px;">Team</th>
+                                        <th style="text-align: left; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10.5px;">Prize Details</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     ${sortedStudents.map(stu => {
                                         stu.prizes.sort((a, b) => a.categoryIndex - b.categoryIndex);
                                         const prizeDetailsHtml = stu.prizes.map(p => {
-                                            return `<div style="font-size: 8px; font-weight: 600; color: #1e293b; line-height: 1.1; margin-bottom: 2px;">${window.escapeHTML(p.programName)} - ${window.escapeHTML(p.position)}</div>`;
+                                            return `<div style="font-size: 9.5px; font-weight: 600; color: #1e293b; line-height: 1.25; margin-bottom: 2px;">${window.escapeHTML(p.programName)} - ${window.escapeHTML(p.position)}</div>`;
                                         }).join('');
 
                                         return `
-                                            <tr style="height: 18px; page-break-inside: avoid;">
-                                                <td style="text-align:center; font-weight:900; color:#0f172a; font-size:9px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.chestNumber)}</td>
-                                                <td style="font-weight:800; color:#1e1b4b; font-size:8.5px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.studentName)}</td>
-                                                <td style="font-weight:700; color:#475569; font-size:8px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.className)}</td>
-                                                <td style="font-weight:700; color:#475569; font-size:8px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.categoryName)}</td>
-                                                <td style="font-weight:700; color:#475569; font-size:8px; padding: 3px 4px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.teamName)}</td>
-                                                <td style="padding: 3px 4px; border: 1px solid #cbd5e1; vertical-align: top;">
+                                            <tr style="height: 22px; page-break-inside: avoid;">
+                                                <td style="text-align:center; font-weight:900; color:#0f172a; font-size:11px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.chestNumber)}</td>
+                                                <td style="font-weight:800; color:#1e1b4b; font-size:10.5px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.studentName)}</td>
+                                                <td style="font-weight:700; color:#475569; font-size:10px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.className)}</td>
+                                                <td style="font-weight:700; color:#475569; font-size:10px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.categoryName)}</td>
+                                                <td style="font-weight:700; color:#475569; font-size:10px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.teamName)}</td>
+                                                <td style="padding: 5px 6px; border: 1px solid #cbd5e1; vertical-align: top;">
                                                     <div style="display:flex; flex-direction:column; gap:1px;">
                                                         ${prizeDetailsHtml}
                                                     </div>
@@ -5877,29 +5919,15 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     });
 
                     filteredResults.forEach(r => {
-                        const rIsGroup = r.programType === 'group' || r.registrationType === 'group' || r.type === 'Group';
+                        const prog = allPrograms.find(p => p.id === r.programId);
+                        if (!prog) return;
+
                         const winners = Array.isArray(r.winners) ? r.winners : [];
                         winners.forEach(w => {
-                            if (w.studentId === studentId || w.studentName === stu.name) {
+                            const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                            const isMember = resolved.memberStudents.some(mst => mst.studentId === studentId || mst.name === stu.name);
+                            if (isMember) {
                                 prizes.push(w.position);
-                            } else if (rIsGroup) {
-                                const pList = participantsMap[r.programId] || [];
-                                const matchingGroups = pList.filter(part =>
-                                    part.isGroup &&
-                                    (part.id === w.groupId || part.name === w.studentName || part.teamId === w.teamId)
-                                );
-                                matchingGroups.forEach(matchingGroup => {
-                                    if (matchingGroup.members && matchingGroup.members.length > 0) {
-                                        const isMember = matchingGroup.members.some(m => m.studentId === studentId || m.name === stu.name);
-                                        if (isMember) {
-                                            prizes.push(w.position);
-                                        }
-                                    } else {
-                                        if (stu.teamId && stu.teamId === matchingGroup.teamId) {
-                                            prizes.push(w.position);
-                                        }
-                                    }
-                                });
                             }
                         });
                     });
@@ -6315,14 +6343,22 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 printIframe.style.height = prevHeight;
             } catch (err) {
                 console.error("PDF generation failed, falling back to print dialog:", err);
-                printIframe.contentWindow.focus();
-                printIframe.contentWindow.print();
+                try {
+                    printIframe.contentWindow.focus();
+                    printIframe.contentWindow.print();
+                } catch (printErr) {
+                    console.warn("Print dialog could not be opened:", printErr);
+                }
             }
         }, 500);
     } else {
         setTimeout(() => {
-            printIframe.contentWindow.focus();
-            printIframe.contentWindow.print();
+            try {
+                printIframe.contentWindow.focus();
+                printIframe.contentWindow.print();
+            } catch (printErr) {
+                console.warn("Print dialog could not be opened:", printErr);
+            }
         }, 300);
     }
 }
@@ -6654,7 +6690,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
         const filteredResults = filterResultsBySource(resultsList, f);
 
         if (f.resultSubOption === 'Team Wise') {
-            csvContent += "CHEST NUMBER,STUDENT NAME,TEAM,CATEGORY,POSITION,PROGRAM\n";
+            csvContent += "CHEST NUMBER,STUDENT / GROUP NAME,TEAM,CATEGORY,POSITION,PROGRAM\n";
 
             const teamWinners = new Map();
             filteredResults.forEach(r => {
@@ -6663,25 +6699,20 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     if (!w.teamName) return;
                     if (f.teamId && w.teamId !== f.teamId) return;
 
-                    if (!teamWinners.has(w.teamName)) {
-                        teamWinners.set(w.teamName, []);
+                    const prog = allPrograms.find(p => p.id === r.programId);
+                    if (!prog) return;
+
+                    const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+
+                    if (!teamWinners.has(resolved.teamName)) {
+                        teamWinners.set(resolved.teamName, []);
                     }
-                    // Lookup chest number
-                    let chestNumber = w.chestNumber || '—';
-                    if (w.studentId && studentMap[w.studentId]) {
-                        chestNumber = studentMap[w.studentId].chestNumber || chestNumber;
-                    } else if (w.studentName) {
-                        const found = Object.values(studentMap).find(s => s.name === w.studentName);
-                        if (found) {
-                            chestNumber = found.chestNumber || chestNumber;
-                        }
-                    }
-                    teamWinners.get(w.teamName).push({
+                    teamWinners.get(resolved.teamName).push({
                         position: w.position,
                         programName: r.programName,
                         categoryName: r.categoryName,
-                        studentName: w.studentName,
-                        chestNumber: chestNumber
+                        studentName: resolved.displayName,
+                        chestNumber: resolved.chestNumbers
                     });
                 });
             });
@@ -6696,15 +6727,16 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
         }
 
         else if (f.resultSubOption === 'Program Wise') {
-            csvContent += "POSITION,CHEST NUMBER,STUDENT NAME,TEAM,MARKS\n";
+            csvContent += "POSITION,CHEST NUMBER,STUDENT / TEAM NAME,TEAM,GRADE,MARKS\n";
 
             filteredResults.forEach(r => {
                 const winnersList = Array.isArray(r.winners) ? r.winners : [];
                 winnersList.forEach(w => {
                     let points = w.marks !== undefined ? w.marks : 0;
+                    let match = null;
 
                     if (Array.isArray(r.marksData)) {
-                        const match = r.marksData.find(m =>
+                        match = r.marksData.find(m =>
                             (r.programType === 'group' && m.teamName === w.teamName) ||
                             (r.programType !== 'group' && m.studentId === w.studentId) ||
                             (r.programType !== 'group' && m.studentName === w.studentName)
@@ -6714,20 +6746,13 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                         }
                     }
 
-                    let chestNumber = w.chestNumber || '—';
-                    if (r.programType !== 'group') {
-                        if (w.studentId && studentMap[w.studentId]) {
-                            chestNumber = studentMap[w.studentId].chestNumber || chestNumber;
-                        } else if (w.studentName) {
-                            const found = Object.values(studentMap).find(s => s.name === w.studentName);
-                            if (found) {
-                                chestNumber = found.chestNumber || chestNumber;
-                            }
-                        }
-                    }
+                    const prog = allPrograms.find(p => p.id === r.programId);
+                    if (!prog) return;
 
-                    const studentName = r.programType === 'group' ? w.teamName : w.studentName;
-                    csvContent += `"${w.position}","${chestNumber}","${studentName}","${w.teamName || ''}",${points}\n`;
+                    const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                    const gradeVal = w.grade || (match && match.grade) || '—';
+
+                    csvContent += `"${w.position}","${resolved.chestNumbers}","${resolved.displayName}","${resolved.teamName || ''}","${gradeVal}",${points}\n`;
                 });
             });
         }
@@ -6752,93 +6777,18 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
 
                 const winnersList = Array.isArray(r.winners) ? r.winners : [];
                 winnersList.forEach(w => {
-                    const associatedStudents = [];
+                    const prog = allPrograms.find(p => p.id === r.programId);
+                    if (!prog) return;
 
-                    if (isGroup) {
-                        const parts = participantsMap[r.programId || r.id] || [];
-                        const winningGroup = (w.groupId && parts.find(p => p.isGroup && p.id === w.groupId)) ||
-                                             (w.studentName && parts.find(p => p.isGroup && p.name === w.studentName)) ||
-                                             (w.teamName && parts.find(p => p.isGroup && p.teamName === w.teamName));
-                        
-                        if (winningGroup && Array.isArray(winningGroup.members)) {
-                            winningGroup.members.forEach(m => {
-                                let student = studentMap[m.studentId];
-                                if (!student && m.name) {
-                                    const cleanName = m.name.trim().toLowerCase();
-                                    student = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
-                                }
-                                if (student) {
-                                    associatedStudents.push({
-                                        studentId: m.studentId,
-                                        studentName: student.name,
-                                        chestNumber: student.chestNumber || m.chestNumber,
-                                        className: student.className || '—',
-                                        categoryName: student.categoryName || '—',
-                                        teamName: student.teamName || winningGroup.teamName || '—'
-                                    });
-                                }
-                            });
-                        }
-                    } else {
-                        let student = null;
-                        if (w.studentId && studentMap[w.studentId]) {
-                            student = studentMap[w.studentId];
-                        } else if (w.studentName) {
-                            const cleanName = w.studentName.trim().toLowerCase();
-                            student = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
-                        }
-
-                        if (student) {
-                            associatedStudents.push({
-                                studentId: w.studentId || '',
-                                studentName: student.name,
-                                chestNumber: student.chestNumber || w.chestNumber,
-                                className: student.className || '—',
-                                categoryName: student.categoryName || '—',
-                                teamName: student.teamName || w.teamName || '—'
-                            });
-                        } else {
-                            const parts = participantsMap[r.programId || r.id] || [];
-                            const winningGroup = (w.groupId && parts.find(p => p.isGroup && p.id === w.groupId)) ||
-                                                 (w.studentName && parts.find(p => p.isGroup && p.name === w.studentName));
-                            if (winningGroup && Array.isArray(winningGroup.members)) {
-                                winningGroup.members.forEach(m => {
-                                    let gst = studentMap[m.studentId];
-                                    if (!gst && m.name) {
-                                        const cleanName = m.name.trim().toLowerCase();
-                                        gst = Object.values(studentMap).find(s => (s.name || '').trim().toLowerCase() === cleanName);
-                                    }
-                                    if (gst) {
-                                        associatedStudents.push({
-                                            studentId: m.studentId,
-                                            studentName: gst.name,
-                                            chestNumber: gst.chestNumber || m.chestNumber,
-                                            className: gst.className || '—',
-                                            categoryName: gst.categoryName || '—',
-                                            teamName: gst.teamName || winningGroup.teamName || '—'
-                                        });
-                                    }
-                                });
-                            } else {
-                                associatedStudents.push({
-                                    studentId: w.studentId || '',
-                                    studentName: w.studentName || '—',
-                                    chestNumber: w.chestNumber || '—',
-                                    className: '—',
-                                    categoryName: '—',
-                                    teamName: w.teamName || '—'
-                                });
-                            }
-                        }
-                    }
-
-                    associatedStudents.forEach(stu => {
+                    const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                    
+                    resolved.memberStudents.forEach(stu => {
                         const chestNo = stu.chestNumber || '—';
-                        const stuKey = (chestNo && chestNo !== '—') ? chestNo : (stu.studentId || stu.studentName || 'unknown');
+                        const stuKey = (chestNo && chestNo !== '—') ? chestNo : (stu.studentId || stu.name || 'unknown');
                         
                         if (!studentPrizes.has(stuKey)) {
                             studentPrizes.set(stuKey, {
-                                studentName: stu.studentName,
+                                studentName: stu.name,
                                 chestNumber: chestNo,
                                 className: stu.className,
                                 categoryName: stu.categoryName,
@@ -6917,29 +6867,15 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 });
 
                 filteredResults.forEach(r => {
-                    const rIsGroup = r.programType === 'group' || r.registrationType === 'group' || r.type === 'Group';
+                    const prog = allPrograms.find(p => p.id === r.programId);
+                    if (!prog) return;
+
                     const winners = Array.isArray(r.winners) ? r.winners : [];
                     winners.forEach(w => {
-                        if (w.studentId === studentId || w.studentName === stu.name) {
+                        const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                        const isMember = resolved.memberStudents.some(mst => mst.studentId === studentId || mst.name === stu.name);
+                        if (isMember) {
                             prizes.push(w.position);
-                        } else if (rIsGroup) {
-                            const pList = participantsMap[r.programId] || [];
-                            const matchingGroups = pList.filter(part =>
-                                part.isGroup &&
-                                (part.id === w.groupId || part.name === w.studentName || part.teamId === w.teamId)
-                            );
-                            matchingGroups.forEach(matchingGroup => {
-                                if (matchingGroup.members && matchingGroup.members.length > 0) {
-                                    const isMember = matchingGroup.members.some(m => m.studentId === studentId || m.name === stu.name);
-                                    if (isMember) {
-                                        prizes.push(w.position);
-                                    }
-                                } else {
-                                    if (stu.teamId && stu.teamId === matchingGroup.teamId) {
-                                        prizes.push(w.position);
-                                    }
-                                }
-                            });
                         }
                     });
                 });
