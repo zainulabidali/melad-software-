@@ -14,6 +14,7 @@ let unsubStages = null;
 let localPrograms = [];
 let localSchedules = [];
 let localStages = [];
+let localCategories = [];
 let mergedSchedules = [];
 
 let activeStage = '';
@@ -366,6 +367,19 @@ function injectTableScheduleStyles() {
             font-weight: 600;
             color: #64748b;
         }
+        .sched-cat-badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            font-size: 0.7rem;
+            font-weight: 800;
+            border-radius: 6px;
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+            box-sizing: border-box;
+        }
 
         /* Compact Table Styles */
         .sched-table-wrapper {
@@ -691,6 +705,14 @@ function updateBulkBar() {
 function startRealtimeListeners() {
     const instId = window.currentInstituteId;
 
+    // Fetch categories cache
+    getCachedCategories(instId).then(cats => {
+        localCategories = cats || [];
+        mergeAndRender();
+    }).catch(err => {
+        console.error("Error loading categories:", err);
+    });
+
     // 1. Listen to Published Programs
     unsubPrograms = onSnapshot(collection(db, "institutes", instId, "programs"), (snap) => {
         localPrograms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -728,15 +750,30 @@ function startRealtimeListeners() {
     });
 }
 
+function resolveCategoryName(prog) {
+    if (!prog) return 'Uncategorized';
+    if (prog.categoryName) return prog.categoryName;
+    if (prog.category) return prog.category;
+    if (prog.categoryId) {
+        const cat = localCategories.find(c => c.id === prog.categoryId || c.name === prog.categoryId);
+        if (cat) return cat.name;
+        return prog.categoryId === 'general_programs' ? 'General' : prog.categoryId;
+    }
+    return 'Uncategorized';
+}
+
 function mergeAndRender() {
     // Map programs and schedule documents
     mergedSchedules = localSchedules.map(sched => {
         const prog = localPrograms.find(p => p.id === sched.programId || p.id === sched.id) || {};
+        const catName = resolveCategoryName(prog);
         return {
             id: sched.id,
             programId: sched.programId || sched.id,
             programName: sched.programName || prog.programName || 'Unnamed Program',
             programNumber: prog.programNumber || sched.programNumber || '',
+            programType: prog.programType || sched.programType || '',
+            categoryName: catName,
             stage: sched.stage || '',
             scheduleDate: sched.scheduleDate || '',
             startTime: sched.startTime || '',
@@ -1454,8 +1491,15 @@ function refreshScheduleTable() {
                     ${idx + 1}
                 </td>
                 <td style="font-weight:700; color:#0f172a;">
-                    ${item.isLocked ? '<span title="Locked Slot" style="margin-right:4px;">🔒</span>' : ''}
-                    ${item.programNumber ? `[#${item.programNumber}] ` : ''}${window.escapeHTML(item.programName)}
+                    <div style="display:flex; flex-direction:column; align-items:flex-start; gap:0.25rem;">
+                        <div style="line-height:1.2;">
+                            ${item.isLocked ? '<span title="Locked Slot" style="margin-right:4px;">🔒</span>' : ''}
+                            ${item.programNumber ? `<span style="color:#64748b; font-weight:600;">[#${item.programNumber}]</span> ` : ''}${window.escapeHTML(item.programName)}
+                        </div>
+                        <div style="margin-top:2px;">
+                            <span class="sched-cat-badge">${window.escapeHTML(item.categoryName || 'Uncategorized')}</span>
+                        </div>
+                    </div>
                 </td>
                 <td>
                     <input type="number" class="sched-tbl-input row-duration-in" data-id="${item.id}" value="${item.duration}" style="width:75px;" min="1"> mins
@@ -1703,15 +1747,17 @@ async function openAddProgramRowModal() {
         filteredPrograms.forEach((p, index) => {
             const isSelected = p.id === selectedProgId;
             const isHighlighted = index === highlightedIndex;
-            const catName = getProgramCategoryName(p);
+            const catName = getProgramCategoryName(p) || 'Uncategorized';
             const typeName = p.programType ? (p.programType.charAt(0).toUpperCase() + p.programType.slice(1)) : '';
-            const suffix = [catName, typeName].filter(Boolean).join(' - ');
-            const suffixStr = suffix ? ` (${suffix})` : '';
-            const displayLabel = `${p.programNumber ? `[#${p.programNumber}] ` : ''}${p.programName}${suffixStr}`;
+            const typeStr = typeName ? ` (${typeName})` : '';
+            const displayLabel = `${p.programNumber ? `[#${p.programNumber}] ` : ''}${p.programName}${typeStr}`;
 
             html += `
-                <li class="custom-select-option ${isSelected ? 'selected' : ''} ${isHighlighted ? 'highlighted' : ''}" data-id="${p.id}" data-idx="${index}">
-                    ${window.escapeHTML(displayLabel)}
+                <li class="custom-select-option ${isSelected ? 'selected' : ''} ${isHighlighted ? 'highlighted' : ''}" data-id="${p.id}" data-idx="${index}" style="display:flex; flex-direction:column; align-items:flex-start; height:auto; padding:8px 12px; line-height:1.3;">
+                    <div style="font-weight:700; font-size:0.875rem;">${window.escapeHTML(displayLabel)}</div>
+                    <div style="margin-top:4px;">
+                        <span class="sched-cat-badge">${window.escapeHTML(catName)}</span>
+                    </div>
                 </li>
             `;
         });
@@ -1786,10 +1832,12 @@ async function openAddProgramRowModal() {
             filteredPrograms = sortedPrograms.filter(p => {
                 const nameStr = String(p.programName || '');
                 const numStr = String(p.programNumber ?? '');
+                const catStr = String(getProgramCategoryName(p) || '');
                 const nameMatch = nameStr.toLowerCase().includes(query);
                 const numMatch = numStr.toLowerCase().includes(query);
-                const bothCombined = `${numStr} ${nameStr}`.toLowerCase().includes(query);
-                return nameMatch || numMatch || bothCombined;
+                const catMatch = catStr.toLowerCase().includes(query);
+                const bothCombined = `${numStr} ${nameStr} ${catStr}`.toLowerCase().includes(query);
+                return nameMatch || numMatch || catMatch || bothCombined;
             });
         }
         highlightedIndex = 0;
@@ -2017,6 +2065,7 @@ function shareActiveStageWhatsApp() {
 
     activeItems.forEach((item, idx) => {
         msg += `*${idx + 1}. ${item.programNumber ? `[#${item.programNumber}] ` : ''}${item.programName}*\n`;
+        msg += `   🏷️ Category: ${item.categoryName || 'Uncategorized'}\n`;
         msg += `   ⏱️ ${formatTimeTo12Hour(item.startTime || 'TBD')} - ${formatTimeTo12Hour(item.endTime || 'TBD')} (${item.duration}m) | Status: ${item.status}\n\n`;
     });
 
@@ -2041,7 +2090,14 @@ function printActiveStage() {
         rowsHTML = activeItems.map((item, idx) => `
             <tr>
                 <td style="text-align:center; font-weight:bold; padding:10px; border:1px solid #cbd5e1;">${idx + 1}</td>
-                <td style="font-weight:bold; padding:10px; border:1px solid #cbd5e1; color:#0f172a;">${item.programNumber ? `[#${item.programNumber}] ` : ''}${window.escapeHTML(item.programName)}</td>
+                <td style="padding:10px; border:1px solid #cbd5e1; color:#0f172a;">
+                    <div style="font-weight:bold; margin-bottom:4px;">
+                        ${item.programNumber ? `[#${item.programNumber}] ` : ''}${window.escapeHTML(item.programName)}
+                    </div>
+                    <div style="font-size:11px; color:#475569; font-weight:bold;">
+                        [ ${window.escapeHTML(item.categoryName || 'Uncategorized')} ]
+                    </div>
+                </td>
                 <td style="text-align:center; padding:10px; border:1px solid #cbd5e1;">${item.duration} mins</td>
                 <td style="text-align:center; font-weight:bold; padding:10px; border:1px solid #cbd5e1; color:#1e40af;">${item.startTime || '—'}</td>
                 <td style="text-align:center; font-weight:bold; padding:10px; border:1px solid #cbd5e1; color:#1e40af;">${item.endTime || '—'}</td>
