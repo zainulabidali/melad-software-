@@ -28,6 +28,168 @@ let filterTypeVal = '';
 let filterStatusVal = '';
 let sortByVal = 'newest';
 
+// Team Background Manager state
+let teamBackgroundsCache = {};
+let isTeamBgEnabled = false;
+
+function loadTeamBackgrounds() {
+    try {
+        const stored = localStorage.getItem('meelad_team_card_backgrounds');
+        if (stored) {
+            teamBackgroundsCache = JSON.parse(stored);
+        } else {
+            teamBackgroundsCache = {};
+        }
+    } catch (e) {
+        console.error("Failed to load team backgrounds from LocalStorage:", e);
+        teamBackgroundsCache = {};
+    }
+}
+
+function resizeImageIfNeeded(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                const maxDim = 1200;
+                let width = img.width;
+                let height = img.height;
+                
+                if (file.size > 5 * 1024 * 1024 || width > maxDim || height > maxDim) {
+                    if (width > height) {
+                        if (width > maxDim) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        }
+                    } else {
+                        if (height > maxDim) {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+                }
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                let outputType = 'image/jpeg';
+                if (file.type === 'image/webp') outputType = 'image/webp';
+                else if (file.type === 'image/png') {
+                    if (file.size > 2 * 1024 * 1024) {
+                        outputType = 'image/jpeg';
+                    } else {
+                        outputType = 'image/png';
+                    }
+                }
+                
+                const dataURL = canvas.toDataURL(outputType, 0.8);
+                resolve(dataURL);
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+function updateTeamCardUI(teamId) {
+    const previewDiv = document.getElementById(`preview-${teamId}`);
+    const btnChoose = document.getElementById(`btn-choose-${teamId}`);
+    const btnReplace = document.getElementById(`btn-replace-${teamId}`);
+    const btnRemove = document.getElementById(`btn-remove-${teamId}`);
+    
+    const base64 = teamBackgroundsCache[teamId];
+    if (base64) {
+        if (previewDiv) {
+            previewDiv.innerHTML = `<img src="${base64}" alt="Team Background" />`;
+            previewDiv.style.borderStyle = 'solid';
+        }
+        if (btnChoose) btnChoose.style.display = 'none';
+        if (btnReplace) btnReplace.style.display = 'block';
+        if (btnRemove) btnRemove.style.display = 'block';
+    } else {
+        if (previewDiv) {
+            previewDiv.innerHTML = '<span>No Custom Background</span>';
+            previewDiv.style.borderStyle = 'dashed';
+        }
+        if (btnChoose) btnChoose.style.display = 'block';
+        if (btnReplace) btnReplace.style.display = 'none';
+        if (btnRemove) btnRemove.style.display = 'none';
+    }
+}
+
+function renderTeamBgCards() {
+    const grid = document.getElementById('teamBgGrid');
+    if (!grid) return;
+    
+    grid.innerHTML = '';
+    
+    allTeams.forEach(t => {
+        const card = document.createElement('div');
+        card.className = 'team-bg-card';
+        card.innerHTML = `
+            <div style="font-weight: 700; color: #1e1b4b; font-size: 0.85rem;">${window.escapeHTML(t.name)}</div>
+            <div class="team-bg-preview" id="preview-${t.id}">
+                <span>No Custom Background</span>
+            </div>
+            <div class="team-bg-actions">
+                <input type="file" id="file-${t.id}" accept="image/png, image/jpeg, image/jpg, image/webp" style="display:none;" />
+                <button type="button" class="btn-choose-bg" id="btn-choose-${t.id}">Choose Image</button>
+                <button type="button" class="btn-replace-bg" id="btn-replace-${t.id}" style="display:none;">Replace Image</button>
+                <button type="button" class="btn-remove-bg" id="btn-remove-${t.id}" style="display:none;">Remove Image</button>
+            </div>
+        `;
+        grid.appendChild(card);
+        
+        const fileInput = card.querySelector(`#file-${t.id}`);
+        const btnChoose = card.querySelector(`#btn-choose-${t.id}`);
+        const btnReplace = card.querySelector(`#btn-replace-${t.id}`);
+        const btnRemove = card.querySelector(`#btn-remove-${t.id}`);
+        
+        btnChoose.onclick = () => fileInput.click();
+        btnReplace.onclick = () => fileInput.click();
+        
+        btnRemove.onclick = () => {
+            if (confirm(`Are you sure you want to remove the custom background for team "${t.name}"?`)) {
+                delete teamBackgroundsCache[t.id];
+                localStorage.setItem('meelad_team_card_backgrounds', JSON.stringify(teamBackgroundsCache));
+                updateTeamCardUI(t.id);
+                window.showToast(`Custom background for team "${t.name}" removed.`);
+            }
+        };
+        
+        fileInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                window.showToast('Unsupported image format. Please upload PNG, JPG, JPEG, or WEBP.', 'error');
+                return;
+            }
+            
+            window.showToast('Processing image...', 'info');
+            try {
+                const base64Str = await resizeImageIfNeeded(file);
+                teamBackgroundsCache[t.id] = base64Str;
+                localStorage.setItem('meelad_team_card_backgrounds', JSON.stringify(teamBackgroundsCache));
+                updateTeamCardUI(t.id);
+                window.showToast(`Custom background for team "${t.name}" uploaded successfully.`);
+            } catch (err) {
+                console.error(err);
+                window.showToast('Failed to process image.', 'error');
+            }
+        };
+        
+        updateTeamCardUI(t.id);
+    });
+}
+
 // ─────────────────────────────────────────────
 // Styles Injection (Localized SaaS CSS Grid)
 // ─────────────────────────────────────────────
@@ -278,6 +440,89 @@ function injectExportStyles() {
                 overflow-y: visible !important;
                 padding: 1rem !important;
             }
+        }
+
+        /* Team Background Manager Styling */
+        #teamBgGrid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            width: 100%;
+        }
+        @media (max-width: 767px) {
+            #teamBgGrid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .team-bg-card {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 0.85rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+            box-sizing: border-box;
+        }
+        .team-bg-preview {
+            width: 100%;
+            height: 100px;
+            border-radius: 8px;
+            border: 1.5px dashed #cbd5e1;
+            background-color: #f8fafc;
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 0.7rem;
+            font-weight: 700;
+            overflow: hidden;
+            box-sizing: border-box;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .team-bg-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .team-bg-actions {
+            display: flex;
+            gap: 0.5rem;
+            width: 100%;
+        }
+        .team-bg-actions button {
+            flex: 1;
+            min-height: 32px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #475569;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.01);
+        }
+        .team-bg-actions button:hover {
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+        .team-bg-actions .btn-remove-bg {
+            color: #ef4444;
+            border-color: #fca5a5;
+            background: #fef2f2;
+        }
+        .team-bg-actions .btn-remove-bg:hover {
+            background: #fee2e2;
+            color: #dc2626;
         }
     `;
     document.head.appendChild(style);
@@ -1033,6 +1278,7 @@ function ensureExportDrawerExists() {
 }
 
 function openExportDrawer() {
+    loadTeamBackgrounds();
     const drawer = ensureExportDrawerExists();
     renderDrawerContent();
 
@@ -1261,6 +1507,25 @@ function renderDrawerContent() {
                         <span id="packingHint" style="font-size:0.68rem; color:#64748b; display:block;">Combine multiple programs continuously to avoid wasting paper on blank space.</span>
                     </div>
 
+                    <!-- Team Background Manager Container -->
+                    <div id="teamBgContainer" style="display:none; flex-direction:column; gap:0.75rem; background:#fff; border:1px solid #cbd5e1; padding:0.75rem 1rem; border-radius:10px;">
+                        <span style="font-size:0.75rem; font-weight:700; color:#1e1b4b; display:block; text-transform:uppercase; letter-spacing:0.04em;">🖼️ Team Background Manager</span>
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <input type="checkbox" id="expEnableTeamBg" style="width:1.2rem; height:1.2rem; cursor:pointer;" />
+                            <label for="expEnableTeamBg" style="font-size:0.8rem; font-weight:700; color:#475569; cursor:pointer; user-select:none;">
+                                Enable Team Background Images
+                            </label>
+                        </div>
+                        <div id="teamBgManagerContent" style="display:none; flex-direction:column; gap:0.75rem; width:100%; border-top:1.5px dashed #cbd5e1; padding-top:0.75rem;">
+                            <div style="display:flex; justify-content:flex-end;">
+                                <button type="button" id="btnResetAllTeamBgs" class="btn btn-danger" style="background:#ef4444; color:#fff; border:none; padding:0.4rem 0.8rem; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem;">
+                                    🔄 Reset All Team Backgrounds
+                                </button>
+                            </div>
+                            <div id="teamBgGrid"></div>
+                        </div>
+                    </div>
+
                     <!-- Format & Layout -->
                     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; border-top:1px solid #cbd5e1; padding-top:0.75rem; width:100%; margin-top:auto;">
                         <div style="flex:1; min-width:140px;">
@@ -1305,6 +1570,51 @@ function renderDrawerContent() {
     const expProgFilterContainer = document.getElementById('expProgFilterContainer');
     const chestListModeContainer = document.getElementById('chestListModeContainer');
     const chestExportModeSelector = document.getElementById('chestExportModeSelector');
+
+    const expEnableTeamBg = document.getElementById('expEnableTeamBg');
+    const teamBgManagerContent = document.getElementById('teamBgManagerContent');
+    const btnResetAllTeamBgs = document.getElementById('btnResetAllTeamBgs');
+    const teamBgContainer = document.getElementById('teamBgContainer');
+
+    function updateTeamBgVisibility() {
+        const activeCard = body.querySelector('.exp-type-card.active');
+        const selType = activeCard ? activeCard.getAttribute('data-type') : '';
+        const activeSubmode = chestExportModeSelector?.querySelector('.exp-submode-btn.active')?.getAttribute('data-submode') || 'list';
+        
+        if (teamBgContainer) {
+            if (selType === 'Chest Number List' && activeSubmode === 'card') {
+                teamBgContainer.style.display = 'flex';
+            } else {
+                teamBgContainer.style.display = 'none';
+            }
+        }
+    }
+
+    // Set initial toggle state (OFF by default)
+    isTeamBgEnabled = false;
+
+    if (expEnableTeamBg) {
+        expEnableTeamBg.checked = isTeamBgEnabled;
+        expEnableTeamBg.onchange = () => {
+            isTeamBgEnabled = expEnableTeamBg.checked;
+            teamBgManagerContent.style.display = isTeamBgEnabled ? 'flex' : 'none';
+        };
+    }
+
+    if (btnResetAllTeamBgs) {
+        btnResetAllTeamBgs.onclick = () => {
+            if (confirm('Are you sure you want to reset all team background images? This will restore the default background templates for all teams.')) {
+                teamBackgroundsCache = {};
+                localStorage.removeItem('meelad_team_card_backgrounds');
+                allTeams.forEach(t => {
+                    updateTeamCardUI(t.id);
+                });
+                window.showToast('All team backgrounds reset to default.');
+            }
+        };
+    }
+
+    renderTeamBgCards();
 
     // Submode Buttons handler
     const submodeButtons = body.querySelectorAll('.exp-submode-btn');
@@ -1356,6 +1666,7 @@ function renderDrawerContent() {
             }
             updateClassFilterState();
             updateProgramsDropdown();
+            updateTeamBgVisibility();
         };
     });
 
@@ -1521,6 +1832,7 @@ function renderDrawerContent() {
             updateConditionalFilters();
             updateClassFilterState();
             updateProgramsDropdown();
+            updateTeamBgVisibility();
         };
     });
 
@@ -1766,7 +2078,8 @@ function renderDrawerContent() {
                     programLocation,
                     participationType,
                     registerMode,
-                    chestMode
+                    chestMode,
+                    enableTeamBg: isTeamBgEnabled
                 }
             };
 
@@ -2072,6 +2385,7 @@ function resolveWinnerParticipant(prog, w, participantsList, studentMap) {
 // Dynamic Compilation & Download Router
 // ─────────────────────────────────────────────
 async function triggerDownload(exp, isDownload = false) {
+    loadTeamBackgrounds();
     window.showToast(`Loading data for ${exp.fileName}...`, "info");
     const instId = window.currentInstituteId;
 
@@ -2736,15 +3050,22 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         };
                         const themeIdx = getTeamThemeIndex(stu.teamId, teamVal);
 
-                        let artLayerHTML = `
-                            <div class="team-art-theme-${themeIdx}" aria-hidden="true">
-                                <div class="shape-1"></div>
-                                <div class="shape-2"></div>
-                                <div class="shape-3"></div>
-                                <div class="shape-4"></div>
-                                <div class="shape-5"></div>
-                            </div>
-                        `;
+                        let artLayerHTML = '';
+                        if (f.enableTeamBg && teamBackgroundsCache && teamBackgroundsCache[stu.teamId]) {
+                            artLayerHTML = `
+                                <div style="position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background-image: url('${teamBackgroundsCache[stu.teamId]}'); background-size: cover; background-position: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;" aria-hidden="true"></div>
+                            `;
+                        } else {
+                            artLayerHTML = `
+                                <div class="team-art-theme-${themeIdx}" aria-hidden="true">
+                                    <div class="shape-1"></div>
+                                    <div class="shape-2"></div>
+                                    <div class="shape-3"></div>
+                                    <div class="shape-4"></div>
+                                    <div class="shape-5"></div>
+                                </div>
+                            `;
+                        }
 
                         // Separate programs into sections (Pass 1 — Build)
                         const stageProgs = [];
