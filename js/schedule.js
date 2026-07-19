@@ -240,6 +240,133 @@ function injectTableScheduleStyles() {
             color: #334155;
         }
 
+        /* Custom Searchable Dropdown */
+        .custom-select-container {
+            position: relative;
+            width: 100%;
+        }
+        .custom-select-trigger {
+            width: 100%;
+            padding: 0.65rem 1rem;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #0f172a;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            min-height: 44px;
+        }
+        .custom-select-trigger:focus,
+        .custom-select-container.open .custom-select-trigger {
+            border-color: #4338ca;
+            box-shadow: 0 0 0 2px rgba(67, 56, 202, 0.1);
+        }
+        .custom-select-trigger-text {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 1rem;
+        }
+        .custom-select-trigger-arrow {
+            font-size: 0.75rem;
+            color: #64748b;
+            transition: transform 0.2s;
+        }
+        .custom-select-container.open .custom-select-trigger-arrow {
+            transform: rotate(180deg);
+        }
+        .custom-select-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            margin-top: 4px;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+            z-index: 10005;
+            overflow: hidden;
+            opacity: 0;
+            transform: scale(0.95);
+            transform-origin: top center;
+            transition: opacity 150ms cubic-bezier(0.16, 1, 0.3, 1), transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+            box-sizing: border-box;
+        }
+        .custom-select-container.open .custom-select-dropdown {
+            display: block;
+            opacity: 1;
+            transform: scale(1);
+            pointer-events: auto;
+        }
+        .custom-select-search-wrapper {
+            padding: 8px;
+            background: #f8fafc;
+            border-bottom: 1px solid #cbd5e1;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .custom-select-search-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .custom-select-search-input:focus {
+            border-color: #4338ca;
+            box-shadow: 0 0 0 2px rgba(67, 56, 202, 0.1);
+        }
+        .custom-select-options-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            max-height: 250px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .custom-select-option {
+            padding: 10px 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #334155;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+            display: flex;
+            align-items: center;
+            min-height: 44px;
+            box-sizing: border-box;
+        }
+        .custom-select-option:hover,
+        .custom-select-option.highlighted {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+        .custom-select-option.selected {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+        .custom-select-no-results {
+            padding: 15px;
+            text-align: center;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #64748b;
+        }
+
         /* Compact Table Styles */
         .sched-table-wrapper {
             background: #ffffff;
@@ -1468,7 +1595,7 @@ async function reorderRowsByIndex(items, fromIdx, toIdx) {
 }
 
 // Open modal to add published program to active stage
-function openAddProgramRowModal() {
+async function openAddProgramRowModal() {
     const modalTitle = document.getElementById('dynamicModalTitle');
     const modalBody = document.getElementById('dynamicModalBody');
     const modalOverlay = document.getElementById('dynamicModal');
@@ -1486,15 +1613,45 @@ function openAddProgramRowModal() {
         return;
     }
 
-    let options = availablePrograms.map(p => `<option value="${p.id}">${p.programNumber ? `[#${p.programNumber}] ` : ''}${window.escapeHTML(p.programName)} (${p.programType || 'individual'})</option>`).join('');
+    // Resolve category details using getCachedCategories
+    const categories = await getCachedCategories(window.currentInstituteId) || [];
+    const getProgramCategoryName = (p) => {
+        if (p.categoryName) return p.categoryName;
+        const cat = categories.find(c => c.id === p.categoryId);
+        return cat ? cat.name : '';
+    };
+
+    // Sort available programs ascending by programNumber (numerically if possible)
+    const sortedPrograms = [...availablePrograms].sort((a, b) => {
+        const numA = parseInt(a.programNumber, 10);
+        const numB = parseInt(b.programNumber, 10);
+        if (isNaN(numA) && isNaN(numB)) {
+            return (a.programNumber || '').localeCompare(b.programNumber || '');
+        }
+        if (isNaN(numA)) return 1;
+        if (isNaN(numB)) return -1;
+        return numA - numB;
+    });
 
     modalBody.innerHTML = `
         <form id="addProgSlotForm">
             <div class="form-group">
                 <label class="form-label">Select Program *</label>
-                <select id="selProgId" class="form-input" required>
-                    ${options}
-                </select>
+                <div class="custom-select-container" id="programSearchSelectContainer">
+                    <button type="button" class="custom-select-trigger" id="programSelectTrigger">
+                        <span class="custom-select-trigger-text">Select Program...</span>
+                        <span class="custom-select-trigger-arrow">▼</span>
+                    </button>
+                    <div class="custom-select-dropdown" id="programSelectDropdown">
+                        <div class="custom-select-search-wrapper">
+                            <input type="text" class="custom-select-search-input" id="programSearchInput" placeholder="Search by name or number..." autocomplete="off">
+                        </div>
+                        <ul class="custom-select-options-list" id="programSelectOptionsList">
+                            <!-- Options injected dynamically -->
+                        </ul>
+                    </div>
+                    <input type="hidden" id="selProgId" name="programId" required>
+                </div>
             </div>
             <div class="form-group">
                 <label class="form-label">Duration (Minutes)</label>
@@ -1507,13 +1664,190 @@ function openAddProgramRowModal() {
     `;
 
     modalOverlay.classList.remove('hidden');
-    document.getElementById('closeDynamicModalBtn').onclick = () => modalOverlay.classList.add('hidden');
 
+    // UI Logic for searchable select dropdown
+    const containerEl = document.getElementById('programSearchSelectContainer');
+    const triggerBtn = document.getElementById('programSelectTrigger');
+    const dropdownEl = document.getElementById('programSelectDropdown');
+    const searchInput = document.getElementById('programSearchInput');
+    const listEl = document.getElementById('programSelectOptionsList');
+    const hiddenInput = document.getElementById('selProgId');
+
+    let filteredPrograms = [...sortedPrograms];
+    let highlightedIndex = 0;
+    let selectedProgId = '';
+
+    function scrollHighlightedIntoView() {
+        const highlightedEl = listEl.querySelector('.custom-select-option.highlighted');
+        if (!highlightedEl) return;
+
+        const listHeight = listEl.clientHeight;
+        const listScrollTop = listEl.scrollTop;
+        const itemHeight = highlightedEl.offsetHeight;
+        const itemOffsetTop = highlightedEl.offsetTop;
+
+        if (itemOffsetTop < listScrollTop) {
+            listEl.scrollTop = itemOffsetTop;
+        } else if (itemOffsetTop + itemHeight > listScrollTop + listHeight) {
+            listEl.scrollTop = itemOffsetTop + itemHeight - listHeight;
+        }
+    }
+
+    function renderOptions() {
+        if (filteredPrograms.length === 0) {
+            listEl.innerHTML = `<li class="custom-select-no-results">No matching programs found.</li>`;
+            return;
+        }
+
+        let html = '';
+        filteredPrograms.forEach((p, index) => {
+            const isSelected = p.id === selectedProgId;
+            const isHighlighted = index === highlightedIndex;
+            const catName = getProgramCategoryName(p);
+            const typeName = p.programType ? (p.programType.charAt(0).toUpperCase() + p.programType.slice(1)) : '';
+            const suffix = [catName, typeName].filter(Boolean).join(' - ');
+            const suffixStr = suffix ? ` (${suffix})` : '';
+            const displayLabel = `${p.programNumber ? `[#${p.programNumber}] ` : ''}${p.programName}${suffixStr}`;
+
+            html += `
+                <li class="custom-select-option ${isSelected ? 'selected' : ''} ${isHighlighted ? 'highlighted' : ''}" data-id="${p.id}" data-idx="${index}">
+                    ${window.escapeHTML(displayLabel)}
+                </li>
+            `;
+        });
+        listEl.innerHTML = html;
+
+        // Attach click option handlers
+        listEl.querySelectorAll('.custom-select-option').forEach(opt => {
+            opt.onclick = () => {
+                const id = opt.dataset.id;
+                selectProgram(id);
+            };
+        });
+
+        scrollHighlightedIntoView();
+    }
+
+    function selectProgram(id) {
+        selectedProgId = id;
+        const prog = sortedPrograms.find(p => p.id === id);
+        if (!prog) return;
+
+        const catName = getProgramCategoryName(prog);
+        const typeName = prog.programType ? (prog.programType.charAt(0).toUpperCase() + prog.programType.slice(1)) : '';
+        const suffix = [catName, typeName].filter(Boolean).join(' - ');
+        const suffixStr = suffix ? ` (${suffix})` : '';
+        const displayLabel = `${prog.programNumber ? `[#${prog.programNumber}] ` : ''}${prog.programName}${suffixStr}`;
+
+        document.querySelector('.custom-select-trigger-text').textContent = displayLabel;
+        hiddenInput.value = id;
+        closeSelectDropdown();
+    }
+
+    function openSelectDropdown() {
+        containerEl.classList.add('open');
+        dropdownEl.style.display = 'block';
+        dropdownEl.offsetHeight; // reflow
+        dropdownEl.style.opacity = '1';
+        dropdownEl.style.transform = 'scale(1)';
+        dropdownEl.style.pointerEvents = 'auto';
+        
+        setTimeout(() => {
+            searchInput.focus();
+        }, 50);
+    }
+
+    function closeSelectDropdown() {
+        dropdownEl.style.opacity = '0';
+        dropdownEl.style.transform = 'scale(0.95)';
+        dropdownEl.style.pointerEvents = 'none';
+        containerEl.classList.remove('open');
+        setTimeout(() => {
+            if (!containerEl.classList.contains('open')) {
+                dropdownEl.style.display = 'none';
+            }
+        }, 150);
+    }
+
+    triggerBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (containerEl.classList.contains('open')) {
+            closeSelectDropdown();
+        } else {
+            openSelectDropdown();
+        }
+    };
+
+    searchInput.oninput = (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        if (!query) {
+            filteredPrograms = [...sortedPrograms];
+        } else {
+            filteredPrograms = sortedPrograms.filter(p => {
+                const nameStr = String(p.programName || '');
+                const numStr = String(p.programNumber ?? '');
+                const nameMatch = nameStr.toLowerCase().includes(query);
+                const numMatch = numStr.toLowerCase().includes(query);
+                const bothCombined = `${numStr} ${nameStr}`.toLowerCase().includes(query);
+                return nameMatch || numMatch || bothCombined;
+            });
+        }
+        highlightedIndex = 0;
+        renderOptions();
+    };
+
+    searchInput.onkeydown = (e) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (filteredPrograms.length > 0) {
+                highlightedIndex = (highlightedIndex + 1) % filteredPrograms.length;
+                renderOptions();
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (filteredPrograms.length > 0) {
+                highlightedIndex = (highlightedIndex - 1 + filteredPrograms.length) % filteredPrograms.length;
+                renderOptions();
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (filteredPrograms.length > 0 && highlightedIndex >= 0 && highlightedIndex < filteredPrograms.length) {
+                const selected = filteredPrograms[highlightedIndex];
+                selectProgram(selected.id);
+            }
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            closeSelectDropdown();
+        }
+    };
+
+    const clickOutsideHandler = (e) => {
+        if (!containerEl.contains(e.target)) {
+            closeSelectDropdown();
+        }
+    };
+    document.addEventListener('click', clickOutsideHandler);
+
+    const closeModal = () => {
+        modalOverlay.classList.add('hidden');
+        document.removeEventListener('click', clickOutsideHandler);
+    };
+    document.getElementById('closeDynamicModalBtn').onclick = closeModal;
+
+    // Render initial list
+    renderOptions();
+
+    // Form submit logic
     document.getElementById('addProgSlotForm').onsubmit = async (e) => {
         e.preventDefault();
-        const progId = document.getElementById('selProgId').value;
+        const progId = hiddenInput.value;
+        if (!progId) {
+            window.showToast("Please select a program.", "error");
+            return;
+        }
+
         const dur = parseInt(document.getElementById('selProgDur').value, 10) || 20;
-        const prog = localPrograms.find(p => p.id === progId);
+        const prog = sortedPrograms.find(p => p.id === progId);
 
         const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
         const isOff = activeStage.toLowerCase().includes('off stage');
@@ -1533,7 +1867,7 @@ function openAddProgramRowModal() {
         });
 
         window.showToast(`Added ${prog?.programName} to ${activeStage}`);
-        modalOverlay.classList.add('hidden');
+        closeModal();
     };
 }
 
