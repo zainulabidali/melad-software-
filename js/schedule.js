@@ -36,27 +36,45 @@ function injectTableScheduleStyles() {
             display: flex;
             gap: 0.5rem;
             overflow-x: auto;
+            padding-top: 0.5rem;
             padding-bottom: 0.5rem;
             margin-bottom: 1.25rem;
             border-bottom: 2px solid #e2e8f0;
             width: 100%;
             box-sizing: border-box;
             -webkit-overflow-scrolling: touch;
+            scrollbar-width: none; /* Hide scrollbar for Firefox */
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-main, #f8fafc);
+        }
+        .sched-tabs-container::-webkit-scrollbar {
+            display: none; /* Hide scrollbar for Chrome/Safari/Opera */
+        }
+        .sched-tab-wrapper {
+            display: inline-flex;
+            align-items: center;
+            flex-shrink: 0;
+            position: relative;
         }
         .sched-tab-btn {
             background: #f8fafc;
             border: 1px solid #cbd5e1;
             color: #475569;
-            padding: 0.65rem 1.15rem;
+            padding: 0.5rem 1rem;
             border-radius: 12px 12px 0 0;
             font-size: 0.875rem;
             font-weight: 700;
             cursor: pointer;
             white-space: nowrap;
             transition: all 0.2s ease;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 0.4rem;
+            min-height: 44px;
+            box-sizing: border-box;
+            flex-shrink: 0;
         }
         .sched-tab-btn:hover {
             background: #f1f5f9;
@@ -69,26 +87,149 @@ function injectTableScheduleStyles() {
             color: #4338ca;
             box-shadow: 0 -2px 6px rgba(0,0,0,0.03);
         }
+        .sched-tab-menu-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            margin-left: 6px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #64748b;
+            transition: all 0.2s ease;
+        }
+        .sched-tab-menu-btn:hover {
+            background: rgba(0, 0, 0, 0.08);
+            color: #0f172a;
+        }
+        
+        /* Modern contextual action menu */
+        .sched-tab-dropdown-menu {
+            display: none;
+            position: fixed;
+            background: #ffffff;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.15);
+            z-index: 10000;
+            min-width: 150px;
+            padding: 0.35rem;
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1), transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+            box-sizing: border-box;
+        }
+        .sched-tab-dropdown-menu.show {
+            opacity: 1;
+            transform: scale(1);
+            pointer-events: auto;
+        }
+        .sched-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            color: #334155;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background 0.15s, color 0.15s;
+        }
+        .sched-dropdown-item:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+        .sched-dropdown-item.text-danger {
+            color: #ef4444;
+        }
+        .sched-dropdown-item.text-danger:hover {
+            background: #fee2e2;
+            color: #dc2626;
+        }
 
-        /* Top Stage Setup Bar */
+        /* Top Stage Setup Bar & Config Bar Responsive Design */
         .sched-config-bar {
             background: #ffffff;
             border: 1px solid #cbd5e1;
             border-radius: 14px;
-            padding: 1rem 1.25rem;
+            padding: 1.25rem;
             margin-bottom: 1.25rem;
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 1rem;
+            flex-direction: column;
+            gap: 1.25rem;
             box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+            width: 100%;
+            box-sizing: border-box;
+        }
+        @media (min-width: 992px) {
+            .sched-config-bar {
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+            }
         }
         .sched-config-inputs {
-            display: flex;
-            align-items: center;
+            display: grid;
+            grid-template-columns: 1fr;
             gap: 1rem;
-            flex-wrap: wrap;
+            width: 100%;
+            align-items: center;
+        }
+        /* Mobile: One field per row, full width */
+        @media (max-width: 576px) {
+            .sched-config-inputs {
+                grid-template-columns: 1fr;
+            }
+            .sched-config-group {
+                flex-direction: column;
+                align-items: flex-start;
+                width: 100%;
+            }
+            .sched-config-group label {
+                margin-bottom: 0.25rem;
+            }
+            .sched-config-group .sched-tbl-input {
+                width: 100% !important;
+            }
+            .sched-config-bar .btn {
+                width: 100%;
+            }
+        }
+        /* Tablet: 2 rows. title and 3 fields */
+        @media (min-width: 577px) and (max-width: 991px) {
+            .sched-config-inputs {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .sched-config-title {
+                grid-column: span 2;
+            }
+            .sched-config-group {
+                width: 100%;
+            }
+            .sched-config-group .sched-tbl-input {
+                width: 100% !important;
+            }
+        }
+        /* Desktop: same row */
+        @media (min-width: 992px) {
+            .sched-config-inputs {
+                display: flex;
+                flex-direction: row;
+                width: auto;
+                flex-wrap: nowrap;
+            }
+            .sched-config-group {
+                width: auto;
+            }
+            .sched-config-group .sched-tbl-input {
+                width: auto !important;
+            }
         }
         .sched-config-group {
             display: flex;
@@ -109,7 +250,14 @@ function injectTableScheduleStyles() {
             width: 100%;
             box-sizing: border-box;
         }
+        .table-responsive {
+            display: block;
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
         .sched-compact-table {
+            min-width: 900px;
             width: 100%;
             border-collapse: collapse;
             font-size: 0.875rem;
@@ -179,18 +327,24 @@ function injectTableScheduleStyles() {
         /* Action Buttons */
         .sched-row-actions {
             display: inline-flex;
-            gap: 0.25rem;
+            gap: 0.4rem;
             align-items: center;
         }
         .btn-tbl-act {
             background: transparent;
             border: none;
             cursor: pointer;
-            padding: 0.3rem 0.45rem;
-            border-radius: 6px;
-            font-size: 0.85rem;
+            padding: 0.5rem 0.6rem;
+            border-radius: 8px;
+            font-size: 1.05rem;
             color: #64748b;
             transition: all 0.15s;
+            min-width: 44px;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
         }
         .btn-tbl-act:hover {
             background: #e2e8f0;
@@ -210,6 +364,38 @@ function injectTableScheduleStyles() {
             justify-content: space-between;
             gap: 1rem;
             flex-wrap: wrap;
+        }
+
+        .sched-topbar-actions {
+            display: inline-flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        @media (max-width: 576px) {
+            .sched-topbar-actions {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                gap: 0.5rem;
+            }
+            .sched-topbar-actions .btn {
+                width: 100% !important;
+                display: block;
+                text-align: center;
+            }
+        }
+        @media (max-width: 768px) {
+            .topbar {
+                flex-wrap: wrap !important;
+                height: auto !important;
+                padding: 1rem 1.25rem !important;
+                gap: 0.75rem;
+            }
+            .topbar-actions {
+                width: 100% !important;
+                margin-top: 0.25rem;
+            }
         }
 
         @media print {
@@ -254,9 +440,9 @@ export async function initScheduleView(container, topActions) {
         if (unsubStages) { unsubStages(); unsubStages = null; }
     };
 
-    // Render Top Actions specifically for currently active Stage
+    // Render Top Actions specifically for currently active Stage inside a responsive wrapper
     topActions.innerHTML = `
-        <div style="display:inline-flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+        <div class="sched-topbar-actions">
             <button class="btn btn-primary" id="btnCreateStageTop" style="font-weight:700;">
                 🎪 + Create Stage
             </button>
@@ -298,23 +484,25 @@ export async function initScheduleView(container, topActions) {
 
             <!-- Printable Main Table Wrapper -->
             <div class="sched-table-wrapper" id="printableStageTable">
-                <table class="sched-compact-table">
-                    <thead>
-                        <tr>
-                            <th style="width:40px; text-align:center;"><input type="checkbox" id="chkHeaderAll" style="cursor:pointer;"></th>
-                            <th style="width:60px; text-align:center;">Order</th>
-                            <th>Program Name</th>
-                            <th style="width:110px;">Duration</th>
-                            <th style="width:100px;">Start</th>
-                            <th style="width:100px;">End</th>
-                            <th style="width:140px;">Status</th>
-                            <th style="width:180px; text-align:right;">Quick Controls</th>
-                        </tr>
-                    </thead>
-                    <tbody id="schedTableBody">
-                        <tr><td colspan="8" style="text-align:center; padding:2rem; color:#64748b;">Loading Stage Schedule...</td></tr>
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="sched-compact-table">
+                        <thead>
+                            <tr>
+                                <th style="width:40px; text-align:center;"><input type="checkbox" id="chkHeaderAll" style="cursor:pointer;"></th>
+                                <th style="width:60px; text-align:center;">Order</th>
+                                <th>Program Name</th>
+                                <th style="width:110px;">Duration</th>
+                                <th style="width:100px;">Start</th>
+                                <th style="width:100px;">End</th>
+                                <th style="width:140px;">Status</th>
+                                <th style="width:180px; text-align:right;">Quick Controls</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schedTableBody">
+                            <tr><td colspan="8" style="text-align:center; padding:2rem; color:#64748b;">Loading Stage Schedule...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     `;
@@ -430,10 +618,23 @@ function mergeAndRender() {
         };
     });
 
-    renderTabs();
+    // Populate stageConfigs dynamically from localStages doc data to persist stage config
+    localStages.forEach(stObj => {
+        if (stObj.name) {
+            stageConfigs[stObj.name] = {
+                date: stObj.date || stObj.scheduleDate || stageConfigs[stObj.name]?.date || new Date().toISOString().split('T')[0],
+                startTime: stObj.startTime || stageConfigs[stObj.name]?.startTime || '09:00',
+                defaultDuration: parseInt(stObj.defaultDuration || stObj.duration, 10) || stageConfigs[stObj.name]?.defaultDuration || 20,
+                color: stObj.color || '',
+                icon: stObj.icon || ''
+            };
+        }
+    });
+
+    renderStageTabs();
     if (localStages.length > 0) {
         renderConfigBar();
-        renderStageTable();
+        refreshScheduleTable();
     }
 }
 
@@ -515,9 +716,69 @@ async function triggerTimeCascade(stageItems, saveToDb = true) {
 }
 
 // ─────────────────────────────────────────────
+// Dropdown Menu Helpers (Contextual Positioning)
+// ─────────────────────────────────────────────
+function closeDropdown(dropdown) {
+    if (!dropdown) return;
+    dropdown.classList.remove('show');
+    setTimeout(() => {
+        if (!dropdown.classList.contains('show')) {
+            dropdown.style.display = 'none';
+        }
+    }, 180);
+}
+
+function getOrCreateDropdown() {
+    let dropdown = document.getElementById('schedTabDropdown');
+    if (!dropdown) {
+        dropdown = document.createElement('div');
+        dropdown.id = 'schedTabDropdown';
+        dropdown.className = 'sched-tab-dropdown-menu';
+        dropdown.style.position = 'fixed';
+        dropdown.style.zIndex = '10000';
+        dropdown.style.display = 'none';
+        dropdown.innerHTML = `
+            <a class="sched-dropdown-item edit-stage-opt">✏️ Edit Stage</a>
+            <a class="sched-dropdown-item delete-stage-opt text-danger">🗑️ Delete Stage</a>
+        `;
+        document.body.appendChild(dropdown);
+
+        // Bind clicks once
+        dropdown.querySelector('.edit-stage-opt').onclick = (e) => {
+            e.stopPropagation();
+            const id = dropdown.dataset.stageId;
+            closeDropdown(dropdown);
+            openEditStageModal(id);
+        };
+
+        dropdown.querySelector('.delete-stage-opt').onclick = (e) => {
+            e.stopPropagation();
+            const id = dropdown.dataset.stageId;
+            closeDropdown(dropdown);
+            deleteStage(id);
+        };
+
+        // Close on click outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('sched-tab-menu-btn')) {
+                closeDropdown(dropdown);
+            }
+        });
+
+        // Close on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeDropdown(dropdown);
+            }
+        });
+    }
+    return dropdown;
+}
+
+// ─────────────────────────────────────────────
 // Render Stage Navigation Tabs (Dynamically Loaded from DB)
 // ─────────────────────────────────────────────
-function renderTabs() {
+function renderStageTabs() {
     const bar = document.getElementById('schedTabsBar');
     const cfgBar = document.getElementById('schedConfigBar');
     const tblWrap = document.getElementById('printableStageTable');
@@ -555,28 +816,108 @@ function renderTabs() {
         const stName = stObj.name;
         const count = mergedSchedules.filter(s => s.stage === stName).length;
         const isActive = stName === activeStage;
-        const icon = (stName.toLowerCase().includes('off stage') || stObj.type === 'offstage') ? '📝' : '🎪';
+        const icon = stObj.icon || ((stName.toLowerCase().includes('off stage') || stObj.type === 'offstage') ? '📝' : '🎪');
+        const color = stObj.color || '';
+        const customStyle = color ? `border-top: 3px solid ${color};` : '';
         
         html += `
-            <button class="sched-tab-btn ${isActive ? 'active' : ''}" data-stage="${window.escapeHTML(stName)}">
-                <span>${icon} ${window.escapeHTML(stName)}</span>
-                <span style="background:${isActive ? '#eeefee' : '#e2e8f0'}; color:${isActive ? '#4338ca' : '#475569'}; padding:0.15rem 0.55rem; border-radius:999px; font-size:0.75rem; font-weight:800;">(${count})</span>
-            </button>
+            <div class="sched-tab-wrapper ${isActive ? 'active' : ''}">
+                <button class="sched-tab-btn ${isActive ? 'active' : ''}" data-stage="${window.escapeHTML(stName)}" style="${customStyle}">
+                    <span>${icon} ${window.escapeHTML(stName)}</span>
+                    <span style="background:${isActive ? '#eeefee' : '#e2e8f0'}; color:${isActive ? '#4338ca' : '#475569'}; padding:0.15rem 0.55rem; border-radius:999px; font-size:0.75rem; font-weight:800; margin-right: 4px;">(${count})</span>
+                    <span class="sched-tab-menu-btn" data-id="${stObj.id}">⋮</span>
+                </button>
+            </div>
         `;
     });
 
     bar.innerHTML = html;
 
+    // Attach tab switches and dropdown triggers
     bar.querySelectorAll('.sched-tab-btn').forEach(btn => {
-        btn.onclick = () => {
+        btn.onclick = (e) => {
+            // Prevent tab switch if clicking the menu button
+            if (e.target.classList.contains('sched-tab-menu-btn')) {
+                return;
+            }
             activeStage = btn.dataset.stage;
             selectedScheduleIds.clear();
             updateBulkBar();
-            renderTabs();
+            renderStageTabs();
             renderConfigBar();
-            renderStageTable();
+            refreshScheduleTable();
         };
+
+        const menuBtn = btn.querySelector('.sched-tab-menu-btn');
+        if (menuBtn) {
+            menuBtn.onclick = (e) => {
+                e.stopPropagation();
+                const id = menuBtn.dataset.id;
+                const dropdown = getOrCreateDropdown();
+                
+                // Toggle logic
+                const isCurrentlyOpenForThisStage = (dropdown.style.display === 'block' && dropdown.dataset.stageId === id);
+                
+                if (isCurrentlyOpenForThisStage) {
+                    closeDropdown(dropdown);
+                } else {
+                    dropdown.dataset.stageId = id;
+                    dropdown.style.display = 'block'; // Make block first to get client width/height
+                    
+                    const rect = menuBtn.getBoundingClientRect();
+                    const dropdownWidth = dropdown.offsetWidth || 150;
+                    const dropdownHeight = dropdown.offsetHeight || 88;
+                    const isMobile = window.innerWidth <= 768;
+                    
+                    let left = 0;
+                    let top = 0;
+                    let origin = 'top center';
+                    
+                    if (isMobile) {
+                        left = rect.left + rect.width / 2 - dropdownWidth / 2;
+                        top = rect.bottom + 8;
+                        origin = 'top center';
+                        
+                        // Keep within viewport
+                        if (left < 10) left = 10;
+                        if (left + dropdownWidth > window.innerWidth - 10) {
+                            left = window.innerWidth - dropdownWidth - 10;
+                        }
+                    } else {
+                        // Desktop: Right alignment with space check
+                        left = rect.right + 8;
+                        top = rect.top + rect.height / 2 - dropdownHeight / 2;
+                        origin = 'left center';
+                        
+                        if (left + dropdownWidth > window.innerWidth - 10) {
+                            left = rect.left - dropdownWidth - 8;
+                            origin = 'right center';
+                        }
+                        
+                        // Keep within viewport vertically
+                        if (top < 10) top = 10;
+                        if (top + dropdownHeight > window.innerHeight - 10) {
+                            top = window.innerHeight - dropdownHeight - 10;
+                        }
+                    }
+                    
+                    dropdown.style.left = `${left}px`;
+                    dropdown.style.top = `${top}px`;
+                    dropdown.style.transformOrigin = origin;
+                    
+                    // Force a reflow before adding class for transition
+                    dropdown.offsetHeight;
+                    dropdown.classList.add('show');
+                }
+            };
+        }
     });
+
+    // Scroll active tab into view
+    const activeTab = bar.querySelector('.sched-tab-btn.active');
+    if (activeTab) {
+        activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
 }
 
 // ─────────────────────────────────────────────
@@ -641,6 +982,222 @@ function openCreateStageModal() {
             btn.disabled = false;
         }
     };
+}
+
+// ─────────────────────────────────────────────
+// Stage Helper Operations (Load, Edit, Save, Delete)
+// ─────────────────────────────────────────────
+function loadStageData(stageId) {
+    return localStages.find(s => s.id === stageId) || null;
+}
+
+function openEditStageModal(stageId) {
+    const stageObj = loadStageData(stageId);
+    if (!stageObj) {
+        window.showToast("Stage not found.", "error");
+        return;
+    }
+
+    const modalTitle = document.getElementById('dynamicModalTitle');
+    const modalBody = document.getElementById('dynamicModalBody');
+    const modalOverlay = document.getElementById('dynamicModal');
+
+    modalTitle.textContent = `✏️ Edit Stage: ${stageObj.name}`;
+
+    const cfg = stageConfigs[stageObj.name] || {
+        date: stageObj.date || stageObj.scheduleDate || new Date().toISOString().split('T')[0],
+        startTime: stageObj.startTime || '09:00',
+        defaultDuration: stageObj.defaultDuration || stageObj.duration || 20
+    };
+
+    modalBody.innerHTML = `
+        <form id="editStageForm" autocomplete="off">
+            <div class="form-group">
+                <label class="form-label">Stage Name *</label>
+                <input type="text" id="editStageName" class="form-input" value="${window.escapeHTML(stageObj.name)}" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Stage Type *</label>
+                <select id="editStageType" class="form-input" required>
+                    <option value="stage" ${stageObj.type === 'stage' ? 'selected' : ''}>🎪 On Stage</option>
+                    <option value="offstage" ${stageObj.type === 'offstage' ? 'selected' : ''}>📝 Off Stage</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Stage Date</label>
+                <input type="date" id="editStageDate" class="form-input" value="${cfg.date || ''}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Start Time</label>
+                <input type="time" id="editStageStart" class="form-input" value="${cfg.startTime || '09:00'}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Gap Between Programs (Minutes)</label>
+                <input type="number" id="editStageGap" class="form-input" value="${cfg.defaultDuration || 20}" min="1">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Stage Color (Theme)</label>
+                <input type="color" id="editStageColor" class="form-input" value="${stageObj.color || '#4338ca'}" style="height: 44px; padding: 4px;">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Stage Icon (Emoji)</label>
+                <input type="text" id="editStageIcon" class="form-input" value="${stageObj.icon || ''}" placeholder="e.g. 🎪, 📝, 🏆">
+            </div>
+            <div class="modal-actions" style="margin-top:1.25rem;">
+                <button type="submit" class="btn btn-primary w-full" id="saveStageChangesBtn">Save Changes</button>
+            </div>
+        </form>
+    `;
+
+    modalOverlay.classList.remove('hidden');
+    document.getElementById('closeDynamicModalBtn').onclick = () => modalOverlay.classList.add('hidden');
+
+    document.getElementById('editStageForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const newName = document.getElementById('editStageName').value.trim();
+        const newType = document.getElementById('editStageType').value;
+        const newDate = document.getElementById('editStageDate').value;
+        const newStartTime = document.getElementById('editStageStart').value;
+        const newGap = parseInt(document.getElementById('editStageGap').value, 10) || 20;
+        const newColor = document.getElementById('editStageColor').value;
+        const newIcon = document.getElementById('editStageIcon').value.trim();
+
+        if (!newName) return;
+
+        const btn = document.getElementById('saveStageChangesBtn');
+        btn.disabled = true;
+
+        try {
+            await saveStageChanges(stageId, {
+                name: newName,
+                type: newType,
+                date: newDate,
+                startTime: newStartTime,
+                defaultDuration: newGap,
+                color: newColor,
+                icon: newIcon
+            });
+
+            window.showToast(`✓ Stage "${newName}" updated successfully!`);
+            modalOverlay.classList.add('hidden');
+        } catch (err) {
+            console.error("Error updating stage:", err);
+            window.showToast("Failed to save stage changes.", "error");
+        } finally {
+            btn.disabled = false;
+        }
+    };
+}
+
+async function saveStageChanges(stageId, updatedFields) {
+    const stageObj = loadStageData(stageId);
+    if (!stageObj) throw new Error("Stage not found");
+
+    const oldName = stageObj.name;
+    const newName = updatedFields.name;
+    const newType = updatedFields.type;
+
+    const batch = writeBatch(db);
+    
+    // Update local config cache
+    stageConfigs[newName] = {
+        date: updatedFields.date,
+        startTime: updatedFields.startTime,
+        defaultDuration: updatedFields.defaultDuration,
+        color: updatedFields.color,
+        icon: updatedFields.icon
+    };
+
+    // 1. Update the stage document itself
+    const stageRef = doc(db, "institutes", window.currentInstituteId, "stages", stageId);
+    batch.update(stageRef, {
+        name: newName,
+        stageName: newName,
+        type: newType,
+        date: updatedFields.date,
+        startTime: updatedFields.startTime,
+        defaultDuration: updatedFields.defaultDuration,
+        color: updatedFields.color,
+        icon: updatedFields.icon,
+        updatedAt: serverTimestamp()
+    });
+
+    // 2. Propagate name/type changes to schedules if stage is renamed
+    const isOff = newType === 'offstage' || newName.toLowerCase().includes('off stage');
+    
+    const affectedSchedules = localSchedules.filter(s => s.stage === oldName);
+    affectedSchedules.forEach(s => {
+        const sRef = doc(db, "institutes", window.currentInstituteId, "schedules", s.id);
+        batch.update(sRef, {
+            stage: newName,
+            isOffStage: isOff,
+            scheduleDate: updatedFields.date,
+            updatedAt: serverTimestamp()
+        });
+    });
+
+    await batch.commit();
+
+    // If activeStage was the renamed stage, update activeStage state
+    if (activeStage === oldName) {
+        activeStage = newName;
+    }
+}
+
+async function deleteStage(stageId) {
+    const stageObj = loadStageData(stageId);
+    if (!stageObj) return;
+
+    const stageName = stageObj.name;
+
+    // First confirmation
+    const confirmDelete = await window.customConfirm(
+        `Delete "${stageName}"?\nThis action cannot be undone.`,
+        "Delete Stage",
+        { danger: true, okText: "Delete Permanently" }
+    );
+    if (!confirmDelete) return;
+
+    // Second confirmation if stage contains scheduled programs
+    const affectedSchedules = localSchedules.filter(s => s.stage === stageName);
+    if (affectedSchedules.length > 0) {
+        const confirmSlots = await window.customConfirm(
+            "This stage contains scheduled programs. Deleting it will also remove all schedule slots.",
+            "Warning: Scheduled Programs Exist",
+            { danger: true, okText: "Delete Permanently" }
+        );
+        if (!confirmSlots) return;
+    }
+
+    try {
+        const batch = writeBatch(db);
+        
+        // Remove stage doc
+        const stageRef = doc(db, "institutes", window.currentInstituteId, "stages", stageId);
+        batch.delete(stageRef);
+
+        // Remove all schedules belonging to that stage
+        affectedSchedules.forEach(s => {
+            const sRef = doc(db, "institutes", window.currentInstituteId, "schedules", s.id);
+            batch.delete(sRef);
+        });
+
+        await batch.commit();
+        window.showToast(`✓ Stage "${stageName}" deleted successfully!`);
+
+        // Select another stage if deleted stage was active
+        if (activeStage === stageName) {
+            const remainingStages = localStages.filter(s => s.id !== stageId);
+            if (remainingStages.length > 0) {
+                activeStage = remainingStages[0].name;
+            } else {
+                activeStage = '';
+            }
+        }
+    } catch (err) {
+        console.error("Error deleting stage:", err);
+        window.showToast("Failed to delete stage.", "error");
+    }
 }
 
 // ─────────────────────────────────────────────
@@ -720,7 +1277,7 @@ async function updateStageSchedulesDate(newDate) {
 // ─────────────────────────────────────────────
 // Render Active Stage Schedule Table
 // ─────────────────────────────────────────────
-function renderStageTable() {
+function refreshScheduleTable() {
     const tbody = document.getElementById('schedTableBody');
     if (!tbody || !activeStage) return;
 
@@ -903,7 +1460,7 @@ async function reorderRowsByIndex(items, fromIdx, toIdx) {
     });
 
     await triggerTimeCascade(items, true);
-    renderStageTable();
+    refreshScheduleTable();
 }
 
 // Open modal to add published program to active stage
