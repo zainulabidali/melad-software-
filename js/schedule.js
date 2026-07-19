@@ -438,6 +438,10 @@ export async function initScheduleView(container, topActions) {
         if (unsubPrograms) { unsubPrograms(); unsubPrograms = null; }
         if (unsubSchedules) { unsubSchedules(); unsubSchedules = null; }
         if (unsubStages) { unsubStages(); unsubStages = null; }
+        const dropdown = document.getElementById('schedTabDropdown');
+        if (dropdown) {
+            dropdown.remove();
+        }
     };
 
     // Render Top Actions specifically for currently active Stage inside a responsive wrapper
