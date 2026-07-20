@@ -1390,6 +1390,7 @@ function renderDrawerContent() {
                             <option value="Team Wise">Team Wise Standings & Roster</option>
                             <option value="Program Wise">Program Wise Podiums</option>
                             <option value="Student Prize Distribution">Student Prize Distribution Register</option>
+                            <option value="Prize Distribution Register">Position Wise Winners</option>
                             <option value="Participants Without Major Prizes">Participants Without Major Prizes</option>
                             <option value="Class Wise Academic & Attendance">Class Wise Academic & Attendance Awards</option>
                         </select>
@@ -2283,8 +2284,12 @@ function resolveWinnerParticipant(prog, w, participantsList, studentMap) {
                         name: resolvedStudent.name || m.name || '—',
                         chestNumber: resolvedStudent.chestNumber || m.chestNumber || '—',
                         className: resolvedStudent.className || '—',
+                        classId: resolvedStudent.classId || '',
                         categoryName: resolvedStudent.categoryName || '—',
-                        teamName: resolvedStudent.teamName || matchedPart.teamName || w.teamName || '—'
+                        categoryId: resolvedStudent.categoryId || '',
+                        teamName: resolvedStudent.teamName || matchedPart.teamName || w.teamName || '—',
+                        teamId: resolvedStudent.teamId || matchedPart.teamId || w.teamId || '',
+                        gender: resolvedStudent.gender || ''
                     });
                 } else {
                     chestNos.push(m.chestNumber || '—');
@@ -2293,8 +2298,12 @@ function resolveWinnerParticipant(prog, w, participantsList, studentMap) {
                         name: m.name || '—',
                         chestNumber: m.chestNumber || '—',
                         className: '—',
+                        classId: '',
                         categoryName: '—',
-                        teamName: matchedPart.teamName || w.teamName || '—'
+                        categoryId: '',
+                        teamName: matchedPart.teamName || w.teamName || '—',
+                        teamId: matchedPart.teamId || w.teamId || '',
+                        gender: ''
                     });
                 }
             });
@@ -2327,15 +2336,23 @@ function resolveWinnerParticipant(prog, w, participantsList, studentMap) {
                 name: resolvedStudent.name || matchedPart.name || w.studentName || '—',
                 chestNumber: resolvedStudent.chestNumber || matchedPart.chestNumber || w.chestNumber || '—',
                 className: resolvedStudent.className || '—',
+                classId: resolvedStudent.classId || '',
                 categoryName: resolvedStudent.categoryName || '—',
-                teamName: resolvedStudent.teamName || matchedPart.teamName || w.teamName || '—'
+                categoryId: resolvedStudent.categoryId || '',
+                teamName: resolvedStudent.teamName || matchedPart.teamName || w.teamName || '—',
+                teamId: resolvedStudent.teamId || matchedPart.teamId || w.teamId || '',
+                gender: resolvedStudent.gender || ''
             } : {
                 studentId: matchedPart.studentId || w.studentId || '',
                 name: matchedPart.name || w.studentName || '—',
                 chestNumber: matchedPart.chestNumber || w.chestNumber || '—',
                 className: '—',
+                classId: '',
                 categoryName: '—',
-                teamName: matchedPart.teamName || w.teamName || '—'
+                categoryId: '',
+                teamName: matchedPart.teamName || w.teamName || '—',
+                teamId: matchedPart.teamId || w.teamId || '',
+                gender: ''
             };
 
             return {
@@ -2493,7 +2510,7 @@ async function triggerDownload(exp, isDownload = false) {
 
         // Phase 7 Firestore Parallel Fetch Optimization using Promise.all
         let participantsMap = {};
-        if (f.type !== 'Results' || f.resultSubOption === 'Participants Without Major Prizes' || f.resultSubOption === 'Student Prize Distribution' || f.resultSubOption === 'Team Wise' || f.resultSubOption === 'Program Wise') {
+        if (f.type !== 'Results' || f.resultSubOption === 'Participants Without Major Prizes' || f.resultSubOption === 'Student Prize Distribution' || f.resultSubOption === 'Prize Distribution Register' || f.resultSubOption === 'Team Wise' || f.resultSubOption === 'Program Wise') {
             const participantPromises = programs.map(p => loadParticipants(p, f.teamId, studentMap));
             const allParts = await Promise.all(participantPromises);
             programs.forEach((p, idx) => {
@@ -6205,6 +6222,183 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 }
             }
 
+            else if (f.resultSubOption === 'Prize Distribution Register') {
+                const positions = ['First', 'Second', 'Third'];
+                const positionTitles = {
+                    'First': '🥇 SECTION 1: FIRST PLACE WINNERS',
+                    'Second': '🥈 SECTION 2: SECOND PLACE WINNERS',
+                    'Third': '🥉 SECTION 3: THIRD PLACE WINNERS'
+                };
+
+                const sectionsData = {
+                    'First': { 'Stage': [], 'Off Stage': [], 'Group': [], 'General': [] },
+                    'Second': { 'Stage': [], 'Off Stage': [], 'Group': [], 'General': [] },
+                    'Third': { 'Stage': [], 'Off Stage': [], 'Group': [], 'General': [] }
+                };
+
+                filteredResults.forEach(r => {
+                    const prog = allPrograms.find(p => p.id === r.programId);
+                    if (!prog) return;
+
+                    const pLoc = (prog.programLocation || prog.location || 'Stage');
+                    const isOffStage = pLoc.toLowerCase() === 'off stage';
+                    if (f.programLocation) {
+                        if (f.programLocation.toLowerCase() === 'stage' && isOffStage) return;
+                        if (f.programLocation.toLowerCase() === 'off stage' && !isOffStage) return;
+                    }
+
+                    const isGeneral = (prog.categoryId === 'general_programs' || prog.programType === 'general' || r.categoryId === 'general_programs' || r.programType === 'general');
+                    const isGroup = prog.programType === 'group' || r.programType === 'group';
+                    const isIndividual = !isGeneral && !isGroup;
+
+                    if (f.participationType) {
+                        if (f.participationType === 'general' && !isGeneral) return;
+                        if (f.participationType === 'group' && !isGroup) return;
+                        if (f.participationType === 'individual' && !isIndividual) return;
+                    }
+
+                    let subKey = 'Stage';
+                    if (isGeneral) subKey = 'General';
+                    else if (isGroup) subKey = 'Group';
+                    else if (isOffStage) subKey = 'Off Stage';
+
+                    const winnersList = Array.isArray(r.winners) ? r.winners : [];
+
+                    winnersList.forEach(w => {
+                        const posKey = w.position;
+                        if (!sectionsData[posKey]) return;
+
+                        const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                        let members = resolved.memberStudents || [];
+
+                        members = members.filter(stu => {
+                            if (f.gender) {
+                                const g = stu.gender || (studentMap[stu.studentId] && studentMap[stu.studentId].gender) || '';
+                                if (f.gender === 'Boys' && g !== 'Male') return false;
+                                if (f.gender === 'Girls' && g !== 'Female') return false;
+                            }
+                            if (f.classId) {
+                                const cId = stu.classId || (studentMap[stu.studentId] && studentMap[stu.studentId].classId) || '';
+                                if (cId && cId !== f.classId) return false;
+                            }
+                            if (f.teamId) {
+                                const tId = stu.teamId || resolved.teamId || w.teamId || (studentMap[stu.studentId] && studentMap[stu.studentId].teamId) || '';
+                                if (tId && tId !== f.teamId) return false;
+                            }
+                            return true;
+                        });
+
+                        if (members.length === 0) return;
+
+                        members.forEach(stu => {
+                            sectionsData[posKey][subKey].push({
+                                programName: r.programName || prog.programName || '—',
+                                programNumber: prog.programNumber || '',
+                                categoryName: r.categoryName || prog.categoryName || 'General',
+                                chestNumber: stu.chestNumber || '—',
+                                studentName: stu.name || '—',
+                                teamName: stu.teamName || resolved.teamName || w.teamName || '—',
+                                className: stu.className || '—'
+                            });
+                        });
+                    });
+                });
+
+                let totalEntries = 0;
+                positions.forEach(pos => {
+                    ['Stage', 'Off Stage', 'Group', 'General'].forEach(sub => {
+                        totalEntries += sectionsData[pos][sub].length;
+                    });
+                });
+
+                if (totalEntries === 0) {
+                    htmlContent = `<div style="text-align:center; padding:3rem; color:#64748b; font-weight:600;">No prize winners found matching the selected parameters.</div>`;
+                } else {
+                    let sectionsHtml = '';
+
+                    positions.forEach((posKey, posIdx) => {
+                        const posData = sectionsData[posKey];
+                        const posTotal = posData['Stage'].length + posData['Off Stage'].length + posData['Group'].length + posData['General'].length;
+                        if (posTotal === 0) return;
+
+                        const subSectionLabels = {
+                            'Stage': '🎭 Stage Programs',
+                            'Off Stage': '🎨 Off Stage Programs',
+                            'Group': '👥 Group Programs',
+                            'General': '🌐 General Programs'
+                        };
+
+                        let subSectionsHtml = '';
+
+                        ['Stage', 'Off Stage', 'Group', 'General'].forEach(subKey => {
+                            const items = posData[subKey];
+                            if (items.length === 0) return;
+
+                            items.sort((a, b) => {
+                                const pComp = a.programName.localeCompare(b.programName, undefined, { sensitivity: 'base' });
+                                if (pComp !== 0) return pComp;
+                                return a.chestNumber.localeCompare(b.chestNumber, undefined, { numeric: true, sensitivity: 'base' });
+                            });
+
+                            subSectionsHtml += `
+                                <div style="margin-top:1rem; margin-bottom:1.25rem;">
+                                    <h4 style="margin:0 0 0.4rem 0; color:#4338ca; font-size:0.9rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em;">
+                                        ${subSectionLabels[subKey]} (${items.length})
+                                    </h4>
+                                    <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 10.5px;">
+                                        <thead>
+                                            <tr style="background-color: #f8fafc;">
+                                                <th style="width: 35px; text-align: center; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">SL</th>
+                                                <th style="text-align: left; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Program Name</th>
+                                                <th style="width: 70px; text-align: center; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Chest No</th>
+                                                <th style="text-align: left; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Student Name</th>
+                                                <th style="width: 110px; text-align: left; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Team Name</th>
+                                                <th style="width: 75px; text-align: left; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Class</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${items.map((item, idx) => `
+                                                <tr style="height: 22px; page-break-inside: avoid;">
+                                                    <td style="text-align:center; font-weight:700; color:#64748b; padding: 4px 5px; border: 1px solid #cbd5e1;">${idx + 1}</td>
+                                                    <td style="font-weight:800; color:#1e1b4b; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.programNumber ? `[#${item.programNumber}] ${item.programName}` : item.programName)}</td>
+                                                    <td style="text-align:center; font-weight:900; color:#0f172a; font-size:11px; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.chestNumber)}</td>
+                                                    <td style="font-weight:800; color:#1e1b4b; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.studentName)}</td>
+                                                    <td style="font-weight:700; color:#475569; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.teamName)}</td>
+                                                    <td style="font-weight:700; color:#475569; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.className)}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            `;
+                        });
+
+                        sectionsHtml += `
+                            <div class="program-page-standard" style="margin-bottom:2rem; ${posIdx > 0 ? 'page-break-before:always;' : ''}">
+                                <div style="border-bottom:3px solid #1e1b4b; padding-bottom:0.4rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:flex-end;">
+                                    <h2 style="color:#1e1b4b; margin:0; font-weight:900;">${positionTitles[posKey]}</h2>
+                                    <span style="font-weight:800; color:#4338ca; font-size:0.8rem;">TOTAL: ${posTotal} WINNERS</span>
+                                </div>
+                                ${subSectionsHtml}
+                            </div>
+                        `;
+                    });
+
+                    htmlContent = `
+                        <div style="border-bottom:3px solid #4338ca; padding-bottom:0.4rem; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:flex-end;">
+                            <div>
+                                <h2 style="color:#1e1b4b; margin:0; font-weight:900; text-transform:uppercase;">🏆 PRIZE DISTRIBUTION REGISTER</h2>
+                                <p style="margin:0.15rem 0 0 0; font-size:0.72rem; color:#64748b; font-weight:600;">Complete section-wise prize distribution register including expanded group & general participants.</p>
+                            </div>
+                            <div style="text-align:right; font-size:0.75rem; font-weight:800; color:#4338ca;">
+                                Total Registered Entries: ${totalEntries}
+                            </div>
+                        </div>
+                        ${sectionsHtml}
+                    `;
+                }
+            }
+
             else if (f.resultSubOption === 'Participants Without Major Prizes') {
                 const teamNamesMap = {};
                 allTeams.forEach(t => {
@@ -7149,6 +7343,126 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 stu.prizes.sort((a, b) => a.categoryIndex - b.categoryIndex);
                 const prizeList = stu.prizes.map(p => `${p.programName} - ${p.position}`);
                 csvContent += `"${stu.chestNumber}","${stu.studentName}","${stu.className}","${stu.categoryName}","${stu.teamName}","${prizeList.join('; ')}"\n`;
+            });
+        }
+
+        else if (f.resultSubOption === 'Prize Distribution Register') {
+            csvContent += "SECTION,SUB SECTION,PROGRAM NAME,CATEGORY,CHEST NUMBER,STUDENT NAME,TEAM NAME,CLASS,GRADE\n";
+
+            const positions = ['First', 'Second', 'Third'];
+            const positionTitles = {
+                'First': 'SECTION 1: FIRST PLACE WINNERS',
+                'Second': 'SECTION 2: SECOND PLACE WINNERS',
+                'Third': 'SECTION 3: THIRD PLACE WINNERS'
+            };
+
+            const sectionsData = {
+                'First': { 'Stage': [], 'Off Stage': [], 'Group': [], 'General': [] },
+                'Second': { 'Stage': [], 'Off Stage': [], 'Group': [], 'General': [] },
+                'Third': { 'Stage': [], 'Off Stage': [], 'Group': [], 'General': [] }
+            };
+
+            filteredResults.forEach(r => {
+                const prog = allPrograms.find(p => p.id === r.programId);
+                if (!prog) return;
+
+                const pLoc = (prog.programLocation || prog.location || 'Stage');
+                const isOffStage = pLoc.toLowerCase() === 'off stage';
+                if (f.programLocation) {
+                    if (f.programLocation.toLowerCase() === 'stage' && isOffStage) return;
+                    if (f.programLocation.toLowerCase() === 'off stage' && !isOffStage) return;
+                }
+
+                const isGeneral = (prog.categoryId === 'general_programs' || prog.programType === 'general' || r.categoryId === 'general_programs' || r.programType === 'general');
+                const isGroup = prog.programType === 'group' || r.programType === 'group';
+                const isIndividual = !isGeneral && !isGroup;
+
+                if (f.participationType) {
+                    if (f.participationType === 'general' && !isGeneral) return;
+                    if (f.participationType === 'group' && !isGroup) return;
+                    if (f.participationType === 'individual' && !isIndividual) return;
+                }
+
+                let subKey = 'Stage';
+                if (isGeneral) subKey = 'General';
+                else if (isGroup) subKey = 'Group';
+                else if (isOffStage) subKey = 'Off Stage';
+
+                const winnersList = Array.isArray(r.winners) ? r.winners : [];
+
+                winnersList.forEach(w => {
+                    const posKey = w.position;
+                    if (!sectionsData[posKey]) return;
+
+                    let match = null;
+                    if (Array.isArray(r.marksData)) {
+                        match = r.marksData.find(m =>
+                            (isGroup && m.teamName === w.teamName) ||
+                            (!isGroup && m.studentId === w.studentId) ||
+                            (!isGroup && m.studentName === w.studentName)
+                        );
+                    }
+                    const showGrade = r.gradeMode !== 'none';
+                    const gradeVal = showGrade ? (w.grade || (match && match.grade) || '') : '';
+
+                    const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                    let members = resolved.memberStudents || [];
+
+                    members = members.filter(stu => {
+                        if (f.gender) {
+                            const g = stu.gender || (studentMap[stu.studentId] && studentMap[stu.studentId].gender) || '';
+                            if (f.gender === 'Boys' && g !== 'Male') return false;
+                            if (f.gender === 'Girls' && g !== 'Female') return false;
+                        }
+                        if (f.classId) {
+                            const cId = stu.classId || (studentMap[stu.studentId] && studentMap[stu.studentId].classId) || '';
+                            if (cId && cId !== f.classId) return false;
+                        }
+                        if (f.teamId) {
+                            const tId = stu.teamId || resolved.teamId || w.teamId || (studentMap[stu.studentId] && studentMap[stu.studentId].teamId) || '';
+                            if (tId && tId !== f.teamId) return false;
+                        }
+                        return true;
+                    });
+
+                    members.forEach(stu => {
+                        sectionsData[posKey][subKey].push({
+                            programName: r.programName || prog.programName || '—',
+                            categoryName: r.categoryName || prog.categoryName || 'General',
+                            chestNumber: stu.chestNumber || '—',
+                            studentName: stu.name || '—',
+                            teamName: stu.teamName || resolved.teamName || w.teamName || '—',
+                            className: stu.className || '—',
+                            grade: gradeVal
+                        });
+                    });
+                });
+            });
+
+            positions.forEach(posKey => {
+                const posTitle = positionTitles[posKey];
+                ['Stage', 'Off Stage', 'Group', 'General'].forEach(subKey => {
+                    const items = sectionsData[posKey][subKey];
+                    items.sort((a, b) => {
+                        const pComp = a.programName.localeCompare(b.programName, undefined, { sensitivity: 'base' });
+                        if (pComp !== 0) return pComp;
+                        return a.chestNumber.localeCompare(b.chestNumber, undefined, { numeric: true, sensitivity: 'base' });
+                    });
+
+                    items.forEach(item => {
+                        const secClean = posTitle.replace(/"/g, '""');
+                        const subClean = `${subKey} Programs`.replace(/"/g, '""');
+                        const progClean = item.programName.replace(/"/g, '""');
+                        const catClean = item.categoryName.replace(/"/g, '""');
+                        const chestClean = item.chestNumber.replace(/"/g, '""');
+                        const nameClean = item.studentName.replace(/"/g, '""');
+                        const teamClean = item.teamName.replace(/"/g, '""');
+                        const classClean = item.className.replace(/"/g, '""');
+                        const gradeClean = item.grade.replace(/"/g, '""');
+
+                        csvContent += `"${secClean}","${subClean}","${progClean}","${catClean}","${chestClean}","${nameClean}","${teamClean}","${classClean}","${gradeClean}"\n`;
+                    });
+                });
             });
         }
 
