@@ -1048,6 +1048,17 @@ async function saveIndividualRegistrations(btn) {
     const prog = activeProgram;
 
     try {
+        // Validate inputs before constructing Firestore references
+        if (!instId) {
+            throw new Error("Institute ID not found.");
+        }
+        if (!prog || !prog.id) {
+            throw new Error("Invalid registration request. Program information is missing.");
+        }
+        if (!teamId) {
+            throw new Error("Invalid registration request. Team information is missing.");
+        }
+
         const partRef = collection(db, "institutes", instId, "programs", prog.id, "participants");
         
         // Scan current assigned students
@@ -1097,16 +1108,20 @@ async function saveIndividualRegistrations(btn) {
         }
 
         const batch = writeBatch(db);
+        const docsPayload = [];
         for (const s of toAdd) {
+            if (!s.id) {
+                throw new Error("Invalid registration request. Student ID is missing.");
+            }
             const newDoc = doc(partRef, `individual_${safeDocId(teamId)}_${safeDocId(s.id)}`);
-            batch.set(newDoc, {
+            const payload = {
                 type: 'individual',
                 studentId: s.id || '',
                 studentName: s.name || '',
                 chestNumber: s.chestNumber || '',
                 gender: s.gender || '',
                 teamId: teamId,
-                teamName: teamDetails.name || '',
+                teamName: teamDetails?.name || '',
                 categoryId: prog.categoryId || 'general_programs',
                 categoryName: prog.categoryName || 'General Programs',
                 classId: s.classId || '',
@@ -1114,7 +1129,9 @@ async function saveIndividualRegistrations(btn) {
                 programId: prog.id || '',
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
-            });
+            };
+            docsPayload.push({ path: newDoc.path, data: payload });
+            batch.set(newDoc, payload);
         }
 
         const progRef = doc(db, "institutes", instId, "programs", prog.id);
@@ -1128,7 +1145,13 @@ async function saveIndividualRegistrations(btn) {
         await openProgramAssignment(prog);
     } catch (e) {
         console.error("Save registrations error:", e);
-        window.showToast("Failed to save registrations.", "error");
+        let errorMsg = "Registration could not be completed.";
+        if (e.message && (e.message.includes("permission") || e.code === "permission-denied")) {
+            errorMsg = "Permission denied. You do not have permissions to register participants.";
+        } else if (e.message) {
+            errorMsg = e.message;
+        }
+        window.showToast(errorMsg, "error");
         if (statusEl) statusEl.textContent = 'Save failed.';
     } finally {
         btn.disabled = false;
@@ -1142,6 +1165,20 @@ async function createGroupRegistration(groupName) {
     createBtn.disabled = true;
 
     try {
+        // Validate inputs before constructing Firestore references
+        if (!instId) {
+            throw new Error("Institute ID not found.");
+        }
+        if (!prog || !prog.id) {
+            throw new Error("Invalid registration request. Program information is missing.");
+        }
+        if (!teamId) {
+            throw new Error("Invalid registration request. Team information is missing.");
+        }
+        if (!groupName || groupName.trim() === '') {
+            throw new Error("Group name is required.");
+        }
+
         const partRef = collection(db, "institutes", instId, "programs", prog.id, "participants");
         const docId = `group_${safeDocId(teamId)}`;
         const docRef = doc(partRef, docId);
@@ -1191,26 +1228,33 @@ async function createGroupRegistration(groupName) {
         const newGroup = { id: uid('group'), name: groupName, members };
         const updatedGroups = [...existingGroups, newGroup];
 
-        await setDoc(docRef, {
+        const groupPayload = {
             teamId: teamId,
-            teamName: teamDetails.name || '',
+            teamName: teamDetails?.name || '',
             categoryId: prog.categoryId || '',
             programId: prog.id || '',
             type: 'group',
             groups: updatedGroups,
             updatedAt: serverTimestamp()
-        }, { merge: true });
+        };
+
+        await setDoc(docRef, groupPayload, { merge: true });
 
         const progRef = doc(db, "institutes", instId, "programs", prog.id);
         await setDoc(progRef, { participantCount: increment(1) }, { merge: true });
-
         window.showToast("Group created successfully!");
         selectedStudentIds.clear();
 
         await openProgramAssignment(prog);
     } catch (e) {
         console.error("Group creation failed:", e);
-        window.showToast("Failed to create group.", "error");
+        let errorMsg = "Failed to create group.";
+        if (e.message && (e.message.includes("permission") || e.code === "permission-denied")) {
+            errorMsg = "Permission denied. You do not have permissions to create group.";
+        } else if (e.message) {
+            errorMsg = e.message;
+        }
+        window.showToast(errorMsg, "error");
         createBtn.disabled = false;
     }
 }
@@ -1323,23 +1367,47 @@ function renderAssignedRightPanel() {
 
 async function saveEditParticipant(studentId, name, className) {
     try {
+        // Validate inputs before constructing Firestore references
+        if (!instId) {
+            throw new Error("Institute ID not found.");
+        }
         const prog = activeProgram;
+        if (!prog || !prog.id) {
+            throw new Error("Invalid registration request. Program information is missing.");
+        }
+        if (!teamId) {
+            throw new Error("Invalid registration request. Team information is missing.");
+        }
+        if (!studentId) {
+            throw new Error("Invalid registration request. Student ID is missing.");
+        }
+        if (!name || name.trim() === '') {
+            throw new Error("Student name is required.");
+        }
+
         const partRef = collection(db, "institutes", instId, "programs", prog.id, "participants");
         const docId = participantDocIds.get(studentId) || `individual_${safeDocId(teamId)}_${safeDocId(studentId)}`;
         const docRef = doc(partRef, docId);
 
-        await setDoc(docRef, {
+        const editPayload = {
             studentName: name,
-            className: className,
+            className: className || '',
             updatedAt: serverTimestamp()
-        }, { merge: true });
+        };
 
+        await setDoc(docRef, editPayload, { merge: true });
         window.showToast("Participant entry updated successfully!");
         editingParticipantId = null;
         await openProgramAssignment(prog);
     } catch (err) {
         console.error("Save edit failed:", err);
-        window.showToast("Failed to save changes.", "error");
+        let errorMsg = "Failed to save changes.";
+        if (err.message && (err.message.includes("permission") || err.code === "permission-denied")) {
+            errorMsg = "Permission denied. You do not have permissions to edit participant.";
+        } else if (err.message) {
+            errorMsg = err.message;
+        }
+        window.showToast(errorMsg, "error");
     }
 }
 
@@ -1394,6 +1462,20 @@ async function deleteParticipant(studentId) {
     const prog = activeProgram;
 
     try {
+        // Validate inputs before constructing Firestore references
+        if (!instId) {
+            throw new Error("Institute ID not found.");
+        }
+        if (!prog || !prog.id) {
+            throw new Error("Invalid registration request. Program information is missing.");
+        }
+        if (!teamId) {
+            throw new Error("Invalid registration request. Team information is missing.");
+        }
+        if (!studentId) {
+            throw new Error("Invalid registration request. Student ID is missing.");
+        }
+
         const partRef = collection(db, "institutes", instId, "programs", prog.id, "participants");
         const docId = participantDocIds.get(studentId) || `individual_${safeDocId(teamId)}_${safeDocId(studentId)}`;
         const docRef = doc(partRef, docId);
@@ -1402,14 +1484,19 @@ async function deleteParticipant(studentId) {
 
         const progRef = doc(db, "institutes", instId, "programs", prog.id);
         await setDoc(progRef, { participantCount: increment(-1) }, { merge: true });
-
         window.showToast("Registration removed successfully!");
         selectedStudentIds.delete(studentId);
         
         await openProgramAssignment(prog);
     } catch (e) {
         console.error("Delete registration error:", e);
-        window.showToast("Failed to delete participant registration.", "error");
+        let errorMsg = "Failed to delete participant registration.";
+        if (e.message && (e.message.includes("permission") || e.code === "permission-denied")) {
+            errorMsg = "Permission denied. You do not have permissions to delete participant registration.";
+        } else if (e.message) {
+            errorMsg = e.message;
+        }
+        window.showToast(errorMsg, "error");
     }
 }
 
@@ -1419,6 +1506,20 @@ async function deleteGroup(gId) {
     if (!confirmed) return;
 
     try {
+        // Validate inputs before constructing Firestore references
+        if (!instId) {
+            throw new Error("Institute ID not found.");
+        }
+        if (!prog || !prog.id) {
+            throw new Error("Invalid registration request. Program information is missing.");
+        }
+        if (!teamId) {
+            throw new Error("Invalid registration request. Team information is missing.");
+        }
+        if (!gId) {
+            throw new Error("Invalid registration request. Group ID is missing.");
+        }
+
         const partRef = collection(db, "institutes", instId, "programs", prog.id, "participants");
         const docId = `group_${safeDocId(teamId)}`;
         const docRef = doc(partRef, docId);
@@ -1441,11 +1542,16 @@ async function deleteGroup(gId) {
 
         const progRef = doc(db, "institutes", instId, "programs", prog.id);
         await setDoc(progRef, { participantCount: increment(-1) }, { merge: true });
-
         window.showToast("Group deleted successfully!");
         await openProgramAssignment(prog);
     } catch (e) {
         console.error("Delete group error:", e);
-        window.showToast("Failed to delete group.", "error");
+        let errorMsg = "Failed to delete group.";
+        if (e.message && (e.message.includes("permission") || e.code === "permission-denied")) {
+            errorMsg = "Permission denied. You do not have permissions to delete group.";
+        } else if (e.message) {
+            errorMsg = e.message;
+        }
+        window.showToast(errorMsg, "error");
     }
 }
