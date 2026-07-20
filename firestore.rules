@@ -228,9 +228,18 @@ match /institutes/{instituteId} {
 
     allow read: if true;
 
-    allow create, update, delete:
+    allow create, delete:
     if isInstituteAdmin(instituteId)
     || isSuperAdmin();
+
+    allow update:
+    if isInstituteAdmin(instituteId)
+    || isSuperAdmin()
+    || (
+      request.auth != null &&
+      exists(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)) &&
+      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participantCount'])
+    );
 
     match /participants/{participantId} {
 

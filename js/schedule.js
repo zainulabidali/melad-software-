@@ -547,6 +547,7 @@ function injectTableScheduleStyles() {
             
             /* Hide non-printable table columns and icons */
             .sched-compact-table th:first-child, .sched-compact-table td:first-child { display: none !important; }
+            .sched-compact-table th:nth-child(7), .sched-compact-table td:nth-child(7) { display: none !important; }
             .sched-compact-table th:last-child, .sched-compact-table td:last-child { display: none !important; }
             .sched-lock-btn, .btn-tbl-act, .sched-row-actions { display: none !important; }
             
@@ -2085,23 +2086,22 @@ function printActiveStage() {
 
     let rowsHTML = '';
     if (activeItems.length === 0) {
-        rowsHTML = `<tr><td colspan="6" style="text-align:center; padding:15px; color:#64748b;">No programs scheduled for this stage.</td></tr>`;
+        rowsHTML = `<tr><td colspan="5" style="text-align:center; padding:15px; color:#64748b;">No programs scheduled for this stage.</td></tr>`;
     } else {
         rowsHTML = activeItems.map((item, idx) => `
             <tr>
-                <td style="text-align:center; font-weight:bold; padding:10px; border:1px solid #cbd5e1;">${idx + 1}</td>
-                <td style="padding:10px; border:1px solid #cbd5e1; color:#0f172a;">
-                    <div style="font-weight:bold; margin-bottom:4px;">
-                        ${item.programNumber ? `[#${item.programNumber}] ` : ''}${window.escapeHTML(item.programName)}
+                <td style="text-align:center; font-weight:700; color:#334155; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${idx + 1}</td>
+                <td style="padding:6px 10px; border:1px solid #cbd5e1; color:#0f172a; word-wrap:break-word;">
+                    <div style="font-weight:700; font-size:13px; line-height:1.25; color:#0f172a;">
+                        ${item.programNumber ? `<span style="color:#3730a3; font-weight:800; margin-right:4px;">[#${item.programNumber}]</span>` : ''}${window.escapeHTML(item.programName)}
                     </div>
-                    <div style="font-size:11px; color:#475569; font-weight:bold;">
-                        [ ${window.escapeHTML(item.categoryName || 'Uncategorized')} ]
+                    <div style="font-size:10.5px; color:#64748b; font-weight:500; margin-top:2px; line-height:1.2;">
+                        ${window.escapeHTML(item.categoryName || 'Uncategorized')}
                     </div>
                 </td>
-                <td style="text-align:center; padding:10px; border:1px solid #cbd5e1;">${item.duration} mins</td>
-                <td style="text-align:center; font-weight:bold; padding:10px; border:1px solid #cbd5e1; color:#1e40af;">${item.startTime || '—'}</td>
-                <td style="text-align:center; font-weight:bold; padding:10px; border:1px solid #cbd5e1; color:#1e40af;">${item.endTime || '—'}</td>
-                <td style="text-align:center; font-weight:bold; padding:10px; border:1px solid #cbd5e1;">${window.escapeHTML(item.status)}</td>
+                <td style="text-align:center; color:#334155; font-weight:600; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${item.duration} mins</td>
+                <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${item.startTime || '—'}</td>
+                <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${item.endTime || '—'}</td>
             </tr>
         `).join('');
     }
@@ -2112,41 +2112,111 @@ function printActiveStage() {
         <head>
             <title>${window.escapeHTML(instName)} - ${window.escapeHTML(activeStage)} Schedule</title>
             <style>
-                body { font-family: 'Inter', system-ui, -apple-system, sans-serif; margin: 30px; color: #0f172a; }
-                .print-header { text-align: center; margin-bottom: 25px; border-bottom: 3px double #0f172a; padding-bottom: 15px; }
-                .print-header h1 { margin: 0 0 5px 0; font-size: 24px; text-transform: uppercase; color: #1e1b4b; letter-spacing: 0.05em; }
-                .print-header h2 { margin: 0 0 8px 0; font-size: 18px; color: #4338ca; }
-                .print-header p { margin: 0; font-size: 14px; color: #475569; font-weight: 600; }
-                table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
-                th { background-color: #f8fafc; color: #334155; padding: 12px; border: 1px solid #cbd5e1; text-transform: uppercase; font-size: 12px; letter-spacing: 0.05em; font-weight: 800; }
-                td { padding: 10px; border: 1px solid #cbd5e1; }
-                .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+                @page {
+                    size: A4 portrait;
+                    margin: 12mm 15mm;
+                }
+                * {
+                    box-sizing: border-box;
+                }
+                body {
+                    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                    margin: 0;
+                    padding: 15px;
+                    color: #0f172a;
+                    background: #ffffff;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+                .print-container {
+                    width: 100%;
+                    margin: 0 auto;
+                }
+                .print-header {
+                    text-align: center;
+                    margin-bottom: 18px;
+                    border-bottom: 3px double #0f172a;
+                    padding-bottom: 12px;
+                }
+                .print-header h1 {
+                    margin: 0 0 4px 0;
+                    font-size: 22px;
+                    text-transform: uppercase;
+                    color: #1e1b4b;
+                    letter-spacing: 0.04em;
+                    font-weight: 800;
+                }
+                .print-header h2 {
+                    margin: 0 0 6px 0;
+                    font-size: 16px;
+                    color: #4338ca;
+                    font-weight: 700;
+                    letter-spacing: 0.03em;
+                }
+                .print-header p {
+                    margin: 0;
+                    font-size: 13px;
+                    color: #475569;
+                    font-weight: 600;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 10px;
+                    font-size: 13px;
+                    table-layout: fixed;
+                }
+                th {
+                    background-color: #f8fafc;
+                    color: #334155;
+                    padding: 8px 10px;
+                    border: 1px solid #cbd5e1;
+                    text-transform: uppercase;
+                    font-size: 11px;
+                    letter-spacing: 0.05em;
+                    font-weight: 800;
+                }
+                td {
+                    padding: 6px 10px;
+                    border: 1px solid #cbd5e1;
+                    vertical-align: middle;
+                }
+                .footer {
+                    margin-top: 25px;
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 11px;
+                    color: #64748b;
+                    border-top: 1px solid #e2e8f0;
+                    padding-top: 8px;
+                }
             </style>
         </head>
         <body>
-            <div class="print-header">
-                <h1>${window.escapeHTML(instName)}</h1>
-                <h2>COMPETITION SCHEDULE - ${window.escapeHTML(activeStage.toUpperCase())}</h2>
-                <p>Date: ${window.escapeHTML(stageDate)} &nbsp;|&nbsp; Total Programs: ${activeItems.length}</p>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width:60px; text-align:center;">SL#</th>
-                        <th>PROGRAM NAME</th>
-                        <th style="width:110px; text-align:center;">DURATION</th>
-                        <th style="width:110px; text-align:center;">START TIME</th>
-                        <th style="width:110px; text-align:center;">END TIME</th>
-                        <th style="width:130px; text-align:center;">STATUS</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${rowsHTML}
-                </tbody>
-            </table>
-            <div class="footer">
-                <span>Generated on: ${new Date().toLocaleString()}</span>
-                <span>Meelad Software Schedule Management</span>
+            <div class="print-container">
+                <div class="print-header">
+                    <h1>${window.escapeHTML(instName)}</h1>
+                    <h2>COMPETITION SCHEDULE - ${window.escapeHTML(activeStage.toUpperCase())}</h2>
+                    <p>Date: ${window.escapeHTML(stageDate)} &nbsp;|&nbsp; Total Programs: ${activeItems.length}</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:50px; text-align:center;">SL#</th>
+                            <th style="text-align:left;">PROGRAM NAME</th>
+                            <th style="width:95px; text-align:center;">DURATION</th>
+                            <th style="width:105px; text-align:center;">START TIME</th>
+                            <th style="width:105px; text-align:center;">END TIME</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHTML}
+                    </tbody>
+                </table>
+                <div class="footer">
+                    <span>Generated on: ${new Date().toLocaleString()}</span>
+                    <span>Meelad Software Schedule Management</span>
+                </div>
             </div>
         </body>
         </html>
