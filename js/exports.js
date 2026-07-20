@@ -5646,6 +5646,25 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
             let awardHTML = '';
             const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+            const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+            const mainHeaderHTML = `
+                <div class="report-header" style="border-bottom: 2px solid #000; padding-bottom: 0.35rem; margin-bottom: 0.75rem; width: 100%;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                        <div>
+                            <h1 style="margin: 0; color: #1e1b4b; font-size: 1.2rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em;">
+                                CLASS WISE ACADEMIC & ATTENDANCE AWARDS
+                            </h1>
+                            <div style="font-size: 0.75rem; font-weight: 700; color: #475569; margin-top: 0.1rem; text-transform: uppercase;">
+                                ${window.escapeHTML(instName).toUpperCase()}
+                            </div>
+                        </div>
+                        <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-align: right;">
+                            DATE: ${todayStr}
+                        </div>
+                    </div>
+                </div>
+            `;
 
             targetClasses.forEach(cls => {
                 const classAwardsList = filteredAwards.filter(aw => aw.classId === cls.id);
@@ -5668,22 +5687,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                 if (awardTypes.length === 0) return;
 
-                awardHTML += `
-                    <div class="program-page-standard" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid; width: 100%;">
-                        <div class="report-header" style="border-bottom: 2px solid #000; padding-bottom: 0.4rem; margin-bottom: 1rem; width: 100%;">
-                            <div>
-                                <div style="font-size: 0.8rem; font-weight: 800; color: #000; letter-spacing: 0.05em; text-transform: uppercase;">
-                                    CLASS WISE ACADEMIC & ATTENDANCE AWARDS
-                                </div>
-                                <h2 style="margin: 0.15rem 0 0 0; color: #1e1b4b; font-size: 1.5rem; font-weight: 900; text-transform: uppercase;">
-                                    ${window.escapeHTML(cls.name).toUpperCase()}
-                                </h2>
-                                <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; margin-top: 0.1rem; text-transform: uppercase;">
-                                    ${window.escapeHTML(instName).toUpperCase()}
-                                </div>
-                            </div>
-                        </div>
-                `;
+                let classBodyHTML = '';
 
                 awardTypes.forEach(type => {
                     const award = classAwardsList.find(aw => {
@@ -5710,53 +5714,63 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         secondWinners = [award.secondPlaceWinner];
                     }
 
-                    awardHTML += `
-                        <div style="margin-bottom: 1.5rem; page-break-inside: avoid;">
-                            <h3 style="font-size: 1.1rem; font-weight: 800; color: #4338ca; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 0.25rem; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                    // Hide empty award sections completely
+                    if (firstWinners.length === 0 && secondWinners.length === 0) return;
+
+                    classBodyHTML += `
+                        <div style="margin-bottom: 0.4rem; page-break-inside: avoid; break-inside: avoid;">
+                            <div style="font-size: 0.8rem; font-weight: 800; color: #334155; padding-bottom: 0.15rem; margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.03em;">
                                 🏆 ${type.name} Award
-                            </h3>
-                            <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                            </div>
+                            <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-bottom: 0.35rem;">
                                 <thead>
-                                    <tr style="background: #f8fafc;">
-                                        <th style="width: 150px; padding: 0.5rem; border: 1px solid #cbd5e1; font-weight: 800; text-align: center;">PLACE</th>
-                                        <th style="width: 150px; padding: 0.5rem; border: 1px solid #cbd5e1; font-weight: 800; text-align: center;">CHEST NO</th>
-                                        <th style="padding: 0.5rem; border: 1px solid #cbd5e1; font-weight: 800; text-align: left;">STUDENT NAME</th>
-                                        <th style="width: 180px; padding: 0.5rem; border: 1px solid #cbd5e1; font-weight: 800; text-align: left;">CLASS</th>
+                                    <tr style="background: #f8fafc; height: 22px;">
+                                        <th style="width: 110px; padding: 0.2rem 0.35rem; border: 1px solid #cbd5e1; font-weight: 800; text-align: center;">PLACE</th>
+                                        <th style="width: 110px; padding: 0.2rem 0.35rem; border: 1px solid #cbd5e1; font-weight: 800; text-align: center;">CHEST NO</th>
+                                        <th style="padding: 0.2rem 0.35rem; border: 1px solid #cbd5e1; font-weight: 800; text-align: left;">STUDENT NAME</th>
+                                        <th style="width: 140px; padding: 0.2rem 0.35rem; border: 1px solid #cbd5e1; font-weight: 800; text-align: left;">CLASS</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                     `;
 
                     firstWinners.forEach(w => {
-                        awardHTML += `
-                            <tr style="height: 36px;">
-                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b;">🥇 1st Place</td>
-                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b;">${window.escapeHTML(w.chestNumber || '—')}</td>
-                                <td style="padding: 0.5rem; font-weight: 700; border: 1px solid #cbd5e1; color: #1e293b;">${window.escapeHTML(w.name).toUpperCase()}</td>
-                                <td style="padding: 0.5rem; border: 1px solid #cbd5e1; color: #475569;">${window.escapeHTML(w.className || cls.name)}</td>
+                        classBodyHTML += `
+                            <tr style="height: 22px; page-break-inside: avoid; break-inside: avoid;">
+                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b; padding: 0.18rem 0.35rem;">🥇 1st Place</td>
+                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b; padding: 0.18rem 0.35rem;">${window.escapeHTML(w.chestNumber || '—')}</td>
+                                <td style="padding: 0.18rem 0.35rem; font-weight: 700; border: 1px solid #cbd5e1; color: #1e293b;">${window.escapeHTML(w.name).toUpperCase()}</td>
+                                <td style="padding: 0.18rem 0.35rem; border: 1px solid #cbd5e1; color: #475569;">${window.escapeHTML(w.className || cls.name)}</td>
                             </tr>
                         `;
                     });
 
                     secondWinners.forEach(w => {
-                        awardHTML += `
-                            <tr style="height: 36px;">
-                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b;">🥈 2nd Place</td>
-                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b;">${window.escapeHTML(w.chestNumber || '—')}</td>
-                                <td style="padding: 0.5rem; font-weight: 700; border: 1px solid #cbd5e1; color: #1e293b;">${window.escapeHTML(w.name).toUpperCase()}</td>
-                                <td style="padding: 0.5rem; border: 1px solid #cbd5e1; color: #475569;">${window.escapeHTML(w.className || cls.name)}</td>
+                        classBodyHTML += `
+                            <tr style="height: 22px; page-break-inside: avoid; break-inside: avoid;">
+                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b; padding: 0.18rem 0.35rem;">🥈 2nd Place</td>
+                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b; padding: 0.18rem 0.35rem;">${window.escapeHTML(w.chestNumber || '—')}</td>
+                                <td style="padding: 0.18rem 0.35rem; font-weight: 700; border: 1px solid #cbd5e1; color: #1e293b;">${window.escapeHTML(w.name).toUpperCase()}</td>
+                                <td style="padding: 0.18rem 0.35rem; border: 1px solid #cbd5e1; color: #475569;">${window.escapeHTML(w.className || cls.name)}</td>
                             </tr>
                         `;
                     });
 
-                    awardHTML += `
+                    classBodyHTML += `
                                 </tbody>
                             </table>
                         </div>
                     `;
                 });
 
+                if (!classBodyHTML) return;
+
                 awardHTML += `
+                    <div class="class-award-card">
+                        <div style="background: #f1f5f9; border-left: 3px solid #1e1b4b; padding: 0.2rem 0.45rem; margin-bottom: 0.35rem; font-size: 0.85rem; font-weight: 900; color: #1e1b4b; text-transform: uppercase;">
+                            CLASS : ${window.escapeHTML(cls.name).toUpperCase()}
+                        </div>
+                        ${classBodyHTML}
                     </div>
                 `;
             });
@@ -5769,7 +5783,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     </div>
                 `;
             } else {
-                htmlContent = awardHTML;
+                htmlContent = mainHeaderHTML + awardHTML;
             }
         }
         else {
@@ -6542,6 +6556,21 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             .program-page-standard:last-child {
                 page-break-after: avoid;
                 break-after: page-inside;
+            }
+
+            /* Compact Class Award Card Styles */
+            .class-award-card {
+                margin-bottom: 0.85rem;
+                padding-bottom: 0.6rem;
+                border-bottom: 1px dashed #cbd5e1;
+                page-break-inside: avoid;
+                break-inside: avoid;
+                width: 100%;
+            }
+            .class-award-card:last-child {
+                border-bottom: none;
+                margin-bottom: 0;
+                padding-bottom: 0;
             }
 
             /* Valuation 2x2 grid layout sheets (Phase 3 & 4 Redesign) */
