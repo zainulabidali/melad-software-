@@ -49,13 +49,13 @@ function loadTeamBackgrounds() {
 function resizeImageIfNeeded(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             const img = new Image();
-            img.onload = function() {
+            img.onload = function () {
                 const maxDim = 1200;
                 let width = img.width;
                 let height = img.height;
-                
+
                 if (file.size > 5 * 1024 * 1024 || width > maxDim || height > maxDim) {
                     if (width > height) {
                         if (width > maxDim) {
@@ -69,13 +69,13 @@ function resizeImageIfNeeded(file) {
                         }
                     }
                 }
-                
+
                 const canvas = document.createElement('canvas');
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-                
+
                 let outputType = 'image/jpeg';
                 if (file.type === 'image/webp') outputType = 'image/webp';
                 else if (file.type === 'image/png') {
@@ -85,7 +85,7 @@ function resizeImageIfNeeded(file) {
                         outputType = 'image/png';
                     }
                 }
-                
+
                 const dataURL = canvas.toDataURL(outputType, 0.8);
                 resolve(dataURL);
             };
@@ -102,7 +102,7 @@ function updateTeamCardUI(teamId) {
     const btnChoose = document.getElementById(`btn-choose-${teamId}`);
     const btnReplace = document.getElementById(`btn-replace-${teamId}`);
     const btnRemove = document.getElementById(`btn-remove-${teamId}`);
-    
+
     const base64 = teamBackgroundsCache[teamId];
     if (base64) {
         if (previewDiv) {
@@ -126,9 +126,9 @@ function updateTeamCardUI(teamId) {
 function renderTeamBgCards() {
     const grid = document.getElementById('teamBgGrid');
     if (!grid) return;
-    
+
     grid.innerHTML = '';
-    
+
     allTeams.forEach(t => {
         const card = document.createElement('div');
         card.className = 'team-bg-card';
@@ -145,15 +145,15 @@ function renderTeamBgCards() {
             </div>
         `;
         grid.appendChild(card);
-        
+
         const fileInput = card.querySelector(`#file-${t.id}`);
         const btnChoose = card.querySelector(`#btn-choose-${t.id}`);
         const btnReplace = card.querySelector(`#btn-replace-${t.id}`);
         const btnRemove = card.querySelector(`#btn-remove-${t.id}`);
-        
+
         btnChoose.onclick = () => fileInput.click();
         btnReplace.onclick = () => fileInput.click();
-        
+
         btnRemove.onclick = () => {
             if (confirm(`Are you sure you want to remove the custom background for team "${t.name}"?`)) {
                 delete teamBackgroundsCache[t.id];
@@ -162,17 +162,17 @@ function renderTeamBgCards() {
                 window.showToast(`Custom background for team "${t.name}" removed.`);
             }
         };
-        
+
         fileInput.onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            
+
             const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
             if (!allowedTypes.includes(file.type)) {
                 window.showToast('Unsupported image format. Please upload PNG, JPG, JPEG, or WEBP.', 'error');
                 return;
             }
-            
+
             window.showToast('Processing image...', 'info');
             try {
                 const base64Str = await resizeImageIfNeeded(file);
@@ -185,7 +185,7 @@ function renderTeamBgCards() {
                 window.showToast('Failed to process image.', 'error');
             }
         };
-        
+
         updateTeamCardUI(t.id);
     });
 }
@@ -722,8 +722,8 @@ export async function initExportsView(container, topActions) {
             try {
                 const instId = window.currentInstituteId;
                 const querySnap = await getDocs(collection(db, "institutes", instId, "exports"));
-                
-                const deletePromises = querySnap.docs.map(docSnap => 
+
+                const deletePromises = querySnap.docs.map(docSnap =>
                     deleteDoc(doc(db, "institutes", instId, "exports", docSnap.id))
                 );
                 await Promise.all(deletePromises);
@@ -1581,7 +1581,7 @@ function renderDrawerContent() {
         const activeCard = body.querySelector('.exp-type-card.active');
         const selType = activeCard ? activeCard.getAttribute('data-type') : '';
         const activeSubmode = chestExportModeSelector?.querySelector('.exp-submode-btn.active')?.getAttribute('data-submode') || 'list';
-        
+
         if (teamBgContainer) {
             if (selType === 'Chest Number List' && activeSubmode === 'card') {
                 teamBgContainer.style.display = 'flex';
@@ -2050,12 +2050,12 @@ function renderDrawerContent() {
                 summary: selectedType === 'Results' && resultSubOption === 'Class Wise Academic & Attendance'
                     ? `Scope: ${classId ? className : 'All Classes'} | Award Type: ${awardTypeFilter} [${format.toUpperCase()}]`
                     : (selectedType === 'Program Participation Register'
-                    ? `Scope: ${categoryName} | Mode: ${registerMode === 'category-wise' ? 'Category-wise' : 'Class-wise'} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`
-                    : (selectedType === 'Chest Number List'
-                        ? (activeSubmode === 'card'
-                            ? `Scope: ${categoryName}${className ? ` (${className})` : ''} | Mode: Chest Number & Program Card | Team: ${teamName} [${format.toUpperCase()}]`
-                            : `Scope: ${categoryName}${className ? ` (${className})` : ''} | Mode: ${chestMode === 'category-wise' ? 'Category-wise' : 'Class-wise'} | Team: ${teamName} [${format.toUpperCase()}]`)
-                        : `Scope: ${categoryName}${className ? ` (${className})` : ''} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`)),
+                        ? `Scope: ${categoryName} | Mode: ${registerMode === 'category-wise' ? 'Category-wise' : 'Class-wise'} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`
+                        : (selectedType === 'Chest Number List'
+                            ? (activeSubmode === 'card'
+                                ? `Scope: ${categoryName}${className ? ` (${className})` : ''} | Mode: Chest Number & Program Card | Team: ${teamName} [${format.toUpperCase()}]`
+                                : `Scope: ${categoryName}${className ? ` (${className})` : ''} | Mode: ${chestMode === 'category-wise' ? 'Category-wise' : 'Class-wise'} | Team: ${teamName} [${format.toUpperCase()}]`)
+                            : `Scope: ${categoryName}${className ? ` (${className})` : ''} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`)),
                 status: 'Pending',
                 queuedAt: serverTimestamp(),
                 completedIn: '—',
@@ -2233,7 +2233,7 @@ function resolveWinnerParticipant(prog, w, participantsList, studentMap) {
     const isGroupEvent = pType === 'group' || prog.type === 'Group';
 
     let matchedPart = null;
-    
+
     // 1. Match by groupId
     if (w.groupId) {
         matchedPart = parts.find(p => p.id === w.groupId);
@@ -2730,6 +2730,22 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     return ctx.measureText(text).width;
                 };
 
+                // Pre-verify Poppins font loading from Google Fonts before measuring layouts
+                if (document.fonts && document.fonts.load) {
+                    try {
+                        await Promise.all([
+                            document.fonts.load('400 14px "Poppins"'),
+                            document.fonts.load('500 14px "Poppins"'),
+                            document.fonts.load('600 14px "Poppins"'),
+                            document.fonts.load('700 14px "Poppins"'),
+                            document.fonts.load('800 14px "Poppins"')
+                        ]);
+                        await document.fonts.ready;
+                    } catch (fontErr) {
+                        console.warn('Poppins font verification warning:', fontErr);
+                    }
+                }
+
                 // Create offscreen test container for exact browser layout-based measurements
                 const testContainer = document.createElement('div');
                 testContainer.id = 'offscreen-card-test-container';
@@ -2740,6 +2756,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                 const testStyle = document.createElement('style');
                 testStyle.textContent = `
+                    @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap');
                     .student-card-item {
                         border: none !important;
                         border-radius: 0 !important;
@@ -2755,31 +2772,37 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         flex-direction: column;
                         gap: 6px;
                         font-size: 0.72rem;
+                        font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                        color: #16213E;
                     }
                     .card-header {
                         display: flex;
                         justify-content: space-between;
-                        align-items: flex-start;
-                        border-bottom: 2px solid #e2e8f0;
+                        align-items: center;
+                        border-bottom: 1.5px solid #E5E7EB;
                         padding-bottom: 6px;
-                        margin-bottom: 4px;
+                        margin-bottom: 6px;
                     }
                     .card-header-left {
                         display: flex;
                         flex-direction: column;
-                        gap: 2px;
-                        max-width: 160px;
+                        gap: 3px;
+                        max-width: 155px;
                     }
                     .card-student-name {
+                        font-family: 'Poppins', sans-serif;
                         font-weight: 800;
-                        color: #0f172a;
+                        color: #16213E;
                         text-transform: uppercase;
-                        line-height: 1.1;
+                        line-height: 1.05;
+                        letter-spacing: -0.01em;
+                        margin-bottom: 4px;
                     }
                     .card-meta-line {
-                        font-weight: 600;
-                        color: #475569;
-                        line-height: 1.1;
+                        font-family: 'Poppins', sans-serif;
+                        font-weight: 500;
+                        color: #374151;
+                        line-height: 1.15;
                         margin-top: 2px;
                         white-space: normal;
                         word-break: break-word;
@@ -2789,12 +2812,36 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         -webkit-box-orient: vertical;
                     }
                     .card-chest-badge {
-                        border: 1.5px solid #0f172a;
+                        border: 1.5px solid #16213E;
                         border-radius: 6px;
-                        padding: 4px 8px;
+                        padding: 6px 10px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
                         text-align: center;
                         background: #f8fafc;
-                        min-width: 65px;
+                        min-width: 78px;
+                        min-height: 48px;
+                        box-sizing: border-box;
+                    }
+                    .card-chest-label {
+                        font-family: 'Poppins', sans-serif;
+                        font-size: 0.50rem;
+                        font-weight: 600;
+                        color: #475569;
+                        text-transform: uppercase;
+                        letter-spacing: 0.05em;
+                        line-height: 1;
+                        margin-bottom: 2px;
+                    }
+                    .card-chest-number {
+                        font-family: 'Poppins', sans-serif;
+                        font-size: 1.40rem;
+                        font-weight: 800;
+                        color: #16213E;
+                        line-height: 1;
+                        text-align: center;
                     }
                     .team-art-theme-0 {
                         position: absolute;
@@ -3029,22 +3076,22 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         const eventLogo = eventDetails.eventLogo || null;
 
                         const eventHeaderHTML = `
-                            <div class="card-event-header" style="display: flex; flex-direction: column; align-items: center; text-align: center; border-bottom: 1.5px solid #000; padding-bottom: 4px; margin-bottom: 4px; gap: 2px; width: 100%;">
+                            <div class="card-event-header" style="display: flex; flex-direction: column; align-items: center; text-align: center; border-bottom: 1.5px solid #E5E7EB; padding-bottom: 5px; margin-bottom: 5px; gap: 3px; width: 100%;">
                                 ${eventLogo ? `<img src="${eventLogo}" style="width: 30px; height: 30px; object-fit: contain; margin-bottom: 2px;" />` : ''}
-                                <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; line-height: 1.1; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #000;">${window.escapeHTML(eventName)}</div>
-                                ${eventTagline ? `<div style="font-size: 0.52rem; font-weight: 600; color: #475569; line-height: 1.1; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${window.escapeHTML(eventTagline)}</div>` : ''}
-                                <div style="font-size: 0.55rem; font-weight: 700; text-transform: uppercase; line-height: 1.1; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #000;">${window.escapeHTML(madrasaName)}</div>
-                                ${eventLocation ? `<div style="font-size: 0.52rem; font-weight: 600; color: #475569; line-height: 1.1; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${window.escapeHTML(eventLocation)}</div>` : ''}
+                                <div style="font-family: 'Poppins', sans-serif; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; line-height: 1.1; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #16213E;">${window.escapeHTML(eventName)}</div>
+                                ${eventTagline ? `<div style="font-family: 'Poppins', sans-serif; font-size: 0.52rem; font-weight: 500; color: #475569; line-height: 1.1; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${window.escapeHTML(eventTagline)}</div>` : ''}
+                                <div style="font-family: 'Noto Sans Malayalam', 'Meera', 'Manjari', 'Poppins', sans-serif; font-size: 0.55rem; font-weight: 600; text-transform: uppercase; line-height: 1.1; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #16213E;">${window.escapeHTML(madrasaName)}</div>
+                                ${eventLocation ? `<div style="font-family: 'Poppins', sans-serif; font-size: 0.52rem; font-weight: 500; color: #64748b; line-height: 1.1; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px;">${window.escapeHTML(eventLocation)}</div>` : ''}
                             </div>
                         `;
 
-                        // 1. Participant name font fitting (starts at 18px ~ 13.5pt, min 11px ~ 8pt)
-                        let nameFontSize = 18;
+                        // 1. Participant name font fitting (starts at 20px ~ 15pt, min 11px ~ 8pt)
+                        let nameFontSize = 20;
                         const minNameFontSize = 11;
                         const nameStr = stu.name.toUpperCase();
 
                         while (nameFontSize > minNameFontSize) {
-                            const fontSpec = `900 ${nameFontSize}px sans-serif`;
+                            const fontSpec = `800 ${nameFontSize}px 'Poppins', sans-serif`;
                             if (getTextWidth(nameStr, fontSpec) <= 160) {
                                 break;
                             }
@@ -3054,9 +3101,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         const teamName = teamNamesMap[stu.teamId] || stu.teamName || '';
                         const classVal = stu.className || stu.classId || '—';
                         const catVal = stu.categoryName || stu.categoryId || '—';
-                        const genderVal = stu.gender || '—';
                         const teamVal = teamName && teamName.trim() !== '' && teamName !== '—' ? teamName : 'NO TEAM';
-                        const metaText = `Class ${classVal} • ${catVal} • ${genderVal} • ${teamVal}`;
+                        const metaText = `Class ${classVal} • ${catVal} • ${teamVal}`;
 
                         // Determine cyclic theme index (0-3) based on team ID or team name within the current dataset
                         const getTeamThemeIndex = (tId, tVal) => {
@@ -3169,13 +3215,13 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             sections.forEach((sec, sIdx) => {
                                 const isLast = sIdx === sections.length - 1;
                                 const currentSecGap = isLast ? 0 : sectionGap;
-                                
+
                                 const headingTitle = sec.title === 'OFF-STAGE PROGRAMS' ? 'OFF STAGE PROGRAMS' : sec.title;
                                 const sectionFontSize = (itemFontSize * 0.75).toFixed(1);
 
                                 sectionsHTML += `
                                     <div class="card-section" style="margin-top: 2px; margin-bottom: ${currentSecGap}px; page-break-inside: avoid; break-inside: avoid; display: flex; flex-direction: column; align-items: center; width: 100%;">
-                                        <div style="font-size: ${sectionFontSize}px; font-weight: 700; text-transform: uppercase; text-align: center; letter-spacing: 0.5px; line-height: 1.1; margin-top: ${sIdx === 0 ? 0 : sectionGap}px; margin-bottom: 2px; color: #0f172a; width: 100%; display: block;">
+                                        <div style="font-family: 'Poppins', sans-serif; font-size: ${sectionFontSize}px; font-weight: 600; text-transform: uppercase; text-align: center; letter-spacing: 0.5px; line-height: 1.1; margin-top: ${sIdx === 0 ? 0 : sectionGap}px; margin-bottom: 2px; color: #243B53; width: 100%; display: block;">
                                             ${headingTitle}
                                         </div>
                                         <ul class="card-program-list" style="gap: ${programRowGap}px; display: flex; flex-direction: column; align-items: center; width: 100%; margin: 0; padding: 0; list-style: none;">
@@ -3189,7 +3235,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     return `
                                                     <li class="card-program-item" style="font-size: ${p.finalFontSize}px; line-height: ${progLineHeight}; margin-bottom: ${programRowGap}px; display: flex !important; align-items: center !important; justify-content: center !important; text-align: center !important; gap: 4px; width: 100%;">
                                                         <span style="flex-shrink: 0; font-size: 0.7em; display: inline-flex; align-items: center; justify-content: center;">🔹</span>
-                                                        <span class="program-left" style="font-weight: 600; text-align: center !important;">${window.escapeHTML(displayName)}</span>
+                                                        <span class="program-left" style="font-family: 'Poppins', sans-serif; font-weight: 500; color: #16213E; text-align: center !important;">${window.escapeHTML(displayName)}</span>
                                                     </li>
                                                 `;
                                 }).join('')}
@@ -3572,58 +3618,64 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     .card-header {
                         display: flex;
                         justify-content: space-between;
-                        align-items: flex-start;
-                        border-bottom: 2px solid #e2e8f0;
+                        align-items: center;
+                        border-bottom: 1.5px solid #E5E7EB;
                         padding-bottom: 6px;
-                        margin-bottom: 4px;
+                        margin-bottom: 6px;
                     }
                     .card-header-left {
                         display: flex;
                         flex-direction: column;
-                        gap: 2px;
-                        max-width: 160px;
+                        gap: 3px;
+                        max-width: 155px;
                     }
                     .card-student-name {
+                        font-family: 'Poppins', sans-serif;
                         font-size: 0.95rem;
                         font-weight: 800;
-                        color: #0f172a;
+                        color: #16213E;
                         text-transform: uppercase;
-                        line-height: 1.1;
-                    }
-                    .card-subtitle {
-                        font-size: 0.65rem;
-                        font-weight: 600;
-                        color: #64748b;
-                        text-transform: uppercase;
-                        letter-spacing: 0.05em;
+                        line-height: 1.05;
+                        letter-spacing: -0.01em;
+                        margin-bottom: 4px;
                     }
                     .card-chest-badge {
-                        border: 1.5px solid #0f172a;
+                        border: 1.5px solid #16213E;
                         border-radius: 6px;
-                        padding: 4px 8px;
+                        padding: 6px 10px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
                         text-align: center;
                         background: #f8fafc;
-                        min-width: 65px;
+                        min-width: 78px;
+                        min-height: 48px;
+                        box-sizing: border-box;
                     }
                     .card-chest-label {
-                        font-size: 0.55rem;
-                        font-weight: 800;
-                        color: #64748b;
+                        font-family: 'Poppins', sans-serif;
+                        font-size: 0.50rem;
+                        font-weight: 600;
+                        color: #475569;
                         text-transform: uppercase;
                         letter-spacing: 0.05em;
                         line-height: 1;
                         margin-bottom: 2px;
                     }
                     .card-chest-number {
-                        font-size: 1.05rem;
-                        font-weight: 900;
-                        color: #0f172a;
+                        font-family: 'Poppins', sans-serif;
+                        font-size: 1.40rem;
+                        font-weight: 800;
+                        color: #16213E;
                         line-height: 1;
+                        text-align: center;
                     }
                     .card-meta-line {
-                        font-weight: 600;
-                        color: #475569;
-                        line-height: 1.1;
+                        font-family: 'Poppins', sans-serif;
+                        font-weight: 500;
+                        color: #374151;
+                        line-height: 1.15;
                         margin-top: 2px;
                         white-space: normal;
                         word-break: break-word;
@@ -3653,9 +3705,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         margin-top: 0;
                     }
                     .card-section-title {
+                        font-family: 'Poppins', sans-serif;
                         font-size: 0.68rem;
-                        font-weight: 800;
-                        color: #0f172a;
+                        font-weight: 600;
+                        color: #243B53;
                         text-transform: uppercase;
                         display: flex;
                         align-items: center;
@@ -3667,7 +3720,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         display: inline-block;
                         width: 3px;
                         height: 9px;
-                        background: #0f172a;
+                        background: #243B53;
                         border-radius: 1px;
                     }
                     .card-program-list {
@@ -3679,9 +3732,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         gap: 3px;
                     }
                     .card-program-item {
+                        font-family: 'Poppins', sans-serif;
                         font-size: 0.68rem;
-                        font-weight: 600;
-                        color: #334155;
+                        font-weight: 500;
+                        color: #16213E;
                         width: 100%;
                         display: block;
                     }
@@ -5352,7 +5406,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             else if (slotIdx === 1) gridStyle = 'grid-row: 1; grid-column: 2;';
                             else if (slotIdx === 2) gridStyle = 'grid-row: 2; grid-column: 1;';
                             else if (slotIdx === 3) gridStyle = 'grid-row: 2; grid-column: 2;';
-                            
+
                             page.cards.push({ p, parts, isTall: false, gridStyle });
                             placed = true;
                             break;
@@ -5807,84 +5861,84 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             const filteredResults = filterResultsBySource(resultsList, f);
 
             if (filteredResults.length === 0) {
-            htmlContent = `
+                htmlContent = `
                 <div style="text-align:center; padding:4rem; color:#dc2626; border:1px solid #fecaca; border-radius:12px; background:#fef2f2;">
                     <h3 style="margin:0;">⚠️ No matching published results found.</h3>
                     <p style="color:#64748b; margin-top:0.25rem; font-weight:600;">Make sure marks have been published and filters match properly.</p>
                 </div>
             `;
-        }
+            }
 
-        else {
-            // Aggregator arrays
-            const teamPoints = new Map();
-            const categoryScores = new Map(); // categoryId -> Map(studentKey -> { name, team, points })
+            else {
+                // Aggregator arrays
+                const teamPoints = new Map();
+                const categoryScores = new Map(); // categoryId -> Map(studentKey -> { name, team, points })
 
-            allTeams.forEach(t => teamPoints.set(t.name, 0));
-            allCategories.forEach(c => categoryScores.set(c.id, new Map()));
+                allTeams.forEach(t => teamPoints.set(t.name, 0));
+                allCategories.forEach(c => categoryScores.set(c.id, new Map()));
 
-            filteredResults.forEach(r => {
-                const prog = allPrograms.find(p => p.id === r.programId);
-                if (!prog) return;
+                filteredResults.forEach(r => {
+                    const prog = allPrograms.find(p => p.id === r.programId);
+                    if (!prog) return;
 
-                if (Array.isArray(r.marksData) && r.marksData.length > 0) {
-                    r.marksData.forEach(w => {
-                        const team = w.teamName;
-                        const pts = Number(w.totalPoints) || 0;
-                        if (w.teamId && w.teamId !== 'teamless' && team && team !== 'No Team' && pts > 0) {
-                            teamPoints.set(team, (teamPoints.get(team) || 0) + pts);
-                        }
-                        // For Category Champions accumulation
-                        if (w.studentName && prog.categoryId) {
-                            const map = categoryScores.get(prog.categoryId);
-                            if (map) {
-                                const key = w.studentName;
-                                if (!map.has(key)) {
-                                    map.set(key, { name: w.studentName, teamName: w.teamName || '—', points: 0 });
-                                }
-                                map.get(key).points += pts;
+                    if (Array.isArray(r.marksData) && r.marksData.length > 0) {
+                        r.marksData.forEach(w => {
+                            const team = w.teamName;
+                            const pts = Number(w.totalPoints) || 0;
+                            if (w.teamId && w.teamId !== 'teamless' && team && team !== 'No Team' && pts > 0) {
+                                teamPoints.set(team, (teamPoints.get(team) || 0) + pts);
                             }
-                        }
-                    });
-                } else if (Array.isArray(r.winners)) {
-                    r.winners.forEach(w => {
-                        const team = w.teamName;
-                        const pts = Number(w.marks) || 0;
-                        if (w.teamId && w.teamId !== 'teamless' && team && team !== 'No Team' && pts > 0) {
-                            teamPoints.set(team, (teamPoints.get(team) || 0) + pts);
-                        }
-                        // For Category Champions accumulation
-                        if (w.studentName && prog.categoryId) {
-                            const map = categoryScores.get(prog.categoryId);
-                            if (map) {
-                                const key = w.studentName;
-                                if (!map.has(key)) {
-                                    map.set(key, { name: w.studentName, teamName: w.teamName || '—', points: 0 });
+                            // For Category Champions accumulation
+                            if (w.studentName && prog.categoryId) {
+                                const map = categoryScores.get(prog.categoryId);
+                                if (map) {
+                                    const key = w.studentName;
+                                    if (!map.has(key)) {
+                                        map.set(key, { name: w.studentName, teamName: w.teamName || '—', points: 0 });
+                                    }
+                                    map.get(key).points += pts;
                                 }
-                                map.get(key).points += pts;
                             }
-                        }
-                    });
-                }
-            });
+                        });
+                    } else if (Array.isArray(r.winners)) {
+                        r.winners.forEach(w => {
+                            const team = w.teamName;
+                            const pts = Number(w.marks) || 0;
+                            if (w.teamId && w.teamId !== 'teamless' && team && team !== 'No Team' && pts > 0) {
+                                teamPoints.set(team, (teamPoints.get(team) || 0) + pts);
+                            }
+                            // For Category Champions accumulation
+                            if (w.studentName && prog.categoryId) {
+                                const map = categoryScores.get(prog.categoryId);
+                                if (map) {
+                                    const key = w.studentName;
+                                    if (!map.has(key)) {
+                                        map.set(key, { name: w.studentName, teamName: w.teamName || '—', points: 0 });
+                                    }
+                                    map.get(key).points += pts;
+                                }
+                            }
+                        });
+                    }
+                });
 
-            // 1. Team Championship Standings (Phase 6) - Omitted from result report export as requested
-            const sortedTeamStandings = [...teamPoints.entries()]
-                .sort((a, b) => b[1] - a[1])
-                .map(([name, points], idx) => ({ rank: idx + 1, team: name, points }));
+                // 1. Team Championship Standings (Phase 6) - Omitted from result report export as requested
+                const sortedTeamStandings = [...teamPoints.entries()]
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([name, points], idx) => ({ rank: idx + 1, team: name, points }));
 
-            // 2. Category Champions Summaries (Phase 6)
-            let categoryHTML = '';
-            allCategories.forEach(cat => {
-                const map = categoryScores.get(cat.id);
-                if (!map || map.size === 0) return;
+                // 2. Category Champions Summaries (Phase 6)
+                let categoryHTML = '';
+                allCategories.forEach(cat => {
+                    const map = categoryScores.get(cat.id);
+                    if (!map || map.size === 0) return;
 
-                const sortedStudents = [...map.values()].sort((a, b) => b.points - a.points);
-                const champ = sortedStudents[0];
-                const runner = sortedStudents[1];
-                const third = sortedStudents[2];
+                    const sortedStudents = [...map.values()].sort((a, b) => b.points - a.points);
+                    const champ = sortedStudents[0];
+                    const runner = sortedStudents[1];
+                    const third = sortedStudents[2];
 
-                categoryHTML += `
+                    categoryHTML += `
                     <div style="border:1px solid #cbd5e1; border-radius:12px; padding:1.25rem; background:#ffffff; margin-bottom:1.5rem; page-break-inside:avoid; box-shadow:0 2px 4px rgba(0,0,0,0.01);">
                         <h3 style="margin-top:0; color:#4338ca; border-bottom:2px solid #e2e8f0; padding-bottom:0.4rem; font-size:1rem; font-weight:800; text-transform:uppercase;">
                             🏷️ CATEGORY CHAMPIONSHIP: ${window.escapeHTML(cat.name)}
@@ -5924,10 +5978,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         </div>
                     </div>
                 `;
-            });
+                });
 
-            if (categoryHTML) {
-                htmlContent += `
+                if (categoryHTML) {
+                    htmlContent += `
                     <div class="program-page-standard" style="page-break-after:always;">
                         <div style="text-align:center; margin-bottom:2rem; border-bottom:3px double #4338ca; padding-bottom:1rem;">
                             <span style="font-size:0.8rem; font-weight:800; color:#4338ca; letter-spacing:0.1em; text-transform:uppercase;">🏆 CATEGORY INDIVIDUAL TOURNAMENT GLORY</span>
@@ -5936,45 +5990,45 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         ${categoryHTML}
                     </div>
                 `;
-            }
+                }
 
-            // 3. Program Wise Results (Phase 6)
-            if (f.resultSubOption === 'Team Wise') {
-                const teamWinners = new Map();
-                filteredResults.forEach(r => {
-                    const winners = Array.isArray(r.winners) ? r.winners : [];
-                    winners.forEach(w => {
-                        if (!w.teamName || w.teamName === 'No Team' || !w.teamId || w.teamId === 'teamless') return;
-                        if (f.teamId && w.teamId !== f.teamId) return;
+                // 3. Program Wise Results (Phase 6)
+                if (f.resultSubOption === 'Team Wise') {
+                    const teamWinners = new Map();
+                    filteredResults.forEach(r => {
+                        const winners = Array.isArray(r.winners) ? r.winners : [];
+                        winners.forEach(w => {
+                            if (!w.teamName || w.teamName === 'No Team' || !w.teamId || w.teamId === 'teamless') return;
+                            if (f.teamId && w.teamId !== f.teamId) return;
 
-                        const prog = allPrograms.find(p => p.id === r.programId);
-                        if (!prog) return;
+                            const prog = allPrograms.find(p => p.id === r.programId);
+                            if (!prog) return;
 
-                        const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                            const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
 
-                        if (!teamWinners.has(resolved.teamName)) {
-                            teamWinners.set(resolved.teamName, { First: [], Second: [], Third: [] });
-                        }
-                        const entry = {
-                            programName: r.programName,
-                            categoryName: r.categoryName,
-                            studentName: resolved.displayName,
-                            chestNumber: resolved.chestNumbers
-                        };
+                            if (!teamWinners.has(resolved.teamName)) {
+                                teamWinners.set(resolved.teamName, { First: [], Second: [], Third: [] });
+                            }
+                            const entry = {
+                                programName: r.programName,
+                                categoryName: r.categoryName,
+                                studentName: resolved.displayName,
+                                chestNumber: resolved.chestNumbers
+                            };
 
-                        if (w.position === 'First') teamWinners.get(resolved.teamName).First.push(entry);
-                        else if (w.position === 'Second') teamWinners.get(resolved.teamName).Second.push(entry);
-                        else if (w.position === 'Third') teamWinners.get(resolved.teamName).Third.push(entry);
+                            if (w.position === 'First') teamWinners.get(resolved.teamName).First.push(entry);
+                            else if (w.position === 'Second') teamWinners.get(resolved.teamName).Second.push(entry);
+                            else if (w.position === 'Third') teamWinners.get(resolved.teamName).Third.push(entry);
+                        });
                     });
-                });
 
-                const sortedTeamNames = [...teamWinners.keys()].sort();
-                sortedTeamNames.forEach(teamName => {
-                    const data = teamWinners.get(teamName);
+                    const sortedTeamNames = [...teamWinners.keys()].sort();
+                    sortedTeamNames.forEach(teamName => {
+                        const data = teamWinners.get(teamName);
 
-                    const renderRows = (list, posLabel, actualPos) => {
-                        if (list.length === 0) return `<tr><td colspan="6" style="color:#94a3b8; font-style:italic; font-size:0.75rem;">No ${posLabel} place winners recorded.</td></tr>`;
-                        return list.map(item => `
+                        const renderRows = (list, posLabel, actualPos) => {
+                            if (list.length === 0) return `<tr><td colspan="6" style="color:#94a3b8; font-style:italic; font-size:0.75rem;">No ${posLabel} place winners recorded.</td></tr>`;
+                            return list.map(item => `
                             <tr>
                                 <td style="text-align:center; font-weight:800;">${window.escapeHTML(item.chestNumber)}</td>
                                 <td style="font-weight:700; color:#1e293b;">${window.escapeHTML(item.studentName)}</td>
@@ -5984,9 +6038,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 <td style="font-weight:800; color:#1e293b;">${window.escapeHTML(item.programName)}</td>
                             </tr>
                         `).join('');
-                    };
+                        };
 
-                    htmlContent += `
+                        htmlContent += `
                         <div class="program-page-standard">
                             <div style="border-bottom:3px solid #1e1b4b; padding-bottom:0.5rem; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:flex-end;">
                                 <h2 style="color:#1e1b4b; margin:0;">👥 TEAM WINNERS INDEX: ${window.escapeHTML(teamName)}</h2>
@@ -6038,18 +6092,18 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             </table>
                         </div>
                     `;
-                });
-            }
+                    });
+                }
 
-            else if (f.resultSubOption === 'Program Wise') {
-                const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
-                filteredResults.forEach(r => {
-                    const winnersList = Array.isArray(r.winners) ? r.winners : [];
+                else if (f.resultSubOption === 'Program Wise') {
+                    const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
+                    filteredResults.forEach(r => {
+                        const winnersList = Array.isArray(r.winners) ? r.winners : [];
 
-                    const posOrder = { 'First': 1, 'Second': 2, 'Third': 3 };
-                    const sortedWinners = [...winnersList].sort((a, b) => (posOrder[a.position] || 4) - (posOrder[b.position] || 4));
+                        const posOrder = { 'First': 1, 'Second': 2, 'Third': 3 };
+                        const sortedWinners = [...winnersList].sort((a, b) => (posOrder[a.position] || 4) - (posOrder[b.position] || 4));
 
-                    htmlContent += `
+                        htmlContent += `
                         <div class="${pageDivClass}">
                             <div class="report-header">
                                 <div>
@@ -6079,33 +6133,33 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 </thead>
                                 <tbody>
                                     ${sortedWinners.length === 0 ? `<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:#64748b;">No winners recorded for this program.</td></tr>` :
-                            sortedWinners.map(w => {
-                                let posBadge = '';
-                                if (w.position === 'First') posBadge = '🥇 First';
-                                else if (w.position === 'Second') posBadge = '🥈 Second';
-                                else if (w.position === 'Third') posBadge = '🥉 Third';
-                                else posBadge = w.position;
+                                sortedWinners.map(w => {
+                                    let posBadge = '';
+                                    if (w.position === 'First') posBadge = '🥇 First';
+                                    else if (w.position === 'Second') posBadge = '🥈 Second';
+                                    else if (w.position === 'Third') posBadge = '🥉 Third';
+                                    else posBadge = w.position;
 
-                                let points = w.marks !== undefined ? `${w.marks} pts` : '0 pts';
-                                let match = null;
+                                    let points = w.marks !== undefined ? `${w.marks} pts` : '0 pts';
+                                    let match = null;
 
-                                if (Array.isArray(r.marksData)) {
-                                    match = r.marksData.find(m =>
-                                        (r.programType === 'group' && m.teamName === w.teamName) ||
-                                        (r.programType !== 'group' && m.studentId === w.studentId) ||
-                                        (r.programType !== 'group' && m.studentName === w.studentName)
-                                    );
-                                    if (match) {
-                                        points = match.totalPoints !== undefined ? `${match.totalPoints} pts` : points;
+                                    if (Array.isArray(r.marksData)) {
+                                        match = r.marksData.find(m =>
+                                            (r.programType === 'group' && m.teamName === w.teamName) ||
+                                            (r.programType !== 'group' && m.studentId === w.studentId) ||
+                                            (r.programType !== 'group' && m.studentName === w.studentName)
+                                        );
+                                        if (match) {
+                                            points = match.totalPoints !== undefined ? `${match.totalPoints} pts` : points;
+                                        }
                                     }
-                                }
 
-                                const prog = allPrograms.find(p => p.id === r.programId);
-                                const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
-                                const showGrade = r.gradeMode !== 'none';
-                                const gradeVal = showGrade ? (w.grade || (match && match.grade) || '—') : '';
+                                    const prog = allPrograms.find(p => p.id === r.programId);
+                                    const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                                    const showGrade = r.gradeMode !== 'none';
+                                    const gradeVal = showGrade ? (w.grade || (match && match.grade) || '—') : '';
 
-                                return `
+                                    return `
                                             <tr>
                                                 <td style="text-align:center; font-weight:900; color:#1e1b4b;">${posBadge}</td>
                                                 <td style="text-align:center; font-weight:800; color:#0f172a;">${window.escapeHTML(resolved.chestNumbers)}</td>
@@ -6115,81 +6169,81 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                 <td style="text-align:center; font-weight:900; color:#16a34a;">${points}</td>
                                             </tr>
                                         `;
-                            }).join('')}
+                                }).join('')}
                                 </tbody>
                             </table>
                         </div>
                     `;
-                });
-            }
+                    });
+                }
 
-            else if (f.resultSubOption === 'Student Prize Distribution') {
-                const studentPrizes = new Map();
+                else if (f.resultSubOption === 'Student Prize Distribution') {
+                    const studentPrizes = new Map();
 
-                filteredResults.forEach(r => {
-                    const isGeneral = (r.programType || '').toLowerCase() === 'general' || r.categoryId === 'general_programs';
-                    const isGroup = (r.programType || '').toLowerCase() === 'group';
-                    const pLoc = (r.programLocation || '').toLowerCase();
-                    
-                    let prizeCat = 2; // Default to Off Stage Individual
-                    if (isGeneral) {
-                        prizeCat = 4;
-                    } else if (isGroup) {
-                        prizeCat = 3;
-                    } else if (pLoc === 'stage') {
-                        prizeCat = 1;
-                    }
+                    filteredResults.forEach(r => {
+                        const isGeneral = (r.programType || '').toLowerCase() === 'general' || r.categoryId === 'general_programs';
+                        const isGroup = (r.programType || '').toLowerCase() === 'group';
+                        const pLoc = (r.programLocation || '').toLowerCase();
 
-                    const winnersList = Array.isArray(r.winners) ? r.winners : [];
-                    winnersList.forEach(w => {
-                        const prog = allPrograms.find(p => p.id === r.programId);
-                        if (!prog) return;
+                        let prizeCat = 2; // Default to Off Stage Individual
+                        if (isGeneral) {
+                            prizeCat = 4;
+                        } else if (isGroup) {
+                            prizeCat = 3;
+                        } else if (pLoc === 'stage') {
+                            prizeCat = 1;
+                        }
 
-                        const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
-                        
-                        resolved.memberStudents.forEach(stu => {
-                            const chestNo = stu.chestNumber || '—';
-                            const stuKey = (chestNo && chestNo !== '—') ? chestNo : (stu.studentId || stu.name || 'unknown');
-                            
-                            if (!studentPrizes.has(stuKey)) {
-                                studentPrizes.set(stuKey, {
-                                    studentName: stu.name,
-                                    chestNumber: chestNo,
-                                    className: stu.className,
-                                    categoryName: stu.categoryName,
-                                    teamName: stu.teamName,
-                                    prizes: []
-                                });
-                            }
+                        const winnersList = Array.isArray(r.winners) ? r.winners : [];
+                        winnersList.forEach(w => {
+                            const prog = allPrograms.find(p => p.id === r.programId);
+                            if (!prog) return;
 
-                            const listObj = studentPrizes.get(stuKey);
-                            const alreadyAdded = listObj.prizes.some(p => p.programName === r.programName && p.position === w.position);
-                            if (!alreadyAdded) {
-                                listObj.prizes.push({
-                                    programName: r.programName,
-                                    position: w.position,
-                                    categoryIndex: prizeCat
-                                });
-                            }
+                            const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+
+                            resolved.memberStudents.forEach(stu => {
+                                const chestNo = stu.chestNumber || '—';
+                                const stuKey = (chestNo && chestNo !== '—') ? chestNo : (stu.studentId || stu.name || 'unknown');
+
+                                if (!studentPrizes.has(stuKey)) {
+                                    studentPrizes.set(stuKey, {
+                                        studentName: stu.name,
+                                        chestNumber: chestNo,
+                                        className: stu.className,
+                                        categoryName: stu.categoryName,
+                                        teamName: stu.teamName,
+                                        prizes: []
+                                    });
+                                }
+
+                                const listObj = studentPrizes.get(stuKey);
+                                const alreadyAdded = listObj.prizes.some(p => p.programName === r.programName && p.position === w.position);
+                                if (!alreadyAdded) {
+                                    listObj.prizes.push({
+                                        programName: r.programName,
+                                        position: w.position,
+                                        categoryIndex: prizeCat
+                                    });
+                                }
+                            });
                         });
                     });
-                });
 
-                if (studentPrizes.size === 0) {
-                    htmlContent = `<div style="text-align:center; padding:3rem; color:#64748b; font-weight:600;">No student prizes recorded under the selected parameters.</div>`;
-                } else {
-                    const sortedStudents = [...studentPrizes.values()].sort((a, b) => {
-                        const classA = a.className || '';
-                        const classB = b.className || '';
-                        const classCompare = classA.localeCompare(classB, undefined, { numeric: true, sensitivity: 'base' });
-                        if (classCompare !== 0) return classCompare;
+                    if (studentPrizes.size === 0) {
+                        htmlContent = `<div style="text-align:center; padding:3rem; color:#64748b; font-weight:600;">No student prizes recorded under the selected parameters.</div>`;
+                    } else {
+                        const sortedStudents = [...studentPrizes.values()].sort((a, b) => {
+                            const classA = a.className || '';
+                            const classB = b.className || '';
+                            const classCompare = classA.localeCompare(classB, undefined, { numeric: true, sensitivity: 'base' });
+                            if (classCompare !== 0) return classCompare;
 
-                        const chestA = a.chestNumber || '';
-                        const chestB = b.chestNumber || '';
-                        return chestA.localeCompare(chestB, undefined, { numeric: true, sensitivity: 'base' });
-                    });
+                            const chestA = a.chestNumber || '';
+                            const chestB = b.chestNumber || '';
+                            return chestA.localeCompare(chestB, undefined, { numeric: true, sensitivity: 'base' });
+                        });
 
-                    htmlContent = `
+                        htmlContent = `
                         <div class="program-page-standard">
                             <div style="border-bottom:3px solid #4338ca; padding-bottom:0.4rem; margin-bottom:0.75rem;">
                                 <h2 style="color:#1e1b4b; margin:0; font-weight:900;">STUDENT PRIZE DISTRIBUTION REGISTER</h2>
@@ -6209,12 +6263,12 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 </thead>
                                 <tbody>
                                     ${sortedStudents.map(stu => {
-                                        stu.prizes.sort((a, b) => a.categoryIndex - b.categoryIndex);
-                                        const prizeDetailsHtml = stu.prizes.map(p => {
-                                            return `<div style="font-size: 9.5px; font-weight: 600; color: #1e293b; line-height: 1.25; margin-bottom: 2px;">${window.escapeHTML(p.programName)} - ${window.escapeHTML(p.position)}</div>`;
-                                        }).join('');
+                            stu.prizes.sort((a, b) => a.categoryIndex - b.categoryIndex);
+                            const prizeDetailsHtml = stu.prizes.map(p => {
+                                return `<div style="font-size: 9.5px; font-weight: 600; color: #1e293b; line-height: 1.25; margin-bottom: 2px;">${window.escapeHTML(p.programName)} - ${window.escapeHTML(p.position)}</div>`;
+                            }).join('');
 
-                                        return `
+                            return `
                                             <tr style="height: 22px; page-break-inside: avoid;">
                                                 <td style="text-align:center; font-weight:900; color:#0f172a; font-size:11px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.chestNumber)}</td>
                                                 <td style="font-weight:800; color:#1e1b4b; font-size:10.5px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.studentName)}</td>
@@ -6228,133 +6282,133 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                 </td>
                                             </tr>
                                         `;
-                                    }).join('')}
+                        }).join('')}
                                 </tbody>
                             </table>
                         </div>
                     `;
+                    }
                 }
-            }
 
-            else if (f.resultSubOption === 'Prize Distribution Register') {
-                const positions = ['First', 'Second', 'Third'];
-                const positionTitles = {
-                    'First': '🥇 SECTION 1: FIRST PLACE WINNERS',
-                    'Second': '🥈 SECTION 2: SECOND PLACE WINNERS',
-                    'Third': '🥉 SECTION 3: THIRD PLACE WINNERS'
-                };
+                else if (f.resultSubOption === 'Prize Distribution Register') {
+                    const positions = ['First', 'Second', 'Third'];
+                    const positionTitles = {
+                        'First': '🥇 SECTION 1: FIRST PLACE WINNERS',
+                        'Second': '🥈 SECTION 2: SECOND PLACE WINNERS',
+                        'Third': '🥉 SECTION 3: THIRD PLACE WINNERS'
+                    };
 
-                const sectionsData = {
-                    'First': { 'Stage': [], 'Off Stage': [], 'Group': [], 'General': [] },
-                    'Second': { 'Stage': [], 'Off Stage': [], 'Group': [], 'General': [] },
-                    'Third': { 'Stage': [], 'Off Stage': [], 'Group': [], 'General': [] }
-                };
+                    const sectionsData = {
+                        'First': { 'Stage': [], 'Off Stage': [], 'Group': [], 'General': [] },
+                        'Second': { 'Stage': [], 'Off Stage': [], 'Group': [], 'General': [] },
+                        'Third': { 'Stage': [], 'Off Stage': [], 'Group': [], 'General': [] }
+                    };
 
-                filteredResults.forEach(r => {
-                    const prog = allPrograms.find(p => p.id === r.programId);
-                    if (!prog) return;
+                    filteredResults.forEach(r => {
+                        const prog = allPrograms.find(p => p.id === r.programId);
+                        if (!prog) return;
 
-                    const pLoc = (prog.programLocation || prog.location || 'Stage');
-                    const isOffStage = pLoc.toLowerCase() === 'off stage';
-                    if (f.programLocation) {
-                        if (f.programLocation.toLowerCase() === 'stage' && isOffStage) return;
-                        if (f.programLocation.toLowerCase() === 'off stage' && !isOffStage) return;
-                    }
+                        const pLoc = (prog.programLocation || prog.location || 'Stage');
+                        const isOffStage = pLoc.toLowerCase() === 'off stage';
+                        if (f.programLocation) {
+                            if (f.programLocation.toLowerCase() === 'stage' && isOffStage) return;
+                            if (f.programLocation.toLowerCase() === 'off stage' && !isOffStage) return;
+                        }
 
-                    const isGeneral = (prog.categoryId === 'general_programs' || prog.programType === 'general' || r.categoryId === 'general_programs' || r.programType === 'general');
-                    const isGroup = prog.programType === 'group' || r.programType === 'group';
-                    const isIndividual = !isGeneral && !isGroup;
+                        const isGeneral = (prog.categoryId === 'general_programs' || prog.programType === 'general' || r.categoryId === 'general_programs' || r.programType === 'general');
+                        const isGroup = prog.programType === 'group' || r.programType === 'group';
+                        const isIndividual = !isGeneral && !isGroup;
 
-                    if (f.participationType) {
-                        if (f.participationType === 'general' && !isGeneral) return;
-                        if (f.participationType === 'group' && !isGroup) return;
-                        if (f.participationType === 'individual' && !isIndividual) return;
-                    }
+                        if (f.participationType) {
+                            if (f.participationType === 'general' && !isGeneral) return;
+                            if (f.participationType === 'group' && !isGroup) return;
+                            if (f.participationType === 'individual' && !isIndividual) return;
+                        }
 
-                    let subKey = 'Stage';
-                    if (isGeneral) subKey = 'General';
-                    else if (isGroup) subKey = 'Group';
-                    else if (isOffStage) subKey = 'Off Stage';
+                        let subKey = 'Stage';
+                        if (isGeneral) subKey = 'General';
+                        else if (isGroup) subKey = 'Group';
+                        else if (isOffStage) subKey = 'Off Stage';
 
-                    const winnersList = Array.isArray(r.winners) ? r.winners : [];
+                        const winnersList = Array.isArray(r.winners) ? r.winners : [];
 
-                    winnersList.forEach(w => {
-                        const posKey = w.position;
-                        if (!sectionsData[posKey]) return;
+                        winnersList.forEach(w => {
+                            const posKey = w.position;
+                            if (!sectionsData[posKey]) return;
 
-                        const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
-                        let members = resolved.memberStudents || [];
+                            const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                            let members = resolved.memberStudents || [];
 
-                        members = members.filter(stu => {
-                            if (f.gender) {
-                                const g = stu.gender || (studentMap[stu.studentId] && studentMap[stu.studentId].gender) || '';
-                                if (f.gender === 'Boys' && g !== 'Male') return false;
-                                if (f.gender === 'Girls' && g !== 'Female') return false;
-                            }
-                            if (f.classId) {
-                                const cId = stu.classId || (studentMap[stu.studentId] && studentMap[stu.studentId].classId) || '';
-                                if (cId && cId !== f.classId) return false;
-                            }
-                            if (f.teamId) {
-                                const tId = stu.teamId || resolved.teamId || w.teamId || (studentMap[stu.studentId] && studentMap[stu.studentId].teamId) || '';
-                                if (tId && tId !== f.teamId) return false;
-                            }
-                            return true;
-                        });
+                            members = members.filter(stu => {
+                                if (f.gender) {
+                                    const g = stu.gender || (studentMap[stu.studentId] && studentMap[stu.studentId].gender) || '';
+                                    if (f.gender === 'Boys' && g !== 'Male') return false;
+                                    if (f.gender === 'Girls' && g !== 'Female') return false;
+                                }
+                                if (f.classId) {
+                                    const cId = stu.classId || (studentMap[stu.studentId] && studentMap[stu.studentId].classId) || '';
+                                    if (cId && cId !== f.classId) return false;
+                                }
+                                if (f.teamId) {
+                                    const tId = stu.teamId || resolved.teamId || w.teamId || (studentMap[stu.studentId] && studentMap[stu.studentId].teamId) || '';
+                                    if (tId && tId !== f.teamId) return false;
+                                }
+                                return true;
+                            });
 
-                        if (members.length === 0) return;
+                            if (members.length === 0) return;
 
-                        members.forEach(stu => {
-                            sectionsData[posKey][subKey].push({
-                                programName: r.programName || prog.programName || '—',
-                                programNumber: prog.programNumber || '',
-                                categoryName: r.categoryName || prog.categoryName || 'General',
-                                chestNumber: stu.chestNumber || '—',
-                                studentName: stu.name || '—',
-                                teamName: stu.teamName || resolved.teamName || w.teamName || '—',
-                                className: stu.className || '—'
+                            members.forEach(stu => {
+                                sectionsData[posKey][subKey].push({
+                                    programName: r.programName || prog.programName || '—',
+                                    programNumber: prog.programNumber || '',
+                                    categoryName: r.categoryName || prog.categoryName || 'General',
+                                    chestNumber: stu.chestNumber || '—',
+                                    studentName: stu.name || '—',
+                                    teamName: stu.teamName || resolved.teamName || w.teamName || '—',
+                                    className: stu.className || '—'
+                                });
                             });
                         });
                     });
-                });
 
-                let totalEntries = 0;
-                positions.forEach(pos => {
-                    ['Stage', 'Off Stage', 'Group', 'General'].forEach(sub => {
-                        totalEntries += sectionsData[pos][sub].length;
+                    let totalEntries = 0;
+                    positions.forEach(pos => {
+                        ['Stage', 'Off Stage', 'Group', 'General'].forEach(sub => {
+                            totalEntries += sectionsData[pos][sub].length;
+                        });
                     });
-                });
 
-                if (totalEntries === 0) {
-                    htmlContent = `<div style="text-align:center; padding:3rem; color:#64748b; font-weight:600;">No prize winners found matching the selected parameters.</div>`;
-                } else {
-                    let sectionsHtml = '';
+                    if (totalEntries === 0) {
+                        htmlContent = `<div style="text-align:center; padding:3rem; color:#64748b; font-weight:600;">No prize winners found matching the selected parameters.</div>`;
+                    } else {
+                        let sectionsHtml = '';
 
-                    positions.forEach((posKey, posIdx) => {
-                        const posData = sectionsData[posKey];
-                        const posTotal = posData['Stage'].length + posData['Off Stage'].length + posData['Group'].length + posData['General'].length;
-                        if (posTotal === 0) return;
+                        positions.forEach((posKey, posIdx) => {
+                            const posData = sectionsData[posKey];
+                            const posTotal = posData['Stage'].length + posData['Off Stage'].length + posData['Group'].length + posData['General'].length;
+                            if (posTotal === 0) return;
 
-                        const subSectionLabels = {
-                            'Stage': '🎭 Stage Programs',
-                            'Off Stage': '🎨 Off Stage Programs',
-                            'Group': '👥 Group Programs',
-                            'General': '🌐 General Programs'
-                        };
+                            const subSectionLabels = {
+                                'Stage': '🎭 Stage Programs',
+                                'Off Stage': '🎨 Off Stage Programs',
+                                'Group': '👥 Group Programs',
+                                'General': '🌐 General Programs'
+                            };
 
-                        let subSectionsHtml = '';
+                            let subSectionsHtml = '';
 
-                        ['Stage', 'Off Stage', 'Group', 'General'].forEach(subKey => {
-                            const items = posData[subKey];
-                            if (items.length === 0) return;
+                            ['Stage', 'Off Stage', 'Group', 'General'].forEach(subKey => {
+                                const items = posData[subKey];
+                                if (items.length === 0) return;
 
-                            items.sort((a, b) => {
-                                const pComp = a.programName.localeCompare(b.programName, undefined, { sensitivity: 'base' });
-                                if (pComp !== 0) return pComp;
-                                return a.chestNumber.localeCompare(b.chestNumber, undefined, { numeric: true, sensitivity: 'base' });
-                            });
+                                items.sort((a, b) => {
+                                    const pComp = a.programName.localeCompare(b.programName, undefined, { sensitivity: 'base' });
+                                    if (pComp !== 0) return pComp;
+                                    return a.chestNumber.localeCompare(b.chestNumber, undefined, { numeric: true, sensitivity: 'base' });
+                                });
 
-                            subSectionsHtml += `
+                                subSectionsHtml += `
                                 <div style="margin-top:1rem; margin-bottom:1.25rem;">
                                     <h4 style="margin:0 0 0.4rem 0; color:#4338ca; font-size:0.9rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em;">
                                         ${subSectionLabels[subKey]} (${items.length})
@@ -6385,9 +6439,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     </table>
                                 </div>
                             `;
-                        });
+                            });
 
-                        sectionsHtml += `
+                            sectionsHtml += `
                             <div class="program-page-standard" style="margin-bottom:2rem; ${posIdx > 0 ? 'page-break-before:always;' : ''}">
                                 <div style="border-bottom:3px solid #1e1b4b; padding-bottom:0.4rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:flex-end;">
                                     <h2 style="color:#1e1b4b; margin:0; font-weight:900;">${positionTitles[posKey]}</h2>
@@ -6396,9 +6450,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 ${subSectionsHtml}
                             </div>
                         `;
-                    });
+                        });
 
-                    htmlContent = `
+                        htmlContent = `
                         <div style="border-bottom:3px solid #4338ca; padding-bottom:0.4rem; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:flex-end;">
                             <div>
                                 <h2 style="color:#1e1b4b; margin:0; font-weight:900; text-transform:uppercase;">🏆 PRIZE DISTRIBUTION REGISTER</h2>
@@ -6410,136 +6464,136 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         </div>
                         ${sectionsHtml}
                     `;
-                }
-            }
-
-            else if (f.resultSubOption === 'Participants Without Major Prizes') {
-                const teamNamesMap = {};
-                allTeams.forEach(t => {
-                    teamNamesMap[t.id] = t.name;
-                });
-
-                const studentDataList = [];
-                Object.entries(studentMap).forEach(([studentId, stu]) => {
-                    if (f.categoryId && stu.categoryId !== f.categoryId) return;
-                    if (f.classId && stu.classId !== f.classId) return;
-                    if (f.teamId && stu.teamId !== f.teamId) return;
-                    if (f.gender === 'Boys' && stu.gender !== 'Male') return;
-                    if (f.gender === 'Girls' && stu.gender !== 'Female') return;
-
-                    const participations = [];
-                    const prizes = [];
-
-                    programs.forEach(p => {
-                        const pList = participantsMap[p.id] || [];
-                        const isPart = pList.some(part => {
-                            if (part.isGroup === true || Array.isArray(part.members)) {
-                                if (part.members && part.members.length > 0) {
-                                    return part.members.some(m => m.studentId === studentId || m.name === stu.name);
-                                } else {
-                                    return stu.teamId && stu.teamId === part.teamId;
-                                }
-                            } else {
-                                return part.studentId === studentId || part.name === stu.name;
-                            }
-                        });
-                        if (isPart) {
-                            participations.push(p.programName);
-                        }
-                    });
-
-                    filteredResults.forEach(r => {
-                        const prog = allPrograms.find(p => p.id === r.programId);
-                        if (!prog) return;
-
-                        const winners = Array.isArray(r.winners) ? r.winners : [];
-                        winners.forEach(w => {
-                            const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
-                            const isMember = resolved.memberStudents.some(mst => mst.studentId === studentId || mst.name === stu.name);
-                            if (isMember) {
-                                prizes.push(w.position);
-                            }
-                        });
-                    });
-
-                    const hasMajorPrize = prizes.some(p => p === 'First' || p === 'Second');
-                    if (hasMajorPrize) return;
-
-                    let statusLabel = '';
-                    if (participations.length === 0) {
-                        statusLabel = 'No Participation';
-                    } else {
-                        const hasThirdPrize = prizes.some(p => p === 'Third');
-                        statusLabel = hasThirdPrize ? 'Third Prize Only' : 'No Prize';
                     }
+                }
 
-                    studentDataList.push({
-                        studentId: studentId,
-                        chestNumber: stu.chestNumber || '—',
-                        name: stu.name,
-                        classId: stu.classId || 'standard',
-                        className: stu.className || 'Standard',
-                        categoryId: stu.categoryId || 'general',
-                        categoryName: stu.categoryName || 'General',
-                        teamName: teamNamesMap[stu.teamId] || stu.teamName || 'Independent',
-                        participationsCount: participations.length,
-                        participationsList: participations,
-                        status: statusLabel
+                else if (f.resultSubOption === 'Participants Without Major Prizes') {
+                    const teamNamesMap = {};
+                    allTeams.forEach(t => {
+                        teamNamesMap[t.id] = t.name;
                     });
-                });
 
-                if (studentDataList.length === 0) {
-                    htmlContent = `
+                    const studentDataList = [];
+                    Object.entries(studentMap).forEach(([studentId, stu]) => {
+                        if (f.categoryId && stu.categoryId !== f.categoryId) return;
+                        if (f.classId && stu.classId !== f.classId) return;
+                        if (f.teamId && stu.teamId !== f.teamId) return;
+                        if (f.gender === 'Boys' && stu.gender !== 'Male') return;
+                        if (f.gender === 'Girls' && stu.gender !== 'Female') return;
+
+                        const participations = [];
+                        const prizes = [];
+
+                        programs.forEach(p => {
+                            const pList = participantsMap[p.id] || [];
+                            const isPart = pList.some(part => {
+                                if (part.isGroup === true || Array.isArray(part.members)) {
+                                    if (part.members && part.members.length > 0) {
+                                        return part.members.some(m => m.studentId === studentId || m.name === stu.name);
+                                    } else {
+                                        return stu.teamId && stu.teamId === part.teamId;
+                                    }
+                                } else {
+                                    return part.studentId === studentId || part.name === stu.name;
+                                }
+                            });
+                            if (isPart) {
+                                participations.push(p.programName);
+                            }
+                        });
+
+                        filteredResults.forEach(r => {
+                            const prog = allPrograms.find(p => p.id === r.programId);
+                            if (!prog) return;
+
+                            const winners = Array.isArray(r.winners) ? r.winners : [];
+                            winners.forEach(w => {
+                                const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                                const isMember = resolved.memberStudents.some(mst => mst.studentId === studentId || mst.name === stu.name);
+                                if (isMember) {
+                                    prizes.push(w.position);
+                                }
+                            });
+                        });
+
+                        const hasMajorPrize = prizes.some(p => p === 'First' || p === 'Second');
+                        if (hasMajorPrize) return;
+
+                        let statusLabel = '';
+                        if (participations.length === 0) {
+                            statusLabel = 'No Participation';
+                        } else {
+                            const hasThirdPrize = prizes.some(p => p === 'Third');
+                            statusLabel = hasThirdPrize ? 'Third Prize Only' : 'No Prize';
+                        }
+
+                        studentDataList.push({
+                            studentId: studentId,
+                            chestNumber: stu.chestNumber || '—',
+                            name: stu.name,
+                            classId: stu.classId || 'standard',
+                            className: stu.className || 'Standard',
+                            categoryId: stu.categoryId || 'general',
+                            categoryName: stu.categoryName || 'General',
+                            teamName: teamNamesMap[stu.teamId] || stu.teamName || 'Independent',
+                            participationsCount: participations.length,
+                            participationsList: participations,
+                            status: statusLabel
+                        });
+                    });
+
+                    if (studentDataList.length === 0) {
+                        htmlContent = `
                         <div style="text-align:center; padding:4rem; color:#dc2626; border:1px solid #fecaca; border-radius:12px; background:#fef2f2;">
                             <h3 style="margin:0;">⚠️ No eligible students found.</h3>
                             <p style="color:#64748b; margin-top:0.25rem; font-weight:600;">All students have won major prizes or none matched filters.</p>
                         </div>
                     `;
-                } else {
-                    const grouped = {};
-                    studentDataList.forEach(stu => {
-                        const catId = stu.categoryId;
-                        const catName = stu.categoryName;
-                        const classId = stu.classId;
-                        const className = stu.className;
+                    } else {
+                        const grouped = {};
+                        studentDataList.forEach(stu => {
+                            const catId = stu.categoryId;
+                            const catName = stu.categoryName;
+                            const classId = stu.classId;
+                            const className = stu.className;
 
-                        if (!grouped[catId]) {
-                            grouped[catId] = {
-                                name: catName,
-                                classes: {}
-                            };
-                        }
+                            if (!grouped[catId]) {
+                                grouped[catId] = {
+                                    name: catName,
+                                    classes: {}
+                                };
+                            }
 
-                        if (!grouped[catId].classes[classId]) {
-                            grouped[catId].classes[classId] = {
-                                name: className,
-                                students: []
-                            };
-                        }
+                            if (!grouped[catId].classes[classId]) {
+                                grouped[catId].classes[classId] = {
+                                    name: className,
+                                    students: []
+                                };
+                            }
 
-                        grouped[catId].classes[classId].students.push(stu);
-                    });
-
-                    const sortedCatIds = Object.keys(grouped).sort((a, b) => grouped[a].name.localeCompare(grouped[b].name));
-
-                    sortedCatIds.forEach(catId => {
-                        const cat = grouped[catId];
-
-                        let noParticipationCount = 0;
-                        let noPrizeCount = 0;
-                        let thirdPrizeCount = 0;
-
-                        Object.values(cat.classes).forEach(cls => {
-                            cls.students.forEach(s => {
-                                if (s.status === 'No Participation') noParticipationCount++;
-                                else if (s.status === 'No Prize') noPrizeCount++;
-                                else if (s.status === 'Third Prize Only') thirdPrizeCount++;
-                            });
+                            grouped[catId].classes[classId].students.push(stu);
                         });
 
-                        const totalEligible = noParticipationCount + noPrizeCount + thirdPrizeCount;
+                        const sortedCatIds = Object.keys(grouped).sort((a, b) => grouped[a].name.localeCompare(grouped[b].name));
 
-                        htmlContent += `
+                        sortedCatIds.forEach(catId => {
+                            const cat = grouped[catId];
+
+                            let noParticipationCount = 0;
+                            let noPrizeCount = 0;
+                            let thirdPrizeCount = 0;
+
+                            Object.values(cat.classes).forEach(cls => {
+                                cls.students.forEach(s => {
+                                    if (s.status === 'No Participation') noParticipationCount++;
+                                    else if (s.status === 'No Prize') noPrizeCount++;
+                                    else if (s.status === 'Third Prize Only') thirdPrizeCount++;
+                                });
+                            });
+
+                            const totalEligible = noParticipationCount + noPrizeCount + thirdPrizeCount;
+
+                            htmlContent += `
                             <div class="program-page-standard" style="margin-bottom: 2rem;">
                                 <div style="border-bottom:3px solid #1e1b4b; padding-bottom:0.5rem; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:flex-end;">
                                     <div>
@@ -6556,34 +6610,34 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 </div>
                         `;
 
-                        const sortedClassIds = Object.keys(cat.classes).sort((a, b) => {
-                            const nameA = cat.classes[a].name;
-                            const nameB = cat.classes[b].name;
-                            return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
-                        });
-
-                        sortedClassIds.forEach(classId => {
-                            const cls = cat.classes[classId];
-
-                            const statusPriority = {
-                                'No Participation': 1,
-                                'No Prize': 2,
-                                'Third Prize Only': 3
-                            };
-                            const students = [...cls.students].sort((a, b) => {
-                                const pA = statusPriority[a.status] || 99;
-                                const pB = statusPriority[b.status] || 99;
-                                if (pA !== pB) return pA - pB;
-                                return a.name.localeCompare(b.name);
+                            const sortedClassIds = Object.keys(cat.classes).sort((a, b) => {
+                                const nameA = cat.classes[a].name;
+                                const nameB = cat.classes[b].name;
+                                return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
                             });
 
-                            const statusColors = {
-                                'No Participation': '#64748b',
-                                'No Prize': '#475569',
-                                'Third Prize Only': '#b45309'
-                            };
+                            sortedClassIds.forEach(classId => {
+                                const cls = cat.classes[classId];
 
-                            htmlContent += `
+                                const statusPriority = {
+                                    'No Participation': 1,
+                                    'No Prize': 2,
+                                    'Third Prize Only': 3
+                                };
+                                const students = [...cls.students].sort((a, b) => {
+                                    const pA = statusPriority[a.status] || 99;
+                                    const pB = statusPriority[b.status] || 99;
+                                    if (pA !== pB) return pA - pB;
+                                    return a.name.localeCompare(b.name);
+                                });
+
+                                const statusColors = {
+                                    'No Participation': '#64748b',
+                                    'No Prize': '#475569',
+                                    'Third Prize Only': '#b45309'
+                                };
+
+                                htmlContent += `
                                 <div style="margin-left:0.5rem; margin-top:0.75rem; margin-bottom:0.75rem; page-break-inside:avoid; break-inside:avoid;">
                                     <h4 style="color:#1e1b4b; font-size:0.85rem; font-weight:800; margin-bottom:0.35rem;">Class: ${window.escapeHTML(cls.name)}</h4>
                                     
@@ -6613,15 +6667,15 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     </table>
                                 </div>
                             `;
-                        });
+                            });
 
-                        htmlContent += `</div>`;
-                    });
+                            htmlContent += `</div>`;
+                        });
+                    }
                 }
             }
         }
     }
-}
 
     // ─────────────────────────────────────────────
     // Hidden Iframe Print Engine execution (Phase 8 popup blocker fix)
@@ -7311,7 +7365,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 const isGeneral = (r.programType || '').toLowerCase() === 'general' || r.categoryId === 'general_programs';
                 const isGroup = (r.programType || '').toLowerCase() === 'group';
                 const pLoc = (r.programLocation || '').toLowerCase();
-                
+
                 let prizeCat = 2; // Default to Off Stage Individual
                 if (isGeneral) {
                     prizeCat = 4;
@@ -7327,11 +7381,11 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     if (!prog) return;
 
                     const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
-                    
+
                     resolved.memberStudents.forEach(stu => {
                         const chestNo = stu.chestNumber || '—';
                         const stuKey = (chestNo && chestNo !== '—') ? chestNo : (stu.studentId || stu.name || 'unknown');
-                        
+
                         if (!studentPrizes.has(stuKey)) {
                             studentPrizes.set(stuKey, {
                                 studentName: stu.name,
