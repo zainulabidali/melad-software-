@@ -353,11 +353,47 @@ function animateCounterValue(element, start, end, duration, isPodium = false, su
     }, stepTime);
 }
 
-// Tracks the selected background style (1, 2, 3, or 4) per card result ID
+// Tracks the selected background style (1..10 or 'custom') per card result ID
 const cardBgMap = {};
 
 // Tracks the selected template style (1, 2, 3, or 4) per card result ID
 const cardTemplateMap = {};
+
+// LocalStorage storage keys for custom background support (device-only local persistence)
+const CUSTOM_BG_KEY = 'melad_custom_poster_bg_data';
+
+function getStoredCustomBg(cardId) {
+    try {
+        const stored = JSON.parse(localStorage.getItem(CUSTOM_BG_KEY) || '{}');
+        const url = stored[cardId];
+        if (url && typeof url === 'string' && url.startsWith('data:image/')) {
+            return url;
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function setStoredCustomBg(cardId, dataUrl) {
+    try {
+        const stored = JSON.parse(localStorage.getItem(CUSTOM_BG_KEY) || '{}');
+        stored[cardId] = dataUrl;
+        localStorage.setItem(CUSTOM_BG_KEY, JSON.stringify(stored));
+    } catch (e) {
+        console.warn('LocalStorage save failed:', e);
+    }
+}
+
+function getPosterBgUrl(cardId, bgChoice) {
+    if (bgChoice === 'custom') {
+        const customBg = getStoredCustomBg(cardId);
+        if (customBg) return customBg;
+    }
+    const num = parseInt(bgChoice, 10);
+    const validNum = (!isNaN(num) && num >= 1 && num <= 10) ? num : 1;
+    return `../assets/poster-backgrounds/bg${validNum}.jpg`;
+}
 
 // Preloaded background images cache
 const preloadedBgs = {};
@@ -907,7 +943,8 @@ function setupFilters() {
             const targetResult = docs[0];
 
             if (!cardBgMap[targetResult.id]) {
-                cardBgMap[targetResult.id] = 1;
+                const savedBg = localStorage.getItem(`melad_card_bg_${targetResult.id}`);
+                cardBgMap[targetResult.id] = savedBg ? (savedBg === 'custom' ? 'custom' : (parseInt(savedBg, 10) || 1)) : 1;
             }
             if (!cardTemplateMap[targetResult.id]) {
                 cardTemplateMap[targetResult.id] = 1;
@@ -1010,7 +1047,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
         return `
             <!-- Mini Dark Overlay & Blur -->
-            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.50); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.32); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); z-index: 1;"></div>
 
             <!-- Mini Bento Container -->
             <div style="position: absolute; top: 10px; bottom: 10px; left: 10px; right: 10px; background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; z-index: 2; box-sizing: border-box;">
@@ -1061,7 +1098,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
         return `
             <!-- Mini Dark Overlay & Blur -->
-            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.35); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); z-index: 1;"></div>
 
             <!-- Mini Editorial Container -->
             <div style="position: absolute; top: 8px; bottom: 8px; left: 8px; right: 8px; display: flex; flex-direction: column; justify-content: space-between; z-index: 2; box-sizing: border-box;">
@@ -1125,7 +1162,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
         return `
             <!-- Mini Dark Overlay & Blur -->
-            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1;"></div>
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.35); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); z-index: 1;"></div>
 
             <!-- Mini Split Screen Container -->
             <div style="position: absolute; top: 8px; bottom: 8px; left: 8px; right: 8px; display: flex; flex-direction: column; justify-content: space-between; z-index: 2; box-sizing: border-box;">
@@ -1501,6 +1538,7 @@ function renderSingleResult(r) {
 
     const bgId = cardBgMap[r.id] || 1;
     const templateId = cardTemplateMap[r.id] || 1;
+    const currentBgUrl = getPosterBgUrl(r.id, bgId);
 
     const sortedPublished = [...allResults].sort((a, b) => {
         const timeA = a.publishedAt?.seconds || 0;
@@ -1513,10 +1551,13 @@ function renderSingleResult(r) {
 
     const posterInnerHTML = getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName);
 
+    const storedCustom = getStoredCustomBg(r.id);
+    const hasCustomImage = !!(storedCustom && cardBgMap[r.id] === 'custom');
+
     const combinedHTML = `
         <div class="poster-container" id="container-${r.id}">
             
-            <div class="result-poster template-${templateId}" id="poster-${r.id}" style="background-image: url('../assets/poster-backgrounds/bg${bgId}.jpg')">
+            <div class="result-poster template-${templateId}" id="poster-${r.id}" style="background-image: url('${currentBgUrl}')">
                 ${posterInnerHTML}
             </div>
 
@@ -1559,6 +1600,15 @@ function renderSingleResult(r) {
                     <div class="thumb ${bgId === 10 ? 'active' : ''}" data-id="${r.id}" data-bg="10">
                         <img src="../assets/poster-backgrounds/bg10.jpg" alt="Bg 10">
                     </div>
+                    <div class="thumb thumb-upload-btn ${hasCustomImage ? 'has-image' : ''} ${bgId === 'custom' ? 'active' : ''}" data-id="${r.id}" data-bg="custom" title="Upload Custom Background">
+                        ${hasCustomImage ? `
+                            <img src="${storedCustom}" alt="Custom Bg" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">
+                        ` : `
+                            <span class="upload-btn-icon">➕</span>
+                            <span class="upload-btn-label">UPLOAD</span>
+                        `}
+                    </div>
+                    <input type="file" class="custom-bg-file-input" id="customBgInput-${r.id}" accept="image/*" style="display:none;" />
                 </div>
             </div>
 
@@ -1594,7 +1644,7 @@ function renderSingleResult(r) {
                 const miniPosterHTML = getMiniPosterHTML(r, bgId, t.id, resultNumber, madrasaName);
                 return `
                     <div class="template-option-card ${isActive ? 'active' : ''}" data-template="${t.id}">
-                        <div class="mini-poster-preview" style="background-image: url('../assets/poster-backgrounds/bg${bgId}.jpg')">
+                        <div class="mini-poster-preview" style="background-image: url('${currentBgUrl}')">
                             ${miniPosterHTML}
                         </div>
                         <span class="template-option-title">${t.name}</span>
@@ -1631,22 +1681,80 @@ function renderSingleResult(r) {
     document.querySelectorAll('.thumb').forEach(box => {
         box.onclick = (e) => {
             const cardId = e.currentTarget.dataset.id;
-            const bgNum = parseInt(e.currentTarget.dataset.bg, 10);
+            const bgVal = e.currentTarget.dataset.bg;
 
-            cardBgMap[cardId] = bgNum;
+            if (bgVal === 'custom') {
+                const existingCustom = getStoredCustomBg(cardId);
+                const isAlreadyActive = cardBgMap[cardId] === 'custom';
+
+                if (!existingCustom || isAlreadyActive) {
+                    const fileInput = document.getElementById(`customBgInput-${cardId}`);
+                    if (fileInput) fileInput.click();
+                    if (!existingCustom) return;
+                }
+                cardBgMap[cardId] = 'custom';
+            } else {
+                cardBgMap[cardId] = parseInt(bgVal, 10);
+            }
+
+            try { localStorage.setItem(`melad_card_bg_${cardId}`, cardBgMap[cardId]); } catch (err) {}
+
+            const bgUrl = getPosterBgUrl(cardId, cardBgMap[cardId]);
 
             document.querySelectorAll(`[id="poster-${cardId}"]`).forEach(posterEl => {
-                posterEl.style.backgroundImage = `url('../assets/poster-backgrounds/bg${bgNum}.jpg')`;
+                posterEl.style.backgroundImage = `url('${bgUrl}')`;
             });
 
             document.querySelectorAll(`[id="container-${cardId}"]`).forEach(containerEl => {
                 containerEl.querySelectorAll('.thumb').forEach(b => {
                     b.classList.remove('active');
-                    if (parseInt(b.dataset.bg, 10) === bgNum) {
+                    if (b.dataset.bg === String(cardBgMap[cardId])) {
                         b.classList.add('active');
                     }
                 });
             });
+        };
+    });
+
+    // Wire custom background file upload listener
+    document.querySelectorAll('.custom-bg-file-input').forEach(input => {
+        input.onchange = (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 1500;
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+
+                    setStoredCustomBg(r.id, dataUrl);
+                    cardBgMap[r.id] = 'custom';
+                    try { localStorage.setItem(`melad_card_bg_${r.id}`, 'custom'); } catch (err) {}
+
+                    renderSingleResult(r);
+                    showToast("✓ Custom background updated!");
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
         };
     });
 
@@ -1785,7 +1893,7 @@ async function getBlurredBgDataUrl(bgUrl) {
                 const ctx = canvas.getContext('2d');
                 
                 // Native canvas blur filter
-                ctx.filter = 'blur(12px)';
+                ctx.filter = 'blur(3px)';
                 // Render with a bleed margin to avoid edge bleeding
                 const bleed = 24;
                 ctx.drawImage(img, -bleed, -bleed, canvas.width + bleed * 2, canvas.height + bleed * 2);
@@ -1815,7 +1923,7 @@ async function generatePosterCanvas(r) {
 
     const bgId = cardBgMap[r.id] || 1;
     const templateId = cardTemplateMap[r.id] || 1;
-    const bgUrl = `../assets/poster-backgrounds/bg${bgId}.jpg`;
+    const bgUrl = getPosterBgUrl(r.id, bgId);
 
     // 1. Generate the blurred background data URL
     const blurredBgDataUrl = await getBlurredBgDataUrl(bgUrl);
@@ -2002,7 +2110,7 @@ async function generatePosterCanvas(r) {
     posterInIframe.style.backgroundImage = 'none'; // We replace it with explicit img/div layers
 
     // Decide overlay opacity/color
-    const overlayColor = (templateId === 3 || templateId === 4) ? 'rgba(15, 23, 42, 0.55)' : 'rgba(15, 23, 42, 0.50)';
+    const overlayColor = (templateId === 3 || templateId === 4) ? 'rgba(15, 23, 42, 0.35)' : 'rgba(15, 23, 42, 0.32)';
 
     // Insert blurred background layer, overlay layer, and original content
     posterInIframe.innerHTML = `

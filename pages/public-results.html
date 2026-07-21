@@ -788,6 +788,81 @@
             pointer-events: none;
         }
 
+        .thumb-upload-btn {
+            width: 64px !important;
+            min-height: 64px !important;
+            height: auto !important;
+            border-radius: 14px !important;
+            background: #ecfdf5 !important;
+            border: 2px dashed #04543d !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 2px !important;
+            padding: 6px 4px !important;
+            box-sizing: border-box !important;
+            cursor: pointer !important;
+            text-align: center !important;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            user-select: none !important;
+            position: relative !important;
+            z-index: 2 !important;
+            overflow: hidden !important;
+        }
+
+        .thumb-upload-btn::after {
+            display: none !important;
+        }
+
+        .thumb-upload-btn:hover {
+            background: #d1fae5 !important;
+            border-color: #064e3b !important;
+            transform: translateY(-3px) scale(1.05) !important;
+            box-shadow: 0 8px 18px rgba(6, 78, 59, 0.2) !important;
+        }
+
+        .thumb-upload-btn.active {
+            border: 3px dashed #D4A017 !important;
+            background: #fffbeb !important;
+            box-shadow: 0 8px 20px rgba(212, 175, 55, 0.35) !important;
+        }
+
+        .thumb-upload-btn .upload-btn-icon {
+            font-size: 20px !important;
+            line-height: 1 !important;
+            color: #04543d !important;
+            font-weight: 900 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: block !important;
+        }
+
+        .thumb-upload-btn .upload-btn-label {
+            font-size: 8px !important;
+            font-weight: 800 !important;
+            color: #04543d !important;
+            text-transform: uppercase !important;
+            line-height: 1.1 !important;
+            letter-spacing: 0.5px !important;
+            text-align: center !important;
+            display: block !important;
+            margin: 0 !important;
+        }
+
+        .thumb-upload-btn.has-image {
+            border: 3px solid transparent !important;
+            background: transparent !important;
+            padding: 0 !important;
+            gap: 0 !important;
+        }
+
+        .thumb-upload-btn.has-image.active {
+            border-color: #D4A017 !important;
+            transform: translateY(-2px) scale(1.05) !important;
+            box-shadow: 0 8px 20px rgba(212, 175, 55, 0.35) !important;
+        }
+
         /* ─────────────────────────────────────────────────────────────
            BALANCED ACTIONS BUTTONS ROW
            ───────────────────────────────────────────────────────────── */
@@ -1259,7 +1334,7 @@
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             background: inherit;
-            filter: blur(12px);
+            filter: blur(3px);
             margin: -20px;
             z-index: 0;
         }
@@ -1268,7 +1343,7 @@
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(15, 23, 42, 0.50);
+            background: rgba(15, 23, 42, 0.32);
             z-index: 1;
         }
 
@@ -1620,7 +1695,7 @@
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             background: inherit;
-            filter: blur(12px);
+            filter: blur(3px);
             margin: -20px;
             z-index: 0;
         }
@@ -1629,7 +1704,7 @@
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(15, 23, 42, 0.50);
+            background: rgba(15, 23, 42, 0.32);
             z-index: 1;
         }
 
@@ -1871,7 +1946,7 @@
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             background: inherit;
-            filter: blur(12px);
+            filter: blur(3px);
             margin: -20px;
             z-index: 0;
         }
@@ -1880,7 +1955,7 @@
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(15, 23, 42, 0.55);
+            background: rgba(15, 23, 42, 0.35);
             z-index: 1;
         }
 
@@ -2130,7 +2205,7 @@
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             background: inherit;
-            filter: blur(12px);
+            filter: blur(3px);
             margin: -20px;
             z-index: 0;
         }
@@ -2139,7 +2214,7 @@
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(15, 23, 42, 0.55);
+            background: rgba(15, 23, 42, 0.35);
             z-index: 1;
         }
 
