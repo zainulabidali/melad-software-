@@ -3220,11 +3220,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 const sectionFontSize = (itemFontSize * 0.75).toFixed(1);
 
                                 sectionsHTML += `
-                                    <div class="card-section" style="margin-top: 2px; margin-bottom: ${currentSecGap}px; page-break-inside: avoid; break-inside: avoid; display: flex; flex-direction: column; align-items: center; width: 100%;">
-                                        <div style="font-family: 'Poppins', sans-serif; font-size: ${sectionFontSize}px; font-weight: 600; text-transform: uppercase; text-align: center; letter-spacing: 0.5px; line-height: 1.1; margin-top: ${sIdx === 0 ? 0 : sectionGap}px; margin-bottom: 2px; color: #243B53; width: 100%; display: block;">
+                                    <div class="card-section" style="margin-top: 2px; margin-bottom: ${currentSecGap}px; page-break-inside: avoid; break-inside: avoid; display: flex; flex-direction: column; align-items: flex-start; width: 100%;">
+                                        <div style="font-family: 'Poppins', sans-serif; font-size: ${sectionFontSize}px; font-weight: 700; text-transform: uppercase; text-align: left; letter-spacing: 0.5px; line-height: 1.1; margin-top: ${sIdx === 0 ? 0 : sectionGap}px; margin-bottom: 2px; color: #0f172a; width: 100%; display: block;">
                                             ${headingTitle}
                                         </div>
-                                        <ul class="card-program-list" style="gap: ${programRowGap}px; display: flex; flex-direction: column; align-items: center; width: 100%; margin: 0; padding: 0; list-style: none;">
+                                        <ul class="card-program-list" style="gap: ${programRowGap}px; display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin: 0; padding: 0; list-style: none;">
                                             ${sec.items.map(p => {
                                     let label = '';
                                     if (p.groupName && p.groupName !== teamNamesMap[p.teamId]) {
@@ -3233,9 +3233,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     const numStr = p.programNumber ? `${p.programNumber} - ` : '';
                                     const displayName = label ? `${numStr}${p.programName || 'Unknown Program'} (${label})` : `${numStr}${p.programName || 'Unknown Program'}`;
                                     return `
-                                                    <li class="card-program-item" style="font-size: ${p.finalFontSize}px; line-height: ${progLineHeight}; margin-bottom: ${programRowGap}px; display: flex !important; align-items: center !important; justify-content: center !important; text-align: center !important; gap: 4px; width: 100%;">
-                                                        <span style="flex-shrink: 0; font-size: 0.7em; display: inline-flex; align-items: center; justify-content: center;">🔹</span>
-                                                        <span class="program-left" style="font-family: 'Poppins', sans-serif; font-weight: 500; color: #16213E; text-align: center !important;">${window.escapeHTML(displayName)}</span>
+                                                    <li class="card-program-item" style="font-size: ${p.finalFontSize}px; line-height: ${progLineHeight}; margin-bottom: ${programRowGap}px; display: flex !important; align-items: flex-start !important; justify-content: flex-start !important; text-align: left !important; gap: 4px; width: 100%;">
+                                                         <span style="flex-shrink: 0; font-size: 0.7em; display: inline-flex; align-items: center; justify-content: center; margin-top: 2px;"></span>
+                                                        <span class="program-left" style="font-family: 'Poppins', sans-serif; font-weight: 500; color: #16213E; text-align: left !important;">${window.escapeHTML(displayName)}</span>
                                                     </li>
                                                 `;
                                 }).join('')}
@@ -3707,20 +3707,22 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     .card-section-title {
                         font-family: 'Poppins', sans-serif;
                         font-size: 0.68rem;
-                        font-weight: 600;
-                        color: #243B53;
+                        font-weight: 700;
+                        color: #0f172a;
                         text-transform: uppercase;
                         display: flex;
                         align-items: center;
+                        justify-content: flex-start;
                         gap: 4px;
                         margin-bottom: 4px;
+                        text-align: left;
                     }
                     .card-section-title::before {
                         content: "";
                         display: inline-block;
                         width: 3px;
                         height: 9px;
-                        background: #243B53;
+                        background: #0f172a;
                         border-radius: 1px;
                     }
                     .card-program-list {
@@ -3730,6 +3732,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         display: flex;
                         flex-direction: column;
                         gap: 3px;
+                        align-items: flex-start;
                     }
                     .card-program-item {
                         font-family: 'Poppins', sans-serif;
@@ -3737,7 +3740,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         font-weight: 500;
                         color: #16213E;
                         width: 100%;
-                        display: block;
+                        display: flex;
+                        align-items: flex-start;
+                        justify-content: flex-start;
+                        text-align: left;
                     }
                     .program-left {
                         white-space: normal;
@@ -3746,6 +3752,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         -webkit-line-clamp: 2;
                         -webkit-box-orient: vertical;
                         overflow: hidden;
+                        text-align: left;
                     }
                     .card-event-header,
                     .card-header,
@@ -5545,10 +5552,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             if (pType === 'general' || pType === 'group') {
                 const tableHeaderHtml = `
                     <tr>
-                        <th style="width:50px; text-align:center;">SL</th>
-                        <th style="width:250px;">Chest Numbers</th>
-                        <th>Group Name</th>
-                        <th style="width:160px;">Team</th>
+                        <th style="width:40px; text-align:center;">SL</th>
+                        <th style="width:170px;">Chest Numbers</th>
+                        <th>Student Names</th>
+                        <th style="width:180px;">Group Name</th>
+                        <th style="width:140px;">Team</th>
                     </tr>
                 `;
 
@@ -5569,7 +5577,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                     tableBodyHtml = teamNames.length === 0 ? `
                         <tr>
-                            <td colspan="4" style="text-align:center; padding:0.6rem; color:#64748b;">No registered entries.</td>
+                            <td colspan="5" style="text-align:center; padding:0.6rem; color:#64748b;">No registered entries.</td>
                         </tr>
                     ` : teamNames.map((tName, idx) => {
                         const teamParts = teamsMap[tName];
@@ -5578,11 +5586,19 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
                             .join(', ');
 
+                        const studentNamesList = teamParts.map(item => item.name).filter(Boolean);
+                        const studentNamesHtml = studentNamesList.length > 0
+                            ? studentNamesList.map(n => window.escapeHTML(n)).join('<br>')
+                            : '—';
+
                         return `
                             <tr style="height:28px; page-break-inside:avoid; vertical-align:middle;">
                                 <td style="text-align:center; font-weight:800; color:#64748b; padding:0.35rem 0.4rem;">${idx + 1}</td>
                                 <td style="font-weight:800; color:#1e1b4b; word-break:break-word; white-space:normal; padding:0.35rem 0.4rem; letter-spacing:0.02em;">
                                     ${window.escapeHTML(chestNumbers || '—')}
+                                </td>
+                                <td style="font-size:0.72rem; font-weight:600; color:#334155; word-break:break-word; white-space:normal; padding:0.35rem 0.4rem; line-height:1.25;">
+                                    ${studentNamesHtml}
                                 </td>
                                 <td style="font-weight:800; color:#475569; padding:0.35rem 0.4rem;">${window.escapeHTML(tName)} Participants</td>
                                 <td style="padding:0.35rem 0.4rem;">
@@ -5595,7 +5611,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     // Group Programs OR General Programs with group registrations (render actual group name!)
                     tableBodyHtml = parts.length === 0 ? `
                         <tr>
-                            <td colspan="4" style="text-align:center; padding:0.6rem; color:#64748b;">No registered entries.</td>
+                            <td colspan="5" style="text-align:center; padding:0.6rem; color:#64748b;">No registered entries.</td>
                         </tr>
                     ` : parts.map((groupItem, idx) => {
                         // Sort and de-duplicate chest numbers numerically
@@ -5603,11 +5619,19 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
                             .join(', ');
 
+                        const studentNamesList = (groupItem.members || []).map(m => m.name).filter(Boolean);
+                        const studentNamesHtml = studentNamesList.length > 0
+                            ? studentNamesList.map(n => window.escapeHTML(n)).join('<br>')
+                            : '—';
+
                         return `
                             <tr style="height:28px; page-break-inside:avoid; vertical-align:middle;">
                                 <td style="text-align:center; font-weight:800; color:#64748b; padding:0.35rem 0.4rem;">${idx + 1}</td>
                                 <td style="font-weight:800; color:#1e1b4b; word-break:break-word; white-space:normal; padding:0.35rem 0.4rem; letter-spacing:0.02em;">
                                     ${window.escapeHTML(chestNumbers || '—')}
+                                </td>
+                                <td style="font-size:0.72rem; font-weight:600; color:#334155; word-break:break-word; white-space:normal; padding:0.35rem 0.4rem; line-height:1.25;">
+                                    ${studentNamesHtml}
                                 </td>
                                 <td style="font-weight:800; color:#475569; padding:0.35rem 0.4rem;">${window.escapeHTML(groupItem.name)}</td>
                                 <td style="padding:0.35rem 0.4rem;">
