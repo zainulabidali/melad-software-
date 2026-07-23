@@ -5339,8 +5339,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         <h2 style="margin:0.15rem 0; color:#000; font-size:1.2rem; font-weight:800; text-transform:uppercase;">${p.programNumber ? `[#${p.programNumber}] ` : ''}${window.escapeHTML(p.programName)}</h2>
                         <div style="font-size:0.7rem; font-weight:700; color:#666; text-transform:uppercase;">
                             ${window.escapeHTML(p.categoryName)}${p.className ? ` • ${window.escapeHTML(p.className)}` : ''} • 
+                            ${window.escapeHTML(formatLabel(p.genderCategory || p.gender || 'Mixed'))} • 
                             ${p.programType === 'group' ? 'GROUP EVENT' : 'INDIVIDUAL EVENT'} • 
-                            ${parts.length} ENTRIES
+                            ${parts.length} ${p.programType === 'group' ? 'GROUPS' : 'ENTRIES'}
                         </div>
                     </div>
 
@@ -5704,7 +5705,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     <div style="border-bottom:1.5px solid #1e1b4b; padding-bottom:0.15rem; margin-bottom:0.25rem; display:flex; justify-content:space-between; align-items:baseline;">
                         <div>
                             <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:#1e1b4b; display:inline;">${p.programNumber ? `[#${p.programNumber}] ` : ''}${window.escapeHTML(p.programName)}</h3>
-                            <span style="font-size:0.75rem; font-weight:700; color:#475569; margin-left:0.4rem;">&bull; ${window.escapeHTML(formatLabel(p.categoryName))} ${p.className ? `&bull; Class: ${window.escapeHTML(formatLabel(p.className))}` : ''} &bull; Location: ${window.escapeHTML(formatLabel(p.programLocation || 'Stage'))}</span>
+                            <span style="font-size:0.75rem; font-weight:700; color:#475569; margin-left:0.4rem;">&bull; ${window.escapeHTML(formatLabel(p.categoryName))} &bull; ${window.escapeHTML(formatLabel(p.genderCategory || p.gender || 'Mixed'))}${p.className ? ` &bull; Class: ${window.escapeHTML(formatLabel(p.className))}` : ''} &bull; Location: ${window.escapeHTML(formatLabel(p.programLocation || 'Stage'))}</span>
                         </div>
                         <div style="font-size:0.75rem; font-weight:800; color:#1e1b4b;">
                             ${parts.length} ${pType === 'general' ? 'participants' : (pType === 'group' ? 'groups' : 'entries')}
