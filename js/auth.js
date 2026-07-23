@@ -66,7 +66,10 @@ export function safeSessionRemove(key) {
 export function safeSessionClear() {
     if (!isSessionStorageAvailable) return false;
     try {
-        window.sessionStorage.clear();
+        window.sessionStorage.removeItem('melad_auth_uid');
+        window.sessionStorage.removeItem('melad_user_profile');
+        window.sessionStorage.removeItem('melad_institute_status');
+        window.sessionStorage.removeItem('melad_last_validated');
         return true;
     } catch (e) {
         return false;
@@ -371,9 +374,9 @@ if (loginForm) {
             }
 
             if (profile.role === 'super_admin') {
-                window.location.href = `${pathPrefix}pages/super-admin.html`;
+                window.location.replace(`${pathPrefix}pages/super-admin.html`);
             } else if (profile.role === 'admin') {
-                window.location.href = `${pathPrefix}pages/admin-dashboard.html`;
+                window.location.replace(`${pathPrefix}pages/admin-dashboard.html`);
             } else {
                 await signOut(auth);
                 safeSessionClear();
@@ -562,11 +565,21 @@ const isAuthPage = window.location.pathname.includes('login.html') ||
     window.location.pathname === '' ||
     (!window.location.pathname.includes('.html') && !window.location.pathname.includes('/pages/'));
 
+function revealLoginUI() {
+    const loader = document.getElementById('authGateLoader');
+    const wrapper = document.getElementById('authWrapper') || document.querySelector('.auth-wrapper');
+    if (loader) loader.style.display = 'none';
+    if (wrapper) wrapper.style.display = 'block';
+}
+
 if (isAuthPage) {
     onAuthStateChanged(auth, async (user) => {
         if (window.isRegistering) return;
         if (user) {
-            if (user.isAnonymous) return;
+            if (user.isAnonymous) {
+                revealLoginUI();
+                return;
+            }
             try {
                 const isValid = await validateInstituteAccess(user);
                 if (isValid) {
@@ -575,25 +588,33 @@ if (isAuthPage) {
                         console.error("Auto-redirect failed: Profile or role missing");
                         await signOut(auth);
                         safeSessionClear();
+                        revealLoginUI();
                         showAlert('Login failed: User profile or role mapping is missing. Please contact administrator.');
                         return;
                     }
                     if (profile.role === 'super_admin') {
-                        window.location.href = `${pathPrefix}pages/super-admin.html`;
+                        window.location.replace(`${pathPrefix}pages/super-admin.html`);
                     } else if (profile.role === 'admin') {
-                        window.location.href = `${pathPrefix}pages/admin-dashboard.html`;
+                        window.location.replace(`${pathPrefix}pages/admin-dashboard.html`);
                     } else {
                         await signOut(auth);
                         safeSessionClear();
+                        revealLoginUI();
                         showAlert('Invalid account configuration. Contact support.');
                     }
+                } else {
+                    revealLoginUI();
                 }
             } catch (err) {
                 console.error("Auto-redirect check error:", err);
                 await signOut(auth);
                 safeSessionClear();
+                revealLoginUI();
                 showAlert('Authentication check failed. Please log in again.');
             }
+        } else {
+            safeSessionClear();
+            revealLoginUI();
         }
     });
 }

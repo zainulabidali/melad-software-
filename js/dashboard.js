@@ -1,5 +1,5 @@
 import { auth, db, updateDashboardMetadata } from './firebase.js';
-import { getUserProfile, validateInstituteAccess } from './auth.js';
+import { getUserProfile, validateInstituteAccess, logoutUser, safeSessionClear } from './auth.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 import { doc, getDoc, collection, query, where, getCountFromServer, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
@@ -117,24 +117,23 @@ onAuthStateChanged(auth, async (user) => {
     const isStandalone = urlParams.get('mode') === 'standalone' || urlParams.get('standalone') === 'true';
     const standaloneInstId = urlParams.get('instituteId') || urlParams.get('instId');
 
+    // Standalone Mode Priority Bypass: Executes before any auth or role checks
+    if (isStandalone && standaloneInstId) {
+        initStandaloneMode(standaloneInstId);
+        return;
+    }
+
     if (!user) {
-        if (isStandalone && standaloneInstId) {
-            initStandaloneMode(standaloneInstId);
-            return;
-        }
+        safeSessionClear();
         window.location.href = '../pages/login.html';
         return;
     }
 
     if (user.isAnonymous) {
-        sessionStorage.clear();
+        safeSessionClear();
         await signOut(auth);
         window.location.href = '../pages/login.html';
         return;
-    }
-
-    if (isStandalone && standaloneInstId) {
-        document.body.classList.add('standalone-mode');
     }
 
     try {
@@ -347,9 +346,7 @@ function setupNavigation() {
 
     const logoutHandler = async (e) => {
         e.preventDefault();
-        sessionStorage.clear();
-        await signOut(auth);
-        window.location.href = '../pages/login.html';
+        await logoutUser();
     };
 
     document.getElementById('logoutBtn')?.addEventListener('click', logoutHandler);

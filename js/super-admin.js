@@ -4,17 +4,19 @@ import {
     doc, getDoc, collection, addDoc, deleteDoc, onSnapshot,
     serverTimestamp, updateDoc, setDoc, query, where, getDocs
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
-import { getUserProfile } from './auth.js';
+import { getUserProfile, logoutUser, safeSessionClear } from './auth.js';
 
 // ─────────────────────────────────────────────
 // Route Protection
 // ─────────────────────────────────────────────
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
+        safeSessionClear();
         window.location.href = '../pages/login.html';
         return;
     }
     if (user.isAnonymous) {
+        safeSessionClear();
         await signOut(auth);
         window.location.href = '../pages/login.html';
         return;
@@ -26,6 +28,7 @@ onAuthStateChanged(auth, async (user) => {
         loadInstitutes();
         loadPendingAdmins();
     } else {
+        safeSessionClear();
         await signOut(auth);
         window.location.href = '../pages/login.html';
     }
@@ -114,8 +117,7 @@ function showSection(section) {
 // ─────────────────────────────────────────────
 document.getElementById('logoutBtn').addEventListener('click', async (e) => {
     e.preventDefault();
-    await signOut(auth);
-    window.location.href = '../pages/login.html';
+    await logoutUser();
 });
 
 // ─────────────────────────────────────────────

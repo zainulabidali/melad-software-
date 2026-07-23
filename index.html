@@ -13,9 +13,29 @@
     <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
     <meta name="description"
         content="Access the Cultural & Arts Festival Management System. Secure portal for Admins and Teachers.">
+    <!-- Fast-Path Production Auth Gate Pre-Render Check -->
+    <script>
+        (function () {
+            try {
+                const uid = sessionStorage.getItem('melad_auth_uid');
+                const profileStr = sessionStorage.getItem('melad_user_profile');
+                const lastValid = sessionStorage.getItem('melad_last_validated');
+                const now = Date.now();
+
+                if (uid && profileStr && lastValid && (now - parseInt(lastValid, 10) < 300000)) {
+                    const profile = JSON.parse(profileStr);
+                    if (profile && profile.role === 'super_admin') {
+                        window.location.replace('./pages/super-admin.html');
+                    } else if (profile && profile.role === 'admin') {
+                        window.location.replace('./pages/admin-dashboard.html');
+                    }
+                }
+            } catch (e) { }
+        })();
+    </script>
     <!-- Premium Google Fonts -->
     <link
-        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
     <style>
         :root {
@@ -142,14 +162,45 @@
             }
         }
 
-        /* ── Centered Auth Container ── */
+        /* ── Centered Auth Container (Hidden by default until auth check finishes) ── */
         .auth-wrapper {
+            display: none;
             position: relative;
             z-index: 10;
             width: 100%;
             max-width: 490px;
             padding: 10px 0;
-            animation: fadeInPage 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation: fadeInPage 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* ── Auth Gate Loading Overlay ── */
+        .auth-gate-loader {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            color: #ffffff;
+            gap: 1.25rem;
+            font-family: var(--font-body);
+            animation: fadeInPage 0.3s ease forwards;
+        }
+
+        .auth-gate-spinner {
+            width: 44px;
+            height: 44px;
+            border: 3.5px solid rgba(255, 255, 255, 0.15);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 0.75s linear infinite;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.35);
+        }
+
+        .auth-gate-text {
+            font-size: 0.9375rem;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.75);
+            letter-spacing: 0.02em;
         }
 
         /* ── White Translucent Glass Card ── */
@@ -546,8 +597,14 @@
         <div class="bg-vignette"></div>
     </div>
 
+    <!-- Auth Gate Loading Screen -->
+    <div id="authGateLoader" class="auth-gate-loader">
+        <div class="auth-gate-spinner"></div>
+        <div class="auth-gate-text">Verifying authentication...</div>
+    </div>
+
     <!-- Centered Login Card -->
-    <main class="auth-wrapper">
+    <main class="auth-wrapper" id="authWrapper">
         <div class="auth-card">
             <!-- Brand Logo Header -->
             <div class="brand-container">
