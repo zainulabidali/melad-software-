@@ -16,6 +16,7 @@ import { initExportsView } from './exports.js';
 import { initTopScorersView } from './top-scorers.js';
 import { initScheduleView } from './schedule.js';
 import { initSettingsView } from './settings.js';
+import { initFinanceView } from './finance.js';
 
 // Global state
 window.currentInstituteId = null;
@@ -50,6 +51,7 @@ const views = {
     'top-scorers': initTopScorersView,
     'schedule': initScheduleView,
     'settings': initSettingsView,
+    'finance': initFinanceView,
     'participants-workflow': (container, topActions) => {
         const payload = window.__participantsWorkflowPayload || {};
         return initParticipantsWorkflowView(container, topActions, payload);
@@ -522,7 +524,9 @@ function navigateTo(viewName) {
         'results': 'Results',
         'exports': 'Exports',
         'top-scorers': 'Top Scorers',
-        'schedule': 'Schedule Management'
+        'schedule': 'Schedule Management',
+        'settings': 'Settings',
+        'finance': 'Finance Management'
     };
 
     document.getElementById('pageTitle').textContent = titles[viewName] || 'Dashboard';

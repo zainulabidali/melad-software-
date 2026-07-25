@@ -300,6 +300,21 @@ function renderSettingsLayout(container) {
                 </div>
             </div>
 
+            <!-- Card 3: Finance Management -->
+            <div class="card settings-bottom-card" style="margin-top: 1rem; border: 1px solid #e2e8f0; background: #ffffff;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+                    <div>
+                        <h3 style="font-size:1.05rem; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:0.4rem; margin:0;">
+                            💰 Finance Management
+                        </h3>
+                        <p style="font-size:0.75rem; color:#64748b; margin:0.25rem 0 0 0;">
+                            Record income, expenses, and print event financial reports.
+                        </p>
+                    </div>
+                    <button type="button" id="btnFinanceManagement" class="btn btn-primary btn-sm" style="font-weight:700; font-size:0.78rem; padding:0.45rem 1.25rem;">Finance Management</button>
+                </div>
+            </div>
+
             <!-- Danger Zone Card (Compact, spans full width, always last) -->
             <div class="card settings-bottom-card" style="margin-top: 1rem; border: 1px solid #fee2e2; background: #fff5f5;">
                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
@@ -1423,6 +1438,15 @@ function bindFormEvents() {
     if (btnManagePoints) {
         btnManagePoints.onclick = () => {
             openPointManageModal();
+        };
+    }
+
+    const btnFinanceManagement = document.getElementById('btnFinanceManagement');
+    if (btnFinanceManagement) {
+        btnFinanceManagement.onclick = () => {
+            if (typeof window.navigateTo === 'function') {
+                window.navigateTo('finance');
+            }
         };
     }
 
