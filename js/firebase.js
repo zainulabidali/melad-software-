@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, getDocs, doc, writeBatch, setDoc, getDoc, getCountFromServer, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, collection, getDocs, doc, writeBatch, setDoc, getDoc, getCountFromServer, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyCWGvKjqytJZHfuSnJGwBrVrFV8koYV7Cw",
@@ -14,12 +14,29 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-    }),
-    experimentalAutoDetectLongPolling: true
-});
+
+let dbInstance;
+try {
+    dbInstance = initializeFirestore(app, {
+        localCache: persistentLocalCache({
+            tabManager: persistentMultipleTabManager()
+        }),
+        experimentalAutoDetectLongPolling: true
+    });
+} catch (e) {
+    try {
+        dbInstance = initializeFirestore(app, {
+            localCache: persistentLocalCache(),
+            experimentalAutoDetectLongPolling: true
+        });
+    } catch (e2) {
+        dbInstance = initializeFirestore(app, {
+            localCache: memoryLocalCache(),
+            experimentalAutoDetectLongPolling: true
+        });
+    }
+}
+export const db = dbInstance;
 
 // ─────────────────────────────────────────────
 // SCHEMA MIGRATION: Flatten nested categories/students to institute level

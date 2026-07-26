@@ -94,33 +94,31 @@ function hideAlert() {
 }
 
 // ─────────────────────────────────────────────
-// Utility: Logout (exported for dashboard use)
+// Promise Timeout Utility
 // ─────────────────────────────────────────────
-export async function logoutUser() {
-    try {
-        safeSessionClear();
-        await signOut(auth);
-        window.location.href = `${pathPrefix}pages/login.html`;
-    } catch (error) {
-        console.error("Logout Error", error);
-    }
+export function withTimeout(promise, ms = 8000, errorMessage = 'Operation timed out') {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(errorMessage)), ms))
+    ]);
 }
-window.logoutUser = logoutUser;
 
 // ─────────────────────────────────────────────
 // Helper function to retry Firestore reads on transient permission/auth errors
-async function getDocWithRetry(docRef, maxRetries = 5, initialDelayMs = 200) {
+// ─────────────────────────────────────────────
+async function getDocWithRetry(docRef, maxRetries = 3, initialDelayMs = 200) {
     let delayMs = initialDelayMs;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            return await getDoc(docRef);
+            return await withTimeout(getDoc(docRef), 6000, "Database request timed out");
         } catch (error) {
             const isPermissionError = error.code === 'permission-denied' || 
                                      error.code === 'unauthenticated' ||
                                      (error.message && error.message.toLowerCase().includes('permission'));
-            if (isPermissionError && attempt < maxRetries) {
+            const isTimeout = error.message && error.message.includes('timed out');
+            if ((isPermissionError || isTimeout) && attempt < maxRetries) {
                 await new Promise(resolve => setTimeout(resolve, delayMs));
-                delayMs = Math.min(delayMs * 2, 1500);
+                delayMs = Math.min(delayMs * 2, 1000);
                 continue;
             }
             throw error;
@@ -314,6 +312,20 @@ export async function validateInstituteAccess(user) {
 }
 
 // ─────────────────────────────────────────────
+// Utility: Logout (exported for dashboard use)
+// ─────────────────────────────────────────────
+export async function logoutUser() {
+    try {
+        safeSessionClear();
+        await signOut(auth);
+        window.location.href = `${pathPrefix}pages/login.html`;
+    } catch (error) {
+        console.error("Logout Error", error);
+    }
+}
+window.logoutUser = logoutUser;
+
+// ─────────────────────────────────────────────
 // Tab Switching Logic (login.html only)
 // ─────────────────────────────────────────────
 const tabLogin = document.getElementById('tabLogin');
@@ -359,8 +371,12 @@ if (loginForm) {
 
         window.isLoggingIn = true;
 
-        try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const loginTask = async () => {
+            const userCredential = await withTimeout(
+                signInWithEmailAndPassword(auth, email, password),
+                10000,
+                'Sign in request timed out. Please check your network connection.'
+            );
             const user = userCredential.user;
 
             // Allow short tick for Auth ID Token to propagate to Firestore client state
@@ -388,13 +404,18 @@ if (loginForm) {
                 safeSessionClear();
                 showAlert('Invalid account configuration. Contact support.');
             }
+        };
 
+        try {
+            await withTimeout(loginTask(), 15000, 'Login process timed out. Please check your connection and try again.');
         } catch (error) {
             console.error("Login Error:", error);
             if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
                 showAlert('Invalid email or password. Please try again.');
             } else if (error.code === 'auth/too-many-requests') {
                 showAlert('Too many failed attempts. Please try again later.');
+            } else if (error.message && error.message.toLowerCase().includes('timed out')) {
+                showAlert(error.message);
             } else {
                 showAlert('Login failed. Please check your credentials or network connection.');
             }
