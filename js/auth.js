@@ -109,7 +109,8 @@ window.logoutUser = logoutUser;
 
 // ─────────────────────────────────────────────
 // Helper function to retry Firestore reads on transient permission/auth errors
-async function getDocWithRetry(docRef, maxRetries = 3, delayMs = 150) {
+async function getDocWithRetry(docRef, maxRetries = 5, initialDelayMs = 200) {
+    let delayMs = initialDelayMs;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             return await getDoc(docRef);
@@ -118,8 +119,8 @@ async function getDocWithRetry(docRef, maxRetries = 3, delayMs = 150) {
                                      error.code === 'unauthenticated' ||
                                      (error.message && error.message.toLowerCase().includes('permission'));
             if (isPermissionError && attempt < maxRetries) {
-                console.warn(`Firestore read permission denied, retrying (attempt ${attempt}/${maxRetries}) in ${delayMs}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delayMs));
+                delayMs = Math.min(delayMs * 2, 1500);
                 continue;
             }
             throw error;
@@ -356,9 +357,14 @@ if (loginForm) {
         btnText.classList.add('hidden');
         spinner.classList.remove('hidden');
 
+        window.isLoggingIn = true;
+
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
+
+            // Allow short tick for Auth ID Token to propagate to Firestore client state
+            await new Promise(resolve => setTimeout(resolve, 100));
 
             // 1. Run centralized validation
             const isValid = await validateInstituteAccess(user);
@@ -390,12 +396,13 @@ if (loginForm) {
             } else if (error.code === 'auth/too-many-requests') {
                 showAlert('Too many failed attempts. Please try again later.');
             } else {
-                showAlert(error.message);
+                showAlert('Login failed. Please check your credentials or network connection.');
             }
         } finally {
             btn.disabled = false;
             btnText.classList.remove('hidden');
             spinner.classList.add('hidden');
+            window.isLoggingIn = false;
         }
     });
 }
@@ -574,7 +581,7 @@ function revealLoginUI() {
 
 if (isAuthPage) {
     onAuthStateChanged(auth, async (user) => {
-        if (window.isRegistering) return;
+        if (window.isRegistering || window.isLoggingIn) return;
         if (user) {
             if (user.isAnonymous) {
                 revealLoginUI();

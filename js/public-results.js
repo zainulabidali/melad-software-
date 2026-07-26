@@ -23,6 +23,8 @@ let activeResultKey = "";
 let isInitInProgress = false;
 let isInitialized = false;
 let leaderboardData = [];
+let cachedCategoryPerformance = null;
+let isCategoryPerformanceStale = true;
 
 function getEffectiveEventName() {
     return eventConfig?.eventName || instituteDetails?.name || "Results Portal";
@@ -155,10 +157,14 @@ function updateTeamChampionship() {
     const resultsList = document.getElementById('resultsList');
     const mobResultsList = document.getElementById('mobResultsList');
     const mobChampionshipSection = document.getElementById('mobChampionshipSection');
+    const catPerfSection = document.getElementById('categoryPerformanceSection');
+    const mobCatPerfSection = document.getElementById('mobCategoryPerformanceSection');
     
     if (!currentDisplayedResult) {
         championshipSection.style.display = 'flex';
         if (mobChampionshipSection) mobChampionshipSection.style.display = 'flex';
+        if (catPerfSection) catPerfSection.style.display = 'flex';
+        if (mobCatPerfSection) mobCatPerfSection.style.display = 'flex';
         resultsList.style.display = 'none';
         if (mobResultsList) mobResultsList.style.display = 'none';
     }
@@ -331,6 +337,228 @@ function updateTeamChampionship() {
         // Save current points as previous points for next update
         previousTeamPoints[t.name] = t.points;
     });
+
+    updateCategoryPerformance();
+}
+
+// ─────────────────────────────────────────────
+// Category Performance Chart Generator (Cached)
+// ─────────────────────────────────────────────
+function prepareCategoryPerformanceData() {
+    if (!isCategoryPerformanceStale && cachedCategoryPerformance !== null) {
+        return cachedCategoryPerformance;
+    }
+
+    if (!allResults || allResults.length === 0) {
+        cachedCategoryPerformance = [];
+        isCategoryPerformanceStale = false;
+        return cachedCategoryPerformance;
+    }
+
+    // 1. Identify all teams across the portal (leaderboardData and allResults)
+    const teamSet = new Set();
+    if (Array.isArray(leaderboardData)) {
+        leaderboardData.forEach(t => { if (t.name) teamSet.add(t.name); });
+    }
+
+    // 2. Accumulate points per category per team using exact Team Championship calculation
+    const categoryMap = {}; // { [catName]: { [teamName]: points } }
+    const processedProgramIds = new Set();
+
+    allResults.forEach(r => {
+        if (r.status !== 'published') return;
+        if (r.publicDisabled === true) return;
+        if (r.leaderboardEnabled === false) return;
+
+        // Deduplicate results by programId or result id (latest published result first)
+        const progKey = r.programId || r.id;
+        if (processedProgramIds.has(progKey)) return;
+        processedProgramIds.add(progKey);
+
+        const catName = r.categoryName ? r.categoryName.trim() : '';
+        if (!catName) return;
+
+        if (!categoryMap[catName]) {
+            categoryMap[catName] = {};
+        }
+
+        if (Array.isArray(r.marksData) && r.marksData.length > 0) {
+            r.marksData.forEach(w => {
+                if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName !== 'No Team' && w.totalPoints > 0) {
+                    const pts = Number(w.totalPoints || 0);
+                    categoryMap[catName][w.teamName] = (categoryMap[catName][w.teamName] || 0) + pts;
+                    teamSet.add(w.teamName);
+                }
+            });
+        } else if (Array.isArray(r.winners)) {
+            r.winners.forEach(w => {
+                if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName !== 'No Team' && w.marks > 0) {
+                    const pts = Number(w.marks || 0);
+                    categoryMap[catName][w.teamName] = (categoryMap[catName][w.teamName] || 0) + pts;
+                    teamSet.add(w.teamName);
+                }
+            });
+        }
+    });
+
+    const categoryNames = Object.keys(categoryMap);
+    if (categoryNames.length === 0) {
+        cachedCategoryPerformance = [];
+        isCategoryPerformanceStale = false;
+        return cachedCategoryPerformance;
+    }
+
+    // Sort category names logically (Play, Nursery, LKG, UKG, Class 1, etc.)
+    const getCategorySortStats = (name) => {
+        const n = (name || '').toLowerCase().trim();
+        if (n.includes('play')) return -4;
+        if (n.includes('nursery')) return -3;
+        if (n.includes('lkg')) return -2;
+        if (n.includes('ukg')) return -1;
+        const m = n.match(/class\s*(\d+)/i) || n.match(/std\s*(\d+)/i) || n.match(/standard\s*(\d+)/i) || n.match(/(\d+)/);
+        if (m) return parseInt(m[1], 10);
+        return 999;
+    };
+
+    categoryNames.sort((a, b) => {
+        const valA = getCategorySortStats(a);
+        const valB = getCategorySortStats(b);
+        if (valA !== valB) return valA - valB;
+        return a.localeCompare(b);
+    });
+
+    // Assign consistent color mapping for each team across all categories
+    const allTeamsSorted = Array.from(teamSet).sort();
+    const teamColorsPalette = [
+        'linear-gradient(90deg, #3b82f6, #1d4ed8)', // Blue
+        'linear-gradient(90deg, #10b981, #047857)', // Emerald / Green
+        'linear-gradient(90deg, #f59e0b, #d97706)', // Amber / Orange
+        'linear-gradient(90deg, #8b5cf6, #6d28d9)', // Purple / Violet
+        'linear-gradient(90deg, #ec4899, #be185d)', // Pink
+        'linear-gradient(90deg, #06b6d4, #0891b2)', // Cyan
+        'linear-gradient(90deg, #6366f1, #4f46e5)', // Indigo
+        'linear-gradient(90deg, #f43f5e, #e11d48)', // Rose
+        'linear-gradient(90deg, #14b8a6, #0f766e)', // Teal
+        'linear-gradient(90deg, #84cc16, #65a30d)'  // Lime
+    ];
+
+    const teamColorMap = {};
+    allTeamsSorted.forEach((teamName, idx) => {
+        teamColorMap[teamName] = teamColorsPalette[idx % teamColorsPalette.length];
+    });
+
+    // Prepare complete structured category performance data
+    cachedCategoryPerformance = categoryNames.map(catName => {
+        const teamScoresObj = categoryMap[catName] || {};
+        
+        // Include ALL teams (even 0 point teams) so public sees full comparison
+        const teamList = Array.from(teamSet).map(name => ({
+            name: name,
+            points: teamScoresObj[name] || 0,
+            color: teamColorMap[name] || 'linear-gradient(90deg, #3b82f6, #1d4ed8)'
+        }));
+
+        // Sort teams inside category from highest points to lowest points (0 points at bottom)
+        teamList.sort((a, b) => b.points - a.points);
+
+        const maxPoints = Math.max(...teamList.map(t => t.points), 1);
+
+        const processedTeams = teamList.map(t => ({
+            ...t,
+            pct: t.points > 0 ? Math.min(Math.round((t.points / maxPoints) * 100), 100) : 0
+        }));
+
+        return {
+            categoryName: catName,
+            teams: processedTeams
+        };
+    });
+
+    isCategoryPerformanceStale = false;
+    return cachedCategoryPerformance;
+}
+
+function updateCategoryPerformance() {
+    const desktopSection = document.getElementById('categoryPerformanceSection');
+    const mobSection = document.getElementById('mobCategoryPerformanceSection');
+    const desktopContainer = document.getElementById('categoryPerformanceContainer');
+    const mobContainer = document.getElementById('mobCategoryPerformanceContainer');
+
+    if (!desktopSection && !mobSection) return;
+
+    // Toggle visibility based on whether single poster result is being viewed
+    if (!currentDisplayedResult) {
+        if (desktopSection) desktopSection.style.display = 'flex';
+        if (mobSection) mobSection.style.display = 'flex';
+    } else {
+        if (desktopSection) desktopSection.style.display = 'none';
+        if (mobSection) mobSection.style.display = 'none';
+        return;
+    }
+
+    const data = prepareCategoryPerformanceData();
+
+    if (!data || data.length === 0) {
+        const emptyHTML = `
+            <div style="text-align:center; padding:2.5rem; color:#64748b; font-style:italic; font-weight:500; width:100%;">
+                No category performance data published yet.
+            </div>
+        `;
+        if (desktopContainer) desktopContainer.innerHTML = emptyHTML;
+        if (mobContainer) mobContainer.innerHTML = emptyHTML;
+        return;
+    }
+
+    // Build Desktop HTML
+    let desktopHTML = '';
+    // Build Mobile HTML
+    let mobHTML = '';
+
+    data.forEach(item => {
+        const catName = item.categoryName;
+        const teams = item.teams;
+
+        desktopHTML += `
+            <div class="cat-perf-card">
+                <div class="cat-perf-title">
+                    <span>📁</span> ${escapeHTML(catName)}
+                </div>
+                <div class="cat-perf-bars">
+                    ${teams.map(t => `
+                        <div class="cat-perf-row">
+                            <div class="cat-perf-team-name">${escapeHTML(t.name)}</div>
+                            <div class="cat-perf-track">
+                                <div class="cat-perf-bar" style="width: ${t.pct}%; background: ${t.color};"></div>
+                            </div>
+                            <div class="cat-perf-val">${t.points} pts</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        mobHTML += `
+            <div class="app-cat-perf-card">
+                <div class="app-cat-perf-title">
+                    <span>📁</span> ${escapeHTML(catName)}
+                </div>
+                <div class="app-cat-perf-bars">
+                    ${teams.map(t => `
+                        <div class="app-cat-perf-row">
+                            <div class="app-cat-perf-team-name">${escapeHTML(t.name)}</div>
+                            <div class="app-cat-perf-track">
+                                <div class="app-cat-perf-bar" style="width: ${t.pct}%; background: ${t.color};"></div>
+                            </div>
+                            <div class="app-cat-perf-val">${t.points} pts</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    });
+
+    if (desktopContainer) desktopContainer.innerHTML = desktopHTML;
+    if (mobContainer) mobContainer.innerHTML = mobHTML;
 }
 
 function animateCounterValue(element, start, end, duration, isPodium = false, suffix = " pts") {
@@ -516,6 +744,7 @@ async function init() {
             } else {
                 leaderboardData = [];
             }
+            isCategoryPerformanceStale = true;
             updateTeamChampionship();
         }, (err) => {
             console.warn("Dashboard metadata listener error:", err);
@@ -553,6 +782,8 @@ async function init() {
                 const timeB = b.publishedAt?.seconds || 0;
                 return timeB - timeA;
             });
+            isCategoryPerformanceStale = true;
+            updateCategoryPerformance();
 
             // Initialize default style 1 for all cards
             allResults.forEach(r => {
@@ -1527,6 +1758,14 @@ function renderSingleResult(r) {
     if (mobChampionshipSection) {
         mobChampionshipSection.style.display = 'none';
     }
+    const catPerfSection = document.getElementById('categoryPerformanceSection');
+    if (catPerfSection) {
+        catPerfSection.style.display = 'none';
+    }
+    const mobCatPerfSection = document.getElementById('mobCategoryPerformanceSection');
+    if (mobCatPerfSection) {
+        mobCatPerfSection.style.display = 'none';
+    }
 
     // Reveal lists
     list.style.display = 'block';
@@ -1793,6 +2032,10 @@ function renderError(title, msg) {
     if (championshipSection) championshipSection.style.display = 'none';
     const mobChampionshipSection = document.getElementById('mobChampionshipSection');
     if (mobChampionshipSection) mobChampionshipSection.style.display = 'none';
+    const catPerfSection = document.getElementById('categoryPerformanceSection');
+    if (catPerfSection) catPerfSection.style.display = 'none';
+    const mobCatPerfSection = document.getElementById('mobCategoryPerformanceSection');
+    if (mobCatPerfSection) mobCatPerfSection.style.display = 'none';
 
     const list = document.getElementById('resultsList');
     const mobList = document.getElementById('mobResultsList');
