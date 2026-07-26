@@ -1036,6 +1036,8 @@ function renderHistoryLogs() {
         let displayType = exp.type || 'Unknown Export';
         if (displayType === 'Chest Number List' && f.chestSubmode === 'card') {
             displayType = 'Chest Number & Program Card';
+        } else if (displayType === 'Program Participation Register' && f.progRegSubmode === 'list') {
+            displayType = 'Program List';
         }
 
         const rawGeneratedBy = (exp.generatedBy || 'Admin').trim();
@@ -1086,6 +1088,8 @@ function renderHistoryLogs() {
         let displayType = exp.type || 'Unknown Export';
         if (displayType === 'Chest Number List' && f.chestSubmode === 'card') {
             displayType = 'Chest Number & Program Card';
+        } else if (displayType === 'Program Participation Register' && f.progRegSubmode === 'list') {
+            displayType = 'Program List';
         }
 
         const rawGeneratedBy = (exp.generatedBy || 'Admin').trim();
@@ -1383,6 +1387,12 @@ function renderDrawerContent() {
                         <button type="button" class="exp-submode-btn" data-submode="card" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Chest Number & Program Card</button>
                     </div>
 
+                    <!-- Program Participation Register Submode Selector (Two-Tab Layout) -->
+                    <div id="progRegExportModeSelector" style="display:none; margin-top:0.75rem; margin-bottom:0.75rem; border:1px solid #cbd5e1; padding:2px; border-radius:10px; background:#f1f5f9; display:flex;">
+                        <button type="button" class="prog-reg-submode-btn active" data-submode="register" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:#fff; color:#1e1b4b; box-shadow:0 1px 3px rgba(0,0,0,0.05); transition:all 0.2s;">Program Participation Register</button>
+                        <button type="button" class="prog-reg-submode-btn" data-submode="list" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Program List</button>
+                    </div>
+
                     <!-- Sub Options (Only visible for Results) -->
                     <div id="expResultSub" style="display:none; flex-direction:column; gap:0.45rem;">
                         <label style="font-weight:700; color:#475569; font-size:0.78rem;">RESULTS SUB-OPTION *</label>
@@ -1617,6 +1627,47 @@ function renderDrawerContent() {
 
     renderTeamBgCards();
 
+    const updateConditionalFilters = () => {
+        const activeCard = document.querySelector('.exp-type-card.active');
+        const selType = activeCard ? activeCard.getAttribute('data-type') : '';
+        const expResultSubVal = document.getElementById('expResultSubVal');
+        const expAwardTypeContainer = document.getElementById('expAwardTypeContainer');
+        const expProgFilterContainer = document.getElementById('expProgFilterContainer');
+        const isClassAwards = (selType === 'Results' && expResultSubVal && expResultSubVal.value === 'Class Wise Academic & Attendance');
+        const progRegSubmode = selType === 'Program Participation Register' ? (document.getElementById('progRegExportModeSelector')?.querySelector('.prog-reg-submode-btn.active')?.getAttribute('data-submode') || 'register') : 'register';
+
+        // 1. Award Type Container
+        if (expAwardTypeContainer) {
+            expAwardTypeContainer.style.display = isClassAwards ? 'flex' : 'none';
+        }
+
+        // 2. Category Filter Container
+        const expCatFilterContainer = document.getElementById('expCatFilterContainer');
+        if (expCatFilterContainer) {
+            expCatFilterContainer.style.display = isClassAwards ? 'none' : 'block';
+        }
+
+        // 3. Specific Program Container
+        if (expProgFilterContainer) {
+            if (isClassAwards) {
+                expProgFilterContainer.style.display = 'none';
+            } else {
+                // Keep existing logic for other types
+                if (selType === 'Chest Number List' || selType === 'Program Participation Register') {
+                    expProgFilterContainer.style.display = 'none';
+                } else {
+                    expProgFilterContainer.style.display = 'block';
+                }
+            }
+        }
+
+        // 4. Team / Institute Filter Container
+        const expTeamFilterContainer = document.getElementById('expTeamFilterContainer');
+        if (expTeamFilterContainer) {
+            expTeamFilterContainer.style.display = (isClassAwards || (selType === 'Program Participation Register' && progRegSubmode === 'list')) ? 'none' : 'block';
+        }
+    };
+
     // Submode Buttons handler
     const submodeButtons = body.querySelectorAll('.exp-submode-btn');
     submodeButtons.forEach(btn => {
@@ -1671,6 +1722,45 @@ function renderDrawerContent() {
         };
     });
 
+    // Program Participation Register Submode Buttons handler (Two-Tab Layout)
+    const progRegSubmodeBtns = body.querySelectorAll('.prog-reg-submode-btn');
+    progRegSubmodeBtns.forEach(btn => {
+        btn.onclick = () => {
+            progRegSubmodeBtns.forEach(b => {
+                b.classList.remove('active');
+                b.style.background = 'transparent';
+                b.style.color = '#64748b';
+                b.style.boxShadow = 'none';
+            });
+            btn.classList.add('active');
+            btn.style.background = '#fff';
+            btn.style.color = '#1e1b4b';
+            btn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+
+            const activeSubmode = btn.getAttribute('data-submode');
+            const locCont = document.getElementById('expLocationFilterContainer');
+            const partCont = document.getElementById('expParticipationFilterContainer');
+            const regModeCont = document.getElementById('expRegisterModeContainer');
+            const expOrientation = document.getElementById('expOrientation');
+
+            if (activeSubmode === 'list') {
+                if (locCont) locCont.style.display = 'flex';
+                if (partCont) partCont.style.display = 'none';
+                if (regModeCont) regModeCont.style.display = 'none';
+                if (expOrientation) expOrientation.value = 'portrait';
+            } else {
+                if (locCont) locCont.style.display = 'flex';
+                if (partCont) partCont.style.display = 'flex';
+                if (regModeCont) regModeCont.style.display = 'flex';
+                if (expOrientation) expOrientation.value = 'landscape';
+            }
+            updateConditionalFilters();
+            updateClassFilterState();
+            updateProgramsDropdown();
+            updateTeamBgVisibility();
+        };
+    });
+
     cards.forEach(card => {
         card.onclick = () => {
             const expOrientation = document.getElementById('expOrientation');
@@ -1699,44 +1789,6 @@ function renderDrawerContent() {
             }
 
             const expResultSubVal = document.getElementById('expResultSubVal');
-            const expAwardTypeContainer = document.getElementById('expAwardTypeContainer');
-
-            const updateConditionalFilters = () => {
-                const activeCard = document.querySelector('.exp-type-card.active');
-                const selType = activeCard ? activeCard.getAttribute('data-type') : '';
-                const isClassAwards = (selType === 'Results' && expResultSubVal && expResultSubVal.value === 'Class Wise Academic & Attendance');
-
-                // 1. Award Type Container
-                if (expAwardTypeContainer) {
-                    expAwardTypeContainer.style.display = isClassAwards ? 'flex' : 'none';
-                }
-
-                // 2. Category Filter Container
-                const expCatFilterContainer = document.getElementById('expCatFilterContainer');
-                if (expCatFilterContainer) {
-                    expCatFilterContainer.style.display = isClassAwards ? 'none' : 'block';
-                }
-
-                // 3. Specific Program Container
-                if (expProgFilterContainer) {
-                    if (isClassAwards) {
-                        expProgFilterContainer.style.display = 'none';
-                    } else {
-                        // Keep existing logic for other types
-                        if (selType === 'Chest Number List' || selType === 'Program Participation Register') {
-                            expProgFilterContainer.style.display = 'none';
-                        } else {
-                            expProgFilterContainer.style.display = 'block';
-                        }
-                    }
-                }
-
-                // 4. Team / Institute Filter Container
-                const expTeamFilterContainer = document.getElementById('expTeamFilterContainer');
-                if (expTeamFilterContainer) {
-                    expTeamFilterContainer.style.display = isClassAwards ? 'none' : 'block';
-                }
-            };
 
             if (expResultSubVal) {
                 expResultSubVal.onchange = () => {
@@ -1748,6 +1800,8 @@ function renderDrawerContent() {
 
             if (selectedType === 'Results') {
                 if (chestExportModeSelector) chestExportModeSelector.style.display = 'none';
+                const progRegExportModeSelector = document.getElementById('progRegExportModeSelector');
+                if (progRegExportModeSelector) progRegExportModeSelector.style.display = 'none';
                 resultsSourceContainer.style.display = 'flex';
                 subOptionsContainer.style.display = 'flex';
                 paperPackingContainer.style.display = 'none';
@@ -1759,6 +1813,8 @@ function renderDrawerContent() {
                 updateConditionalFilters();
             } else if (selectedType === 'Valuation Sheet') {
                 if (chestExportModeSelector) chestExportModeSelector.style.display = 'none';
+                const progRegExportModeSelector = document.getElementById('progRegExportModeSelector');
+                if (progRegExportModeSelector) progRegExportModeSelector.style.display = 'none';
                 resultsSourceContainer.style.display = 'none';
                 subOptionsContainer.style.display = 'none';
                 paperPackingContainer.style.display = 'flex';
@@ -1769,6 +1825,8 @@ function renderDrawerContent() {
                 if (partCont) partCont.style.display = 'none';
                 if (regModeCont) regModeCont.style.display = 'none';
             } else if (selectedType === 'Chest Number List') {
+                const progRegExportModeSelector = document.getElementById('progRegExportModeSelector');
+                if (progRegExportModeSelector) progRegExportModeSelector.style.display = 'none';
                 resultsSourceContainer.style.display = 'none';
                 subOptionsContainer.style.display = 'none';
                 paperPackingContainer.style.display = 'none';
@@ -1809,17 +1867,30 @@ function renderDrawerContent() {
                 }
             } else if (selectedType === 'Program Participation Register') {
                 if (chestExportModeSelector) chestExportModeSelector.style.display = 'none';
+                const progRegExportModeSelector = document.getElementById('progRegExportModeSelector');
+                if (progRegExportModeSelector) progRegExportModeSelector.style.display = 'flex';
                 resultsSourceContainer.style.display = 'none';
                 subOptionsContainer.style.display = 'none';
                 paperPackingContainer.style.display = 'none';
                 chestListModeContainer.style.display = 'none';
                 expProgFilterContainer.style.display = 'none';
-                if (locCont) locCont.style.display = 'flex';
-                if (partCont) partCont.style.display = 'flex';
-                if (regModeCont) regModeCont.style.display = 'flex';
-                document.getElementById('expOrientation').value = 'landscape';
+
+                const activeSubmode = progRegExportModeSelector?.querySelector('.prog-reg-submode-btn.active')?.getAttribute('data-submode') || 'register';
+                if (activeSubmode === 'list') {
+                    if (locCont) locCont.style.display = 'flex';
+                    if (partCont) partCont.style.display = 'none';
+                    if (regModeCont) regModeCont.style.display = 'none';
+                    document.getElementById('expOrientation').value = 'portrait';
+                } else {
+                    if (locCont) locCont.style.display = 'flex';
+                    if (partCont) partCont.style.display = 'flex';
+                    if (regModeCont) regModeCont.style.display = 'flex';
+                    document.getElementById('expOrientation').value = 'landscape';
+                }
             } else {
                 if (chestExportModeSelector) chestExportModeSelector.style.display = 'none';
+                const progRegExportModeSelector = document.getElementById('progRegExportModeSelector');
+                if (progRegExportModeSelector) progRegExportModeSelector.style.display = 'none';
                 resultsSourceContainer.style.display = 'none';
                 subOptionsContainer.style.display = 'none';
                 paperPackingContainer.style.display = 'flex';
@@ -1845,7 +1916,12 @@ function renderDrawerContent() {
         let isCategoryWise = false;
 
         if (selectedType === 'Program Participation Register') {
-            isCategoryWise = (document.getElementById('expRegisterMode')?.value === 'category-wise');
+            const activeSubmode = document.getElementById('progRegExportModeSelector')?.querySelector('.prog-reg-submode-btn.active')?.getAttribute('data-submode') || 'register';
+            if (activeSubmode === 'list') {
+                isCategoryWise = true;
+            } else {
+                isCategoryWise = (document.getElementById('expRegisterMode')?.value === 'category-wise');
+            }
         } else if (selectedType === 'Chest Number List') {
             const activeSubmode = document.getElementById('chestExportModeSelector')?.querySelector('.exp-submode-btn.active')?.getAttribute('data-submode') || 'list';
             if (activeSubmode === 'list') {
@@ -2017,6 +2093,7 @@ function renderDrawerContent() {
         }
 
         const activeSubmode = selectedType === 'Chest Number List' ? (document.getElementById('chestExportModeSelector')?.querySelector('.exp-submode-btn.active')?.getAttribute('data-submode') || 'list') : 'list';
+        const progRegSubmode = selectedType === 'Program Participation Register' ? (document.getElementById('progRegExportModeSelector')?.querySelector('.prog-reg-submode-btn.active')?.getAttribute('data-submode') || 'register') : 'register';
 
         const dateStr = new Date().toISOString().split('T')[0];
         const cleanName = (str) => str.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
@@ -2025,7 +2102,11 @@ function renderDrawerContent() {
         if (selectedType === 'Results') {
             fileTypePrefix = cleanName(resultSubOption);
         } else if (selectedType === 'Program Participation Register') {
-            fileTypePrefix = `${cleanName(selectedType)}_${cleanName(registerMode)}`;
+            if (progRegSubmode === 'list') {
+                fileTypePrefix = 'PROGRAM_LIST';
+            } else {
+                fileTypePrefix = `${cleanName(selectedType)}_${cleanName(registerMode)}`;
+            }
         } else if (selectedType === 'Chest Number List') {
             if (activeSubmode === 'card') {
                 fileTypePrefix = 'CHEST_NUMBER_PROGRAM_CARD';
@@ -2050,7 +2131,9 @@ function renderDrawerContent() {
                 summary: selectedType === 'Results' && resultSubOption === 'Class Wise Academic & Attendance'
                     ? `Scope: ${classId ? className : 'All Classes'} | Award Type: ${awardTypeFilter} [${format.toUpperCase()}]`
                     : (selectedType === 'Program Participation Register'
-                        ? `Scope: ${categoryName} | Mode: ${registerMode === 'category-wise' ? 'Category-wise' : 'Class-wise'} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`
+                        ? (progRegSubmode === 'list'
+                            ? `Scope: ${categoryName} | Mode: Program List [${format.toUpperCase()}]`
+                            : `Scope: ${categoryName} | Mode: ${registerMode === 'category-wise' ? 'Category-wise' : 'Class-wise'} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`)
                         : (selectedType === 'Chest Number List'
                             ? (activeSubmode === 'card'
                                 ? `Scope: ${categoryName}${className ? ` (${className})` : ''} | Mode: Chest Number & Program Card | Team: ${teamName} [${format.toUpperCase()}]`
@@ -2063,6 +2146,7 @@ function renderDrawerContent() {
                 filters: {
                     type: selectedType,
                     chestSubmode: activeSubmode,
+                    progRegSubmode,
                     resultSubOption,
                     awardTypeFilter,
                     categoryId,
@@ -2510,7 +2594,7 @@ async function triggerDownload(exp, isDownload = false) {
 
         // Phase 7 Firestore Parallel Fetch Optimization using Promise.all
         let participantsMap = {};
-        if (f.type !== 'Results' || f.resultSubOption === 'Participants Without Major Prizes' || f.resultSubOption === 'Student Prize Distribution' || f.resultSubOption === 'Prize Distribution Register' || f.resultSubOption === 'Team Wise' || f.resultSubOption === 'Program Wise') {
+        if (f.progRegSubmode !== 'list' && (f.type !== 'Results' || f.resultSubOption === 'Participants Without Major Prizes' || f.resultSubOption === 'Student Prize Distribution' || f.resultSubOption === 'Prize Distribution Register' || f.resultSubOption === 'Team Wise' || f.resultSubOption === 'Program Wise')) {
             const participantPromises = programs.map(p => loadParticipants(p, f.teamId, studentMap));
             const allParts = await Promise.all(participantPromises);
             programs.forEach((p, idx) => {
@@ -4139,7 +4223,117 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         }
         return;
     } else if (f.type === 'Program Participation Register') {
-        const isCompact = f.compactPacking !== false;
+        if (f.progRegSubmode === 'list') {
+            const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+
+            // Group programs by Category
+            const categoryGroups = {};
+            programs.forEach(p => {
+                let catName = 'GENERAL';
+                if (p.categoryId === 'general_programs' || p.programType === 'general') {
+                    catName = 'GENERAL';
+                } else {
+                    const cat = allCategories.find(c => c.id === p.categoryId);
+                    catName = cat ? cat.name : (p.categoryName || 'GENERAL');
+                }
+
+                if (!categoryGroups[catName]) {
+                    categoryGroups[catName] = [];
+                }
+                categoryGroups[catName].push(p);
+            });
+
+            // Sort Category names alphabetically
+            const sortedCatNames = Object.keys(categoryGroups).sort((a, b) =>
+                a.localeCompare(b, undefined, { sensitivity: 'base' })
+            );
+
+            // Sort programs inside each category by Program Number
+            sortedCatNames.forEach(catName => {
+                categoryGroups[catName].sort((a, b) => {
+                    const numA = String(a.programNumber ?? '').trim();
+                    const numB = String(b.programNumber ?? '').trim();
+                    if (numA && numB) {
+                        const cmp = numA.localeCompare(numB, undefined, { numeric: true, sensitivity: 'base' });
+                        if (cmp !== 0) return cmp;
+                    } else if (numA) {
+                        return -1;
+                    } else if (numB) {
+                        return 1;
+                    }
+                    return (a.programName || '').localeCompare(b.programName || '');
+                });
+            });
+
+            if (sortedCatNames.length === 0) {
+                htmlContent = `
+                    <div style="text-align:center; padding:4rem; color:#dc2626; border:1px solid #fecaca; border-radius:12px; background:#fef2f2;">
+                        <h3 style="margin:0;">⚠️ No matching programs found.</h3>
+                        <p style="color:#64748b; margin-top:0.25rem; font-weight:600;">Check your filter criteria and try again.</p>
+                    </div>
+                `;
+            } else {
+                const catDisplay = f.categoryId
+                    ? (f.categoryId === 'general_programs' ? 'GENERAL PROGRAMS' : (allCategories.find(c => c.id === f.categoryId)?.name || 'SELECTED CATEGORY').toUpperCase())
+                    : 'ALL CATEGORIES';
+
+                htmlContent += `
+                    <div class="program-page-standard" style="margin-bottom: 2rem;">
+                        <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.4rem; margin-bottom: 1rem; width: 100%;">
+                            <div>
+                                <div style="font-size: 0.8rem; font-weight: 800; color: #000; letter-spacing: 0.05em; text-transform: uppercase;">
+                                    PROGRAM LIST
+                                </div>
+                                <h2 style="margin: 0.15rem 0 0 0; color: #000; font-size: 1.25rem; font-weight: 800; text-transform: uppercase;">
+                                    PROGRAM LIST BY CATEGORY
+                                </h2>
+                                <div style="font-size: 0.72rem; font-weight: 700; color: #000; margin-top: 0.1rem; text-transform: uppercase;">
+                                    ${window.escapeHTML(instName).toUpperCase()}
+                                </div>
+                            </div>
+                            <div style="text-align: right; font-weight: 800; color: #000; line-height: 1.3;">
+                                <div style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; color: #1e1b4b;">
+                                    ${window.escapeHTML(catDisplay)}
+                                </div>
+                                ${f.programLocation ? `<div style="font-size: 0.72rem; font-weight: 700; color: #334155; text-transform: uppercase;">LOCATION: ${window.escapeHTML(f.programLocation).toUpperCase()}</div>` : ''}
+                                ${f.gender ? `<div style="font-size: 0.68rem; font-weight: 700; color: #475569; text-transform: uppercase;">GENDER: ${window.escapeHTML(f.gender).toUpperCase()}</div>` : ''}
+                            </div>
+                        </div>
+
+                        ${sortedCatNames.map(catName => `
+                            <div style="margin-top: 1.25rem; margin-bottom: 1.5rem; page-break-inside: avoid; break-inside: avoid;">
+                                <div style="background: #1e1b4b; color: #ffffff; padding: 0.4rem 0.75rem; font-size: 0.85rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; border-radius: 4px; margin-bottom: 0.5rem;">
+                                    ${window.escapeHTML(catName)}
+                                </div>
+                                <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+                                    <thead>
+                                        <tr style="background: #f1f5f9;">
+                                            <th style="width: 45px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">#</th>
+                                            <th style="width: 130px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">PROGRAM NO</th>
+                                            <th style="padding: 0.45rem 0.75rem; text-align: left; border: 1px solid #000; font-weight: 800;">PROGRAM NAME</th>
+                                            <th style="width: 140px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">STAGE / OFF STAGE</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${categoryGroups[catName].map((p, idx) => `
+                                            <tr style="border-bottom: 1px solid #000; page-break-inside: avoid;">
+                                                <td style="text-align: center; font-weight: 700; padding: 0.4rem 0.5rem; border: 1px solid #000;">${idx + 1}</td>
+                                                <td style="text-align: center; font-weight: 800; padding: 0.4rem 0.5rem; border: 1px solid #000; color: #1e1b4b;">${window.escapeHTML(p.programNumber || '—')}</td>
+                                                <td style="padding: 0.4rem 0.75rem; font-weight: 700; border: 1px solid #000;">${window.escapeHTML(p.programName)}</td>
+                                                <td style="text-align: center; font-weight: 700; padding: 0.4rem 0.5rem; border: 1px solid #000;">
+                                                    ${window.escapeHTML(p.programLocation || 'Stage')}
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+        } else {
+            const isCompact = f.compactPacking !== false;
 
         const isRegistered = (studentId, progId) => {
             const parts = participantsMap[progId] || [];
@@ -4967,8 +5161,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 });
             }
         }
+    }
 
-        // Render PDF through iframe
+    // Render PDF through iframe
         const printIframe = getPrintIframe();
         const doc = printIframe.contentDocument || printIframe.contentWindow.document;
         const pageMargin = '8mm';
@@ -7074,7 +7269,66 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
         document.body.removeChild(link);
         return;
     } else if (f.type === 'Program Participation Register') {
-        const isRegistered = (studentId, progId) => {
+        if (f.progRegSubmode === 'list') {
+            let csvContent = "\uFEFF";
+            csvContent += "CATEGORY,PROGRAM NUMBER,PROGRAM NAME,STAGE / OFF STAGE\n";
+
+            const categoryGroups = {};
+            programs.forEach(p => {
+                let catName = 'GENERAL';
+                if (p.categoryId === 'general_programs' || p.programType === 'general') {
+                    catName = 'GENERAL';
+                } else {
+                    const cat = allCategories.find(c => c.id === p.categoryId);
+                    catName = cat ? cat.name : (p.categoryName || 'GENERAL');
+                }
+
+                if (!categoryGroups[catName]) {
+                    categoryGroups[catName] = [];
+                }
+                categoryGroups[catName].push(p);
+            });
+
+            const sortedCatNames = Object.keys(categoryGroups).sort((a, b) =>
+                a.localeCompare(b, undefined, { sensitivity: 'base' })
+            );
+
+            sortedCatNames.forEach(catName => {
+                categoryGroups[catName].sort((a, b) => {
+                    const numA = String(a.programNumber ?? '').trim();
+                    const numB = String(b.programNumber ?? '').trim();
+                    if (numA && numB) {
+                        const cmp = numA.localeCompare(numB, undefined, { numeric: true, sensitivity: 'base' });
+                        if (cmp !== 0) return cmp;
+                    } else if (numA) {
+                        return -1;
+                    } else if (numB) {
+                        return 1;
+                    }
+                    return (a.programName || '').localeCompare(b.programName || '');
+                });
+
+                categoryGroups[catName].forEach(p => {
+                    const catEsc = `"${catName.replace(/"/g, '""')}"`;
+                    const numEsc = `"${String(p.programNumber ?? '').replace(/"/g, '""')}"`;
+                    const nameEsc = `"${(p.programName || '').replace(/"/g, '""')}"`;
+                    const locEsc = `"${(p.programLocation || 'Stage').replace(/"/g, '""')}"`;
+                    csvContent += `${catEsc},${numEsc},${nameEsc},${locEsc}\n`;
+                });
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", exp.fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            return;
+        } else {
+            const isRegistered = (studentId, progId) => {
             const parts = participantsMap[progId] || [];
             return parts.some(part => {
                 if (part.isGroup) {
@@ -7274,6 +7528,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
         document.body.removeChild(link);
         return;
     }
+}
 
     if (f.type === 'Green Room Sign') {
         csvContent += "PROGRAM,CATEGORY,TYPE,SL NO,CHEST NUMBER,PARTICIPANT NAME,CODE LETTER,SIGNATURE\n";
