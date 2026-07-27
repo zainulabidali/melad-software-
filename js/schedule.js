@@ -381,6 +381,30 @@ function injectTableScheduleStyles() {
             box-sizing: border-box;
         }
 
+        /* Add Program Redesigned Modal Responsive Container & Cards */
+        .modal-container.add-program-modal-container {
+            max-width: 960px !important;
+            width: 95% !important;
+            padding: 1.25rem !important;
+        }
+        .add-prog-card:hover {
+            border-color: #4338ca !important;
+            box-shadow: 0 4px 12px rgba(67, 56, 202, 0.12) !important;
+        }
+        @media (max-width: 768px) {
+            .add-prog-filter-bar {
+                grid-template-columns: repeat(2, 1fr) !important;
+            }
+        }
+        @media (max-width: 576px) {
+            .add-prog-filter-bar {
+                grid-template-columns: 1fr !important;
+            }
+            #programCardsGrid {
+                grid-template-columns: 1fr !important;
+            }
+        }
+
         /* Compact Table Styles */
         .sched-table-wrapper {
             background: #ffffff;
@@ -763,17 +787,31 @@ function resolveCategoryName(prog) {
     return 'Uncategorized';
 }
 
+function getBreakIcon(title = '') {
+    const t = String(title).toLowerCase();
+    if (t.includes('tea')) return '☕';
+    if (t.includes('lunch') || t.includes('food') || t.includes('meal')) return '🍽️';
+    if (t.includes('prayer') || t.includes('salah') || t.includes('namaz')) return '🕌';
+    if (t.includes('setup') || t.includes('stage')) return '🎪';
+    if (t.includes('judge') || t.includes('meeting')) return '⚖️';
+    if (t.includes('prize') || t.includes('award') || t.includes('ceremony')) return '🏆';
+    return '⏰';
+}
+
 function mergeAndRender() {
     // Map programs and schedule documents
     mergedSchedules = localSchedules.map(sched => {
-        const prog = localPrograms.find(p => p.id === sched.programId || p.id === sched.id) || {};
-        const catName = resolveCategoryName(prog);
+        const isBreak = !!sched.isBreak || sched.type === 'break' || (!sched.programId && !!sched.programName);
+        const prog = isBreak ? {} : (localPrograms.find(p => p.id === sched.programId || p.id === sched.id) || {});
+        const catName = isBreak ? 'Break' : resolveCategoryName(prog);
         return {
             id: sched.id,
-            programId: sched.programId || sched.id,
-            programName: sched.programName || prog.programName || 'Unnamed Program',
-            programNumber: prog.programNumber || sched.programNumber || '',
-            programType: prog.programType || sched.programType || '',
+            isBreak: isBreak,
+            breakTitle: sched.breakTitle || sched.programName || 'Break',
+            programId: sched.programId || '',
+            programName: isBreak ? (sched.breakTitle || sched.programName || 'Break') : (sched.programName || prog.programName || 'Unnamed Program'),
+            programNumber: isBreak ? '' : (prog.programNumber || sched.programNumber || ''),
+            programType: isBreak ? 'Break' : (prog.programType || sched.programType || ''),
             categoryName: catName,
             stage: sched.stage || '',
             scheduleDate: sched.scheduleDate || '',
@@ -1403,9 +1441,12 @@ function renderConfigBar() {
                 <span>mins</span>
             </div>
         </div>
-        <div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
             <button class="btn btn-primary" id="btnAddProgramRow" style="font-weight:700;">
-                + Add Program to ${window.escapeHTML(activeStage)}
+                + Add Program
+            </button>
+            <button class="btn btn-secondary" id="btnAddBreakRow" style="font-weight:700; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">
+                ☕ + Add Break
             </button>
         </div>
     `;
@@ -1428,6 +1469,7 @@ function renderConfigBar() {
     };
 
     document.getElementById('btnAddProgramRow').onclick = openAddProgramRowModal;
+    document.getElementById('btnAddBreakRow').onclick = openAddBreakModal;
 }
 
 async function updateStageSchedulesDate(newDate) {
@@ -1462,12 +1504,16 @@ function refreshScheduleTable() {
                 <td colspan="8" style="text-align:center; padding:3rem 1.5rem;">
                     <div style="font-size:2rem; margin-bottom:0.5rem;">📝</div>
                     <h4 style="margin:0; font-weight:800; color:#1e293b;">No Programs Scheduled in ${window.escapeHTML(activeStage)}</h4>
-                    <p style="margin:0.25rem 0 1rem 0; color:#64748b; font-size:0.85rem;">Click the button below to add your first competition program slot.</p>
-                    <button class="btn btn-primary" id="btnAddProgramRowEmpty">+ Add Program Slot</button>
+                    <p style="margin:0.25rem 0 1rem 0; color:#64748b; font-size:0.85rem;">Add a competition program slot or inserting a break slot below.</p>
+                    <div style="display:flex; gap:0.5rem; justify-content:center; margin-top:0.75rem;">
+                        <button class="btn btn-primary" id="btnAddProgramRowEmpty">+ Add Program Slot</button>
+                        <button class="btn btn-secondary" id="btnAddBreakRowEmpty" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; font-weight:700;">☕ + Add Break Slot</button>
+                    </div>
                 </td>
             </tr>
         `;
         document.getElementById('btnAddProgramRowEmpty').onclick = openAddProgramRowModal;
+        document.getElementById('btnAddBreakRowEmpty').onclick = openAddBreakModal;
         return;
     }
 
@@ -1482,6 +1528,58 @@ function refreshScheduleTable() {
             'Delayed': 'background:#ffedd5; color:#ea580c;',
             'Cancelled': 'background:#fee2e2; color:#dc2626;'
         };
+
+        if (item.isBreak) {
+            const icon = getBreakIcon(item.programName);
+            return `
+                <tr class="sched-table-row is-break-row ${item.isLocked ? 'is-locked' : ''}" draggable="true" data-id="${item.id}" data-idx="${idx}" style="background:#fffbeb; border-left:4px solid #f59e0b;">
+                    <td style="text-align:center;">
+                        <input type="checkbox" class="sched-row-chk" data-id="${item.id}" ${isChecked ? 'checked' : ''} style="cursor:pointer;">
+                    </td>
+                    <td style="text-align:center; font-weight:800; color:#b45309;">
+                        ${idx + 1}
+                    </td>
+                    <td style="font-weight:700; color:#92400e;">
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <span style="font-size:1.1rem;">${icon}</span>
+                            <div>
+                                ${item.isLocked ? '<span title="Locked Slot" style="margin-right:4px;">🔒</span>' : ''}
+                                <span style="font-weight:800; font-size:0.95rem; color:#78350f;">${window.escapeHTML(item.programName)}</span>
+                                <span style="margin-left:6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.7rem; text-transform:uppercase;">BREAK</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <input type="number" class="sched-tbl-input row-duration-in" data-id="${item.id}" value="${item.duration}" style="width:75px; border-color:#fde68a; background:#ffffff;" min="1"> mins
+                    </td>
+                    <td style="font-weight:700; color:#b45309;">
+                        ${formatTimeTo12Hour(item.startTime || '09:00')}
+                    </td>
+                    <td style="font-weight:700; color:#b45309;">
+                        ${formatTimeTo12Hour(item.endTime || '09:20')}
+                    </td>
+                    <td>
+                        <select class="sched-tbl-select row-status-sel" data-id="${item.id}" style="${statusColors[item.status] || ''}">
+                            <option value="Pending" ${item.status === 'Pending' || item.status === 'Not Scheduled' ? 'selected' : ''}>🟡 Pending</option>
+                            <option value="Scheduled" ${item.status === 'Scheduled' ? 'selected' : ''}>🟡 Scheduled</option>
+                            <option value="Running" ${item.status === 'Running' ? 'selected' : ''}>🔵 Running</option>
+                            <option value="Completed" ${item.status === 'Completed' ? 'selected' : ''}>🟢 Completed</option>
+                            <option value="Delayed" ${item.status === 'Delayed' ? 'selected' : ''}>🟠 Delayed</option>
+                            <option value="Cancelled" ${item.status === 'Cancelled' ? 'selected' : ''}>🔴 Cancelled</option>
+                        </select>
+                    </td>
+                    <td style="text-align:right;">
+                        <div class="sched-row-actions">
+                            <button class="btn-tbl-act btn-move-up" data-id="${item.id}" data-idx="${idx}" title="Move Up">⬆️</button>
+                            <button class="btn-tbl-act btn-move-down" data-id="${item.id}" data-idx="${idx}" title="Move Down">⬇️</button>
+                            <button class="btn-tbl-act btn-toggle-lock" data-id="${item.id}" title="${item.isLocked ? 'Unlock Time' : 'Lock Time'}">${item.isLocked ? '🔒' : '🔓'}</button>
+                            <button class="btn-tbl-act btn-dup-row" data-id="${item.id}" title="Duplicate Slot">📋</button>
+                            <button class="btn-tbl-act btn-del-row text-danger" data-id="${item.id}" title="Delete Slot">🗑️</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
 
         return `
             <tr class="sched-table-row ${item.isLocked ? 'is-locked' : ''}" draggable="true" data-id="${item.id}" data-idx="${idx}">
@@ -1639,6 +1737,103 @@ async function reorderRowsByIndex(items, fromIdx, toIdx) {
     refreshScheduleTable();
 }
 
+// Open modal to add break slot to active stage
+function openAddBreakModal() {
+    const modalTitle = document.getElementById('dynamicModalTitle');
+    const modalBody = document.getElementById('dynamicModalBody');
+    const modalOverlay = document.getElementById('dynamicModal');
+
+    modalTitle.textContent = `☕ Add Break Slot to ${activeStage}`;
+
+    modalBody.innerHTML = `
+        <form id="addBreakSlotForm">
+            <div class="form-group">
+                <label class="form-label">Break Title *</label>
+                <select id="selBreakTitleSelect" class="form-input" required>
+                    <option value="Tea Break">☕ Tea Break</option>
+                    <option value="Lunch Break">🍽️ Lunch Break</option>
+                    <option value="Prayer Break">🕌 Prayer Break</option>
+                    <option value="Stage Setup">🎪 Stage Setup</option>
+                    <option value="Judge Meeting">⚖️ Judge Meeting</option>
+                    <option value="Prize Distribution">🏆 Prize Distribution</option>
+                    <option value="Other">✏️ Other (Custom Title)</option>
+                </select>
+            </div>
+            <div class="form-group hidden" id="customBreakTitleGroup">
+                <label class="form-label">Custom Break Title *</label>
+                <input type="text" id="txtCustomBreakTitle" class="form-input" placeholder="e.g. Refreshment Break, Announcement">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Duration (Minutes) *</label>
+                <input type="number" id="selBreakDur" class="form-input" value="${stageConfigs[activeStage]?.defaultDuration || 20}" min="1" required>
+            </div>
+            <div class="modal-actions" style="margin-top:1.25rem;">
+                <button type="submit" class="btn btn-primary w-full" id="btnSaveBreakSlot">Save Break Slot</button>
+            </div>
+        </form>
+    `;
+
+    modalOverlay.classList.remove('hidden');
+
+    const breakSelect = document.getElementById('selBreakTitleSelect');
+    const customGroup = document.getElementById('customBreakTitleGroup');
+    const customInput = document.getElementById('txtCustomBreakTitle');
+
+    breakSelect.onchange = () => {
+        if (breakSelect.value === 'Other') {
+            customGroup.classList.remove('hidden');
+            customInput.required = true;
+            customInput.focus();
+        } else {
+            customGroup.classList.add('hidden');
+            customInput.required = false;
+        }
+    };
+
+    const closeModal = () => modalOverlay.classList.add('hidden');
+    document.getElementById('closeDynamicModalBtn').onclick = closeModal;
+
+    document.getElementById('addBreakSlotForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const selectVal = breakSelect.value;
+        const customVal = customInput.value.trim();
+        const breakTitle = (selectVal === 'Other') ? (customVal || 'Break') : selectVal;
+        const duration = parseInt(document.getElementById('selBreakDur').value, 10) || 20;
+
+        const btn = document.getElementById('btnSaveBreakSlot');
+        btn.disabled = true;
+
+        try {
+            const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
+            const isOff = activeStage.toLowerCase().includes('off stage');
+
+            const newDocRef = doc(collection(db, "institutes", window.currentInstituteId, "schedules"));
+            await setDoc(newDocRef, {
+                isBreak: true,
+                programId: '',
+                programName: breakTitle,
+                breakTitle: breakTitle,
+                stage: activeStage,
+                scheduleDate: stageConfigs[activeStage]?.date || new Date().toISOString().split('T')[0],
+                duration: duration,
+                runningOrder: activeItems.length + 1,
+                status: 'Scheduled',
+                isOffStage: isOff,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+
+            window.showToast(`✓ Break "${breakTitle}" added to ${activeStage}`);
+            closeModal();
+        } catch (err) {
+            console.error("Error adding break slot:", err);
+            window.showToast("Failed to add break slot.", "error");
+        } finally {
+            btn.disabled = false;
+        }
+    };
+}
+
 // Open modal to add published program to active stage
 async function openAddProgramRowModal() {
     const modalTitle = document.getElementById('dynamicModalTitle');
@@ -1663,8 +1858,29 @@ async function openAddProgramRowModal() {
     const getProgramCategoryName = (p) => {
         if (p.categoryName) return p.categoryName;
         const cat = categories.find(c => c.id === p.categoryId);
-        return cat ? cat.name : '';
+        return cat ? cat.name : (p.categoryId === 'general_programs' ? 'General' : '');
     };
+
+    const getProgramLocation = (p) => {
+        if (p.programLocation) return p.programLocation;
+        if (p.location) return p.location;
+        if (p.isOffStage !== undefined) return p.isOffStage ? 'Off Stage' : 'Stage';
+        return 'Stage';
+    };
+
+    // Build unique list of category names for filter dropdown
+    const categoryNamesList = [];
+    categories.forEach(c => {
+        if (c.name && !categoryNamesList.includes(c.name)) categoryNamesList.push(c.name);
+    });
+    availablePrograms.forEach(p => {
+        const cName = getProgramCategoryName(p) || 'General';
+        if (cName && !categoryNamesList.includes(cName)) categoryNamesList.push(cName);
+    });
+
+    const categoryOptionsHtml = categoryNamesList.map(cName => 
+        `<option value="${window.escapeHTML(cName)}">${window.escapeHTML(cName)}</option>`
+    ).join('');
 
     // Sort available programs ascending by programNumber (numerically if possible)
     const sortedPrograms = [...availablePrograms].sort((a, b) => {
@@ -1678,220 +1894,254 @@ async function openAddProgramRowModal() {
         return numA - numB;
     });
 
+    // Make dynamic modal wide for comfortable desktop & mobile browsing
+    const modalContainer = modalOverlay.querySelector('.modal-container');
+    if (modalContainer) {
+        modalContainer.classList.add('add-program-modal-container');
+    }
+
     modalBody.innerHTML = `
-        <form id="addProgSlotForm">
-            <div class="form-group">
-                <label class="form-label">Select Program *</label>
-                <div class="custom-select-container" id="programSearchSelectContainer">
-                    <button type="button" class="custom-select-trigger" id="programSelectTrigger">
-                        <span class="custom-select-trigger-text">Select Program...</span>
-                        <span class="custom-select-trigger-arrow">▼</span>
-                    </button>
-                    <div class="custom-select-dropdown" id="programSelectDropdown">
-                        <div class="custom-select-search-wrapper">
-                            <input type="text" class="custom-select-search-input" id="programSearchInput" placeholder="Search by name or number..." autocomplete="off">
-                        </div>
-                        <ul class="custom-select-options-list" id="programSelectOptionsList">
-                            <!-- Options injected dynamically -->
-                        </ul>
-                    </div>
-                    <input type="hidden" id="selProgId" name="programId" required>
+        <form id="addProgSlotForm" autocomplete="off" style="display:flex; flex-direction:column; gap:12px;">
+            <!-- Integrated Aligned Filter Header -->
+            <div class="add-prog-filter-bar" style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; background:#f8fafc; padding:12px; border-radius:12px; border:1px solid #cbd5e1;">
+                <div>
+                    <label style="display:block; font-size:0.75rem; font-weight:700; color:#475569; margin-bottom:4px;">Category</label>
+                    <select id="programCategoryFilter" class="form-input" style="width:100%; font-size:0.85rem; font-weight:600; padding:6px 10px; height:38px; border-radius:8px;">
+                        <option value="">All Categories</option>
+                        ${categoryOptionsHtml}
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.75rem; font-weight:700; color:#475569; margin-bottom:4px;">Gender</label>
+                    <select id="programGenderFilter" class="form-input" style="width:100%; font-size:0.85rem; font-weight:600; padding:6px 10px; height:38px; border-radius:8px;">
+                        <option value="">All</option>
+                        <option value="Boys">Boys</option>
+                        <option value="Girls">Girls</option>
+                        <option value="Mixed">Mixed</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.75rem; font-weight:700; color:#475569; margin-bottom:4px;">Program Location</label>
+                    <select id="programLocationFilter" class="form-input" style="width:100%; font-size:0.85rem; font-weight:600; padding:6px 10px; height:38px; border-radius:8px;">
+                        <option value="">All</option>
+                        <option value="Stage">Stage</option>
+                        <option value="Off Stage">Off Stage</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.75rem; font-weight:700; color:#475569; margin-bottom:4px;">Search</label>
+                    <input type="text" id="programSearchInput" class="form-input" placeholder="Search name or number..." style="width:100%; font-size:0.85rem; font-weight:600; padding:6px 10px; height:38px; border-radius:8px;" autocomplete="off">
                 </div>
             </div>
-            <div class="form-group">
-                <label class="form-label">Duration (Minutes)</label>
-                <input type="number" id="selProgDur" class="form-input" value="${stageConfigs[activeStage]?.defaultDuration || 20}" min="1" required>
+
+            <!-- List Header Count -->
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:0 4px;">
+                <span id="progCountLabel" style="font-size:0.825rem; font-weight:700; color:#475569;">Available Programs</span>
+                <span style="font-size:0.75rem; color:#64748b; font-weight:500;">Tip: Double-click card to add directly</span>
             </div>
-            <div class="modal-actions" style="margin-top:1.25rem;">
-                <button type="submit" class="btn btn-primary w-full">Add to ${window.escapeHTML(activeStage)}</button>
+
+            <!-- Scrollable Cards Grid Container -->
+            <div id="programCardsGrid" style="
+                max-height: 420px;
+                overflow-y: auto;
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+                gap: 10px;
+                padding: 4px;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                background: #ffffff;
+                -webkit-overflow-scrolling: touch;
+            ">
+                <!-- Program cards injected dynamically -->
+            </div>
+
+            <input type="hidden" id="selProgId" name="programId" required>
+
+            <!-- Bottom Action Controls -->
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; background:#f8fafc; padding:12px 16px; border-radius:12px; border:1px solid #cbd5e1; flex-wrap:wrap; margin-top:4px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label style="font-weight:700; font-size:0.85rem; color:#334155; white-space:nowrap;">Duration (Mins):</label>
+                    <input type="number" id="selProgDur" class="form-input" value="${stageConfigs[activeStage]?.defaultDuration || 20}" min="1" style="width:90px; height:38px; font-weight:700;" required>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <span id="selectedProgNotice" style="font-size:0.85rem; font-weight:700; color:#4338ca;">No program selected</span>
+                    <button type="submit" class="btn btn-primary" id="btnSubmitAddSlot" style="font-weight:700; padding:0.6rem 1.5rem;" disabled>+ Add to ${window.escapeHTML(activeStage)}</button>
+                </div>
             </div>
         </form>
     `;
 
     modalOverlay.classList.remove('hidden');
 
-    // UI Logic for searchable select dropdown
-    const containerEl = document.getElementById('programSearchSelectContainer');
-    const triggerBtn = document.getElementById('programSelectTrigger');
-    const dropdownEl = document.getElementById('programSelectDropdown');
+    // UI Control references
+    const categoryFilter = document.getElementById('programCategoryFilter');
+    const genderFilter = document.getElementById('programGenderFilter');
+    const locationFilter = document.getElementById('programLocationFilter');
     const searchInput = document.getElementById('programSearchInput');
-    const listEl = document.getElementById('programSelectOptionsList');
+    const gridEl = document.getElementById('programCardsGrid');
     const hiddenInput = document.getElementById('selProgId');
+    const submitBtn = document.getElementById('btnSubmitAddSlot');
+    const selectedNotice = document.getElementById('selectedProgNotice');
+    const countLabel = document.getElementById('progCountLabel');
 
     let filteredPrograms = [...sortedPrograms];
-    let highlightedIndex = 0;
     let selectedProgId = '';
 
-    function scrollHighlightedIntoView() {
-        const highlightedEl = listEl.querySelector('.custom-select-option.highlighted');
-        if (!highlightedEl) return;
-
-        const listHeight = listEl.clientHeight;
-        const listScrollTop = listEl.scrollTop;
-        const itemHeight = highlightedEl.offsetHeight;
-        const itemOffsetTop = highlightedEl.offsetTop;
-
-        if (itemOffsetTop < listScrollTop) {
-            listEl.scrollTop = itemOffsetTop;
-        } else if (itemOffsetTop + itemHeight > listScrollTop + listHeight) {
-            listEl.scrollTop = itemOffsetTop + itemHeight - listHeight;
+    function renderProgramCards() {
+        if (countLabel) {
+            countLabel.textContent = `Showing ${filteredPrograms.length} of ${sortedPrograms.length} programs`;
         }
-    }
 
-    function renderOptions() {
         if (filteredPrograms.length === 0) {
-            listEl.innerHTML = `<li class="custom-select-no-results">No matching programs found.</li>`;
+            gridEl.innerHTML = `
+                <div style="grid-column: 1 / -1; padding:3rem 1.5rem; text-align:center; color:#64748b;">
+                    <div style="font-size:2rem; margin-bottom:0.4rem;">🔍</div>
+                    <h4 style="margin:0 0 0.25rem 0; font-weight:700; color:#1e293b;">No programs match the selected filters</h4>
+                    <p style="margin:0; font-size:0.85rem;">Try clearing or adjusting your search and filter options.</p>
+                </div>
+            `;
             return;
         }
 
-        let html = '';
-        filteredPrograms.forEach((p, index) => {
+        gridEl.innerHTML = filteredPrograms.map(p => {
             const isSelected = p.id === selectedProgId;
-            const isHighlighted = index === highlightedIndex;
-            const catName = getProgramCategoryName(p) || 'Uncategorized';
-            const typeName = p.programType ? (p.programType.charAt(0).toUpperCase() + p.programType.slice(1)) : '';
-            const typeStr = typeName ? ` (${typeName})` : '';
-            const displayLabel = `${p.programNumber ? `[#${p.programNumber}] ` : ''}${p.programName}${typeStr}`;
+            const catName = getProgramCategoryName(p) || 'General';
+            const genderVal = p.genderCategory || p.gender || 'Mixed';
+            const typeName = p.programType ? (p.programType.charAt(0).toUpperCase() + p.programType.slice(1)) : 'Individual';
+            const locVal = getProgramLocation(p);
 
-            html += `
-                <li class="custom-select-option ${isSelected ? 'selected' : ''} ${isHighlighted ? 'highlighted' : ''}" data-id="${p.id}" data-idx="${index}" style="display:flex; flex-direction:column; align-items:flex-start; height:auto; padding:8px 12px; line-height:1.3;">
-                    <div style="font-weight:700; font-size:0.875rem;">${window.escapeHTML(displayLabel)}</div>
-                    <div style="margin-top:4px;">
-                        <span class="sched-cat-badge">${window.escapeHTML(catName)}</span>
+            return `
+                <div class="add-prog-card ${isSelected ? 'selected' : ''}" data-id="${p.id}" style="
+                    background: ${isSelected ? '#e0e7ff' : '#ffffff'};
+                    border: 2px solid ${isSelected ? '#4338ca' : '#cbd5e1'};
+                    border-radius: 12px;
+                    padding: 12px 14px;
+                    cursor: pointer;
+                    transition: all 0.15s ease;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    box-shadow: ${isSelected ? '0 4px 12px rgba(67, 56, 202, 0.15)' : 'none'};
+                ">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+                        <div style="font-weight:800; font-size:0.925rem; color:#0f172a; line-height:1.3;">
+                            ${p.programNumber ? `<span style="color:#4338ca; background:#eeefee; padding:2px 6px; border-radius:6px; margin-right:6px; font-size:0.85rem; font-weight:800;">[#${window.escapeHTML(String(p.programNumber))}]</span>` : ''}
+                            <span>${window.escapeHTML(p.programName)}</span>
+                        </div>
+                        ${isSelected ? `<span style="background:#4338ca; color:#ffffff; width:20px; height:20px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:bold; flex-shrink:0;">✓</span>` : ''}
                     </div>
-                </li>
+                    <div style="display:flex; flex-wrap:wrap; gap:5px; align-items:center; margin-top:2px;">
+                        <span class="sched-cat-badge" style="background:#f1f5f9; color:#334155; border-color:#cbd5e1; font-weight:700;">
+                            🏷️ ${window.escapeHTML(catName)}
+                        </span>
+                        <span class="sched-cat-badge" style="background:#f0fdf4; color:#166534; border-color:#bbf7d0; font-weight:700;">
+                            👤 ${window.escapeHTML(genderVal)}
+                        </span>
+                        <span class="sched-cat-badge" style="background:#fefce8; color:#854d0e; border-color:#fef08a; font-weight:700;">
+                            👥 ${window.escapeHTML(typeName)}
+                        </span>
+                        <span class="sched-cat-badge" style="background:${locVal === 'Stage' ? '#eff6ff' : '#faf5ff'}; color:${locVal === 'Stage' ? '#1d4ed8' : '#7e22ce'}; border-color:${locVal === 'Stage' ? '#bfdbfe' : '#e9d5ff'}; font-weight:700;">
+                            ${locVal === 'Stage' ? '🎪 Stage' : '📝 Off Stage'}
+                        </span>
+                    </div>
+                </div>
             `;
-        });
-        listEl.innerHTML = html;
+        }).join('');
 
-        // Attach click option handlers
-        listEl.querySelectorAll('.custom-select-option').forEach(opt => {
-            opt.onclick = () => {
-                const id = opt.dataset.id;
-                selectProgram(id);
+        // Attach click and double click handlers to cards
+        gridEl.querySelectorAll('.add-prog-card').forEach(card => {
+            card.onclick = () => {
+                const id = card.dataset.id;
+                selectProgramCard(id);
+            };
+            card.ondblclick = () => {
+                const id = card.dataset.id;
+                selectProgramCard(id);
+                document.getElementById('addProgSlotForm').requestSubmit();
             };
         });
-
-        scrollHighlightedIntoView();
     }
 
-    function selectProgram(id) {
+    function selectProgramCard(id) {
         selectedProgId = id;
-        const prog = sortedPrograms.find(p => p.id === id);
-        if (!prog) return;
-
-        const catName = getProgramCategoryName(prog);
-        const typeName = prog.programType ? (prog.programType.charAt(0).toUpperCase() + prog.programType.slice(1)) : '';
-        const suffix = [catName, typeName].filter(Boolean).join(' - ');
-        const suffixStr = suffix ? ` (${suffix})` : '';
-        const displayLabel = `${prog.programNumber ? `[#${prog.programNumber}] ` : ''}${prog.programName}${suffixStr}`;
-
-        document.querySelector('.custom-select-trigger-text').textContent = displayLabel;
         hiddenInput.value = id;
-        closeSelectDropdown();
-    }
+        const prog = sortedPrograms.find(p => p.id === id);
 
-    function openSelectDropdown() {
-        containerEl.classList.add('open');
-        dropdownEl.style.display = 'block';
-        dropdownEl.offsetHeight; // reflow
-        dropdownEl.style.opacity = '1';
-        dropdownEl.style.transform = 'scale(1)';
-        dropdownEl.style.pointerEvents = 'auto';
-        
-        setTimeout(() => {
-            searchInput.focus();
-        }, 50);
-    }
-
-    function closeSelectDropdown() {
-        dropdownEl.style.opacity = '0';
-        dropdownEl.style.transform = 'scale(0.95)';
-        dropdownEl.style.pointerEvents = 'none';
-        containerEl.classList.remove('open');
-        setTimeout(() => {
-            if (!containerEl.classList.contains('open')) {
-                dropdownEl.style.display = 'none';
-            }
-        }, 150);
-    }
-
-    triggerBtn.onclick = (e) => {
-        e.stopPropagation();
-        if (containerEl.classList.contains('open')) {
-            closeSelectDropdown();
+        if (prog) {
+            submitBtn.disabled = false;
+            selectedNotice.textContent = `Selected: ${prog.programNumber ? `[#${prog.programNumber}] ` : ''}${prog.programName}`;
         } else {
-            openSelectDropdown();
+            submitBtn.disabled = true;
+            selectedNotice.textContent = "No program selected";
         }
-    };
 
-    searchInput.oninput = (e) => {
-        const query = e.target.value.toLowerCase().trim();
-        if (!query) {
-            filteredPrograms = [...sortedPrograms];
-        } else {
-            filteredPrograms = sortedPrograms.filter(p => {
-                const nameStr = String(p.programName || '');
-                const numStr = String(p.programNumber ?? '');
-                const catStr = String(getProgramCategoryName(p) || '');
-                const nameMatch = nameStr.toLowerCase().includes(query);
-                const numMatch = numStr.toLowerCase().includes(query);
-                const catMatch = catStr.toLowerCase().includes(query);
-                const bothCombined = `${numStr} ${nameStr} ${catStr}`.toLowerCase().includes(query);
-                return nameMatch || numMatch || catMatch || bothCombined;
-            });
-        }
-        highlightedIndex = 0;
-        renderOptions();
-    };
+        renderProgramCards();
+    }
 
-    searchInput.onkeydown = (e) => {
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            if (filteredPrograms.length > 0) {
-                highlightedIndex = (highlightedIndex + 1) % filteredPrograms.length;
-                renderOptions();
-            }
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            if (filteredPrograms.length > 0) {
-                highlightedIndex = (highlightedIndex - 1 + filteredPrograms.length) % filteredPrograms.length;
-                renderOptions();
-            }
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            if (filteredPrograms.length > 0 && highlightedIndex >= 0 && highlightedIndex < filteredPrograms.length) {
-                const selected = filteredPrograms[highlightedIndex];
-                selectProgram(selected.id);
-            }
-        } else if (e.key === 'Escape') {
-            e.preventDefault();
-            closeSelectDropdown();
-        }
-    };
+    function applyFilters() {
+        const query = searchInput.value.toLowerCase().trim();
+        const selectedCat = categoryFilter.value;
+        const selectedGen = genderFilter.value;
+        const selectedLoc = locationFilter.value;
 
-    const clickOutsideHandler = (e) => {
-        if (!containerEl.contains(e.target)) {
-            closeSelectDropdown();
-        }
-    };
-    document.addEventListener('click', clickOutsideHandler);
+        filteredPrograms = sortedPrograms.filter(p => {
+            // 1. Category Filter
+            if (selectedCat) {
+                const pCat = getProgramCategoryName(p) || 'General';
+                if (pCat !== selectedCat) return false;
+            }
+
+            // 2. Gender Filter
+            if (selectedGen) {
+                const pGen = (p.genderCategory || p.gender || 'Mixed').trim();
+                if (pGen.toLowerCase() !== selectedGen.toLowerCase()) return false;
+            }
+
+            // 3. Location Filter
+            if (selectedLoc) {
+                const pLoc = getProgramLocation(p);
+                if (pLoc !== selectedLoc) return false;
+            }
+
+            // 4. Search Query
+            if (query) {
+                const nameStr = String(p.programName || '').toLowerCase();
+                const numStr = String(p.programNumber ?? '').toLowerCase();
+                const nameMatch = nameStr.includes(query);
+                const numMatch = numStr.includes(query);
+                const bothCombined = `${numStr} ${nameStr}`.includes(query);
+                if (!nameMatch && !numMatch && !bothCombined) return false;
+            }
+
+            return true;
+        });
+
+        renderProgramCards();
+    }
+
+    categoryFilter.onchange = applyFilters;
+    genderFilter.onchange = applyFilters;
+    locationFilter.onchange = applyFilters;
+    searchInput.oninput = applyFilters;
 
     const closeModal = () => {
         modalOverlay.classList.add('hidden');
-        document.removeEventListener('click', clickOutsideHandler);
+        if (modalContainer) {
+            modalContainer.classList.remove('add-program-modal-container');
+        }
     };
     document.getElementById('closeDynamicModalBtn').onclick = closeModal;
 
-    // Render initial list
-    renderOptions();
+    // Render initial cards grid
+    renderProgramCards();
 
-    // Form submit logic
+    // Form submit handler
     document.getElementById('addProgSlotForm').onsubmit = async (e) => {
         e.preventDefault();
         const progId = hiddenInput.value;
         if (!progId) {
-            window.showToast("Please select a program.", "error");
+            window.showToast("Please select a program card first.", "error");
             return;
         }
 
@@ -1927,8 +2177,10 @@ async function duplicateRowSlot(id) {
     const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
     const newDocRef = doc(collection(db, "institutes", window.currentInstituteId, "schedules"));
     await setDoc(newDocRef, {
-        programId: item.programId,
-        programName: `${item.programName} (Copy)`,
+        isBreak: !!item.isBreak,
+        breakTitle: item.breakTitle || item.programName || '',
+        programId: item.programId || '',
+        programName: item.isBreak ? `${item.programName} (Copy)` : `${item.programName} (Copy)`,
         stage: activeStage,
         scheduleDate: item.scheduleDate,
         duration: item.duration,
@@ -1938,7 +2190,7 @@ async function duplicateRowSlot(id) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
     });
-    window.showToast("Slot duplicated.");
+    window.showToast(item.isBreak ? "Break slot duplicated." : "Slot duplicated.");
 }
 
 async function deleteRowSlot(id) {
@@ -2065,9 +2317,15 @@ function shareActiveStageWhatsApp() {
     msg += `📅 Date: ${stageConfigs[activeStage]?.date || 'N/A'}\n\n`;
 
     activeItems.forEach((item, idx) => {
-        msg += `*${idx + 1}. ${item.programNumber ? `[#${item.programNumber}] ` : ''}${item.programName}*\n`;
-        msg += `   🏷️ Category: ${item.categoryName || 'Uncategorized'}\n`;
-        msg += `   ⏱️ ${formatTimeTo12Hour(item.startTime || 'TBD')} - ${formatTimeTo12Hour(item.endTime || 'TBD')} (${item.duration}m) | Status: ${item.status}\n\n`;
+        if (item.isBreak) {
+            const icon = getBreakIcon(item.programName);
+            msg += `*${idx + 1}. ${icon} ${item.programName} [BREAK]*\n`;
+            msg += `   ⏱️ ${formatTimeTo12Hour(item.startTime || 'TBD')} - ${formatTimeTo12Hour(item.endTime || 'TBD')} (${item.duration}m) | Status: ${item.status}\n\n`;
+        } else {
+            msg += `*${idx + 1}. ${item.programNumber ? `[#${item.programNumber}] ` : ''}${item.programName}*\n`;
+            msg += `   🏷️ Category: ${item.categoryName || 'Uncategorized'}\n`;
+            msg += `   ⏱️ ${formatTimeTo12Hour(item.startTime || 'TBD')} - ${formatTimeTo12Hour(item.endTime || 'TBD')} (${item.duration}m) | Status: ${item.status}\n\n`;
+        }
     });
 
     const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
@@ -2088,22 +2346,41 @@ function printActiveStage() {
     if (activeItems.length === 0) {
         rowsHTML = `<tr><td colspan="5" style="text-align:center; padding:15px; color:#64748b;">No programs scheduled for this stage.</td></tr>`;
     } else {
-        rowsHTML = activeItems.map((item, idx) => `
-            <tr>
-                <td style="text-align:center; font-weight:700; color:#334155; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${idx + 1}</td>
-                <td style="padding:6px 10px; border:1px solid #cbd5e1; color:#0f172a; word-wrap:break-word;">
-                    <div style="font-weight:700; font-size:13px; line-height:1.25; color:#0f172a;">
-                        ${item.programNumber ? `<span style="color:#3730a3; font-weight:800; margin-right:4px;">[#${item.programNumber}]</span>` : ''}${window.escapeHTML(item.programName)}
-                    </div>
-                    <div style="font-size:10.5px; color:#64748b; font-weight:500; margin-top:2px; line-height:1.2;">
-                        ${window.escapeHTML(item.categoryName || 'Uncategorized')}
-                    </div>
-                </td>
-                <td style="text-align:center; color:#334155; font-weight:600; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${item.duration} mins</td>
-                <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${item.startTime || '—'}</td>
-                <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${item.endTime || '—'}</td>
-            </tr>
-        `).join('');
+        rowsHTML = activeItems.map((item, idx) => {
+            if (item.isBreak) {
+                const icon = getBreakIcon(item.programName);
+                return `
+                    <tr style="background-color: #fffbeb;">
+                        <td style="text-align:center; font-weight:700; color:#b45309; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${idx + 1}</td>
+                        <td style="padding:6px 10px; border:1px solid #cbd5e1; color:#78350f; word-wrap:break-word;">
+                            <div style="font-weight:800; font-size:13px; line-height:1.25; color:#78350f;">
+                                ${icon} ${window.escapeHTML(item.programName)} <span style="font-size:10px; background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:4px; margin-left:6px; border:1px solid #fde68a; font-weight:800;">BREAK</span>
+                            </div>
+                        </td>
+                        <td style="text-align:center; color:#b45309; font-weight:600; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${item.duration} mins</td>
+                        <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#b45309; font-size:12px;">${item.startTime || '—'}</td>
+                        <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#b45309; font-size:12px;">${item.endTime || '—'}</td>
+                    </tr>
+                `;
+            }
+
+            return `
+                <tr>
+                    <td style="text-align:center; font-weight:700; color:#334155; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${idx + 1}</td>
+                    <td style="padding:6px 10px; border:1px solid #cbd5e1; color:#0f172a; word-wrap:break-word;">
+                        <div style="font-weight:700; font-size:13px; line-height:1.25; color:#0f172a;">
+                            ${item.programNumber ? `<span style="color:#3730a3; font-weight:800; margin-right:4px;">[#${item.programNumber}]</span>` : ''}${window.escapeHTML(item.programName)}
+                        </div>
+                        <div style="font-size:10.5px; color:#64748b; font-weight:500; margin-top:2px; line-height:1.2;">
+                            ${window.escapeHTML(item.categoryName || 'Uncategorized')}
+                        </div>
+                    </td>
+                    <td style="text-align:center; color:#334155; font-weight:600; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${item.duration} mins</td>
+                    <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${item.startTime || '—'}</td>
+                    <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${item.endTime || '—'}</td>
+                </tr>
+            `;
+        }).join('');
     }
 
     const printHTML = `
