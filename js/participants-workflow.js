@@ -1,4 +1,4 @@
-import { db, getCachedTeams, getCachedCategories, getCachedPrograms, updateDashboardMetadata, classifyProgram, resolveEffectiveParticipationLimits, checkStudentParticipationEligibility } from './firebase.js';
+import { db, getCachedTeams, getCachedCategories, getCachedPrograms, updateDashboardMetadata, classifyProgram, resolveEffectiveParticipationLimits, checkStudentParticipationEligibility, invalidateProgramOverviewCache } from './firebase.js';
 import {
     collection,
     getDocs,
@@ -1984,6 +1984,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 batch.update(progRef, { participantCount: increment(toAdd.length) });
                 await batch.commit();
                 await updateDashboardMetadata(window.currentInstituteId);
+                invalidateProgramOverviewCache(window.currentInstituteId);
                 programParticipantsCache = null;
                 registrationsByTeamCache.clear();
 
@@ -2080,6 +2081,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
                 await setDoc(progRef, { participantCount: increment(1) }, { merge: true });
                 await updateDashboardMetadata(window.currentInstituteId);
+                invalidateProgramOverviewCache(window.currentInstituteId);
                 programParticipantsCache = null;
                 registrationsByTeamCache.clear();
 

@@ -1,5 +1,5 @@
 // Teams Module
-import { db, updateDashboardMetadata, migrateTeamMemberCounts, invalidateTeamsCache } from './firebase.js';
+import { db, updateDashboardMetadata, migrateTeamMemberCounts, invalidateTeamsCache, getCachedPrograms, getCachedProgramOverview, setCachedProgramOverview, invalidateProgramOverviewCache } from './firebase.js';
 import {
     collection,
     addDoc,
@@ -23,6 +23,13 @@ let unsubscribeStudents = null;
 let localTeams = [];
 let localStudents = [];
 
+// Program Assignment Overview module state
+let localOverviewPrograms = [];
+let localAssignedProgramsByTeam = new Map(); // teamId or teamName -> Set<programId>
+let localParticipantEntriesByTeam = new Map(); // teamId or teamName -> count of entries
+let totalAssignedProgramsSet = new Set(); // Set<programId> with >= 1 participant
+let isOverviewDataLoaded = false;
+
 export function initTeamsView(container, topActions) {
     // Clear any existing active listeners to avoid leak memory
     if (unsubscribeTeams) unsubscribeTeams();
@@ -30,6 +37,11 @@ export function initTeamsView(container, topActions) {
 
     localTeams = [];
     localStudents = [];
+    localOverviewPrograms = [];
+    localAssignedProgramsByTeam.clear();
+    localParticipantEntriesByTeam.clear();
+    totalAssignedProgramsSet.clear();
+    isOverviewDataLoaded = false;
 
     // Right-aligned header action buttons
     topActions.innerHTML = `
@@ -46,8 +58,8 @@ export function initTeamsView(container, topActions) {
             </div>
         </div>
         
-        <!-- Premium Real-time Statistics Bar -->
-        <div id="teamsStatsBarContainer"></div>
+        <!-- Program Assignment Overview Container -->
+        <div id="teamsProgramOverviewContainer" style="margin-bottom: 1.75rem;"></div>
 
         <!-- High-Density modern SaaS Table/List Container -->
         <div class="teams-table-container" id="teamsTableContainer">
@@ -91,6 +103,9 @@ export function initTeamsView(container, topActions) {
 
     // Start synchronising teams and students collections in real time
     startRealtimeSync();
+
+    // Trigger one-time load for Program Assignment Overview
+    loadProgramAssignmentOverview();
 }
 
 function startRealtimeSync() {
@@ -112,57 +127,11 @@ function startRealtimeSync() {
 
 function renderTeamsUI() {
     const tableContainer = document.getElementById("teamsTableContainer");
-    const statsContainer = document.getElementById("teamsStatsBarContainer");
     if (!tableContainer) return;
 
     const totalTeams = localTeams.length;
-    
-    let totalStudents = 0;
-    let averageMembers = "0.0";
-    let needsMigration = false;
 
-    localTeams.forEach(team => {
-        if (team.memberCount !== undefined) {
-            totalStudents += team.memberCount;
-        } else {
-            needsMigration = true;
-        }
-    });
-
-    if (!needsMigration && totalTeams > 0) {
-        averageMembers = (totalStudents / totalTeams).toFixed(1);
-    }
-
-    const totalStudentsText = needsMigration ? "Calculating..." : totalStudents;
-    const averageMembersText = needsMigration ? "Calculating..." : averageMembers;
-
-    // 1. Dynamic in-memory stats collection
-    if (statsContainer) {
-        if (totalTeams > 0) {
-            statsContainer.innerHTML = `
-                <div class="teams-stats-bar">
-                    <div class="teams-stat-item">
-                        <span class="teams-stat-label">Total Teams</span>
-                        <span class="teams-stat-val">${totalTeams}</span>
-                    </div>
-                    <div class="teams-stat-divider"></div>
-                    <div class="teams-stat-item">
-                        <span class="teams-stat-label">Total Students</span>
-                        <span class="teams-stat-val">${totalStudentsText}</span>
-                    </div>
-                    <div class="teams-stat-divider"></div>
-                    <div class="teams-stat-item">
-                        <span class="teams-stat-label">Avg. Members / Team</span>
-                        <span class="teams-stat-val">${averageMembersText}</span>
-                    </div>
-                </div>
-            `;
-        } else {
-            statsContainer.innerHTML = "";
-        }
-    }
-
-    // 2. Elegant premium empty state if no records exist
+    // 1. Elegant premium empty state if no records exist
     if (totalTeams === 0) {
         tableContainer.innerHTML = `
             <div class="teams-empty-state">
@@ -242,6 +211,265 @@ function renderTeamsUI() {
     `;
 
     tableContainer.innerHTML = tableHTML;
+    renderProgramAssignmentOverview();
+}
+
+async function loadProgramAssignmentOverview(forceRefresh = false) {
+    const instId = window.currentInstituteId;
+    if (!instId) return;
+
+    // 1. Try reading from 2-level cache (In-Memory + localStorage) if not forceRefresh
+    if (!forceRefresh) {
+        const cached = getCachedProgramOverview(instId);
+        if (cached) {
+            localOverviewPrograms = cached.overviewPrograms || [];
+            localAssignedProgramsByTeam = new Map(
+                (cached.assignedProgramsByTeam || []).map(([k, arr]) => [k, new Set(arr)])
+            );
+            localParticipantEntriesByTeam = new Map(cached.participantEntriesByTeam || []);
+            totalAssignedProgramsSet = new Set(cached.totalAssignedPrograms || []);
+            isOverviewDataLoaded = true;
+            renderProgramAssignmentOverview();
+            return;
+        }
+    }
+
+    // Render skeleton if data is not loaded yet
+    if (!isOverviewDataLoaded) {
+        renderProgramAssignmentOverview();
+    }
+
+    localAssignedProgramsByTeam.clear();
+    localParticipantEntriesByTeam.clear();
+    totalAssignedProgramsSet.clear();
+
+    try {
+        // 1. Get cached programs
+        localOverviewPrograms = await getCachedPrograms(instId) || [];
+
+        // 2. Fetch participant docs in a single collectionGroup query
+        const partQuery = query(collectionGroup(db, "participants"));
+        const partSnap = await getDocs(partQuery);
+        const instPrefix = `institutes/${instId}/`;
+
+        partSnap.forEach(docSnap => {
+            if (docSnap.ref.path.startsWith(instPrefix)) {
+                const data = docSnap.data();
+                const pathTokens = docSnap.ref.path.split('/');
+                const progId = data.programId || pathTokens[3];
+                const teamId = data.teamId;
+
+                if (progId) {
+                    totalAssignedProgramsSet.add(progId);
+                    if (teamId) {
+                        // 1. Track unique program IDs per team (Programs Covered)
+                        if (!localAssignedProgramsByTeam.has(teamId)) {
+                            localAssignedProgramsByTeam.set(teamId, new Set());
+                        }
+                        localAssignedProgramsByTeam.get(teamId).add(progId);
+
+                        // 2. Track total participant entries per team (Participant Entries)
+                        let entriesCount = 1;
+                        if (data.type === 'group' && Array.isArray(data.groups)) {
+                            let groupMembersCount = 0;
+                            data.groups.forEach(g => {
+                                if (Array.isArray(g.members)) {
+                                    groupMembersCount += g.members.length;
+                                } else {
+                                    groupMembersCount += 1;
+                                }
+                            });
+                            entriesCount = groupMembersCount > 0 ? groupMembersCount : data.groups.length;
+                        }
+                        localParticipantEntriesByTeam.set(
+                            teamId,
+                            (localParticipantEntriesByTeam.get(teamId) || 0) + entriesCount
+                        );
+                    }
+                }
+            }
+        });
+    } catch (e) {
+        console.warn("CollectionGroup fetch error, using program subcollections fallback:", e);
+        if (localOverviewPrograms.length > 0) {
+            const batchSize = 10;
+            for (let i = 0; i < localOverviewPrograms.length; i += batchSize) {
+                const chunk = localOverviewPrograms.slice(i, i + batchSize);
+                await Promise.all(chunk.map(async (prog) => {
+                    try {
+                        const partSnap = await getDocs(collection(db, "institutes", instId, "programs", prog.id, "participants"));
+                        if (!partSnap.empty) {
+                            totalAssignedProgramsSet.add(prog.id);
+                            partSnap.forEach(d => {
+                                const data = d.data();
+                                const tId = data.teamId;
+                                if (tId) {
+                                    if (!localAssignedProgramsByTeam.has(tId)) {
+                                        localAssignedProgramsByTeam.set(tId, new Set());
+                                    }
+                                    localAssignedProgramsByTeam.get(tId).add(prog.id);
+
+                                    let entriesCount = 1;
+                                    if (data.type === 'group' && Array.isArray(data.groups)) {
+                                        let groupMembersCount = 0;
+                                        data.groups.forEach(g => {
+                                            if (Array.isArray(g.members)) {
+                                                groupMembersCount += g.members.length;
+                                            } else {
+                                                groupMembersCount += 1;
+                                            }
+                                        });
+                                        entriesCount = groupMembersCount > 0 ? groupMembersCount : data.groups.length;
+                                    }
+                                    localParticipantEntriesByTeam.set(
+                                        tId,
+                                        (localParticipantEntriesByTeam.get(tId) || 0) + entriesCount
+                                    );
+                                }
+                            });
+                        }
+                    } catch (err) { }
+                }));
+            }
+        }
+    }
+
+    // Save to 2-level Cache
+    const cacheObj = {
+        overviewPrograms: localOverviewPrograms,
+        assignedProgramsByTeam: Array.from(localAssignedProgramsByTeam.entries()).map(([k, set]) => [k, Array.from(set)]),
+        participantEntriesByTeam: Array.from(localParticipantEntriesByTeam.entries()),
+        totalAssignedPrograms: Array.from(totalAssignedProgramsSet)
+    };
+    setCachedProgramOverview(instId, cacheObj);
+
+    isOverviewDataLoaded = true;
+    renderProgramAssignmentOverview();
+}
+
+function renderProgramAssignmentOverview() {
+    const overviewContainer = document.getElementById("teamsProgramOverviewContainer");
+    if (!overviewContainer) return;
+
+    if (!isOverviewDataLoaded) {
+        overviewContainer.innerHTML = `
+            <div class="program-assignment-overview">
+                <div class="overview-section-header">
+                    <h3 class="overview-section-title">Program Assignment Overview</h3>
+                </div>
+                <div class="overview-loading-skeleton">
+                    <span class="spinner-small" style="display:inline-block; width:16px; height:16px; border:2px solid #cbd5e1; border-top:2px solid #3b82f6; border-radius:50%; animation:spin 1s linear infinite; vertical-align:middle; margin-right:8px;"></span>
+                    Loading assignment progress...
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    const totalProgramsCount = localOverviewPrograms.length;
+    const overallAssignedCount = totalAssignedProgramsSet.size;
+    const overallPendingCount = Math.max(0, totalProgramsCount - overallAssignedCount);
+    const overallPct = totalProgramsCount > 0 ? Math.round((overallAssignedCount / totalProgramsCount) * 100) : 0;
+
+    // Build Cards HTML
+    let cardsHTML = `
+        <!-- CARD 1: Overall Program Progress -->
+        <div class="overview-card overall-progress-card">
+            <div class="overview-card-header">
+                <span class="overview-card-title">Overall Program Progress</span>
+            </div>
+            
+            <div class="overall-main-row">
+                <div class="overall-big-stat">
+                    <span class="big-number">${totalProgramsCount}</span>
+                    <span class="big-label">Total Programs</span>
+                </div>
+                <div class="overall-pct-badge">
+                    ${overallPct}%
+                </div>
+            </div>
+
+            <div class="overall-sub-stats">
+                <div class="sub-stat-chip assigned">
+                    <span class="chip-label">Assigned:</span>
+                    <span class="chip-val">${overallAssignedCount}</span>
+                </div>
+                <div class="sub-stat-chip pending">
+                    <span class="chip-label">Pending:</span>
+                    <span class="chip-val">${overallPendingCount}</span>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // TEAM CARDS (Cards 2, 3, 4...)
+    const teamIcons = ['🔵', '🟢', '🟣', '🟠', '🔴', '🟤', '🟡', '🔷'];
+
+    localTeams.forEach((team, index) => {
+        const teamIcon = teamIcons[index % teamIcons.length];
+
+        // Unique programs count covered by this team (by ID or Name fallback)
+        let coveredSet = localAssignedProgramsByTeam.get(team.id);
+        if (!coveredSet || coveredSet.size === 0) {
+            coveredSet = localAssignedProgramsByTeam.get(team.name) || new Set();
+        }
+        const programsCovered = coveredSet.size;
+        const pendingPrograms = Math.max(0, totalProgramsCount - programsCovered);
+        const pct = totalProgramsCount > 0 ? Math.round((programsCovered / totalProgramsCount) * 100) : 0;
+
+        // Total Participant Entries for this team
+        const participantEntries = (localParticipantEntriesByTeam.get(team.id) || 0) || (localParticipantEntriesByTeam.get(team.name) || 0);
+
+        // Progress Color: 100% = Green, 1-99% = Orange, 0% = Red
+        let statusColor = '#10b981'; // Green
+
+        if (pct === 0) {
+            statusColor = '#ef4444'; // Red
+        } else if (pct < 100) {
+            statusColor = '#f59e0b'; // Orange
+        }
+
+        cardsHTML += `
+            <div class="overview-card team-summary-card">
+                <div class="overview-card-header">
+                    <span class="overview-team-name" title="${window.escapeHTML(team.name)}">
+                        <span class="team-dot-icon">${teamIcon}</span> ${window.escapeHTML(team.name)}
+                    </span>
+                    <span class="team-pct-label" style="color: ${statusColor}; font-weight: 800; font-size: 1.15rem; font-family: 'Outfit', sans-serif;">
+                        ${pct}%
+                    </span>
+                </div>
+
+                <div class="team-primary-stat">
+                    <span class="team-stat-num">${programsCovered} <span class="team-stat-denom">/ ${totalProgramsCount}</span></span>
+                    <span class="team-stat-desc">Programs Covered</span>
+                </div>
+
+                <div class="team-metrics-row">
+                    <div class="team-metric-item">
+                        <span class="metric-lbl">Pending</span>
+                        <span class="metric-num ${pendingPrograms > 0 ? 'text-pending' : ''}">${pendingPrograms}</span>
+                    </div>
+                    <div class="team-metric-divider"></div>
+                    <div class="team-metric-item">
+                        <span class="metric-lbl">Participant Entries</span>
+                        <span class="metric-num">${participantEntries}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    overviewContainer.innerHTML = `
+        <div class="program-assignment-overview">
+            <div class="overview-section-header">
+                <h3 class="overview-section-title">Program Assignment Overview</h3>
+            </div>
+            <div class="program-overview-grid">
+                ${cardsHTML}
+            </div>
+        </div>
+    `;
 }
 
 function openTeamModal(teamId = null, currentName = "", currentDesc = "") {

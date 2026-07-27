@@ -1171,6 +1171,9 @@ function getProgramLetterPool(totalParticipants) {
 function openParticipantLetterModal(modalBody, modal, prog, activeJudges, participants, existingResult) {
     document.getElementById('dynamicModalTitle').textContent = '🏷️ Participant Letter Assignment';
     
+    const isPublished = (existingResult && (existingResult.status === 'published' || existingResult.markEntryStatus === 'published')) || 
+                        (prog && (prog.status === 'published' || prog.markEntryStatus === 'published' || prog.isPublished === true));
+
     const savedMarksMap = new Map();
     if (existingResult && Array.isArray(existingResult.marksData)) {
         existingResult.marksData.forEach(m => {
@@ -1190,6 +1193,7 @@ function openParticipantLetterModal(modalBody, modal, prog, activeJudges, partic
         const saved = savedMarksMap.get(p.id) || {};
         const codeLetter = (saved.codeLetter || '').toUpperCase();
         const hasLetter = codeLetter !== '';
+        const isBtnDisabled = hasLetter || isPublished;
         const searchText = `${p.chestNumber} ${p.name} ${p.teamName || ''}`.toLowerCase();
         
         return `
@@ -1211,9 +1215,9 @@ function openParticipantLetterModal(modalBody, modal, prog, activeJudges, partic
                 </td>
                 <td style="padding:0.35rem 0.65rem; text-align:center; width:120px;">
                     <button type="button" class="btn btn-sm btn-pw-generate" data-student-id="${p.id}"
-                        style="${hasLetter ? 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; cursor:default;' : 'background:#6366f1; color:#fff; border:none;'} padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:700; border-radius:6px; transition:all 0.2s;"
-                        ${hasLetter ? 'disabled' : ''}>
-                        ${hasLetter ? '✓ Assigned' : '🎲 Generate'}
+                        style="${isBtnDisabled ? 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; cursor:default;' : 'background:#6366f1; color:#fff; border:none;'} padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:700; border-radius:6px; transition:all 0.2s;"
+                        ${isBtnDisabled ? 'disabled' : ''}>
+                        ${hasLetter ? '✓ Assigned' : (isPublished ? 'Read Only' : '🎲 Generate')}
                     </button>
                 </td>
             </tr>
@@ -1225,6 +1229,7 @@ function openParticipantLetterModal(modalBody, modal, prog, activeJudges, partic
         const saved = savedMarksMap.get(p.id) || {};
         const codeLetter = (saved.codeLetter || '').toUpperCase();
         const hasLetter = codeLetter !== '';
+        const isBtnDisabled = hasLetter || isPublished;
         const searchText = `${p.chestNumber} ${p.name} ${p.teamName || ''}`.toLowerCase();
 
         return `
@@ -1244,14 +1249,21 @@ function openParticipantLetterModal(modalBody, modal, prog, activeJudges, partic
                 </div>
                 <div style="text-align:right; margin-top:0.2rem;">
                     <button type="button" class="btn btn-sm btn-pw-generate" data-student-id="${p.id}"
-                        style="${hasLetter ? 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; cursor:default;' : 'background:#6366f1; color:#fff; border:none;'} padding:0.25rem 0.65rem; font-size:0.75rem; font-weight:700; border-radius:6px; transition:all 0.2s;"
-                        ${hasLetter ? 'disabled' : ''}>
-                        ${hasLetter ? '✓ Assigned' : '🎲 Generate Letter'}
+                        style="${isBtnDisabled ? 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; cursor:default;' : 'background:#6366f1; color:#fff; border:none;'} padding:0.25rem 0.65rem; font-size:0.75rem; font-weight:700; border-radius:6px; transition:all 0.2s;"
+                        ${isBtnDisabled ? 'disabled' : ''}>
+                        ${hasLetter ? '✓ Assigned' : (isPublished ? 'Read Only' : '🎲 Generate Letter')}
                     </button>
                 </div>
             </div>
         `;
     }).join('');
+
+    const publishedBannerHTML = isPublished ? `
+        <div style="background:#fffbeef; border:1px solid #fde68a; border-radius:8px; padding:0.5rem 0.85rem; color:#92400e; font-size:0.78rem; font-weight:700; display:flex; align-items:center; gap:0.5rem;">
+            <span style="font-size:1rem;">ℹ️</span>
+            <span>This program has already been published. Participant letters can no longer be modified.</span>
+        </div>
+    ` : '';
 
     modalBody.innerHTML = `
         <style>
@@ -1292,6 +1304,8 @@ function openParticipantLetterModal(modalBody, modal, prog, activeJudges, partic
         </style>
 
         <div style="max-width:780px; margin:0 auto; display:flex; flex-direction:column; gap:0.65rem; padding:0.25rem 0;">
+            ${publishedBannerHTML}
+
             <!-- Header bar with Top-Right Bulk Action Controls -->
             <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
                 <div>
@@ -1307,11 +1321,13 @@ function openParticipantLetterModal(modalBody, modal, prog, activeJudges, partic
                 <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.35rem;">
                     <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
                         <button type="button" class="btn btn-sm" id="btnAutoGenerateAll" 
-                            style="background:#6366f1; color:#fff; font-weight:700; padding:0.3rem 0.7rem; border-radius:6px; border:none; font-size:0.76rem; cursor:pointer; transition:all 0.2s;">
+                            style="background:${isPublished ? '#e2e8f0' : '#6366f1'}; color:${isPublished ? '#94a3b8' : '#fff'}; font-weight:700; padding:0.3rem 0.7rem; border-radius:6px; border:none; font-size:0.76rem; cursor:${isPublished ? 'not-allowed' : 'pointer'}; transition:all 0.2s;"
+                            ${isPublished ? 'disabled' : ''}>
                             🎲 Auto Generate All
                         </button>
                         <button type="button" class="btn btn-sm" id="btnResetLetters" 
-                            style="background:#f1f5f9; color:#ef4444; font-weight:700; padding:0.3rem 0.7rem; border-radius:6px; border:1px solid #fca5a5; font-size:0.76rem; cursor:pointer; transition:all 0.2s;">
+                            style="background:${isPublished ? '#f8fafc' : '#f1f5f9'}; color:${isPublished ? '#94a3b8' : '#ef4444'}; font-weight:700; padding:0.3rem 0.7rem; border-radius:6px; border:1px solid ${isPublished ? '#e2e8f0' : '#fca5a5'}; font-size:0.76rem; cursor:${isPublished ? 'not-allowed' : 'pointer'}; transition:all 0.2s;"
+                            ${isPublished ? 'disabled' : ''}>
                             🔄 Reset Letters
                         </button>
                     </div>
@@ -1398,10 +1414,18 @@ function openParticipantLetterModal(modalBody, modal, prog, activeJudges, partic
 
     // Bind Bulk Action Control listeners
     document.getElementById('btnAutoGenerateAll').onclick = () => {
+        if (isPublished) {
+            window.showToast("This program is published and participant letters cannot be modified.", "warning");
+            return;
+        }
         autoGenerateAllParticipantLetters(prog, participants, existingResult, modalBody);
     };
 
     document.getElementById('btnResetLetters').onclick = () => {
+        if (isPublished) {
+            window.showToast("This program is published and participant letters cannot be modified.", "warning");
+            return;
+        }
         resetAllParticipantLetters(prog, participants, existingResult, modalBody);
     };
 
@@ -1413,6 +1437,10 @@ function openParticipantLetterModal(modalBody, modal, prog, activeJudges, partic
     // Bind Generate buttons
     modalBody.querySelectorAll('.btn-pw-generate').forEach(btn => {
         btn.onclick = () => {
+            if (isPublished) {
+                window.showToast("This program is published and participant letters cannot be modified.", "warning");
+                return;
+            }
             const studentId = btn.getAttribute('data-student-id');
             const rowEl = modalBody.querySelector(`.pw-letter-row[data-student-id="${studentId}"]`) || modalBody.querySelector(`.pw-letter-card[data-student-id="${studentId}"]`);
             if (rowEl) {
@@ -1458,6 +1486,13 @@ function updateParticipantLetterUI(studentId, letter) {
 }
 
 async function autoGenerateAllParticipantLetters(prog, participants, existingResult, modalBody) {
+    const isPublished = (existingResult && (existingResult.status === 'published' || existingResult.markEntryStatus === 'published')) || 
+                        (prog && (prog.status === 'published' || prog.markEntryStatus === 'published' || prog.isPublished === true));
+    if (isPublished) {
+        window.showToast("This program is published and participant letters cannot be modified.", "warning");
+        return;
+    }
+
     if (!participants || participants.length === 0) {
         window.showToast("No participants registered for this program.", "warning");
         return;
@@ -1548,6 +1583,13 @@ async function autoGenerateAllParticipantLetters(prog, participants, existingRes
 }
 
 async function resetAllParticipantLetters(prog, participants, existingResult, modalBody) {
+    const isPublished = (existingResult && (existingResult.status === 'published' || existingResult.markEntryStatus === 'published')) || 
+                        (prog && (prog.status === 'published' || prog.markEntryStatus === 'published' || prog.isPublished === true));
+    if (isPublished) {
+        window.showToast("This program is published and participant letters cannot be modified.", "warning");
+        return;
+    }
+
     const confirmed = await window.customConfirm("Remove all assigned letters for this program?");
     if (!confirmed) return;
 
@@ -1669,10 +1711,27 @@ async function clearAllParticipantLettersInFirestore(prog, existingResult) {
 }
 
 function triggerLuckyDrawLetterAssignment(prog, studentId, rowElement, existingResult, participantsCount = 26) {
+    const isPublished = (existingResult && (existingResult.status === 'published' || existingResult.markEntryStatus === 'published')) || 
+                        (prog && (prog.status === 'published' || prog.markEntryStatus === 'published' || prog.isPublished === true));
+    if (isPublished) {
+        window.showToast("This program is published and participant letters cannot be modified.", "warning");
+        return;
+    }
+
     const badgeEls = document.querySelectorAll(`.letter-badge-display[data-student-id="${studentId}"]`);
     const generateBtn = rowElement.querySelector('.btn-pw-generate, .btn-pw-generate-sp');
     
     if (badgeEls.length === 0) return;
+
+    // FIX 1 & 2: Check if this participant ALREADY has an assigned letter
+    const existingInput = document.querySelector(`.code-letter-input[data-student-id="${studentId}"], .pw-letter-input[data-student-id="${studentId}"]`);
+    const currentAssignedLetter = (existingInput?.value || '').trim().toUpperCase();
+
+    if (currentAssignedLetter) {
+        // Participant ALREADY has a letter! Ensure UI displays assigned state and exit cleanly without throwing error toast.
+        updateParticipantLetterUI(studentId, currentAssignedLetter);
+        return;
+    }
 
     // Preserve scroll positions
     const desktopScrollContainer = document.querySelector('.pw-table-wrapper');
@@ -1697,6 +1756,7 @@ function triggerLuckyDrawLetterAssignment(prog, studentId, rowElement, existingR
     const availablePool = programLetterPool.filter(l => !assignedLetters.has(l));
 
     if (availablePool.length === 0) {
+        // Only display warning toast if participant has NO letter AND available pool is exhausted
         window.showToast("No available unique letters left to assign for this program.", "warning");
         if (generateBtn) {
             generateBtn.disabled = false;

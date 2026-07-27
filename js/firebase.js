@@ -542,11 +542,64 @@ export function setCachedPrograms(instituteId, data) {
     }
 }
 
+const OVERVIEW_CACHE_TTL = 60 * 1000; // 60 seconds TTL
+
+export function isOverviewCacheValid(cacheObj) {
+    return cacheObj && cacheObj.data && cacheObj.lastFetched && (Date.now() - cacheObj.lastFetched < OVERVIEW_CACHE_TTL);
+}
+
+export function setCachedProgramOverview(instituteId, data) {
+    const instId = instituteId || window.currentInstituteId;
+    if (!instId) return;
+    const key = `melad_cached_program_overview_${instId}`;
+    const cacheObj = { data, lastFetched: Date.now() };
+    window.cachedProgramOverview = cacheObj;
+    try {
+        localStorage.setItem(key, JSON.stringify(cacheObj));
+    } catch (e) {
+        console.error("Failed to write program overview cache to localStorage:", e);
+    }
+}
+
+export function invalidateProgramOverviewCache(instituteId) {
+    const instId = instituteId || window.currentInstituteId;
+    window.cachedProgramOverview = null;
+    try {
+        if (instId) {
+            localStorage.removeItem(`melad_cached_program_overview_${instId}`);
+        }
+    } catch (e) { }
+}
+
+export function getCachedProgramOverview(instituteId) {
+    const instId = instituteId || window.currentInstituteId;
+    if (!instId) return null;
+    const key = `melad_cached_program_overview_${instId}`;
+
+    if (isOverviewCacheValid(window.cachedProgramOverview)) {
+        return window.cachedProgramOverview.data;
+    }
+    try {
+        const local = localStorage.getItem(key);
+        if (local) {
+            const parsed = JSON.parse(local);
+            if (isOverviewCacheValid(parsed)) {
+                window.cachedProgramOverview = parsed;
+                return parsed.data;
+            }
+        }
+    } catch (e) {
+        console.error("Error loading program overview cache from localStorage:", e);
+    }
+    return null;
+}
+
 export function invalidateTeamsCache(instituteId) {
     window.cachedTeams = null;
     try {
         localStorage.removeItem(`melad_cached_teams_${instituteId}`);
     } catch (e) { }
+    invalidateProgramOverviewCache(instituteId);
 }
 
 export function invalidateCategoriesCache(instituteId) {
@@ -561,6 +614,7 @@ export function invalidateProgramsCache(instituteId) {
     try {
         localStorage.removeItem(`melad_cached_programs_${instituteId}`);
     } catch (e) { }
+    invalidateProgramOverviewCache(instituteId);
 }
 
 export async function getCachedTeams(instituteId, forceRefresh = false) {

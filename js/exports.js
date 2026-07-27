@@ -32,6 +32,27 @@ let sortByVal = 'newest';
 let teamBackgroundsCache = {};
 let isTeamBgEnabled = false;
 
+async function ensureEventDetailsLoaded(force = false) {
+    if ((!window.currentEventDetails || force) && window.currentInstituteId) {
+        try {
+            const configSnap = await getDoc(doc(db, "institutes", window.currentInstituteId, "metadata", "eventConfig"));
+            if (configSnap.exists()) {
+                window.currentEventDetails = configSnap.data();
+            }
+        } catch (err) {
+            console.error("Error loading eventConfig in exports:", err);
+        }
+    }
+}
+
+function getEventName() {
+    const evName = window.currentEventDetails?.eventName?.trim();
+    if (evName) return evName;
+    const instName = window.currentInstituteDetails?.name?.trim();
+    if (instName) return instName;
+    return 'ADMIN PORTAL';
+}
+
 function loadTeamBackgrounds() {
     try {
         const stored = localStorage.getItem('meelad_team_card_backgrounds');
@@ -763,6 +784,7 @@ export async function initExportsView(container, topActions) {
 // ─────────────────────────────────────────────
 async function loadStaticData(force = false) {
     try {
+        await ensureEventDetailsLoaded(force);
         const instId = window.currentInstituteId;
 
         // Categories Preloaded Memory Cache
@@ -2487,6 +2509,7 @@ function resolveWinnerParticipant(prog, w, participantsList, studentMap) {
 // ─────────────────────────────────────────────
 async function triggerDownload(exp, isDownload = false) {
     loadTeamBackgrounds();
+    await ensureEventDetailsLoaded();
     window.showToast(`Loading data for ${exp.fileName}...`, "info");
     const instId = window.currentInstituteId;
 
@@ -3153,7 +3176,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                         // Load settings header dynamically
                         const eventDetails = window.currentEventDetails || {};
-                        const eventName = eventDetails.eventName || window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+                        const eventName = getEventName();
                         const eventTagline = eventDetails.eventTagline || '';
                         const madrasaName = eventDetails.madrasaName || '';
                         const eventLocation = eventDetails.eventLocation || '';
@@ -3439,7 +3462,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const idxB = allCategories.findIndex(c => c.id === b);
                     return idxA - idxB;
                 });
-                const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+                const instName = getEventName();
                 const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
 
                 sortedCatIds.forEach(catId => {
@@ -3531,7 +3554,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const idxB = allCategories.findIndex(c => c.id === b);
                     return idxA - idxB;
                 });
-                const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+                const instName = getEventName();
                 const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
 
                 sortedCatIds.forEach(catId => {
@@ -4070,13 +4093,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 <style>
                     @page {
                         size: A4 ${orientation};
-                        margin: ${pageMargin};
+                        margin: 0;
                     }
                     body {
                         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
                         color: #000;
                         margin: 0;
-                        padding: 0;
+                        padding: ${pageMargin};
+                        box-sizing: border-box;
                         background: #fff;
                         font-size: 0.75rem;
                         line-height: 1.25;
@@ -4224,7 +4248,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         return;
     } else if (f.type === 'Program Participation Register') {
         if (f.progRegSubmode === 'list') {
-            const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+            const instName = getEventName();
 
             // Group programs by Category
             const categoryGroups = {};
@@ -4248,9 +4272,15 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 a.localeCompare(b, undefined, { sensitivity: 'base' })
             );
 
-            // Sort programs inside each category by Program Number
+            // Sort programs inside each category: Stage programs first, then Off Stage programs (sorted using existing program order)
             sortedCatNames.forEach(catName => {
                 categoryGroups[catName].sort((a, b) => {
+                    const isStageA = (a.programLocation || a.location || 'Stage').toLowerCase() === 'stage' ? 0 : 1;
+                    const isStageB = (b.programLocation || b.location || 'Stage').toLowerCase() === 'stage' ? 0 : 1;
+                    if (isStageA !== isStageB) {
+                        return isStageA - isStageB;
+                    }
+
                     const numA = String(a.programNumber ?? '').trim();
                     const numB = String(b.programNumber ?? '').trim();
                     if (numA && numB) {
@@ -4369,7 +4399,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     </div>
                 `;
             } else {
-                const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+                const instName = getEventName();
                 const teamName = f.teamId ? (allTeams.find(t => t.id === f.teamId)?.name || '') : '';
                 const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
 
@@ -4469,13 +4499,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 <style>
                     @page {
                         size: A4 ${orientation};
-                        margin: ${pageMargin};
+                        margin: 0;
                     }
                     body {
                         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
                         color: #000;
                         margin: 0;
-                        padding: 0;
+                        padding: ${pageMargin};
+                        box-sizing: border-box;
                         background: #fff;
                         font-size: 0.85rem;
                         line-height: 1.4;
@@ -4763,7 +4794,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const idxB = allCategories.findIndex(c => c.id === b);
                     return idxA - idxB;
                 });
-                const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+                const instName = getEventName();
                 const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
 
                 sortedCatIds.forEach(catId => {
@@ -4979,7 +5010,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const idxB = allCategories.findIndex(c => c.id === b);
                     return idxA - idxB;
                 });
-                const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+                const instName = getEventName();
                 const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
 
                 sortedCatIds.forEach(catId => {
@@ -5172,13 +5203,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             <style>
                 @page {
                     size: A4 ${orientation};
-                    margin: ${pageMargin};
+                    margin: 0;
                 }
                 body {
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
                     color: #000;
                     margin: 0;
-                    padding: 0;
+                    padding: ${pageMargin};
+                    box-sizing: border-box;
                     background: #fff;
                     font-size: 0.85rem;
                     line-height: 1.4;
@@ -5936,7 +5968,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             });
 
             let awardHTML = '';
-            const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+            const instName = getEventName();
             const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
             const mainHeaderHTML = `
@@ -6912,13 +6944,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         <style>
             @page {
                 size: A4 ${orientation};
-                margin: ${pageMargin}; /* Zero wasted spaces on valuation sheets */
+                margin: 0;
             }
             body {
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
                 color: #000;
                 margin: 0;
-                padding: 0;
+                padding: ${pageMargin};
+                box-sizing: border-box;
                 background: #fff;
                 font-size: ${f.type === 'Green Room Sign' ? '0.75rem' : '0.85rem'};
                 line-height: ${f.type === 'Green Room Sign' ? '1.25' : '1.4'};
@@ -7248,7 +7281,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             return 0;
         });
 
-        const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+        const instName = getEventName();
 
         studentsList.forEach((stu, idx) => {
             const catName = stu.categoryName || 'General';
@@ -7295,6 +7328,12 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
 
             sortedCatNames.forEach(catName => {
                 categoryGroups[catName].sort((a, b) => {
+                    const isStageA = (a.programLocation || a.location || 'Stage').toLowerCase() === 'stage' ? 0 : 1;
+                    const isStageB = (b.programLocation || b.location || 'Stage').toLowerCase() === 'stage' ? 0 : 1;
+                    if (isStageA !== isStageB) {
+                        return isStageA - isStageB;
+                    }
+
                     const numA = String(a.programNumber ?? '').trim();
                     const numB = String(b.programNumber ?? '').trim();
                     if (numA && numB) {
@@ -7380,7 +7419,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             });
             csvContent += "\n";
 
-            const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+            const instName = getEventName();
             const teamName = f.teamId ? (allTeams.find(t => t.id === f.teamId)?.name || '') : '';
 
             for (let idx = 0; idx < 25; idx++) {
@@ -7493,7 +7532,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             return 0;
         });
 
-        const instName = window.currentInstituteDetails?.name || 'ADMIN PORTAL';
+        const instName = getEventName();
 
         studentsList.forEach((stu, idx) => {
             const catName = stu.categoryName || 'General';
