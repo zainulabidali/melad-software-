@@ -535,31 +535,51 @@ function injectTableScheduleStyles() {
             display: inline-flex;
             gap: 0.5rem;
             align-items: center;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
         }
         @media (max-width: 576px) {
             .sched-topbar-actions {
-                display: flex;
-                flex-direction: column;
-                width: 100%;
-                gap: 0.5rem;
+                display: grid !important;
+                grid-template-columns: 1.35fr 1fr 1fr !important;
+                width: 100% !important;
+                gap: 0.35rem !important;
+                align-items: center !important;
             }
             .sched-topbar-actions .btn {
                 width: 100% !important;
-                display: block;
-                text-align: center;
+                padding: 0.45rem 0.35rem !important;
+                font-size: 0.76rem !important;
+                font-weight: 700 !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                text-align: center !important;
+                box-sizing: border-box !important;
+                min-height: 38px !important;
+                height: 38px !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+            .sched-tabs-container {
+                position: static !important;
+                top: auto !important;
             }
         }
         @media (max-width: 768px) {
             .topbar {
                 flex-wrap: wrap !important;
                 height: auto !important;
-                padding: 1rem 1.25rem !important;
-                gap: 0.75rem;
+                padding: 0.75rem 1rem !important;
+                gap: 0.5rem;
             }
             .topbar-actions {
                 width: 100% !important;
-                margin-top: 0.25rem;
+                margin-top: 0.15rem;
+            }
+            .sched-tabs-container {
+                position: static !important;
+                top: auto !important;
             }
         }
 
