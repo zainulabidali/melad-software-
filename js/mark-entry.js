@@ -1074,7 +1074,7 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
     }).join('');
 
     modalBody.innerHTML = `
-        <div style="max-width:520px; margin:0 auto; display:flex; flex-direction:column; gap:1.25rem; padding:0.5rem 0;">
+        <div style="max-width:540px; margin:0 auto; display:flex; flex-direction:column; gap:1.25rem; padding:0.5rem 0;">
             <div style="background:#e0e7ff; border:1px solid #c7d2fe; border-radius:12px; padding:1.25rem; text-align:center; color:#1e1b4b;">
                 <span style="font-size:2.2rem; display:block; margin-bottom:0.25rem;">🧑‍⚖️</span>
                 <h3 style="margin:0; font-size:1.2rem; font-weight:800;">Assign Judges to Competition</h3>
@@ -1085,9 +1085,17 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
 
             <div>
                 <label class="form-label" style="font-weight:700; color:#475569; margin-bottom:0.45rem;">SELECT ACTIVE JUDGES *</label>
-                <div style="display:flex; flex-direction:column; gap:0.45rem; max-height:260px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:10px; padding:0.75rem; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.02);">
+                <div style="display:flex; flex-direction:column; gap:0.45rem; max-height:220px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:10px; padding:0.75rem; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.02);">
                     ${listHTML}
                 </div>
+            </div>
+
+            <!-- OPTIONAL PARTICIPANT LETTER ASSIGNMENT BUTTON -->
+            <div>
+                <button type="button" class="btn btn-secondary" id="btnOpenLetterModal" 
+                    style="width:100%; padding:0.65rem 1rem; border-radius:10px; font-weight:700; background:#f8fafc; border:1px dashed #6366f1; color:#4338ca; display:flex; align-items:center; justify-content:center; gap:0.5rem; transition:all 0.2s; cursor:pointer;">
+                    🏷️ Assign Participant Letters (Optional)
+                </button>
             </div>
 
             <div class="modal-actions" style="margin-top:0.25rem; display:flex; gap:0.5rem; justify-content:flex-end;">
@@ -1102,6 +1110,11 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
             </div>
         </div>
     `;
+
+    // Bind separate letter assignment modal button
+    document.getElementById('btnOpenLetterModal').onclick = () => {
+        openParticipantLetterModal(modalBody, modal, prog, activeJudges, participants, existingResult);
+    };
 
     document.getElementById('jSelectCancelBtn').onclick = () => {
         modal.classList.add('hidden');
@@ -1137,6 +1150,673 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
         document.getElementById('dynamicModalTitle').textContent = `🖋️ Judges List`;
         renderSpreadsheetUI(modalBody, modal, prog, checkedNames, participants, existingResult);
     };
+}
+
+function getProgramLetterPool(totalParticipants) {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    const pool = [];
+    const count = Math.max(1, totalParticipants);
+    for (let i = 0; i < count; i++) {
+        if (i < 26) {
+            pool.push(alphabet[i]);
+        } else {
+            const firstChar = alphabet[Math.floor(i / 26) - 1];
+            const secondChar = alphabet[i % 26];
+            pool.push(firstChar + secondChar);
+        }
+    }
+    return pool;
+}
+
+function openParticipantLetterModal(modalBody, modal, prog, activeJudges, participants, existingResult) {
+    document.getElementById('dynamicModalTitle').textContent = '🏷️ Participant Letter Assignment';
+    
+    const savedMarksMap = new Map();
+    if (existingResult && Array.isArray(existingResult.marksData)) {
+        existingResult.marksData.forEach(m => {
+            const key = m.studentId || m.groupId || '';
+            if (key) savedMarksMap.set(key, m);
+        });
+    }
+
+    const letterPool = getProgramLetterPool(participants.length);
+
+    // Extract unique teams for Quick Filter
+    const uniqueTeams = Array.from(new Set(participants.map(p => p.teamName).filter(Boolean))).sort();
+    const teamOptionsHTML = uniqueTeams.map(t => `<option value="${window.escapeHTML(t)}">${window.escapeHTML(t)}</option>`).join('');
+
+    // Generate Desktop Rows
+    const participantLetterRowsHTML = participants.map(p => {
+        const saved = savedMarksMap.get(p.id) || {};
+        const codeLetter = (saved.codeLetter || '').toUpperCase();
+        const hasLetter = codeLetter !== '';
+        const searchText = `${p.chestNumber} ${p.name} ${p.teamName || ''}`.toLowerCase();
+        
+        return `
+            <tr class="pw-letter-row" data-student-id="${p.id}" data-team="${window.escapeHTML(p.teamName || '')}" data-search-text="${window.escapeHTML(searchText)}">
+                <td style="padding:0.35rem 0.65rem; font-weight:800; color:#475569; width:80px; font-size:0.82rem;">
+                    ${window.escapeHTML(p.chestNumber)}
+                </td>
+                <td style="padding:0.35rem 0.65rem; font-weight:700; color:#1e293b; font-size:0.85rem;">
+                    ${window.escapeHTML(p.name)}
+                </td>
+                <td style="padding:0.35rem 0.65rem; font-weight:600; color:#64748b; font-size:0.8rem;">
+                    ${window.escapeHTML(p.teamName || '—')}
+                </td>
+                <td style="padding:0.35rem 0.65rem; text-align:center; width:80px;">
+                    <div class="letter-badge-display" data-student-id="${p.id}" style="${hasLetter ? 'background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe;' : 'background:#f1f5f9; color:#94a3b8; border:1px solid #cbd5e1;'} min-width:32px; height:30px; border-radius:6px; font-weight:800; font-size:0.88rem; display:inline-flex; align-items:center; justify-content:center;">
+                        ${window.escapeHTML(codeLetter || '—')}
+                    </div>
+                    <input type="hidden" class="pw-letter-input code-letter-input" data-student-id="${p.id}" value="${window.escapeHTML(codeLetter)}" />
+                </td>
+                <td style="padding:0.35rem 0.65rem; text-align:center; width:120px;">
+                    <button type="button" class="btn btn-sm btn-pw-generate" data-student-id="${p.id}"
+                        style="${hasLetter ? 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; cursor:default;' : 'background:#6366f1; color:#fff; border:none;'} padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:700; border-radius:6px; transition:all 0.2s;"
+                        ${hasLetter ? 'disabled' : ''}>
+                        ${hasLetter ? '✓ Assigned' : '🎲 Generate'}
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    // Generate Mobile Stacked Cards
+    const participantLetterCardsHTML = participants.map(p => {
+        const saved = savedMarksMap.get(p.id) || {};
+        const codeLetter = (saved.codeLetter || '').toUpperCase();
+        const hasLetter = codeLetter !== '';
+        const searchText = `${p.chestNumber} ${p.name} ${p.teamName || ''}`.toLowerCase();
+
+        return `
+            <div class="pw-letter-card" data-student-id="${p.id}" data-team="${window.escapeHTML(p.teamName || '')}" data-search-text="${window.escapeHTML(searchText)}"
+                style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:0.65rem 0.85rem; display:flex; flex-direction:column; gap:0.4rem; box-shadow:0 1px 2px rgba(0,0,0,0.02);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-weight:800; color:#475569; font-size:0.8rem; background:#f1f5f9; padding:0.15rem 0.5rem; border-radius:4px; border:1px solid #e2e8f0;">
+                        #${window.escapeHTML(p.chestNumber)}
+                    </span>
+                    <div class="letter-badge-display" data-student-id="${p.id}" style="${hasLetter ? 'background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe;' : 'background:#f1f5f9; color:#94a3b8; border:1px solid #cbd5e1;'} min-width:32px; height:30px; border-radius:6px; font-weight:800; font-size:0.88rem; display:inline-flex; align-items:center; justify-content:center;">
+                        ${window.escapeHTML(codeLetter || '—')}
+                    </div>
+                </div>
+                <div>
+                    <div style="font-weight:700; color:#0f172a; font-size:0.9rem;">${window.escapeHTML(p.name)}</div>
+                    <div style="font-size:0.78rem; color:#64748b; margin-top:0.1rem;">Team: <strong>${window.escapeHTML(p.teamName || '—')}</strong></div>
+                </div>
+                <div style="text-align:right; margin-top:0.2rem;">
+                    <button type="button" class="btn btn-sm btn-pw-generate" data-student-id="${p.id}"
+                        style="${hasLetter ? 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; cursor:default;' : 'background:#6366f1; color:#fff; border:none;'} padding:0.25rem 0.65rem; font-size:0.75rem; font-weight:700; border-radius:6px; transition:all 0.2s;"
+                        ${hasLetter ? 'disabled' : ''}>
+                        ${hasLetter ? '✓ Assigned' : '🎲 Generate Letter'}
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    modalBody.innerHTML = `
+        <style>
+            .pw-table-wrapper {
+                max-height: calc(76vh - 140px);
+                overflow-y: auto;
+                border: 1px solid #cbd5e1;
+                border-radius: 10px;
+                background: #fff;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+            }
+            .pw-desktop-table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            .pw-desktop-table th {
+                position: sticky;
+                top: 0;
+                z-index: 5;
+                background: #f8fafc;
+                border-bottom: 2px solid #cbd5e1;
+                padding: 0.45rem 0.65rem;
+                font-size: 0.72rem;
+                color: #475569;
+                font-weight: 700;
+                text-align: left;
+            }
+            .pw-desktop-table tr:hover {
+                background: #f8fafc;
+            }
+            @media (max-width: 640px) {
+                .pw-desktop-table-view { display: none !important; }
+                .pw-cards-mobile-view { display: flex !important; flex-direction: column; gap: 0.5rem; max-height: calc(75vh - 160px); overflow-y: auto; padding: 0.2rem; }
+            }
+            @media (min-width: 641px) {
+                .pw-cards-mobile-view { display: none !important; }
+            }
+        </style>
+
+        <div style="max-width:780px; margin:0 auto; display:flex; flex-direction:column; gap:0.65rem; padding:0.25rem 0;">
+            <!-- Header bar with Top-Right Bulk Action Controls -->
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                <div>
+                    <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:#0f172a;">
+                        ${prog.programNumber ? `[#${prog.programNumber}] ` : ''}${window.escapeHTML(prog.programName)}
+                    </h3>
+                    <div style="font-size:0.78rem; color:#64748b; font-weight:600; margin-top:0.2rem; display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                        <span style="background:#e0e7ff; color:#4338ca; padding:0.1rem 0.45rem; border-radius:4px; font-weight:700;">📋 ${window.escapeHTML(prog.categoryName)}</span>
+                        <span>Type: <strong>${window.escapeHTML(prog.programType || prog.type || 'Individual')}</strong></span>
+                        <span>Total: <strong>${participants.length}</strong> participants</span>
+                    </div>
+                </div>
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.35rem;">
+                    <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                        <button type="button" class="btn btn-sm" id="btnAutoGenerateAll" 
+                            style="background:#6366f1; color:#fff; font-weight:700; padding:0.3rem 0.7rem; border-radius:6px; border:none; font-size:0.76rem; cursor:pointer; transition:all 0.2s;">
+                            🎲 Auto Generate All
+                        </button>
+                        <button type="button" class="btn btn-sm" id="btnResetLetters" 
+                            style="background:#f1f5f9; color:#ef4444; font-weight:700; padding:0.3rem 0.7rem; border-radius:6px; border:1px solid #fca5a5; font-size:0.76rem; cursor:pointer; transition:all 0.2s;">
+                            🔄 Reset Letters
+                        </button>
+                    </div>
+                    <div style="font-size:0.72rem; color:#64748b; font-weight:600;">
+                        Available Pool: <strong>${letterPool[0] || 'A'} – ${letterPool[letterPool.length - 1] || 'A'}</strong> (${participants.length} Letters)
+                    </div>
+                </div>
+            </div>
+
+            <!-- Instant Search & Quick Team Filter Bar -->
+            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:0.45rem 0.75rem; display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                <div style="flex:1; min-width:180px;">
+                    <input type="text" id="pwLetterSearch" class="form-input" placeholder="🔍 Search Student Name, Chest #, Team..." 
+                        style="width:100%; height:32px; font-size:0.8rem; padding:0.2rem 0.6rem; border-radius:6px; border:1px solid #cbd5e1;" />
+                </div>
+                ${uniqueTeams.length > 0 ? `
+                    <div style="width:150px;">
+                        <select id="pwTeamFilter" class="form-input" style="width:100%; height:32px; font-size:0.8rem; padding:0.2rem 0.5rem; border-radius:6px; border:1px solid #cbd5e1;">
+                            <option value="">All Teams</option>
+                            ${teamOptionsHTML}
+                        </select>
+                    </div>
+                ` : ''}
+            </div>
+
+            <!-- Desktop View: Participant High-Density Table -->
+            <div class="pw-table-wrapper pw-desktop-table-view">
+                <table class="pw-desktop-table">
+                    <thead>
+                        <tr>
+                            <th style="width:80px;">CHEST #</th>
+                            <th>STUDENT / GROUP</th>
+                            <th>TEAM</th>
+                            <th style="text-align:center; width:80px;">LETTER</th>
+                            <th style="text-align:center; width:120px;">ACTION</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${participantLetterRowsHTML}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile View: Participant Stacked Cards -->
+            <div class="pw-cards-mobile-view">
+                ${participantLetterCardsHTML}
+            </div>
+
+            <!-- Actions footer -->
+            <div class="modal-actions" style="margin-top:0.2rem; display:flex; gap:0.5rem; justify-content:space-between; align-items:center;">
+                <button type="button" class="btn btn-secondary" id="btnReturnToJudges" style="font-weight:700; font-size:0.82rem; padding:0.4rem 0.85rem;">
+                    ⬅️ Return to Judge Assignment
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Filter Logic: Instant Search & Team Quick Filter
+    const applyFilters = () => {
+        const searchVal = document.getElementById('pwLetterSearch')?.value.trim().toLowerCase() || '';
+        const teamVal = document.getElementById('pwTeamFilter')?.value || '';
+
+        modalBody.querySelectorAll('.pw-letter-row').forEach(row => {
+            const text = row.getAttribute('data-search-text') || '';
+            const team = row.getAttribute('data-team') || '';
+            const matchesSearch = !searchVal || text.includes(searchVal);
+            const matchesTeam = !teamVal || team === teamVal;
+            row.style.display = matchesSearch && matchesTeam ? '' : 'none';
+        });
+
+        modalBody.querySelectorAll('.pw-letter-card').forEach(card => {
+            const text = card.getAttribute('data-search-text') || '';
+            const team = card.getAttribute('data-team') || '';
+            const matchesSearch = !searchVal || text.includes(searchVal);
+            const matchesTeam = !teamVal || team === teamVal;
+            card.style.display = matchesSearch && matchesTeam ? '' : 'none';
+        });
+    };
+
+    const searchEl = document.getElementById('pwLetterSearch');
+    if (searchEl) searchEl.oninput = applyFilters;
+    const teamEl = document.getElementById('pwTeamFilter');
+    if (teamEl) teamEl.onchange = applyFilters;
+
+    // Bind Bulk Action Control listeners
+    document.getElementById('btnAutoGenerateAll').onclick = () => {
+        autoGenerateAllParticipantLetters(prog, participants, existingResult, modalBody);
+    };
+
+    document.getElementById('btnResetLetters').onclick = () => {
+        resetAllParticipantLetters(prog, participants, existingResult, modalBody);
+    };
+
+    // Bind return button
+    document.getElementById('btnReturnToJudges').onclick = () => {
+        renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participants, existingResult);
+    };
+
+    // Bind Generate buttons
+    modalBody.querySelectorAll('.btn-pw-generate').forEach(btn => {
+        btn.onclick = () => {
+            const studentId = btn.getAttribute('data-student-id');
+            const rowEl = modalBody.querySelector(`.pw-letter-row[data-student-id="${studentId}"]`) || modalBody.querySelector(`.pw-letter-card[data-student-id="${studentId}"]`);
+            if (rowEl) {
+                triggerLuckyDrawLetterAssignment(prog, studentId, rowEl, existingResult, participants.length);
+            }
+        };
+    });
+}
+
+function updateParticipantLetterUI(studentId, letter) {
+    document.querySelectorAll(`.letter-badge-display[data-student-id="${studentId}"]`).forEach(badge => {
+        badge.textContent = letter || '—';
+        if (letter) {
+            badge.style.background = '#e0e7ff';
+            badge.style.color = '#4338ca';
+            badge.style.border = '1px solid #c7d2fe';
+        } else {
+            badge.style.background = '#f1f5f9';
+            badge.style.color = '#94a3b8';
+            badge.style.border = '1px solid #cbd5e1';
+        }
+    });
+
+    document.querySelectorAll(`.code-letter-input[data-student-id="${studentId}"], .pw-letter-input[data-student-id="${studentId}"]`).forEach(inp => {
+        inp.value = letter;
+    });
+
+    document.querySelectorAll(`.btn-pw-generate[data-student-id="${studentId}"]`).forEach(btn => {
+        if (letter) {
+            btn.innerHTML = btn.classList.contains('btn-pw-generate-sp') ? '✓' : '✓ Assigned';
+            btn.style.background = '#ecfdf5';
+            btn.style.color = '#059669';
+            btn.style.border = '1px solid #a7f3d0';
+            btn.disabled = true;
+        } else {
+            btn.innerHTML = btn.classList.contains('btn-pw-generate-sp') ? '🎲' : '🎲 Generate Letter';
+            btn.style.background = '#6366f1';
+            btn.style.color = '#fff';
+            btn.style.border = 'none';
+            btn.disabled = false;
+        }
+    });
+}
+
+async function autoGenerateAllParticipantLetters(prog, participants, existingResult, modalBody) {
+    if (!participants || participants.length === 0) {
+        window.showToast("No participants registered for this program.", "warning");
+        return;
+    }
+
+    const confirmed = await window.customConfirm("Generate unique letters for all participants?");
+    if (!confirmed) return;
+
+    const btn = document.getElementById('btnAutoGenerateAll');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '🎲 Generating Letters...';
+    }
+
+    // Preserve scroll positions
+    const desktopScrollContainer = modalBody.querySelector('.pw-table-wrapper');
+    const mobileScrollContainer = modalBody.querySelector('.pw-cards-mobile-view');
+    const savedDesktopScroll = desktopScrollContainer ? desktopScrollContainer.scrollTop : 0;
+    const savedMobileScroll = mobileScrollContainer ? mobileScrollContainer.scrollTop : 0;
+
+    // Exact N-letter pool for this program
+    const letterPool = getProgramLetterPool(participants.length);
+    
+    // Fisher-Yates Shuffle
+    const shuffledPool = [...letterPool];
+    for (let i = shuffledPool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledPool[i], shuffledPool[j]] = [shuffledPool[j], shuffledPool[i]];
+    }
+
+    const badgeElements = modalBody.querySelectorAll('.letter-badge-display');
+    const generateBtns = modalBody.querySelectorAll('.btn-pw-generate');
+    const dummyPool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    const animationIntervals = [40, 40, 50, 50, 60, 70, 80, 100, 120, 150, 190, 240, 300];
+    let step = 0;
+
+    badgeElements.forEach(badge => {
+        badge.style.transition = 'transform 0.1s ease, border-color 0.1s ease, color 0.1s ease';
+        badge.style.borderColor = '#6366f1';
+        badge.style.color = '#4338ca';
+    });
+    generateBtns.forEach(b => {
+        b.disabled = true;
+        b.innerHTML = '🎲 ...';
+    });
+
+    function runBulkAnimationStep() {
+        if (step < animationIntervals.length - 1) {
+            badgeElements.forEach(badge => {
+                const randomChar = dummyPool[Math.floor(Math.random() * dummyPool.length)];
+                badge.textContent = randomChar;
+                badge.style.transform = step % 2 === 0 ? 'scale(1.15)' : 'scale(1.0)';
+            });
+            step++;
+            if (desktopScrollContainer) desktopScrollContainer.scrollTop = savedDesktopScroll;
+            if (mobileScrollContainer) mobileScrollContainer.scrollTop = savedMobileScroll;
+            setTimeout(runBulkAnimationStep, animationIntervals[step]);
+        } else {
+            // Final land on generated letters
+            const assignmentMap = new Map();
+            participants.forEach((p, idx) => {
+                const assignedLetter = shuffledPool[idx];
+                assignmentMap.set(p.id, assignedLetter);
+                updateParticipantLetterUI(p.id, assignedLetter);
+            });
+
+            if (desktopScrollContainer) desktopScrollContainer.scrollTop = savedDesktopScroll;
+            if (mobileScrollContainer) mobileScrollContainer.scrollTop = savedMobileScroll;
+
+            // Auto Save All to Firestore
+            autoSaveBulkParticipantLetters(prog, assignmentMap, existingResult).then(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '✓ Successfully Generated';
+                    btn.style.background = '#ecfdf5';
+                    btn.style.color = '#059669';
+                    setTimeout(() => {
+                        btn.innerHTML = '🎲 Auto Generate All';
+                        btn.style.background = '#6366f1';
+                        btn.style.color = '#fff';
+                    }, 2500);
+                }
+            });
+        }
+    }
+
+    runBulkAnimationStep();
+}
+
+async function resetAllParticipantLetters(prog, participants, existingResult, modalBody) {
+    const confirmed = await window.customConfirm("Remove all assigned letters for this program?");
+    if (!confirmed) return;
+
+    const btn = document.getElementById('btnResetLetters');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '🔄 Resetting...';
+    }
+
+    try {
+        participants.forEach(p => {
+            updateParticipantLetterUI(p.id, '');
+        });
+
+        await clearAllParticipantLettersInFirestore(prog, existingResult);
+
+        window.showToast("All participant letters for this program have been removed.", "success");
+    } catch (err) {
+        console.error("Reset letters error:", err);
+        window.showToast("Failed to reset letters: " + (err.message || err), "error");
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '🔄 Reset Letters';
+        }
+    }
+}
+
+async function autoSaveBulkParticipantLetters(prog, assignmentMap, existingResult) {
+    if (!db || !prog || !prog.id) return;
+
+    try {
+        const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
+        const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
+        const docRef = doc(resultsRef, `result_${prog.id}`);
+        const docSnap = await getDoc(docRef);
+
+        let existingDoc = docSnap.exists() ? docSnap.data() : (existingResult || null);
+        let marksData = existingDoc && Array.isArray(existingDoc.marksData) ? [...existingDoc.marksData] : [];
+
+        const participants = await loadStudentsForProgram(prog);
+        participants.forEach(p => {
+            const codeLetter = assignmentMap.get(p.id) || '';
+            let targetEntry = marksData.find(m => (isGroup ? m.groupId === p.id : m.studentId === p.id));
+            if (targetEntry) {
+                targetEntry.codeLetter = codeLetter;
+            } else {
+                marksData.push({
+                    studentId: isGroup ? '' : p.id,
+                    groupId: isGroup ? p.id : '',
+                    studentName: p.name || '',
+                    teamId: p.teamId || '',
+                    teamName: p.teamName || '',
+                    codeLetter: codeLetter,
+                    marks: [],
+                    finalMark: 0,
+                    grade: '',
+                    gradePoints: 0,
+                    rank: null,
+                    position: '',
+                    positionPoints: 0,
+                    totalPoints: 0
+                });
+            }
+        });
+
+        const payload = {
+            programId: prog.id,
+            programName: prog.programName,
+            programType: prog.programType,
+            registrationType: prog.registrationType || '',
+            categoryId: prog.categoryId || '',
+            categoryName: prog.categoryName || '',
+            classId: prog.classId || '',
+            className: prog.className || '',
+            genderCategory: prog.genderCategory || '',
+            programLocation: prog.programLocation || '',
+            marksData: marksData,
+            status: existingDoc?.status || 'draft',
+            markEntryStatus: existingDoc?.markEntryStatus || 'in-progress',
+            updatedAt: serverTimestamp()
+        };
+
+        await setDoc(docRef, payload, { merge: true });
+        
+        // Update local cache
+        const localDoc = allResults.get(prog.id) || {};
+        allResults.set(prog.id, { ...localDoc, ...payload, id: `result_${prog.id}` });
+        
+        window.showToast("Saved unique letters for all participants.", "success");
+    } catch (err) {
+        console.error("Auto-save bulk letters error:", err);
+        window.showToast("Failed to save generated letters: " + (err.message || err), "error");
+    }
+}
+
+async function clearAllParticipantLettersInFirestore(prog, existingResult) {
+    if (!db || !prog || !prog.id) return;
+
+    const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
+    const docRef = doc(resultsRef, `result_${prog.id}`);
+    const docSnap = await getDoc(docRef);
+
+    let existingDoc = docSnap.exists() ? docSnap.data() : (existingResult || null);
+    if (!existingDoc || !Array.isArray(existingDoc.marksData)) return;
+
+    let marksData = existingDoc.marksData.map(m => ({ ...m, codeLetter: '' }));
+
+    const payload = {
+        marksData: marksData,
+        updatedAt: serverTimestamp()
+    };
+
+    await setDoc(docRef, payload, { merge: true });
+
+    // Update local cache
+    const localDoc = allResults.get(prog.id) || {};
+    allResults.set(prog.id, { ...localDoc, marksData: marksData, id: `result_${prog.id}` });
+}
+
+function triggerLuckyDrawLetterAssignment(prog, studentId, rowElement, existingResult, participantsCount = 26) {
+    const badgeEls = document.querySelectorAll(`.letter-badge-display[data-student-id="${studentId}"]`);
+    const generateBtn = rowElement.querySelector('.btn-pw-generate, .btn-pw-generate-sp');
+    
+    if (badgeEls.length === 0) return;
+
+    // Preserve scroll positions
+    const desktopScrollContainer = document.querySelector('.pw-table-wrapper');
+    const mobileScrollContainer = document.querySelector('.pw-cards-mobile-view');
+    const savedDesktopScroll = desktopScrollContainer ? desktopScrollContainer.scrollTop : 0;
+    const savedMobileScroll = mobileScrollContainer ? mobileScrollContainer.scrollTop : 0;
+    
+    // Gather all currently assigned letters in DOM inputs & saved data across all participants for this program
+    const assignedLetters = new Set();
+    document.querySelectorAll('.code-letter-input, .pw-letter-input').forEach(inp => {
+        const val = inp.value.trim().toUpperCase();
+        if (val) assignedLetters.add(val);
+    });
+    if (existingResult && Array.isArray(existingResult.marksData)) {
+        existingResult.marksData.forEach(m => {
+            if (m.codeLetter) assignedLetters.add(m.codeLetter.trim().toUpperCase());
+        });
+    }
+    
+    // Exact letter pool according to participant count N
+    const programLetterPool = getProgramLetterPool(participantsCount);
+    const availablePool = programLetterPool.filter(l => !assignedLetters.has(l));
+
+    if (availablePool.length === 0) {
+        window.showToast("No available unique letters left to assign for this program.", "warning");
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = generateBtn.classList.contains('btn-pw-generate-sp') ? '🎲' : '🎲 Generate Letter';
+        }
+        return;
+    }
+
+    // Pick target letter
+    const chosenIndex = Math.floor(Math.random() * availablePool.length);
+    const assignedLetter = availablePool[chosenIndex];
+
+    // Disable button & styling for slot animation
+    if (generateBtn) {
+        generateBtn.disabled = true;
+        generateBtn.style.opacity = '0.8';
+        generateBtn.innerHTML = '🎲 ...';
+    }
+
+    // Prepare Animation sequence (1.5 - 2 seconds lucky draw effect using program letter pool)
+    const animationIntervals = [40, 40, 50, 50, 60, 70, 80, 100, 120, 150, 190, 240, 300];
+    let step = 0;
+
+    badgeEls.forEach(b => {
+        b.style.transition = 'transform 0.1s ease, border-color 0.1s ease, color 0.1s ease';
+        b.style.borderColor = '#6366f1';
+        b.style.color = '#4338ca';
+        b.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.2)';
+    });
+
+    function runAnimationStep() {
+        if (step < animationIntervals.length - 1) {
+            const randomChar = programLetterPool[Math.floor(Math.random() * programLetterPool.length)];
+            badgeEls.forEach(b => {
+                b.textContent = randomChar;
+                b.style.transform = step % 2 === 0 ? 'scale(1.15)' : 'scale(1.0)';
+            });
+            step++;
+            if (desktopScrollContainer) desktopScrollContainer.scrollTop = savedDesktopScroll;
+            if (mobileScrollContainer) mobileScrollContainer.scrollTop = savedMobileScroll;
+            setTimeout(runAnimationStep, animationIntervals[step]);
+        } else {
+            // Final land on assigned letter!
+            updateParticipantLetterUI(studentId, assignedLetter);
+
+            if (desktopScrollContainer) desktopScrollContainer.scrollTop = savedDesktopScroll;
+            if (mobileScrollContainer) mobileScrollContainer.scrollTop = savedMobileScroll;
+
+            // Auto Save to Firestore
+            autoSaveParticipantLetter(prog, studentId, assignedLetter, existingResult);
+        }
+    }
+
+    runAnimationStep();
+}
+
+async function autoSaveParticipantLetter(prog, studentId, codeLetter, existingResult) {
+    if (!db || !prog || !prog.id) return;
+
+    try {
+        const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
+        const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
+        const docRef = doc(resultsRef, `result_${prog.id}`);
+        const docSnap = await getDoc(docRef);
+
+        let existingDoc = docSnap.exists() ? docSnap.data() : (existingResult || null);
+        let marksData = existingDoc && Array.isArray(existingDoc.marksData) ? [...existingDoc.marksData] : [];
+
+        let targetEntry = marksData.find(m => (isGroup ? m.groupId === studentId : m.studentId === studentId));
+        if (targetEntry) {
+            targetEntry.codeLetter = codeLetter;
+        } else {
+            const participants = await loadStudentsForProgram(prog);
+            const pInfo = participants.find(p => p.id === studentId);
+            marksData.push({
+                studentId: isGroup ? '' : studentId,
+                groupId: isGroup ? studentId : '',
+                studentName: pInfo ? pInfo.name : '',
+                teamId: pInfo ? pInfo.teamId : '',
+                teamName: pInfo ? pInfo.teamName : '',
+                codeLetter: codeLetter,
+                marks: [],
+                finalMark: 0,
+                grade: '',
+                gradePoints: 0,
+                rank: null,
+                position: '',
+                positionPoints: 0,
+                totalPoints: 0
+            });
+        }
+
+        const payload = {
+            programId: prog.id,
+            programName: prog.programName,
+            programType: prog.programType,
+            registrationType: prog.registrationType || '',
+            categoryId: prog.categoryId || '',
+            categoryName: prog.categoryName || '',
+            classId: prog.classId || '',
+            className: prog.className || '',
+            genderCategory: prog.genderCategory || '',
+            programLocation: prog.programLocation || '',
+            marksData: marksData,
+            status: existingDoc?.status || 'draft',
+            markEntryStatus: existingDoc?.markEntryStatus || 'in-progress',
+            updatedAt: serverTimestamp()
+        };
+
+        await setDoc(docRef, payload, { merge: true });
+        
+        // Update local cache
+        const localDoc = allResults.get(prog.id) || {};
+        allResults.set(prog.id, { ...localDoc, ...payload, id: `result_${prog.id}` });
+        
+        window.showToast(`Saved letter ${codeLetter} for participant.`, "success");
+    } catch (err) {
+        console.error("Auto-save code letter error:", err);
+        window.showToast("Failed to auto-save letter: " + (err.message || err), "error");
+    }
 }
 
 function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, existingResult) {
@@ -1227,15 +1907,23 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
 
         return `
             <tr class="mark-entry-row" data-student-id="${p.id}" data-student-name="${window.escapeHTML(p.name)}" data-team-id="${p.teamId}" data-team-name="${window.escapeHTML(p.teamName)}" data-manual-grade="${window.escapeHTML(screenManualGrade)}" data-judge-manual-grades="${window.escapeHTML(JSON.stringify(manualGrades))}">
+                <td style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; text-align:center; white-space:nowrap;">
+                    <div style="display:inline-flex; align-items:center; gap:4px; justify-content:center;">
+                        <input type="text" class="form-input code-letter-input" 
+                            data-student-id="${p.id}"
+                            placeholder="—" value="${window.escapeHTML(codeLetter)}" 
+                            style="width:48px; text-align:center; font-size:0.85rem; font-weight:800; padding:0.25rem 0.35rem; text-transform:uppercase;" />
+                        <button type="button" class="btn btn-sm btn-pw-generate-sp" data-student-id="${p.id}" title="Generate Unique Letter"
+                            style="padding:0.2rem 0.45rem; font-size:0.75rem; background:${codeLetter ? '#ecfdf5' : '#6366f1'}; color:${codeLetter ? '#059669' : '#fff'}; border:${codeLetter ? '1px solid #a7f3d0' : 'none'}; border-radius:4px; cursor:pointer; font-weight:700; transition:all 0.2s;"
+                            ${codeLetter ? 'disabled' : ''}>
+                            ${codeLetter ? '✓' : '🎲'}
+                        </button>
+                    </div>
+                </td>
                 ${!isGroup ? `
                 <td style="padding:0.75rem; border:1px solid #cbd5e1; font-weight:700; color:#475569;">
                     ${window.escapeHTML(p.chestNumber)}
                 </td>` : ''}
-                <td style="padding:0.5rem; border:1px solid #cbd5e1; text-align:center;">
-                    <input type="text" class="form-input code-letter-input" 
-                        placeholder="Letter" value="${window.escapeHTML(codeLetter)}" 
-                        style="width:70px; text-align:center; font-size:0.85rem; padding:0.35rem 0.5rem; text-transform:uppercase;" />
-                </td>
                 <td style="padding:0.75rem; border:1px solid #cbd5e1;">
                     <div style="font-weight:700; color:#1e293b;">${window.escapeHTML(p.name)}</div>
                 </td>
@@ -1329,8 +2017,8 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
                 <table style="width:100%; border-collapse:collapse; min-width:800px;">
                     <thead>
                         <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1;">
+                            <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:110px;">LETTER</th>
                             ${!isGroup ? `<th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:left; font-size:0.78rem; font-weight:700; color:#475569; width:90px;">CHEST #</th>` : ''}
-                            <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:90px;">CODE LETTER</th>
                             <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:left; font-size:0.78rem; font-weight:700; color:#475569;">${isGroup ? 'TEAM NAME' : 'STUDENT NAME'}</th>
                             ${judgeHeadersHTML}
                             <th class="cell-calc-header" style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:95px; ${!showCalculations ? 'display:none;' : ''}">FINAL MARK</th>
@@ -1363,6 +2051,41 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
 
     // Hook listeners
     const tbody = document.getElementById('meSpreadsheetBody');
+
+    // Bind in-spreadsheet generate button listeners
+    tbody.querySelectorAll('.btn-pw-generate-sp').forEach(btn => {
+        btn.onclick = () => {
+            const studentId = btn.getAttribute('data-student-id');
+            const rowEl = tbody.querySelector(`.mark-entry-row[data-student-id="${studentId}"]`);
+            if (rowEl) {
+                triggerLuckyDrawLetterAssignment(prog, studentId, rowEl, existingResult);
+            }
+        };
+    });
+
+    tbody.querySelectorAll('.code-letter-input').forEach(input => {
+        input.oninput = () => {
+            const val = input.value.trim().toUpperCase();
+            input.value = val;
+            const studentId = input.getAttribute('data-student-id');
+            const btn = tbody.querySelector(`.btn-pw-generate-sp[data-student-id="${studentId}"]`);
+            if (btn) {
+                if (val) {
+                    btn.innerHTML = '✓';
+                    btn.style.background = '#ecfdf5';
+                    btn.style.color = '#059669';
+                    btn.style.border = '1px solid #a7f3d0';
+                    btn.disabled = true;
+                } else {
+                    btn.innerHTML = '🎲';
+                    btn.style.background = '#6366f1';
+                    btn.style.color = '#fff';
+                    btn.style.border = 'none';
+                    btn.disabled = false;
+                }
+            }
+        };
+    });
     
     let manualGradeMode = (existingResult?.gradeMode === 'manual');
 
