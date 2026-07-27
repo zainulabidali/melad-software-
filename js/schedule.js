@@ -2147,26 +2147,54 @@ async function openAddProgramRowModal() {
 
         const dur = parseInt(document.getElementById('selProgDur').value, 10) || 20;
         const prog = sortedPrograms.find(p => p.id === progId);
+        if (!prog) return;
 
-        const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
-        const isOff = activeStage.toLowerCase().includes('off stage');
+        submitBtn.disabled = true;
 
-        const newDocRef = doc(collection(db, "institutes", window.currentInstituteId, "schedules"));
-        await setDoc(newDocRef, {
-            programId: progId,
-            programName: prog?.programName || 'Unnamed Program',
-            stage: activeStage,
-            scheduleDate: stageConfigs[activeStage]?.date || new Date().toISOString().split('T')[0],
-            duration: dur,
-            runningOrder: activeItems.length + 1,
-            status: 'Pending',
-            isOffStage: isOff,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-        });
+        try {
+            const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
+            const isOff = activeStage.toLowerCase().includes('off stage');
 
-        window.showToast(`Added ${prog?.programName} to ${activeStage}`);
-        closeModal();
+            const newDocRef = doc(collection(db, "institutes", window.currentInstituteId, "schedules"));
+            await setDoc(newDocRef, {
+                programId: progId,
+                programName: prog.programName || 'Unnamed Program',
+                stage: activeStage,
+                scheduleDate: stageConfigs[activeStage]?.date || new Date().toISOString().split('T')[0],
+                duration: dur,
+                runningOrder: activeItems.length + 1,
+                status: 'Pending',
+                isOffStage: isOff,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+
+            window.showToast(`✓ Program "${prog.programName}" added to ${activeStage}`);
+
+            // Preserve current scroll position of cards grid
+            const currentScrollTop = gridEl.scrollTop;
+
+            // Remove newly scheduled program from available list in memory
+            const addedIdx = sortedPrograms.findIndex(p => p.id === progId);
+            if (addedIdx !== -1) {
+                sortedPrograms.splice(addedIdx, 1);
+            }
+
+            // Reset current selection state so next program can be selected
+            selectedProgId = '';
+            hiddenInput.value = '';
+            selectedNotice.textContent = "No program selected";
+
+            // Re-apply existing filters & search without resetting filter fields
+            applyFilters();
+
+            // Restore scroll position
+            gridEl.scrollTop = currentScrollTop;
+        } catch (err) {
+            console.error("Error adding program to schedule:", err);
+            window.showToast("Failed to add program slot.", "error");
+            submitBtn.disabled = false;
+        }
     };
 }
 
