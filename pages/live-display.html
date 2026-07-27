@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Championship Display</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="stylesheet" href="../css/live-display.css">
+</head>
+<body>
+
+    <!-- Ambient Glowing Background -->
+    <div class="live-bg-glow"></div>
+
+    <!-- Main Container -->
+    <div class="live-container">
+
+        <!-- ─────────────────────────────────────────────
+             HEADER BAR
+             ───────────────────────────────────────────── -->
+        <header class="live-header">
+            <div class="header-left">
+                <div class="header-logo-container" id="headerLogoContainer">
+                    <span class="header-logo-icon" id="headerLogoFallback">🏆</span>
+                    <img id="headerLogoImg" class="header-logo-img" style="display: none;" alt="Logo">
+                </div>
+                <div class="header-title-group">
+                    <h1 class="header-meelad-name" id="liveMeeladName">MEELAD CHAMPIONSHIP</h1>
+                    <div class="header-subtitle-wrap">
+                        <span class="header-tag">LIVE CHAMPIONSHIP</span>
+                        <div class="live-pulse-badge">
+                            <span class="live-dot"></span>
+                            <span>LIVE</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="header-right-metrics">
+                <div class="metric-card">
+                    <span class="metric-label">Completed Programs</span>
+                    <span class="metric-val highlight-gold" id="statCompletedProg">- / -</span>
+                </div>
+                <div class="metric-divider"></div>
+                <div class="metric-card">
+                    <span class="metric-label">Overall Progress</span>
+                    <span class="metric-val highlight-emerald" id="statProgressPct">-</span>
+                </div>
+                <div class="metric-divider"></div>
+                <div class="metric-card">
+                    <span class="metric-label">Pending Results</span>
+                    <span class="metric-val" id="statPendingProg">-</span>
+                </div>
+                <div class="metric-divider"></div>
+                <div class="metric-card">
+                    <span class="metric-label">Last Updated</span>
+                    <span class="metric-val" id="statLastUpdated" style="font-size: 1.1rem; color: #CBD5E1;">--:--</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- ─────────────────────────────────────────────
+             ROTATOR TITLE BAR & PROGRESS TRACK
+             ───────────────────────────────────────────── -->
+        <div class="view-rotator-header">
+            <div class="view-title-wrap">
+                <span class="view-badge-icon" id="viewIcon">🏆</span>
+                <span class="view-title-text" id="viewTitle">Team Championship</span>
+                <span class="view-subtitle-category" id="viewCategoryBadge" style="display: none;"></span>
+            </div>
+            <div class="view-progress-track">
+                <div class="view-progress-fill" id="rotatorProgressFill"></div>
+            </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────
+             MAIN VIEWPORT (ROTATING SCREENS)
+             ───────────────────────────────────────────── -->
+        <main class="live-viewport">
+
+            <!-- SCREEN 1: TEAM CHAMPIONSHIP -->
+            <div class="screen-view active" id="screenTeamChampionship">
+                <div class="team-cards-grid" id="teamChampionshipGrid">
+                    <div style="text-align: center; padding: 4rem; color: #94A3B8; font-size: 1.2rem;">
+                        Loading live championship standings...
+                    </div>
+                </div>
+            </div>
+
+            <!-- SCREEN 2: CATEGORY LEADERS -->
+            <div class="screen-view" id="screenCategoryLeaders">
+                <div class="cat-leaders-container" id="categoryLeadersContainer">
+                    <div style="text-align: center; padding: 4rem; color: #94A3B8; font-size: 1.2rem;">
+                        Loading category leaders...
+                    </div>
+                </div>
+            </div>
+
+            <!-- SCREEN 3: CATEGORY COMPARISON -->
+            <div class="screen-view" id="screenCategoryComparison">
+                <div class="cat-comp-grid" id="categoryComparisonContainer">
+                    <div style="text-align: center; padding: 4rem; color: #94A3B8; font-size: 1.2rem;">
+                        Loading category comparison...
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- ─────────────────────────────────────────────
+             LATEST PUBLISHED RESULTS (BROADCAST MARQUEE RIBBON)
+             ───────────────────────────────────────────── -->
+        <footer class="latest-results-section">
+            <div class="latest-results-header">
+                <div class="latest-results-title-wrap">
+                    <span class="latest-results-icon">🔥</span>
+                    <span class="latest-results-title">Latest Published Results</span>
+                </div>
+                <span class="latest-results-badge">LIVE RESULTS RIBBON</span>
+            </div>
+            <div class="ribbon-marquee-wrapper" id="ribbonWrapper">
+                <div class="ribbon-marquee-track" id="ribbonTrack">
+                    <div class="latest-result-empty">
+                        Waiting for published competition results...
+                    </div>
+                </div>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Firebase & Live Display JS Engine -->
+    <script type="module" src="../js/live-display.js"></script>
+</body>
+</html>

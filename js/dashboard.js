@@ -1212,6 +1212,34 @@ async function initDashboardOverview(container, topActions) {
                 </div>
             </div>
 
+            <!-- Live Championship Display Card (Full Width) -->
+            <div class="card live-display-card" style="border: 1px solid rgba(245, 158, 11, 0.25); background: linear-gradient(135deg, rgba(245, 158, 11, 0.03) 0%, rgba(234, 88, 12, 0.03) 100%); padding: 2rem; border-radius: 20px; box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.04); margin-top: 1rem;">
+                <div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 2rem; flex-wrap: wrap;">
+                    
+                    <!-- Left: Description -->
+                    <div style="flex: 1; min-width: 280px;">
+                        <h3 class="card-title" style="color: #d97706; font-weight: 800; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem; margin-bottom: 0.5rem;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.4rem; height: 1.4rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M6 20.25h12m-6-3v3m-6.9-1.95a15.721 15.721 0 0 1 1.8-6.19c.72-1.4 1.76-2.58 3.05-3.41M12 3a9.75 9.75 0 0 1 7.2 3.15m-14.4 0A9.75 9.75 0 0 1 12 3m0 0v6.75m0 0 4.5 4.5M12 9.75l-4.5 4.5" /></svg>
+                            Live Championship Display
+                        </h3>
+                        <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 0px; line-height: 1.5; font-weight: 500;">
+                            Show live championship standings on TV, LED Screen and Projector.
+                        </p>
+                    </div>
+                    
+                    <!-- Right: Actions Grid -->
+                    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                        <button class="btn btn-outline" id="dashCopyLiveLink" style="border-radius: 10px; font-weight: 600; padding: 0.75rem 1.25rem; display: flex; align-items: center; gap: 0.5rem; border-color: #d97706; color: #d97706;">
+                            🔗 Copy Display Link
+                        </button>
+                        <button class="btn btn-primary" id="dashOpenLiveDisplay" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border: none; border-radius: 10px; font-weight: 700; padding: 0.75rem 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: white;">
+                            📺 Open Live Display
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
         </div>
 
     `;
@@ -1223,6 +1251,15 @@ async function initDashboardOverview(container, topActions) {
         });
     };
     document.getElementById('dashOpenPortal').onclick = () => window.open(publicUrl, '_blank');
+
+    // Bind Live Display Actions
+    const liveDisplayUrl = `${origin}${repoPrefix}/pages/live-display.html?id=${instId}`;
+    document.getElementById('dashCopyLiveLink').onclick = () => {
+        navigator.clipboard.writeText(liveDisplayUrl).then(() => {
+            window.showToast("✓ Display link copied successfully.");
+        });
+    };
+    document.getElementById('dashOpenLiveDisplay').onclick = () => window.open(liveDisplayUrl, '_blank');
 
     // Attach a single optimized Snapshot Listener to the dashboard metadata aggregates document
     try {

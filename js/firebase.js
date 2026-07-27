@@ -299,6 +299,111 @@ export async function updateDashboardMetadata(instituteId) {
 
         const publishedCount = results.filter(r => r.status === 'published').length;
 
+        // 5. Category Performance Aggregation
+        const teamSet = new Set();
+        teams.forEach(t => { if (t.name) teamSet.add(t.name); });
+        const categoryMap = {};
+        const processedProgramIds = new Set();
+
+        results.forEach(r => {
+            if (r.status !== 'published' || r.publicDisabled === true) return;
+            const prog = programs.find(p => p.id === r.programId);
+            if (prog && prog.leaderboardEnabled === false) return;
+
+            const progKey = r.programId || r.id;
+            if (processedProgramIds.has(progKey)) return;
+            processedProgramIds.add(progKey);
+
+            const catName = r.categoryName ? r.categoryName.trim() : '';
+            if (!catName) return;
+
+            if (!categoryMap[catName]) categoryMap[catName] = {};
+
+            if (Array.isArray(r.marksData) && r.marksData.length > 0) {
+                r.marksData.forEach(w => {
+                    if (w.teamName && w.teamName !== 'No Team' && w.totalPoints > 0) {
+                        const pts = Number(w.totalPoints || 0);
+                        categoryMap[catName][w.teamName] = (categoryMap[catName][w.teamName] || 0) + pts;
+                        teamSet.add(w.teamName);
+                    }
+                });
+            } else if (Array.isArray(r.winners)) {
+                r.winners.forEach(w => {
+                    if (w.teamName && w.teamName !== 'No Team' && w.marks > 0) {
+                        const pts = Number(w.marks || 0);
+                        categoryMap[catName][w.teamName] = (categoryMap[catName][w.teamName] || 0) + pts;
+                        teamSet.add(w.teamName);
+                    }
+                });
+            }
+        });
+
+        const categoryNames = Object.keys(categoryMap);
+        categoryNames.sort((a, b) => a.localeCompare(b));
+
+        const categoryPerformance = categoryNames.map(catName => {
+            const teamScoresObj = categoryMap[catName] || {};
+            const teamList = Array.from(teamSet).map(name => ({
+                name: name,
+                points: teamScoresObj[name] || 0
+            }));
+            teamList.sort((a, b) => b.points - a.points);
+            computeDenseRanking(teamList, t => t.points, 'rank');
+
+            const maxPoints = Math.max(...teamList.map(t => t.points), 1);
+            const processedTeams = teamList.map(t => ({
+                ...t,
+                pct: t.points > 0 ? Math.min(Math.round((t.points / maxPoints) * 100), 100) : 0
+            }));
+
+            return {
+                categoryName: catName,
+                teams: processedTeams
+            };
+        });
+
+        // 6. Latest 4 Published Results
+        const publishedResultsList = results.filter(r => r.status === 'published' && r.publicDisabled !== true);
+        publishedResultsList.sort((a, b) => {
+            const timeA = a.publishedAt?.seconds || a.updatedAt?.seconds || 0;
+            const timeB = b.publishedAt?.seconds || b.updatedAt?.seconds || 0;
+            return timeB - timeA;
+        });
+
+        const latestPublishedResults = publishedResultsList.slice(0, 4).map(r => {
+            const prog = programs.find(p => p.id === r.programId);
+            const progCode = r.programCode || prog?.code || r.programNumber || '';
+            const progName = r.programName || prog?.name || 'Competition';
+            const catName = r.categoryName || prog?.categoryName || '';
+
+            let topWinnerName = '';
+            let topTeamName = '';
+
+            if (Array.isArray(r.marksData) && r.marksData.length > 0) {
+                const sorted = [...r.marksData].sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+                if (sorted[0]) {
+                    topWinnerName = sorted[0].studentName || 'Winner';
+                    topTeamName = sorted[0].teamName || '';
+                }
+            } else if (Array.isArray(r.winners) && r.winners.length > 0) {
+                const sorted = [...r.winners].sort((a, b) => (b.marks || 0) - (a.marks || 0));
+                if (sorted[0]) {
+                    topWinnerName = sorted[0].name || sorted[0].studentName || 'Winner';
+                    topTeamName = sorted[0].teamName || '';
+                }
+            }
+
+            return {
+                id: r.id,
+                programCode: progCode,
+                programName: progName,
+                categoryName: catName,
+                winnerName: topWinnerName,
+                winningTeam: topTeamName,
+                publishedAt: r.publishedAt?.seconds ? r.publishedAt.seconds * 1000 : Date.now()
+            };
+        });
+
         // Write metadata document
         const metaRef = doc(db, "institutes", instituteId, "metadata", "dashboard");
         await setDoc(metaRef, {
@@ -316,7 +421,11 @@ export async function updateDashboardMetadata(instituteId) {
             judgesCount: totalJudges,
             stagesCount: totalStages,
             publishedResultsCount: publishedCount,
+            pendingProgramsCount: Math.max(0, totalCompetitions - publishedCount),
+            overallProgressPct: totalCompetitions > 0 ? Math.round((publishedCount / totalCompetitions) * 100) : 0,
             leaderboard: sortedTeams,
+            categoryPerformance: categoryPerformance,
+            latestPublishedResults: latestPublishedResults,
             radarChartData: radarChartData,
             barChartData: barChartData,
             lastUpdated: new Date()
