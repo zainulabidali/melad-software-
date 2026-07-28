@@ -587,8 +587,84 @@ async function initLiveDisplayEngine() {
 }
 
 // ─────────────────────────────────────────────
+// FULLSCREEN PRESENTATION MODE ENGINE
+// ─────────────────────────────────────────────
+function requestFullscreenMode() {
+    const el = document.documentElement;
+    if (el.requestFullscreen) {
+        return el.requestFullscreen();
+    } else if (el.webkitRequestFullscreen) {
+        return el.webkitRequestFullscreen();
+    } else if (el.mozRequestFullScreen) {
+        return el.mozRequestFullScreen();
+    } else if (el.msRequestFullscreen) {
+        return el.msRequestFullscreen();
+    }
+    return Promise.reject(new Error("Fullscreen API unsupported"));
+}
+
+function isFullscreenActive() {
+    return !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+    );
+}
+
+function updateFullscreenOverlayState() {
+    const overlay = document.getElementById('fullscreenOverlay');
+    if (!overlay) return;
+
+    if (isFullscreenActive()) {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            if (isFullscreenActive()) overlay.style.display = 'none';
+        }, 300);
+    } else {
+        overlay.style.display = 'flex';
+        // Force reflow for opacity animation
+        void overlay.offsetWidth;
+        overlay.classList.add('show');
+    }
+}
+
+function initFullscreenHandler() {
+    const overlay = document.getElementById('fullscreenOverlay');
+
+    // Handle user tap/click on overlay to launch fullscreen
+    if (overlay) {
+        overlay.addEventListener('click', () => {
+            requestFullscreenMode().then(() => {
+                updateFullscreenOverlayState();
+            }).catch(err => {
+                console.warn("Fullscreen request on gesture error:", err);
+                updateFullscreenOverlayState();
+            });
+        });
+    }
+
+    // Listen for browser fullscreen change events (ESC key, swipe exit, Android Chrome UI)
+    const fsEvents = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
+    fsEvents.forEach(evtName => {
+        document.addEventListener(evtName, () => {
+            updateFullscreenOverlayState();
+        });
+    });
+
+    // Attempt automatic fullscreen launch on load
+    requestFullscreenMode().then(() => {
+        updateFullscreenOverlayState();
+    }).catch(err => {
+        console.warn("Automatic fullscreen launch blocked by browser policy. Displaying tap overlay.", err);
+        updateFullscreenOverlayState();
+    });
+}
+
+// ─────────────────────────────────────────────
 // INITIALIZATION
 // ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     initLiveDisplayEngine();
+    initFullscreenHandler();
 });

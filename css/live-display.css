@@ -910,3 +910,77 @@ html, body {
     .cat-hero-team-name { font-size: 2rem; }
     .cat-hero-points-num { font-size: 2.8rem; }
 }
+
+/* ─────────────────────────────────────────────
+   FULLSCREEN PRESENTATION OVERLAY
+   ───────────────────────────────────────────── */
+.fullscreen-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 99999;
+    background: rgba(4, 7, 14, 0.92);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 300ms ease-in-out, visibility 300ms ease-in-out;
+}
+
+.fullscreen-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.fullscreen-overlay-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: clamp(2rem, 5vw, 4rem) clamp(2.5rem, 6vw, 5rem);
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.95) 100%);
+    border: 2px solid rgba(245, 158, 11, 0.4);
+    border-radius: 28px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), 0 0 50px rgba(245, 158, 11, 0.15);
+    animation: overlayPulse 3s infinite ease-in-out;
+    max-width: 90vw;
+}
+
+@keyframes overlayPulse {
+    0% { transform: scale(1); border-color: rgba(245, 158, 11, 0.4); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), 0 0 40px rgba(245, 158, 11, 0.15); }
+    50% { transform: scale(1.02); border-color: rgba(245, 158, 11, 0.7); box-shadow: 0 35px 90px rgba(0, 0, 0, 0.85), 0 0 65px rgba(245, 158, 11, 0.3); }
+    100% { transform: scale(1); border-color: rgba(245, 158, 11, 0.4); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), 0 0 40px rgba(245, 158, 11, 0.15); }
+}
+
+.fullscreen-icon {
+    font-size: clamp(3rem, 6vw, 4.5rem);
+    margin-bottom: 1rem;
+    filter: drop-shadow(0 0 20px rgba(245, 158, 11, 0.4));
+}
+
+.fullscreen-title {
+    font-size: clamp(1.8rem, 3.5vw, 3rem);
+    font-weight: 900;
+    color: #FFFFFF;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+}
+
+.fullscreen-subtitle {
+    font-size: clamp(1.1rem, 2vw, 1.6rem);
+    font-weight: 700;
+    color: #F59E0B;
+    letter-spacing: 0.02em;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    padding: 0.5rem 1.5rem;
+    border-radius: 50px;
+    margin-top: 0.5rem;
+}
