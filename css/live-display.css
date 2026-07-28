@@ -984,3 +984,30 @@ html, body {
     border-radius: 50px;
     margin-top: 0.5rem;
 }
+
+/* ─────────────────────────────────────────────
+   PWA INSTALL BUTTON
+   ───────────────────────────────────────────── */
+.btn-install-pwa {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(234, 88, 12, 0.22) 100%);
+    border: 1px solid rgba(245, 158, 11, 0.5);
+    color: #FBBF24;
+    font-size: clamp(0.75rem, 0.85vw, 0.85rem);
+    font-weight: 800;
+    padding: 0.25rem 0.75rem;
+    border-radius: 50px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: all 250ms ease;
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+}
+
+.btn-install-pwa:hover {
+    background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+    color: #FFFFFF;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+    transform: translateY(-1px);
+}

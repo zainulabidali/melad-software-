@@ -1,0 +1,30 @@
+{
+  "name": "Live Championship Display",
+  "short_name": "Live Display",
+  "description": "Live championship standings presentation for TV, LED screens, and projectors",
+  "start_url": "./pages/live-display.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "theme_color": "#070B14",
+  "background_color": "#070B14",
+  "icons": [
+    {
+      "src": "./assets/icon-live-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./assets/icon-live-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

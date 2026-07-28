@@ -662,9 +662,96 @@ function initFullscreenHandler() {
 }
 
 // ─────────────────────────────────────────────
+// STANDALONE PWA ENGINE (SERVICE WORKER, INSTALL, WAKE LOCK)
+// ─────────────────────────────────────────────
+let deferredInstallPrompt = null;
+let wakeLockObj = null;
+
+function registerLiveServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('../sw-live.js', { scope: '../' })
+            .then(reg => console.log('[PWA SW] Registered sw-live.js with scope:', reg.scope))
+            .catch(err => console.warn('[PWA SW] Registration failed:', err));
+    }
+}
+
+function initPwaInstallHandler() {
+    const btnInstall = document.getElementById('btnInstallPwa');
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+    if (isStandalone) {
+        if (btnInstall) btnInstall.style.display = 'none';
+        return;
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredInstallPrompt = e;
+        if (btnInstall) btnInstall.style.display = 'inline-flex';
+    });
+
+    if (btnInstall) {
+        btnInstall.addEventListener('click', () => {
+            if (deferredInstallPrompt) {
+                deferredInstallPrompt.prompt();
+                deferredInstallPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('[PWA] User accepted Live Display app install');
+                    }
+                    deferredInstallPrompt = null;
+                    btnInstall.style.display = 'none';
+                });
+            }
+        });
+    }
+
+    window.addEventListener('appinstalled', () => {
+        console.log('[PWA] Live Championship Display App installed');
+        if (btnInstall) btnInstall.style.display = 'none';
+    });
+}
+
+async function requestWakeLock() {
+    if ('wakeLock' in navigator) {
+        try {
+            wakeLockObj = await navigator.wakeLock.request('screen');
+            console.log('[PWA Wake Lock] Active - Screen sleep prevented');
+        } catch (err) {
+            console.warn('[PWA Wake Lock] Could not acquire:', err);
+        }
+    }
+}
+
+function initPwaFeatures() {
+    // 1. Register Service Worker
+    registerLiveServiceWorker();
+
+    // 2. Setup Install Handler
+    initPwaInstallHandler();
+
+    // 3. Prevent Screen Sleeping via Wake Lock
+    requestWakeLock();
+
+    // Re-acquire Wake Lock when window gains focus/visibility
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            requestWakeLock();
+        }
+    });
+
+    // 4. Lock Landscape Orientation if supported
+    if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(err => {
+            console.warn('[PWA Orientation] Landscape lock fallback:', err);
+        });
+    }
+}
+
+// ─────────────────────────────────────────────
 // INITIALIZATION
 // ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     initLiveDisplayEngine();
     initFullscreenHandler();
+    initPwaFeatures();
 });
