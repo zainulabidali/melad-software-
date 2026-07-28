@@ -4,7 +4,23 @@ import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.10.0/fire
 // ─────────────────────────────────────────────
 // STATE & CONFIGURATION
 // ─────────────────────────────────────────────
-const instId = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('instId');
+function resolveInstituteId() {
+    const urlParams = new URLSearchParams(window.location.search);
+    let id = urlParams.get('id') || urlParams.get('instId');
+    if (id) {
+        try {
+            localStorage.setItem('currentInstituteId', id);
+            localStorage.setItem('melad_institute_id', id);
+        } catch (e) {}
+        return id;
+    }
+    return localStorage.getItem('currentInstituteId') ||
+           localStorage.getItem('melad_institute_id') ||
+           sessionStorage.getItem('currentInstituteId') ||
+           sessionStorage.getItem('melad_institute_id');
+}
+
+const instId = resolveInstituteId();
 
 let dashboardData = null;
 let eventConfig = null;
@@ -536,7 +552,16 @@ function startAutoRotationEngine() {
 // ─────────────────────────────────────────────
 async function initLiveDisplayEngine() {
     if (!instId) {
-        console.error("Missing Institute ID in URL parameters.");
+        const grid = document.getElementById('teamChampionshipGrid');
+        if (grid) {
+            grid.innerHTML = `
+                <div style="text-align: center; padding: 4rem 2rem; color: #CBD5E1;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🏆</div>
+                    <h2 style="font-size: 1.5rem; font-weight: 800; color: #F59E0B; margin-bottom: 0.5rem;">No Championship Selected</h2>
+                    <p style="font-size: 1rem; color: #94A3B8;">Please open Live Display from the Admin Dashboard.</p>
+                </div>
+            `;
+        }
         return;
     }
 
@@ -637,8 +662,7 @@ function initFullscreenHandler() {
         overlay.addEventListener('click', () => {
             requestFullscreenMode().then(() => {
                 updateFullscreenOverlayState();
-            }).catch(err => {
-                console.warn("Fullscreen request on gesture error:", err);
+            }).catch(() => {
                 updateFullscreenOverlayState();
             });
         });
@@ -652,13 +676,8 @@ function initFullscreenHandler() {
         });
     });
 
-    // Attempt automatic fullscreen launch on load
-    requestFullscreenMode().then(() => {
-        updateFullscreenOverlayState();
-    }).catch(err => {
-        console.warn("Automatic fullscreen launch blocked by browser policy. Displaying tap overlay.", err);
-        updateFullscreenOverlayState();
-    });
+    // Check current fullscreen state cleanly on load without triggering an unprompted rejection
+    updateFullscreenOverlayState();
 }
 
 // ─────────────────────────────────────────────
@@ -739,10 +758,10 @@ function initPwaFeatures() {
         }
     });
 
-    // 4. Lock Landscape Orientation if supported
-    if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock('landscape').catch(err => {
-            console.warn('[PWA Orientation] Landscape lock fallback:', err);
+    // 4. Lock Landscape Orientation if supported on touch/mobile devices
+    if (screen.orientation && typeof screen.orientation.lock === 'function') {
+        screen.orientation.lock('landscape').catch(() => {
+            // Silently ignore desktop unsupported orientation lock
         });
     }
 }

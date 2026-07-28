@@ -1253,6 +1253,7 @@ async function initDashboardOverview(container, topActions) {
     document.getElementById('dashOpenPortal').onclick = () => window.open(publicUrl, '_blank');
 
     // Bind Live Display Actions
+    try { localStorage.setItem('currentInstituteId', instId); } catch(e) {}
     const liveDisplayUrl = `${origin}${repoPrefix}/pages/live-display.html?id=${instId}`;
     document.getElementById('dashCopyLiveLink').onclick = () => {
         navigator.clipboard.writeText(liveDisplayUrl).then(() => {

@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────
-   LIVE CHAMPIONSHIP DISPLAY MODE - BROADCAST RIBBON & OPTIMIZED TV
+   LIVE CHAMPIONSHIP DISPLAY MODE - TV BROADCAST & OPTIMIZED PWA
    ───────────────────────────────────────────────────────────── */
 
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
@@ -44,13 +44,13 @@ html, body {
     flex-direction: column;
     width: 100vw;
     height: 100vh;
-    padding: clamp(1rem, 2vh, 1.75rem) clamp(1.5rem, 2.5vw, 3rem);
+    padding: clamp(0.5rem, 1vh, 1.15rem) clamp(1rem, 2vw, 2.5rem);
     justify-content: space-between;
     overflow: hidden;
 }
 
 /* ─────────────────────────────────────────────
-   HEADER BAR
+   HEADER BAR (OPTIMIZED 25-35% COMPACT TV HEIGHT)
    ───────────────────────────────────────────── */
 .live-header {
     display: flex;
@@ -60,30 +60,30 @@ html, body {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: 20px;
-    padding: clamp(0.55rem, 1.2vh, 1rem) clamp(1.2rem, 1.8vw, 2.25rem);
-    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-    margin-bottom: clamp(0.75rem, 1.5vh, 1.25rem);
+    border-radius: 16px;
+    padding: clamp(0.35rem, 0.7vh, 0.65rem) clamp(1rem, 1.5vw, 1.75rem);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    margin-bottom: clamp(0.4rem, 0.8vh, 0.75rem);
     flex-shrink: 0;
 }
 
 .header-left {
     display: flex;
     align-items: center;
-    gap: clamp(1rem, 1.5vw, 1.75rem);
+    gap: clamp(0.75rem, 1.2vw, 1.35rem);
 }
 
 .header-logo-container {
-    width: clamp(46px, 5.5vh, 64px);
-    height: clamp(46px, 5.5vh, 64px);
-    border-radius: 16px;
+    width: clamp(38px, 4.2vh, 52px);
+    height: clamp(38px, 4.2vh, 52px);
+    border-radius: 12px;
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(234, 88, 12, 0.2));
     border: 1.5px solid rgba(245, 158, 11, 0.4);
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.2);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
     flex-shrink: 0;
 }
 
@@ -94,7 +94,7 @@ html, body {
 }
 
 .header-logo-icon {
-    font-size: clamp(1.5rem, 2vw, 2rem);
+    font-size: clamp(1.25rem, 1.6vw, 1.65rem);
     color: #F59E0B;
 }
 
@@ -104,7 +104,7 @@ html, body {
 }
 
 .header-meelad-name {
-    font-size: clamp(1.3rem, 2vw, 2.2rem);
+    font-size: clamp(1.15rem, 1.6vw, 1.85rem);
     font-weight: 800;
     letter-spacing: -0.02em;
     color: #FFFFFF;
@@ -115,15 +115,15 @@ html, body {
 .header-subtitle-wrap {
     display: flex;
     align-items: center;
-    gap: 0.85rem;
-    margin-top: 0.2rem;
+    gap: 0.65rem;
+    margin-top: 0.1rem;
 }
 
 .header-tag {
-    font-size: clamp(0.8rem, 1vw, 1rem);
+    font-size: clamp(0.72rem, 0.85vw, 0.88rem);
     font-weight: 800;
     color: #F59E0B;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
 }
 
@@ -131,21 +131,21 @@ html, body {
 .live-pulse-badge {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.35rem;
     background: rgba(16, 185, 129, 0.15);
     border: 1px solid rgba(16, 185, 129, 0.4);
     color: #34D399;
-    font-size: clamp(0.75rem, 0.85vw, 0.85rem);
+    font-size: clamp(0.68rem, 0.75vw, 0.78rem);
     font-weight: 800;
-    padding: 0.2rem 0.65rem;
+    padding: 0.15rem 0.55rem;
     border-radius: 50px;
     letter-spacing: 0.06em;
-    box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
 }
 
 .live-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     background-color: #10B981;
     border-radius: 50%;
     animation: livePulse 3.5s infinite ease-in-out;
@@ -162,7 +162,7 @@ html, body {
 .header-right-metrics {
     display: flex;
     align-items: center;
-    gap: clamp(1.25rem, 2vw, 2.25rem);
+    gap: clamp(0.85rem, 1.5vw, 1.75rem);
 }
 
 .metric-card {
@@ -172,16 +172,16 @@ html, body {
 }
 
 .metric-label {
-    font-size: clamp(0.7rem, 0.8vw, 0.8rem);
+    font-size: clamp(0.65rem, 0.72vw, 0.75rem);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: #94A3B8;
-    margin-bottom: 0.15rem;
+    margin-bottom: 0.1rem;
 }
 
 .metric-val {
-    font-size: clamp(1.2rem, 1.6vw, 1.6rem);
+    font-size: clamp(1.05rem, 1.35vw, 1.45rem);
     font-weight: 800;
     color: #F8FAFC;
     font-variant-numeric: tabular-nums;
@@ -189,7 +189,7 @@ html, body {
 
 .metric-val.highlight-gold {
     color: #F59E0B;
-    text-shadow: 0 0 15px rgba(245, 158, 11, 0.35);
+    text-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
 }
 
 .metric-val.highlight-emerald {
@@ -198,7 +198,7 @@ html, body {
 
 .metric-divider {
     width: 1px;
-    height: 36px;
+    height: 26px;
     background: rgba(255, 255, 255, 0.1);
 }
 
@@ -209,7 +209,7 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: clamp(0.75rem, 1.2vh, 1.25rem);
+    margin-bottom: clamp(0.4rem, 0.8vh, 0.75rem);
     padding: 0 0.25rem;
     flex-shrink: 0;
 }
@@ -217,34 +217,34 @@ html, body {
 .view-title-wrap {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.65rem;
 }
 
 .view-badge-icon {
-    font-size: clamp(1.35rem, 1.75vw, 1.75rem);
+    font-size: clamp(1.15rem, 1.4vw, 1.5rem);
 }
 
 .view-title-text {
-    font-size: clamp(1.35rem, 1.75vw, 1.75rem);
+    font-size: clamp(1.15rem, 1.4vw, 1.5rem);
     font-weight: 800;
     letter-spacing: -0.01em;
     color: #F8FAFC;
 }
 
 .view-subtitle-category {
-    font-size: clamp(1.05rem, 1.35vw, 1.35rem);
+    font-size: clamp(0.9rem, 1.1vw, 1.15rem);
     font-weight: 700;
     color: #F59E0B;
     background: rgba(245, 158, 11, 0.12);
     border: 1px solid rgba(245, 158, 11, 0.3);
-    padding: 0.2rem 0.8rem;
-    border-radius: 10px;
-    margin-left: 0.5rem;
+    padding: 0.15rem 0.65rem;
+    border-radius: 8px;
+    margin-left: 0.4rem;
 }
 
 .view-progress-track {
-    width: clamp(150px, 15vw, 220px);
-    height: 6px;
+    width: clamp(130px, 12vw, 180px);
+    height: 5px;
     background: rgba(255, 255, 255, 0.1);
     border-radius: 10px;
     overflow: hidden;
@@ -295,7 +295,7 @@ html, body {
 .team-cards-grid {
     display: flex;
     flex-direction: column;
-    gap: clamp(0.5rem, 1vh, 0.9rem);
+    gap: clamp(0.35rem, 0.7vh, 0.6rem);
     width: 100%;
     height: 100%;
     overflow-y: auto;
@@ -303,7 +303,7 @@ html, body {
 }
 
 .team-cards-grid::-webkit-scrollbar {
-    width: 6px;
+    width: 5px;
 }
 .team-cards-grid::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.05);
@@ -323,16 +323,16 @@ html, body {
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 18px;
-    padding: clamp(0.75rem, 1.2vh, 1.15rem) clamp(1.2rem, 1.8vw, 2rem);
+    border-radius: 14px;
+    padding: clamp(0.45rem, 0.85vh, 0.75rem) clamp(1rem, 1.5vw, 1.6rem);
     transition: transform 400ms ease-in-out, box-shadow 400ms ease-in-out, border-color 400ms ease-in-out;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .team-card-row.rank-1 {
     background: linear-gradient(90deg, rgba(245, 158, 11, 0.16) 0%, rgba(15, 23, 42, 0.85) 100%);
     border: 1.5px solid rgba(245, 158, 11, 0.55);
-    box-shadow: 0 12px 40px rgba(245, 158, 11, 0.22);
+    box-shadow: 0 10px 30px rgba(245, 158, 11, 0.2);
 }
 
 .team-card-row.rank-2 {
@@ -348,27 +348,27 @@ html, body {
 .team-card-left {
     display: flex;
     align-items: center;
-    gap: clamp(1rem, 1.5vw, 1.75rem);
-    min-width: clamp(200px, 22vw, 300px);
+    gap: clamp(0.75rem, 1.2vw, 1.35rem);
+    min-width: clamp(170px, 18vw, 250px);
 }
 
 .team-rank-badge {
-    width: clamp(40px, 4.5vh, 52px);
-    height: clamp(40px, 4.5vh, 52px);
-    border-radius: 14px;
+    width: clamp(34px, 3.8vh, 44px);
+    height: clamp(34px, 3.8vh, 44px);
+    border-radius: 11px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(1.1rem, 1.4vw, 1.4rem);
+    font-size: clamp(0.95rem, 1.2vw, 1.25rem);
     font-weight: 900;
     flex-shrink: 0;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .team-rank-badge.badge-gold {
     background: linear-gradient(135deg, #F59E0B, #D97706);
     color: #FFFFFF;
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.5);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
 }
 
 .team-rank-badge.badge-silver {
@@ -388,7 +388,7 @@ html, body {
 }
 
 .team-name-text {
-    font-size: clamp(1.2rem, 1.6vw, 1.8rem);
+    font-size: clamp(1.1rem, 1.4vw, 1.55rem);
     font-weight: 800;
     color: #FFFFFF;
     letter-spacing: -0.01em;
@@ -396,18 +396,18 @@ html, body {
 
 .team-card-center {
     flex: 1;
-    margin: 0 clamp(1rem, 2vw, 2.5rem);
+    margin: 0 clamp(0.75rem, 1.5vw, 2rem);
     display: flex;
     align-items: center;
 }
 
 .team-bar-track {
     width: 100%;
-    height: clamp(14px, 1.8vh, 20px);
+    height: clamp(10px, 1.3vh, 15px);
     background: rgba(255, 255, 255, 0.06);
     border-radius: 50px;
     overflow: hidden;
-    padding: 3px;
+    padding: 2px;
     border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -416,19 +416,19 @@ html, body {
     border-radius: 50px;
     width: 0%;
     transition: width 600ms cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 0 14px rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.25);
 }
 
 .team-card-right {
     display: flex;
     align-items: baseline;
-    gap: 0.4rem;
-    min-width: clamp(120px, 12vw, 170px);
+    gap: 0.35rem;
+    min-width: clamp(100px, 10vw, 140px);
     justify-content: flex-end;
 }
 
 .team-points-num {
-    font-size: clamp(1.8rem, 2.5vw, 2.6rem);
+    font-size: clamp(1.5rem, 2vw, 2.2rem);
     font-weight: 900;
     color: #F8FAFC;
     font-variant-numeric: tabular-nums;
@@ -437,11 +437,11 @@ html, body {
 
 .team-card-row.rank-1 .team-points-num {
     color: #F59E0B;
-    text-shadow: 0 0 18px rgba(245, 158, 11, 0.45);
+    text-shadow: 0 0 15px rgba(245, 158, 11, 0.45);
 }
 
 .team-points-unit {
-    font-size: clamp(0.9rem, 1vw, 1.1rem);
+    font-size: clamp(0.8rem, 0.9vw, 1rem);
     font-weight: 700;
     color: #94A3B8;
     text-transform: uppercase;
@@ -454,27 +454,27 @@ html, body {
 .cat-leaders-container {
     display: flex;
     flex-direction: column;
-    gap: clamp(1rem, 1.5vh, 1.5rem);
+    gap: clamp(0.65rem, 1vh, 1rem);
     height: 100%;
     justify-content: center;
 }
 
 .cat-leader-hero-card {
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(15, 23, 42, 0.88) 100%);
-    border: 2px solid rgba(245, 158, 11, 0.55);
-    border-radius: 24px;
-    padding: clamp(1.5rem, 2.5vh, 2.25rem) clamp(1.75rem, 2.5vw, 2.75rem);
+    border: 1.5px solid rgba(245, 158, 11, 0.55);
+    border-radius: 18px;
+    padding: clamp(1rem, 1.8vh, 1.5rem) clamp(1.25rem, 2vw, 2rem);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    box-shadow: 0 25px 60px rgba(245, 158, 11, 0.18);
+    box-shadow: 0 20px 45px rgba(245, 158, 11, 0.18);
     position: relative;
     overflow: hidden;
 }
 
 .cat-hero-badge {
-    font-size: clamp(2.5rem, 3.5vw, 3.5rem);
-    margin-right: 1.5rem;
+    font-size: clamp(2rem, 2.8vw, 3rem);
+    margin-right: 1.1rem;
 }
 
 .cat-hero-info {
@@ -482,16 +482,16 @@ html, body {
 }
 
 .cat-hero-rank-label {
-    font-size: clamp(0.8rem, 0.9vw, 0.95rem);
+    font-size: clamp(0.72rem, 0.8vw, 0.85rem);
     font-weight: 800;
     color: #F59E0B;
     text-transform: uppercase;
-    letter-spacing: 0.15em;
-    margin-bottom: 0.25rem;
+    letter-spacing: 0.14em;
+    margin-bottom: 0.15rem;
 }
 
 .cat-hero-team-name {
-    font-size: clamp(2.2rem, 3vw, 3.2rem);
+    font-size: clamp(1.8rem, 2.5vw, 2.6rem);
     font-weight: 900;
     color: #FFFFFF;
     letter-spacing: -0.02em;
@@ -499,9 +499,9 @@ html, body {
 }
 
 .cat-hero-bar-wrap {
-    margin-top: 1rem;
+    margin-top: 0.65rem;
     width: 100%;
-    max-width: 650px;
+    max-width: 550px;
 }
 
 .cat-hero-points-wrap {
@@ -509,16 +509,16 @@ html, body {
 }
 
 .cat-hero-points-num {
-    font-size: clamp(3rem, 4vw, 4.2rem);
+    font-size: clamp(2.4rem, 3.2vw, 3.5rem);
     font-weight: 900;
     color: #F59E0B;
     line-height: 1;
-    text-shadow: 0 0 30px rgba(245, 158, 11, 0.45);
+    text-shadow: 0 0 25px rgba(245, 158, 11, 0.45);
     font-variant-numeric: tabular-nums;
 }
 
 .cat-hero-points-unit {
-    font-size: clamp(1rem, 1.1vw, 1.2rem);
+    font-size: clamp(0.85rem, 0.95vw, 1.05rem);
     font-weight: 700;
     color: #CBD5E1;
     text-transform: uppercase;
@@ -528,15 +528,15 @@ html, body {
 .cat-runners-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: clamp(1rem, 1.5vw, 1.5rem);
+    gap: clamp(0.65rem, 1vw, 1rem);
 }
 
 .cat-runner-card {
     background: rgba(15, 23, 42, 0.7);
     backdrop-filter: blur(14px);
     border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: 20px;
-    padding: clamp(1.1rem, 1.8vh, 1.6rem) clamp(1.5rem, 2vw, 2.2rem);
+    border-radius: 16px;
+    padding: clamp(0.75rem, 1.2vh, 1.1rem) clamp(1.1rem, 1.5vw, 1.6rem);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -545,11 +545,11 @@ html, body {
 .cat-runner-left {
     display: flex;
     align-items: center;
-    gap: 1.25rem;
+    gap: 1rem;
 }
 
 .cat-runner-badge {
-    font-size: clamp(1.75rem, 2.2vw, 2.2rem);
+    font-size: clamp(1.4rem, 1.8vw, 1.8rem);
 }
 
 .cat-runner-title-group {
@@ -558,7 +558,7 @@ html, body {
 }
 
 .cat-runner-rank-label {
-    font-size: 0.75rem;
+    font-size: 0.68rem;
     font-weight: 700;
     color: #94A3B8;
     text-transform: uppercase;
@@ -566,13 +566,13 @@ html, body {
 }
 
 .cat-runner-team-name {
-    font-size: clamp(1.5rem, 1.8vw, 2rem);
+    font-size: clamp(1.2rem, 1.5vw, 1.65rem);
     font-weight: 800;
     color: #F8FAFC;
 }
 
 .cat-runner-points {
-    font-size: clamp(1.8rem, 2.2vw, 2.5rem);
+    font-size: clamp(1.4rem, 1.8vw, 2.1rem);
     font-weight: 900;
     color: #F8FAFC;
     font-variant-numeric: tabular-nums;
@@ -584,7 +584,7 @@ html, body {
 .cat-comp-grid {
     display: flex;
     flex-direction: column;
-    gap: clamp(0.75rem, 1.2vh, 1.15rem);
+    gap: clamp(0.45rem, 0.8vh, 0.75rem);
     height: 100%;
     justify-content: center;
 }
@@ -593,8 +593,8 @@ html, body {
     background: rgba(15, 23, 42, 0.7);
     backdrop-filter: blur(14px);
     border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: 18px;
-    padding: clamp(0.9rem, 1.4vh, 1.35rem) clamp(1.5rem, 2vw, 2.25rem);
+    border-radius: 14px;
+    padding: clamp(0.65rem, 1vh, 0.95rem) clamp(1.2rem, 1.6vw, 1.8rem);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -603,38 +603,38 @@ html, body {
 .cat-comp-team-info {
     display: flex;
     align-items: center;
-    gap: 1.25rem;
-    min-width: clamp(200px, 20vw, 260px);
+    gap: 1rem;
+    min-width: clamp(170px, 18vw, 230px);
 }
 
 .cat-comp-rank-badge {
-    width: clamp(36px, 4vh, 44px);
-    height: clamp(36px, 4vh, 44px);
-    border-radius: 12px;
+    width: clamp(30px, 3.4vh, 38px);
+    height: clamp(30px, 3.4vh, 38px);
+    border-radius: 10px;
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.12);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(1rem, 1.2vw, 1.25rem);
+    font-size: clamp(0.9rem, 1.1vw, 1.15rem);
     font-weight: 800;
     color: #F59E0B;
 }
 
 .cat-comp-team-name {
-    font-size: clamp(1.35rem, 1.7vw, 1.8rem);
+    font-size: clamp(1.15rem, 1.4vw, 1.55rem);
     font-weight: 800;
     color: #FFFFFF;
 }
 
 .cat-comp-bar-container {
     flex: 1;
-    margin: 0 clamp(1.25rem, 2vw, 2.5rem);
+    margin: 0 clamp(0.85rem, 1.5vw, 2rem);
 }
 
 .cat-comp-bar-track {
     width: 100%;
-    height: clamp(14px, 1.8vh, 18px);
+    height: clamp(10px, 1.3vh, 15px);
     background: rgba(255, 255, 255, 0.06);
     border-radius: 50px;
     overflow: hidden;
@@ -648,10 +648,10 @@ html, body {
 }
 
 .cat-comp-points-num {
-    font-size: clamp(1.75rem, 2.2vw, 2.4rem);
+    font-size: clamp(1.4rem, 1.8vw, 2.1rem);
     font-weight: 900;
     color: #F8FAFC;
-    min-width: 120px;
+    min-width: 100px;
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
@@ -662,8 +662,8 @@ html, body {
 .latest-results-section {
     display: flex;
     flex-direction: column;
-    gap: clamp(0.35rem, 0.6vh, 0.55rem);
-    margin-top: clamp(1rem, 2vh, 1.75rem);
+    gap: clamp(0.25rem, 0.4vh, 0.45rem);
+    margin-top: clamp(0.5rem, 1vh, 0.9rem);
     flex-shrink: 0;
     width: 100%;
     overflow: hidden;
@@ -679,28 +679,28 @@ html, body {
 .latest-results-title-wrap {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.35rem;
 }
 
 .latest-results-icon {
-    font-size: clamp(1rem, 1.1vw, 1.15rem);
+    font-size: clamp(0.85rem, 1vw, 1rem);
 }
 
 .latest-results-title {
-    font-size: clamp(0.95rem, 1.1vw, 1.1rem);
+    font-size: clamp(0.85rem, 0.95vw, 1rem);
     font-weight: 800;
     letter-spacing: -0.01em;
     color: #F8FAFC;
 }
 
 .latest-results-badge {
-    font-size: clamp(0.68rem, 0.75vw, 0.75rem);
+    font-size: clamp(0.62rem, 0.7vw, 0.7rem);
     font-weight: 800;
     color: #F59E0B;
     background: rgba(245, 158, 11, 0.12);
     border: 1px solid rgba(245, 158, 11, 0.3);
-    padding: 0.15rem 0.55rem;
-    border-radius: 6px;
+    padding: 0.1rem 0.45rem;
+    border-radius: 5px;
     letter-spacing: 0.08em;
 }
 
@@ -709,7 +709,7 @@ html, body {
     width: 100%;
     overflow: hidden;
     position: relative;
-    padding: 0.25rem 0;
+    padding: 0.15rem 0;
     mask-image: linear-gradient(to right, transparent 0%, black 2.5%, black 97.5%, transparent 100%);
     -webkit-mask-image: linear-gradient(to right, transparent 0%, black 2.5%, black 97.5%, transparent 100%);
 }
@@ -717,7 +717,7 @@ html, body {
 .ribbon-marquee-track {
     display: flex;
     align-items: center;
-    gap: clamp(1rem, 1.4vw, 1.5rem);
+    gap: clamp(0.75rem, 1.2vw, 1.25rem);
     width: max-content;
     will-change: transform;
     animation: ribbonScroll 30s linear infinite;
@@ -744,65 +744,65 @@ html, body {
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: clamp(0.45rem, 0.85vh, 0.7rem) clamp(0.85rem, 1.1vw, 1.2rem);
-    min-width: clamp(260px, 22vw, 340px);
-    max-width: 380px;
+    border-radius: 14px;
+    padding: clamp(0.35rem, 0.65vh, 0.55rem) clamp(0.75rem, 1vw, 1.1rem);
+    min-width: clamp(240px, 20vw, 310px);
+    max-width: 350px;
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    gap: 0.25rem;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
     flex-shrink: 0;
     transition: border-color 300ms ease, box-shadow 300ms ease;
 }
 
 .ribbon-card:hover {
     border-color: rgba(245, 158, 11, 0.4);
-    box-shadow: 0 10px 30px rgba(245, 158, 11, 0.18);
+    box-shadow: 0 8px 25px rgba(245, 158, 11, 0.18);
 }
 
 .ribbon-card-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.4rem;
+    gap: 0.35rem;
 }
 
 .ribbon-prog-num {
-    font-size: clamp(0.7rem, 0.78vw, 0.8rem);
+    font-size: clamp(0.65rem, 0.72vw, 0.75rem);
     font-weight: 900;
     color: #F59E0B;
     background: rgba(245, 158, 11, 0.15);
     border: 1px solid rgba(245, 158, 11, 0.3);
-    padding: 0.1rem 0.45rem;
-    border-radius: 5px;
+    padding: 0.08rem 0.4rem;
+    border-radius: 4px;
     letter-spacing: 0.03em;
 }
 
 .ribbon-cat-badge {
-    font-size: clamp(0.68rem, 0.75vw, 0.75rem);
+    font-size: clamp(0.62rem, 0.7vw, 0.72rem);
     font-weight: 700;
     color: #CBD5E1;
     background: rgba(255, 255, 255, 0.08);
-    padding: 0.1rem 0.45rem;
+    padding: 0.08rem 0.4rem;
     border-radius: 4px;
 }
 
 .ribbon-time-ago {
-    font-size: clamp(0.65rem, 0.72vw, 0.72rem);
+    font-size: clamp(0.6rem, 0.68vw, 0.68rem);
     font-weight: 600;
     color: #94A3B8;
     margin-left: auto;
 }
 
 .ribbon-prog-name {
-    font-size: clamp(0.9rem, 1vw, 1.02rem);
+    font-size: clamp(0.85rem, 0.92vw, 0.95rem);
     font-weight: 800;
     color: #FFFFFF;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 1.2;
+    line-height: 1.15;
 }
 
 .ribbon-winner-row {
@@ -811,25 +811,25 @@ html, body {
     justify-content: space-between;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 9px;
-    padding: clamp(0.28rem, 0.5vh, 0.42rem) clamp(0.55rem, 0.8vw, 0.75rem);
-    gap: 0.5rem;
+    border-radius: 8px;
+    padding: clamp(0.22rem, 0.4vh, 0.35rem) clamp(0.45rem, 0.7vw, 0.65rem);
+    gap: 0.4rem;
 }
 
 .ribbon-winner-left {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.35rem;
     overflow: hidden;
 }
 
 .ribbon-medal {
-    font-size: clamp(1rem, 1.1vw, 1.15rem);
+    font-size: clamp(0.9rem, 1vw, 1.05rem);
     flex-shrink: 0;
 }
 
 .ribbon-winner-name {
-    font-size: clamp(0.82rem, 0.92vw, 0.92rem);
+    font-size: clamp(0.78rem, 0.85vw, 0.88rem);
     font-weight: 800;
     color: #34D399;
     white-space: nowrap;
@@ -838,77 +838,90 @@ html, body {
 }
 
 .ribbon-team-badge {
-    font-size: clamp(0.68rem, 0.76vw, 0.76rem);
+    font-size: clamp(0.62rem, 0.7vw, 0.72rem);
     font-weight: 800;
     color: #F8FAFC;
     background: rgba(255, 255, 255, 0.12);
     border: 1px solid rgba(255, 255, 255, 0.18);
-    padding: 0.12rem 0.45rem;
-    border-radius: 5px;
+    padding: 0.08rem 0.4rem;
+    border-radius: 4px;
     white-space: nowrap;
     flex-shrink: 0;
 }
 
 .latest-result-empty {
-    padding: 1.25rem 2.5rem;
+    padding: 1rem 2rem;
     color: #94A3B8;
     font-weight: 500;
     font-style: italic;
     background: rgba(15, 23, 42, 0.5);
-    border-radius: 14px;
+    border-radius: 12px;
     border: 1.5px dashed rgba(255, 255, 255, 0.1);
     width: 100%;
     text-align: center;
 }
 
 /* ─────────────────────────────────────────────
-   RESPONSIVE BREAKPOINTS
+   RESPONSIVE BREAKPOINTS & TV LANDSCAPE OPTIMIZATION
    ───────────────────────────────────────────── */
 
-/* 1366x768 Laptops & Short Viewports (< 800px height) */
-@media (max-height: 800px) {
-    .live-container { padding: 0.85rem 1.75rem 0.75rem 1.75rem; }
-    .live-header { padding: 0.5rem 1.5rem; margin-bottom: 0.65rem; }
-    .header-logo-container { width: 44px; height: 44px; }
-    .header-meelad-name { font-size: 1.3rem; }
-    .metric-val { font-size: 1.2rem; }
-    .view-rotator-header { margin-bottom: 0.65rem; }
-    .view-title-text { font-size: 1.3rem; }
-    .team-card-row { padding: 0.55rem 1.25rem; }
-    .team-rank-badge { width: 36px; height: 36px; font-size: 1.05rem; }
-    .team-name-text { font-size: 1.2rem; }
-    .team-points-num { font-size: 1.75rem; }
-    .latest-results-section { margin-top: 0.85rem; gap: 0.3rem; }
-    .ribbon-card { padding: 0.4rem 0.65rem; min-width: 250px; }
+/* Mobile Landscape Casting & Short TV Screens (< 768px height) */
+@media (max-height: 768px) {
+    .live-container { padding: 0.4rem 1.25rem 0.4rem 1.25rem; }
+    .live-header { padding: 0.35rem 1.2rem; margin-bottom: 0.4rem; }
+    .header-logo-container { width: 38px; height: 38px; }
+    .header-meelad-name { font-size: 1.15rem; }
+    .metric-val { font-size: 1.1rem; }
+    .view-rotator-header { margin-bottom: 0.4rem; }
+    .view-title-text { font-size: 1.15rem; }
+    .team-card-row { padding: 0.4rem 1rem; }
+    .team-rank-badge { width: 32px; height: 32px; font-size: 0.95rem; }
+    .team-name-text { font-size: 1.05rem; }
+    .team-points-num { font-size: 1.45rem; }
+    .latest-results-section { margin-top: 0.4rem; gap: 0.2rem; }
+    .ribbon-card { padding: 0.3rem 0.55rem; min-width: 220px; }
+}
+
+/* Very Short Viewports (< 640px height) */
+@media (max-height: 640px) {
+    .live-container { padding: 0.3rem 1rem; }
+    .live-header { padding: 0.25rem 1rem; margin-bottom: 0.3rem; }
+    .header-logo-container { width: 32px; height: 32px; }
+    .header-meelad-name { font-size: 1rem; }
+    .metric-label { font-size: 0.6rem; }
+    .metric-val { font-size: 0.95rem; }
+    .team-card-row { padding: 0.3rem 0.85rem; }
+    .team-points-num { font-size: 1.3rem; }
+    .ribbon-card { padding: 0.25rem 0.5rem; min-width: 200px; }
 }
 
 /* 4K Displays (3840px+) */
 @media (min-width: 2560px) {
-    .header-meelad-name { font-size: 2.5rem; }
-    .header-tag { font-size: 1.35rem; }
-    .metric-val { font-size: 2.2rem; }
-    .view-title-text { font-size: 2.2rem; }
-    .team-name-text { font-size: 2.4rem; }
-    .team-points-num { font-size: 3.4rem; }
-    .cat-hero-team-name { font-size: 4.2rem; }
-    .cat-hero-points-num { font-size: 5.5rem; }
-    .cat-runner-team-name { font-size: 2.6rem; }
-    .cat-runner-points { font-size: 3.8rem; }
-    .ribbon-card { min-width: 400px; max-width: 450px; }
-    .ribbon-prog-name { font-size: 1.35rem; }
-    .ribbon-winner-name { font-size: 1.25rem; }
+    .header-meelad-name { font-size: 2.2rem; }
+    .header-tag { font-size: 1.2rem; }
+    .metric-val { font-size: 2rem; }
+    .view-title-text { font-size: 2rem; }
+    .team-name-text { font-size: 2.2rem; }
+    .team-points-num { font-size: 3rem; }
+    .cat-hero-team-name { font-size: 3.8rem; }
+    .cat-hero-points-num { font-size: 5rem; }
+    .cat-runner-team-name { font-size: 2.4rem; }
+    .cat-runner-points { font-size: 3.4rem; }
+    .ribbon-card { min-width: 380px; max-width: 420px; }
+    .ribbon-prog-name { font-size: 1.2rem; }
+    .ribbon-winner-name { font-size: 1.1rem; }
 }
 
 /* Tablet Landscape Mode */
 @media (max-width: 1024px) {
-    .live-container { padding: 1rem 1.25rem; }
-    .header-meelad-name { font-size: 1.3rem; }
-    .header-right-metrics { gap: 1rem; }
+    .live-container { padding: 0.65rem 1rem; }
+    .header-meelad-name { font-size: 1.2rem; }
+    .header-right-metrics { gap: 0.85rem; }
     .metric-val { font-size: 1.15rem; }
-    .team-name-text { font-size: 1.25rem; }
-    .team-points-num { font-size: 1.7rem; }
-    .cat-hero-team-name { font-size: 2rem; }
-    .cat-hero-points-num { font-size: 2.8rem; }
+    .team-name-text { font-size: 1.2rem; }
+    .team-points-num { font-size: 1.6rem; }
+    .cat-hero-team-name { font-size: 1.9rem; }
+    .cat-hero-points-num { font-size: 2.6rem; }
 }
 
 /* ─────────────────────────────────────────────
@@ -991,23 +1004,23 @@ html, body {
 .btn-install-pwa {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.35rem;
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(234, 88, 12, 0.22) 100%);
     border: 1px solid rgba(245, 158, 11, 0.5);
     color: #FBBF24;
-    font-size: clamp(0.75rem, 0.85vw, 0.85rem);
+    font-size: clamp(0.7rem, 0.78vw, 0.78rem);
     font-weight: 800;
-    padding: 0.25rem 0.75rem;
+    padding: 0.15rem 0.6rem;
     border-radius: 50px;
     cursor: pointer;
     letter-spacing: 0.04em;
     transition: all 250ms ease;
-    box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
 }
 
 .btn-install-pwa:hover {
     background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
     color: #FFFFFF;
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+    box-shadow: 0 0 18px rgba(245, 158, 11, 0.4);
     transform: translateY(-1px);
 }
