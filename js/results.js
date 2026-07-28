@@ -850,12 +850,14 @@ async function initClassAwardsUI(container) {
                 .search-student-dropdown {
                     position: absolute;
                     width: 100%;
-                    max-height: 200px;
+                    max-height: 350px;
                     overflow-y: auto;
+                    -webkit-overflow-scrolling: touch;
+                    overscroll-behavior: contain;
                     background: #ffffff;
                     border: 1px solid #cbd5e1;
                     border-radius: 8px;
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+                    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
                     z-index: 1000;
                     margin-top: 4px;
                     display: none;
@@ -874,13 +876,18 @@ async function initClassAwardsUI(container) {
 
             <div class="class-awards-container">
                 <!-- Info Card -->
-                <div class="card" style="padding: 1.25rem; border-color: #cbd5e1; background: #ffffff; border-radius: 12px;">
-                    <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 0.5rem;">
-                        🏆 Class Awards Management
-                    </h3>
-                    <p style="margin: 0.25rem 0 0 0; font-size: 0.82rem; color: #64748b; font-weight: 500;">
-                        Assign winners for Class-wise Academic, Attendance, and Custom awards by Class / Standard.
-                    </p>
+                <div class="card" style="padding: 1.25rem; border-color: #cbd5e1; background: #ffffff; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 0.5rem;">
+                            🏆 Class Awards Management
+                        </h3>
+                        <p style="margin: 0.25rem 0 0 0; font-size: 0.82rem; color: #64748b; font-weight: 500;">
+                            Assign winners for Class-wise Academic, Attendance, and Custom awards by Class / Standard.
+                        </p>
+                    </div>
+                    <button type="button" id="btnOtherEntry" class="btn btn-secondary" style="font-weight: 700; border-radius: 8px; font-size: 0.85rem; padding: 0.5rem 1rem; background: #f8fafc; border-color: #cbd5e1; color: #1e293b; display: flex; align-items: center; gap: 0.4rem;">
+                        ➕ Other Entry
+                    </button>
                 </div>
 
                 <!-- Config Card -->
@@ -929,6 +936,14 @@ async function initClassAwardsUI(container) {
                         </div>
                     </div>
 
+                    <!-- 3rd Place -->
+                    <div class="form-group" style="margin: 0; position: relative;" id="caThirdPlaceContainer">
+                        <label class="form-label" style="font-weight: 700; color: #b45309; font-size: 0.85rem;">🥉 3rd Place Winners (Optional)</label>
+                        <div id="caThirdPlaceArea" style="margin-top: 0.35rem;">
+                            <!-- Search input or selected cards dynamically injected -->
+                        </div>
+                    </div>
+
                     <!-- Save Actions -->
                     <div style="display: flex; gap: 0.75rem; justify-content: flex-end; border-top: 1px solid #f1f5f9; padding-top: 1.25rem;">
                         <button class="btn btn-primary" id="btnSaveClassAwards" style="min-height: 40px; font-weight: 700; min-width: 140px; border-radius: 8px;">
@@ -945,6 +960,7 @@ async function initClassAwardsUI(container) {
         const configLabel = document.getElementById('caConfigLabel');
         const firstPlaceArea = document.getElementById('caFirstPlaceArea');
         const secondPlaceArea = document.getElementById('caSecondPlaceArea');
+        const thirdPlaceArea = document.getElementById('caThirdPlaceArea');
         const saveBtn = document.getElementById('btnSaveClassAwards');
 
         let selectedClassId = '';
@@ -955,6 +971,7 @@ async function initClassAwardsUI(container) {
 
         let firstPlaceWinners = [];
         let secondPlaceWinners = [];
+        let thirdPlaceWinners = [];
 
         let awardTypes = [
             { id: "attendance", name: "Attendance" },
@@ -1124,13 +1141,145 @@ async function initClassAwardsUI(container) {
             renderModalContent();
         };
 
+        const openOldStudentModal = (place, editIndex = null) => {
+            const list = place === 1 ? firstPlaceWinners : (place === 2 ? secondPlaceWinners : thirdPlaceWinners);
+            const editingItem = editIndex !== null ? list[editIndex] : null;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'custom-modal-overlay';
+            overlay.style.opacity = '1';
+
+            const dialog = document.createElement('div');
+            dialog.className = 'custom-modal-dialog';
+            dialog.style.transform = 'scale(1)';
+            dialog.style.maxWidth = '460px';
+            dialog.style.width = '90%';
+
+            const placeLabel = place === 1 ? '1st Place' : (place === 2 ? '2nd Place' : '3rd Place');
+            const defaultClassId = editingItem ? (editingItem.classId || selectedClassId) : selectedClassId;
+
+            dialog.innerHTML = `
+                <div class="custom-modal-header" style="margin-bottom:1rem;">
+                    <div class="custom-modal-icon" style="background:rgba(126, 34, 206, 0.08); color:#7e22ce;">🟣</div>
+                    <div>
+                        <h3 class="custom-modal-title">${editingItem ? 'Edit Old Student Entry' : 'Add Old Student Entry'}</h3>
+                        <p class="custom-modal-message" style="font-size:0.8rem;">Manual entry for alumni / former students for ${placeLabel}.</p>
+                    </div>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:0.9rem; margin-bottom:1.25rem;">
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label" style="font-weight:700; font-size:0.82rem; color:#475569;">Student Name *</label>
+                        <input type="text" id="osStudentName" class="form-input" placeholder="Enter full name of old student..." value="${editingItem ? window.escapeHTML(editingItem.name) : ''}" style="height:38px; font-size:0.85rem;" autocomplete="off">
+                    </div>
+
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label" style="font-weight:700; font-size:0.82rem; color:#475569;">Award Class *</label>
+                        <select id="osAwardClassSelect" class="form-input" style="height:38px; font-size:0.85rem;">
+                            <option value="">Select Award Class...</option>
+                            ${allClasses.map(cls => `<option value="${cls.id}" data-name="${window.escapeHTML(cls.name)}" ${cls.id === defaultClassId ? 'selected' : ''}>${window.escapeHTML(cls.name)}</option>`).join('')}
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label" style="font-weight:700; font-size:0.82rem; color:#475569;">Award Type *</label>
+                        <input type="text" id="osAwardTypeDisplay" class="form-input" value="${window.escapeHTML(selectedAwardTypeName)}" readonly disabled style="height:38px; font-size:0.85rem; background:#f8fafc; color:#64748b; font-weight:600;">
+                    </div>
+
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label" style="font-weight:700; font-size:0.82rem; color:#475569;">Remarks (Optional)</label>
+                        <input type="text" id="osRemarks" class="form-input" placeholder="e.g. Passed Out, Former Student, Alumni" value="${editingItem && editingItem.remarks ? window.escapeHTML(editingItem.remarks) : ''}" style="height:38px; font-size:0.85rem;" autocomplete="off">
+                    </div>
+                </div>
+
+                <div class="custom-modal-actions" style="display:flex; gap:0.5rem; justify-content:flex-end;">
+                    <button type="button" class="btn btn-secondary" id="btnCloseOSModal" style="min-height:36px; padding:0 1rem; font-size:0.82rem; font-weight:700;">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btnSaveOSModal" style="min-height:36px; padding:0 1.25rem; font-size:0.82rem; font-weight:700; background:#7e22ce; border-color:#7e22ce;">
+                        ${editingItem ? 'Update Entry' : 'Add Entry'}
+                    </button>
+                </div>
+            `;
+
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            const nameInput = dialog.querySelector('#osStudentName');
+            const classSelect = dialog.querySelector('#osAwardClassSelect');
+            const remarksInput = dialog.querySelector('#osRemarks');
+
+            dialog.querySelector('#btnCloseOSModal').onclick = () => overlay.remove();
+
+            dialog.querySelector('#btnSaveOSModal').onclick = () => {
+                const nameVal = nameInput.value.trim();
+                const classIdVal = classSelect.value;
+                const classOpt = classSelect.options[classSelect.selectedIndex];
+                const classNameVal = classOpt ? (classOpt.getAttribute('data-name') || '') : '';
+                const remarksVal = remarksInput.value.trim();
+
+                if (!nameVal) {
+                    window.showToast("Student Name is required.", "warning");
+                    nameInput.focus();
+                    return;
+                }
+
+                if (!classIdVal) {
+                    window.showToast("Award Class is required.", "warning");
+                    classSelect.focus();
+                    return;
+                }
+
+                const lowerName = nameVal.toLowerCase();
+
+                // Validation against duplicate entries in place 1, 2, and 3
+                const placesData = [
+                    { placeNum: 1, nameStr: '1st Place', items: firstPlaceWinners },
+                    { placeNum: 2, nameStr: '2nd Place', items: secondPlaceWinners },
+                    { placeNum: 3, nameStr: '3rd Place', items: thirdPlaceWinners }
+                ];
+
+                for (const p of placesData) {
+                    const isSamePlace = p.placeNum === place;
+                    const conflictIndex = p.items.findIndex((x, idx) => {
+                        if (isSamePlace && editIndex !== null && idx === editIndex) return false;
+                        return x.name.toLowerCase() === lowerName;
+                    });
+
+                    if (conflictIndex !== -1) {
+                        window.showToast(`${nameVal} is already added as a ${p.nameStr} winner for this award.`, "warning");
+                        return;
+                    }
+                }
+
+                const newWinner = {
+                    studentId: null,
+                    name: nameVal,
+                    chestNumber: '',
+                    className: classNameVal,
+                    classId: classIdVal,
+                    sourceType: 'old_student',
+                    isOldStudent: true,
+                    awardType: selectedAwardTypeName,
+                    remarks: remarksVal
+                };
+
+                if (editingItem && editIndex !== null) {
+                    list[editIndex] = newWinner;
+                } else {
+                    list.push(newWinner);
+                }
+
+                updateWinnerUI(place);
+                overlay.remove();
+                window.showToast(`Old Student "${nameVal}" ${editingItem ? 'updated' : 'added'} successfully!`, "success");
+            };
+        };
+
         const updateWinnerUI = (place) => {
-            const area = place === 1 ? firstPlaceArea : secondPlaceArea;
-            const list = place === 1 ? firstPlaceWinners : secondPlaceWinners;
-            const containerId = place === 1 ? 'caFirstPlaceContainer' : 'caSecondPlaceContainer';
-            const dropdownId = place === 1 ? 'caFirstPlaceDropdown' : 'caSecondPlaceDropdown';
-            const inputId = place === 1 ? 'caFirstPlaceInput' : 'caSecondPlaceInput';
-            const manualId = place === 1 ? 'caFirstPlaceManual' : 'caSecondPlaceManual';
+            const area = place === 1 ? firstPlaceArea : (place === 2 ? secondPlaceArea : thirdPlaceArea);
+            const list = place === 1 ? firstPlaceWinners : (place === 2 ? secondPlaceWinners : thirdPlaceWinners);
+            const dropdownId = place === 1 ? 'caFirstPlaceDropdown' : (place === 2 ? 'caSecondPlaceDropdown' : 'caThirdPlaceDropdown');
+            const inputId = place === 1 ? 'caFirstPlaceInput' : (place === 2 ? 'caSecondPlaceInput' : 'caThirdPlaceInput');
+            const manualId = place === 1 ? 'caFirstPlaceManual' : (place === 2 ? 'caSecondPlaceManual' : 'caThirdPlaceManual');
 
             let cardsHTML = '';
             if (list.length > 0) {
@@ -1139,19 +1288,26 @@ async function initClassAwardsUI(container) {
                         ${list.map((w, idx) => {
                             const chestDisplay = w.chestNumber ? `#${w.chestNumber}` : '—';
                             const sClass = w.className || 'No Class';
+                            const isOS = w.sourceType === 'old_student' || w.isOldStudent === true;
                             return `
                                 <div class="selected-student-card" style="margin-bottom:0;">
                                     <div style="display:flex; align-items:center; gap:0.6rem;">
-                                        <span style="font-size:1.1rem;">👤</span>
+                                        <span style="font-size:1.1rem;">${isOS ? '🟣' : '👤'}</span>
                                         <div>
-                                            <strong style="color:#0f172a; font-size:0.9rem;">${window.escapeHTML(w.name)}</strong>
+                                            <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                                                <strong style="color:#0f172a; font-size:0.9rem;">${window.escapeHTML(w.name)}</strong>
+                                                ${isOS ? '<span style="background:#f3e8ff; color:#7e22ce; border:1px solid #d8b4fe; padding:2px 8px; border-radius:9999px; font-weight:700; font-size:0.7rem; display:inline-flex; align-items:center; gap:2px;">🟣 OLD STUDENT</span>' : ''}
+                                            </div>
                                             <div style="font-size:0.75rem; color:#64748b; font-weight:500; margin-top:2px;">
-                                                Current Class: <span style="font-weight:600; color:#1e293b;">${window.escapeHTML(sClass)}</span> &bull; Chest: <span style="font-weight:700; color:#1e293b;">${window.escapeHTML(chestDisplay)}</span>
+                                                Class: <span style="font-weight:600; color:#1e293b;">${window.escapeHTML(sClass)}</span> &bull; Chest: <span style="font-weight:700; color:#1e293b;">${window.escapeHTML(chestDisplay)}</span>
                                                 ${w.sourceType === 'manual' ? ' &bull; <span style="color:#ef4444; font-weight:700;">Manual Entry</span>' : ''}
+                                                ${isOS && w.remarks ? ' &bull; Remarks: <span style="font-weight:600; color:#475569;">' + window.escapeHTML(w.remarks) + '</span>' : ''}
                                             </div>
                                         </div>
                                     </div>
-                                    <button type="button" class="btn-remove-winner" data-place="${place}" data-index="${idx}" style="background:none; border:none; color:#ef4444; font-size:1.15rem; font-weight:bold; cursor:pointer; padding:0.25rem;">✕</button>
+                                    <div style="display:flex; align-items:center; gap:0.25rem;">
+                                        <button type="button" class="btn-remove-winner" data-place="${place}" data-index="${idx}" style="background:none; border:none; color:#ef4444; font-size:1.15rem; font-weight:bold; cursor:pointer; padding:0.25rem;" title="Remove Winner">✕</button>
+                                    </div>
                                 </div>
                             `;
                         }).join('')}
@@ -1178,8 +1334,10 @@ async function initClassAwardsUI(container) {
                     const idx = parseInt(btn.getAttribute('data-index'));
                     if (place === 1) {
                         firstPlaceWinners.splice(idx, 1);
-                    } else {
+                    } else if (place === 2) {
                         secondPlaceWinners.splice(idx, 1);
+                    } else {
+                        thirdPlaceWinners.splice(idx, 1);
                     }
                     updateWinnerUI(place);
                 };
@@ -1194,26 +1352,32 @@ async function initClassAwardsUI(container) {
                     studentId: null,
                     name: manualName.trim(),
                     chestNumber: '',
-                    className: '',
+                    className: selectedClassName || '',
+                    classId: selectedClassId || '',
                     sourceType: 'manual'
                 };
 
                 // Validate duplicate
-                const otherPlace = place === 1 ? 2 : 1;
-                const otherList = otherPlace === 1 ? firstPlaceWinners : secondPlaceWinners;
-                if (list.some(w => w.name.toLowerCase() === newWinner.name.toLowerCase())) {
-                    window.showToast(`${newWinner.name} is already added as a ${place === 1 ? '1st Place' : '2nd Place'} winner for this award.`, "warning");
-                    return;
-                }
-                if (otherList.some(w => w.name.toLowerCase() === newWinner.name.toLowerCase())) {
-                    window.showToast(`${newWinner.name} is already added as a ${otherPlace === 1 ? '1st Place' : '2nd Place'} winner for this award.`, "warning");
-                    return;
+                const lowerName = newWinner.name.toLowerCase();
+                const placesData = [
+                    { placeNum: 1, nameStr: '1st Place', items: firstPlaceWinners },
+                    { placeNum: 2, nameStr: '2nd Place', items: secondPlaceWinners },
+                    { placeNum: 3, nameStr: '3rd Place', items: thirdPlaceWinners }
+                ];
+
+                for (const p of placesData) {
+                    if (p.items.some(w => w.name.toLowerCase() === lowerName)) {
+                        window.showToast(`${newWinner.name} is already added as a ${p.nameStr} winner for this award.`, "warning");
+                        return;
+                    }
                 }
 
                 if (place === 1) {
                     firstPlaceWinners.push(newWinner);
-                } else {
+                } else if (place === 2) {
                     secondPlaceWinners.push(newWinner);
+                } else {
+                    thirdPlaceWinners.push(newWinner);
                 }
                 updateWinnerUI(place);
             };
@@ -1230,30 +1394,31 @@ async function initClassAwardsUI(container) {
                 );
 
                 if (matched.length === 0) {
-                    dropdown.innerHTML = '<div style="padding:0.6rem 1rem; color:#64748b; font-style:italic; font-size:0.82rem;">No matching students found.</div>';
+                    dropdown.innerHTML = '<div style="padding:0.6rem 0.8rem; color:#64748b; font-style:italic; font-size:0.82rem;">No matching students found.</div>';
                     dropdown.style.display = 'block';
                     return;
                 }
 
                 matched.forEach(s => {
                     const item = document.createElement('div');
-                    item.style.padding = '0.6rem 1rem';
+                    item.style.padding = '0.4rem 0.75rem';
                     item.style.cursor = 'pointer';
                     item.style.borderBottom = '1px solid #f1f5f9';
-                    item.style.fontSize = '0.85rem';
+                    item.style.fontSize = '0.83rem';
                     item.style.color = '#334155';
+                    item.style.lineHeight = '1.25';
                     item.onmouseenter = () => { item.style.background = '#f8fafc'; };
                     item.onmouseleave = () => { item.style.background = '#ffffff'; };
                     
                     const chestNum = s.chestNumber ? `#${s.chestNumber}` : '—';
                     const sClass = s.className || s.classId || 'No Class';
                     item.innerHTML = `
-                        <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-                            <div>
-                                <div style="font-weight:700; color:#1e293b;">${window.escapeHTML(s.name)}</div>
-                                <div style="font-size:0.72rem; color:#64748b; margin-top:2px;">Current Class: ${window.escapeHTML(sClass)}</div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:0.5rem;">
+                            <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                <span style="font-weight:700; color:#1e293b;">${window.escapeHTML(s.name)}</span>
+                                <span style="font-size:0.72rem; color:#64748b; margin-left:6px;">(${window.escapeHTML(sClass)})</span>
                             </div>
-                            <span style="background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.72rem; font-weight:700;">${window.escapeHTML(chestNum)}</span>
+                            <span style="background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.72rem; font-weight:700; flex-shrink:0;">${window.escapeHTML(chestNum)}</span>
                         </div>
                     `;
                     item.onclick = () => {
@@ -1262,25 +1427,30 @@ async function initClassAwardsUI(container) {
                             name: s.name,
                             chestNumber: s.chestNumber || '',
                             className: s.className || s.classId || '',
+                            classId: s.classId || '',
                             sourceType: 'existing'
                         };
 
                         // Validate duplicate
-                        const otherPlace = place === 1 ? 2 : 1;
-                        const otherList = otherPlace === 1 ? firstPlaceWinners : secondPlaceWinners;
-                        if (list.some(w => w.studentId === s.id)) {
-                            window.showToast(`${s.name} is already added as a ${place === 1 ? '1st Place' : '2nd Place'} winner for this award.`, "warning");
-                            return;
-                        }
-                        if (otherList.some(w => w.studentId === s.id)) {
-                            window.showToast(`${s.name} is already added as a ${otherPlace === 1 ? '1st Place' : '2nd Place'} winner for this award.`, "warning");
-                            return;
+                        const placesData = [
+                            { placeNum: 1, nameStr: '1st Place', items: firstPlaceWinners },
+                            { placeNum: 2, nameStr: '2nd Place', items: secondPlaceWinners },
+                            { placeNum: 3, nameStr: '3rd Place', items: thirdPlaceWinners }
+                        ];
+
+                        for (const p of placesData) {
+                            if (p.items.some(w => w.studentId === s.id || w.name.toLowerCase() === s.name.toLowerCase())) {
+                                window.showToast(`${s.name} is already added as a ${p.nameStr} winner for this award.`, "warning");
+                                return;
+                            }
                         }
 
                         if (place === 1) {
                             firstPlaceWinners.push(newWinner);
-                        } else {
+                        } else if (place === 2) {
                             secondPlaceWinners.push(newWinner);
+                        } else {
+                            thirdPlaceWinners.push(newWinner);
                         }
                         updateWinnerUI(place);
                         dropdown.style.display = 'none';
@@ -1307,6 +1477,10 @@ async function initClassAwardsUI(container) {
             }
             if (!e.target.closest('#caSecondPlaceContainer')) {
                 const drop = document.getElementById('caSecondPlaceDropdown');
+                if (drop) drop.style.display = 'none';
+            }
+            if (!e.target.closest('#caThirdPlaceContainer')) {
+                const drop = document.getElementById('caThirdPlaceDropdown');
                 if (drop) drop.style.display = 'none';
             }
         };
@@ -1361,6 +1535,7 @@ async function initClassAwardsUI(container) {
                 winnersCard.style.display = 'flex';
                 firstPlaceArea.innerHTML = `<div style="padding:0.75rem; background:#fee2e2; color:#b91c1c; border-radius:8px; border:1px solid #fecaca; font-size:0.85rem; font-weight:600;">No students are registered in this institute yet. Go to Students view to register them first.</div>`;
                 secondPlaceArea.innerHTML = '';
+                thirdPlaceArea.innerHTML = '';
                 saveBtn.style.display = 'none';
                 return;
             }
@@ -1371,9 +1546,11 @@ async function initClassAwardsUI(container) {
             // Load Existing Awards Selection from Firestore
             firstPlaceWinners = [];
             secondPlaceWinners = [];
+            thirdPlaceWinners = [];
 
             firstPlaceArea.innerHTML = '<div style="font-size:0.85rem; color:#64748b;">Loading selections...</div>';
             secondPlaceArea.innerHTML = '';
+            thirdPlaceArea.innerHTML = '';
 
             try {
                 const awardDocRef = doc(db, "institutes", instId, "metadata", `class_award_${selectedClassId}_${selectedAwardTypeId}`);
@@ -1399,6 +1576,15 @@ async function initClassAwardsUI(container) {
                     } else if (data.secondPlaceWinner) {
                         secondPlaceWinners = [data.secondPlaceWinner];
                     }
+
+                    // Normalize thirdPlaceWinners
+                    if (Array.isArray(data.thirdPlaceWinners)) {
+                        thirdPlaceWinners = data.thirdPlaceWinners;
+                    } else if (data.thirdPlace) {
+                        thirdPlaceWinners = [data.thirdPlace];
+                    } else if (data.thirdPlaceWinner) {
+                        thirdPlaceWinners = [data.thirdPlaceWinner];
+                    }
                 }
             } catch (err) {
                 console.error("Error fetching class awards:", err);
@@ -1406,6 +1592,396 @@ async function initClassAwardsUI(container) {
 
             updateWinnerUI(1);
             updateWinnerUI(2);
+            updateWinnerUI(3);
+        };
+
+        const openBulkOtherEntryModal = async () => {
+            const overlay = document.createElement('div');
+            overlay.className = 'custom-modal-overlay';
+            overlay.style.opacity = '1';
+
+            const dialog = document.createElement('div');
+            dialog.className = 'custom-modal-dialog';
+            dialog.style.transform = 'scale(1)';
+            dialog.style.maxWidth = '620px';
+            dialog.style.width = '94%';
+            dialog.style.maxHeight = '90vh';
+            dialog.style.overflowY = 'auto';
+
+            const defaultAwardTypeId = selectedAwardTypeId || (awardTypes.length > 0 ? awardTypes[0].id : '');
+            let activeEditingDocId = null;
+
+            dialog.innerHTML = `
+                <div class="custom-modal-header" style="margin-bottom:1rem;">
+                    <div class="custom-modal-icon" style="background:rgba(79, 70, 229, 0.08); color:#4f46e5;">➕</div>
+                    <div>
+                        <h3 class="custom-modal-title" id="boeModalTitle">Bulk Other Entry</h3>
+                        <p class="custom-modal-message" style="font-size:0.8rem;">Manual award entry for alumni, previous year, or passed out students.</p>
+                    </div>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:1rem; margin-bottom:1.25rem;">
+                    <!-- Step 1: Award Type -->
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label" style="font-weight:700; font-size:0.85rem; color:#475569;">1. Award Type *</label>
+                        <select id="boeAwardTypeSelect" class="form-input" style="height:38px; font-size:0.85rem; margin-top:0.25rem;">
+                            <option value="">Select Award Type...</option>
+                            ${awardTypes.map(t => `<option value="${t.id}" data-name="${window.escapeHTML(t.name)}" ${t.id === defaultAwardTypeId ? 'selected' : ''}>${window.escapeHTML(t.name)}</option>`).join('')}
+                        </select>
+                    </div>
+
+                    <!-- Step 2: Class / Standard -->
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label" style="font-weight:700; font-size:0.85rem; color:#475569;">2. Class / Standard *</label>
+                        <input type="text" id="boeClassInput" list="boeClassDatalist" class="form-input" placeholder="Example: 10 Pass, Passed Out 10, Old Batch 2025, Hifz Batch, Special Batch" style="height:38px; font-size:0.85rem; margin-top:0.25rem;" autocomplete="off">
+                        <datalist id="boeClassDatalist"></datalist>
+                    </div>
+
+                    <!-- Step 3: Winner Entries -->
+                    <div style="border-top:1px solid #e2e8f0; padding-top:1rem; display:flex; flex-direction:column; gap:1rem;">
+                        <h4 style="margin:0; font-size:0.9rem; font-weight:800; color:#1e1b4b;">3. Winner Entry</h4>
+
+                        <!-- 1st Place -->
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                                <label style="font-weight:700; color:#16a34a; font-size:0.83rem;">🥇 1st Place Winners</label>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btnAddFirstRow" style="font-size:0.75rem; font-weight:700; padding:2px 8px;">+ Add Another</button>
+                            </div>
+                            <div id="boeFirstRows" style="display:flex; flex-direction:column; gap:0.4rem;"></div>
+                        </div>
+
+                        <!-- 2nd Place -->
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                                <label style="font-weight:700; color:#ea580c; font-size:0.83rem;">🥈 2nd Place Winners</label>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btnAddSecondRow" style="font-size:0.75rem; font-weight:700; padding:2px 8px;">+ Add Another</button>
+                            </div>
+                            <div id="boeSecondRows" style="display:flex; flex-direction:column; gap:0.4rem;"></div>
+                        </div>
+
+                        <!-- 3rd Place -->
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                                <label style="font-weight:700; color:#b45309; font-size:0.83rem;">🥉 3rd Place Winners (Optional)</label>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btnAddThirdRow" style="font-size:0.75rem; font-weight:700; padding:2px 8px;">+ Add Another</button>
+                            </div>
+                            <div id="boeThirdRows" style="display:flex; flex-direction:column; gap:0.4rem;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Saved Entries Section -->
+                    <div style="border-top:1.5px solid #cbd5e1; padding-top:1rem; margin-top:0.5rem; display:flex; flex-direction:column; gap:0.75rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <h4 style="margin:0; font-size:0.9rem; font-weight:800; color:#1e1b4b; display:flex; align-items:center; gap:0.4rem;">
+                                📋 Saved Entries
+                            </h4>
+                            <span id="boeSavedCount" style="font-size:0.75rem; font-weight:700; color:#64748b; background:#f1f5f9; padding:2px 8px; border-radius:9999px;">Loading...</span>
+                        </div>
+                        <div id="boeSavedEntriesList" style="display:flex; flex-direction:column; gap:0.6rem; max-height:280px; overflow-y:auto; padding-right:4px;"></div>
+                    </div>
+                </div>
+
+                <div class="custom-modal-actions" style="display:flex; gap:0.5rem; justify-content:flex-end; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
+                    <button type="button" class="btn btn-secondary" id="btnCloseBOEModal" style="min-height:36px; padding:0 1rem; font-size:0.82rem; font-weight:700;">Close</button>
+                    <button type="button" class="btn btn-primary" id="btnSaveBOEModal" style="min-height:36px; padding:0 1.25rem; font-size:0.82rem; font-weight:700;">
+                        💾 Save Entry
+                    </button>
+                </div>
+            `;
+
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            const firstRowsContainer = dialog.querySelector('#boeFirstRows');
+            const secondRowsContainer = dialog.querySelector('#boeSecondRows');
+            const thirdRowsContainer = dialog.querySelector('#boeThirdRows');
+            const classInput = dialog.querySelector('#boeClassInput');
+            const classDatalist = dialog.querySelector('#boeClassDatalist');
+            const savedEntriesListContainer = dialog.querySelector('#boeSavedEntriesList');
+            const savedCountLabel = dialog.querySelector('#boeSavedCount');
+            const atSelect = dialog.querySelector('#boeAwardTypeSelect');
+
+            let savedDocsCache = [];
+
+            const addInputRow = (container, val = '') => {
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.gap = '0.4rem';
+                row.style.alignItems = 'center';
+                row.innerHTML = `
+                    <input type="text" class="form-input boe-name-input" placeholder="Enter student name..." value="${window.escapeHTML(val)}" style="height:34px; font-size:0.82rem; flex:1;" autocomplete="off">
+                    <button type="button" class="btn-remove-boe-row" style="background:none; border:none; color:#ef4444; font-size:1.1rem; font-weight:bold; cursor:pointer; padding:0 0.3rem;" title="Remove row">✕</button>
+                `;
+                row.querySelector('.btn-remove-boe-row').onclick = () => {
+                    row.remove();
+                };
+                container.appendChild(row);
+            };
+
+            const resetFormInputs = () => {
+                activeEditingDocId = null;
+                dialog.querySelector('#boeModalTitle').textContent = 'Bulk Other Entry';
+                firstRowsContainer.innerHTML = '';
+                secondRowsContainer.innerHTML = '';
+                thirdRowsContainer.innerHTML = '';
+                addInputRow(firstRowsContainer);
+                addInputRow(secondRowsContainer);
+                addInputRow(thirdRowsContainer);
+            };
+
+            resetFormInputs();
+
+            dialog.querySelector('#btnAddFirstRow').onclick = () => addInputRow(firstRowsContainer);
+            dialog.querySelector('#btnAddSecondRow').onclick = () => addInputRow(secondRowsContainer);
+            dialog.querySelector('#btnAddThirdRow').onclick = () => addInputRow(thirdRowsContainer);
+
+            dialog.querySelector('#btnCloseBOEModal').onclick = () => overlay.remove();
+
+            const loadAndRenderSavedEntries = async () => {
+                try {
+                    savedEntriesListContainer.innerHTML = '<div style="font-size:0.82rem; color:#64748b; font-style:italic;">Loading saved records...</div>';
+                    const metadataSnap = await getDocs(collection(db, "institutes", instId, "metadata"));
+                    savedDocsCache = metadataSnap.docs.filter(d => d.id.startsWith("class_award_"));
+
+                    // Populate Autocomplete Class Suggestions Datalist
+                    const uniqueClassNames = Array.from(new Set(savedDocsCache.map(d => d.data().className).filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+                    classDatalist.innerHTML = uniqueClassNames.map(cn => `<option value="${window.escapeHTML(cn)}">`).join('');
+
+                    renderSavedEntriesList();
+                } catch (err) {
+                    console.error("Error loading saved award entries:", err);
+                    savedEntriesListContainer.innerHTML = '<div style="font-size:0.82rem; color:#ef4444;">Failed to load saved entries.</div>';
+                }
+            };
+
+            const renderSavedEntriesList = () => {
+                const selAwardTypeId = atSelect.value;
+                let filtered = savedDocsCache;
+                if (selAwardTypeId) {
+                    filtered = savedDocsCache.filter(d => {
+                        const data = d.data();
+                        return data.awardTypeId === selAwardTypeId || (data.awardType && data.awardType.toLowerCase() === selAwardTypeId.toLowerCase());
+                    });
+                }
+
+                savedCountLabel.textContent = `${filtered.length} Record${filtered.length === 1 ? '' : 's'}`;
+
+                if (filtered.length === 0) {
+                    savedEntriesListContainer.innerHTML = '<div style="padding:0.75rem; background:#f8fafc; border:1px border-dashed #cbd5e1; border-radius:8px; color:#64748b; font-size:0.82rem; font-style:italic; text-align:center;">No saved award entries found for the selected filter.</div>';
+                    return;
+                }
+
+                savedEntriesListContainer.innerHTML = filtered.map(d => {
+                    const data = d.data();
+                    const docId = d.id;
+                    const cName = data.className || 'No Class Name';
+                    const aType = data.awardType || 'Award';
+
+                    const fWinners = Array.isArray(data.firstPlaceWinners) ? data.firstPlaceWinners : (data.firstPlace ? [data.firstPlace] : []);
+                    const sWinners = Array.isArray(data.secondPlaceWinners) ? data.secondPlaceWinners : (data.secondPlace ? [data.secondPlace] : []);
+                    const tWinners = Array.isArray(data.thirdPlaceWinners) ? data.thirdPlaceWinners : (data.thirdPlace ? [data.thirdPlace] : []);
+
+                    const formatNames = (arr) => arr.map(w => w.name).join(', ') || '—';
+
+                    return `
+                        <div class="card" style="padding:0.65rem 0.85rem; border:1px solid #cbd5e1; background:#ffffff; border-radius:8px; display:flex; flex-direction:column; gap:0.35rem; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                                    <span style="background:#e0e7ff; color:#3730a3; font-weight:800; font-size:0.72rem; padding:2px 8px; border-radius:4px;">${window.escapeHTML(aType)}</span>
+                                    <strong style="color:#0f172a; font-size:0.88rem;">${window.escapeHTML(cName)}</strong>
+                                </div>
+                                <div style="display:flex; gap:0.3rem;">
+                                    <button type="button" class="btn btn-secondary btn-sm btn-edit-boe" data-docid="${docId}" style="padding:2px 8px; font-size:0.75rem; font-weight:700;">✏️ Edit</button>
+                                    <button type="button" class="btn btn-danger btn-sm btn-delete-boe" data-docid="${docId}" style="padding:2px 8px; font-size:0.75rem; font-weight:700;">🗑️ Delete</button>
+                                </div>
+                            </div>
+                            <div style="font-size:0.75rem; color:#475569; display:flex; flex-direction:column; gap:0.15rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px;">
+                                ${fWinners.length > 0 ? `<div>🥇 <strong style="color:#16a34a;">1st Place:</strong> ${window.escapeHTML(formatNames(fWinners))}</div>` : ''}
+                                ${sWinners.length > 0 ? `<div>🥈 <strong style="color:#ea580c;">2nd Place:</strong> ${window.escapeHTML(formatNames(sWinners))}</div>` : ''}
+                                ${tWinners.length > 0 ? `<div>🥉 <strong style="color:#b45309;">3rd Place:</strong> ${window.escapeHTML(formatNames(tWinners))}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                // Bind Edit Buttons
+                savedEntriesListContainer.querySelectorAll('.btn-edit-boe').forEach(btn => {
+                    btn.onclick = () => {
+                        const docId = btn.getAttribute('data-docid');
+                        const targetDoc = savedDocsCache.find(d => d.id === docId);
+                        if (!targetDoc) return;
+
+                        const data = targetDoc.data();
+                        activeEditingDocId = docId;
+                        dialog.querySelector('#boeModalTitle').textContent = `Editing ${data.className || ''} • ${data.awardType || ''}`;
+
+                        atSelect.value = data.awardTypeId || '';
+                        classInput.value = data.className || '';
+
+                        firstRowsContainer.innerHTML = '';
+                        secondRowsContainer.innerHTML = '';
+                        thirdRowsContainer.innerHTML = '';
+
+                        const fWinners = Array.isArray(data.firstPlaceWinners) ? data.firstPlaceWinners : (data.firstPlace ? [data.firstPlace] : []);
+                        const sWinners = Array.isArray(data.secondPlaceWinners) ? data.secondPlaceWinners : (data.secondPlace ? [data.secondPlace] : []);
+                        const tWinners = Array.isArray(data.thirdPlaceWinners) ? data.thirdPlaceWinners : (data.thirdPlace ? [data.thirdPlace] : []);
+
+                        if (fWinners.length > 0) {
+                            fWinners.forEach(w => addInputRow(firstRowsContainer, w.name));
+                        } else {
+                            addInputRow(firstRowsContainer);
+                        }
+
+                        if (sWinners.length > 0) {
+                            sWinners.forEach(w => addInputRow(secondRowsContainer, w.name));
+                        } else {
+                            addInputRow(secondRowsContainer);
+                        }
+
+                        if (tWinners.length > 0) {
+                            tWinners.forEach(w => addInputRow(thirdRowsContainer, w.name));
+                        } else {
+                            addInputRow(thirdRowsContainer);
+                        }
+
+                        dialog.scrollTop = 0;
+                        window.showToast("Loaded entry into form for editing.", "info");
+                    };
+                });
+
+                // Bind Delete Buttons
+                savedEntriesListContainer.querySelectorAll('.btn-delete-boe').forEach(btn => {
+                    btn.onclick = async () => {
+                        const docId = btn.getAttribute('data-docid');
+                        const targetDoc = savedDocsCache.find(d => d.id === docId);
+                        if (!targetDoc) return;
+
+                        const data = targetDoc.data();
+                        const confirmed = await window.customConfirm(
+                            `Are you sure you want to delete the award record for "${data.className || 'Class'}" • "${data.awardType || 'Award'}"?`,
+                            "Delete Entry?",
+                            { danger: true, okText: "Delete", cancelText: "Cancel" }
+                        );
+
+                        if (!confirmed) return;
+
+                        try {
+                            await deleteDoc(doc(db, "institutes", instId, "metadata", docId));
+                            window.showToast("Award entry deleted successfully.", "success");
+                            await loadAndRenderSavedEntries();
+
+                            if (selectedClassId === data.classId && selectedAwardTypeId === data.awardTypeId) {
+                                await loadConfigState();
+                            }
+                        } catch (err) {
+                            console.error("Error deleting award doc:", err);
+                            window.showToast("Failed to delete award entry.", "error");
+                        }
+                    };
+                });
+            };
+
+            atSelect.onchange = renderSavedEntriesList;
+
+            dialog.querySelector('#btnSaveBOEModal').onclick = async () => {
+                const atId = atSelect.value;
+                const atOpt = atSelect.options[atSelect.selectedIndex];
+                const atName = atOpt ? (atOpt.getAttribute('data-name') || '') : '';
+
+                const cName = classInput.value.trim();
+
+                if (!atId) {
+                    window.showToast("Please select an Award Type.", "warning");
+                    atSelect.focus();
+                    return;
+                }
+
+                if (!cName) {
+                    window.showToast("Please enter a Class / Standard.", "warning");
+                    classInput.focus();
+                    return;
+                }
+
+                const matchedClass = allClasses.find(cls => cls.name.toLowerCase() === cName.toLowerCase());
+                const cId = matchedClass ? matchedClass.id : ('cls_' + cName.toLowerCase().replace(/[^a-z0-9]/g, '_'));
+
+                const getNames = (container) => {
+                    const inputs = container.querySelectorAll('.boe-name-input');
+                    const names = [];
+                    inputs.forEach(inp => {
+                        const val = inp.value.trim();
+                        if (val) names.push(val);
+                    });
+                    return names;
+                };
+
+                const firstNames = getNames(firstRowsContainer);
+                const secondNames = getNames(secondRowsContainer);
+                const thirdNames = getNames(thirdRowsContainer);
+
+                if (firstNames.length === 0 && secondNames.length === 0 && thirdNames.length === 0) {
+                    window.showToast("Please enter at least one student name.", "warning");
+                    return;
+                }
+
+                const saveModalBtn = dialog.querySelector('#btnSaveBOEModal');
+                saveModalBtn.disabled = true;
+                saveModalBtn.textContent = "💾 Saving...";
+
+                try {
+                    const targetDocId = `class_award_${cId}_${atId}`;
+                    const awardDocRef = doc(db, "institutes", instId, "metadata", targetDocId);
+
+                    // If editing a document and docId changed (due to class/type change), clean up old document
+                    if (activeEditingDocId && activeEditingDocId !== targetDocId) {
+                        await deleteDoc(doc(db, "institutes", instId, "metadata", activeEditingDocId));
+                    }
+
+                    const createWinnerObj = (name) => ({
+                        studentId: null,
+                        name: name,
+                        chestNumber: '',
+                        className: cName,
+                        classId: cId,
+                        sourceType: 'old_student',
+                        isOldStudent: true,
+                        awardType: atName
+                    });
+
+                    const firstWinners = firstNames.map(createWinnerObj);
+                    const secondWinners = secondNames.map(createWinnerObj);
+                    const thirdWinners = thirdNames.map(createWinnerObj);
+
+                    const payload = {
+                        classId: cId,
+                        className: cName,
+                        awardTypeId: atId,
+                        awardType: atName,
+                        firstPlaceWinners: firstWinners,
+                        secondPlaceWinners: secondWinners,
+                        thirdPlaceWinners: thirdWinners,
+                        updatedAt: serverTimestamp()
+                    };
+
+                    await setDoc(awardDocRef, payload);
+                    window.showToast(`Award entries saved for ${cName} • ${atName}!`, "success");
+
+                    resetFormInputs();
+                    await loadAndRenderSavedEntries();
+
+                    if (selectedClassId === cId && selectedAwardTypeId === atId) {
+                        await loadConfigState();
+                    }
+                } catch (err) {
+                    console.error("Error saving bulk other entry:", err);
+                    window.showToast("Failed to save award entries.", "error");
+                } finally {
+                    saveModalBtn.disabled = false;
+                    saveModalBtn.textContent = "💾 Save Entry";
+                }
+            };
+
+            await loadAndRenderSavedEntries();
         };
 
         classSelect.onchange = loadConfigState;
@@ -1414,62 +1990,46 @@ async function initClassAwardsUI(container) {
         await loadAwardTypesConfig();
         renderAwardTypeSelect();
         document.getElementById('btnManageAwardTypes').onclick = openManageAwardTypesModal;
+        document.getElementById('btnOtherEntry').onclick = openBulkOtherEntryModal;
 
         saveBtn.onclick = async () => {
             if (!selectedClassId || !selectedAwardTypeId) return;
 
-            // Save-time duplicate checks
+            // Save-time duplicate checks across place 1, 2, and 3
             let duplicateFound = null;
             let duplicatePlace = '';
             
-            // Check duplicates in firstPlace
-            for (let i = 0; i < firstPlaceWinners.length; i++) {
-                const w = firstPlaceWinners[i];
-                if (w.studentId) {
-                    if (firstPlaceWinners.some((x, idx) => idx !== i && x.studentId === w.studentId)) {
-                        duplicateFound = w;
-                        duplicatePlace = '1st Place';
-                        break;
-                    }
-                    if (secondPlaceWinners.some(x => x.studentId === w.studentId)) {
-                        duplicateFound = w;
-                        duplicatePlace = '2nd Place';
-                        break;
-                    }
-                } else {
-                    const name = w.name.toLowerCase();
-                    if (firstPlaceWinners.some((x, idx) => idx !== i && x.name.toLowerCase() === name)) {
-                        duplicateFound = w;
-                        duplicatePlace = '1st Place';
-                        break;
-                    }
-                    if (secondPlaceWinners.some(x => x.name.toLowerCase() === name)) {
-                        duplicateFound = w;
-                        duplicatePlace = '2nd Place';
-                        break;
-                    }
-                }
-            }
-            
-            // Check duplicates in secondPlace
-            if (!duplicateFound) {
-                for (let i = 0; i < secondPlaceWinners.length; i++) {
-                    const w = secondPlaceWinners[i];
-                    if (w.studentId) {
-                        if (secondPlaceWinners.some((x, idx) => idx !== i && x.studentId === w.studentId)) {
+            const placesData = [
+                { placeNum: 1, nameStr: '1st Place', items: firstPlaceWinners },
+                { placeNum: 2, nameStr: '2nd Place', items: secondPlaceWinners },
+                { placeNum: 3, nameStr: '3rd Place', items: thirdPlaceWinners }
+            ];
+
+            for (let pIdx = 0; pIdx < placesData.length; pIdx++) {
+                const currentPlace = placesData[pIdx];
+                for (let i = 0; i < currentPlace.items.length; i++) {
+                    const w = currentPlace.items[i];
+                    for (let otherIdx = 0; otherIdx < placesData.length; otherIdx++) {
+                        const checkPlace = placesData[otherIdx];
+                        const isSame = pIdx === otherIdx;
+                        
+                        const isDup = checkPlace.items.some((x, idx) => {
+                            if (isSame && idx === i) return false;
+                            if (w.studentId && x.studentId) {
+                                return x.studentId === w.studentId;
+                            }
+                            return x.name.toLowerCase() === w.name.toLowerCase();
+                        });
+
+                        if (isDup) {
                             duplicateFound = w;
-                            duplicatePlace = '2nd Place';
-                            break;
-                        }
-                    } else {
-                        const name = w.name.toLowerCase();
-                        if (secondPlaceWinners.some((x, idx) => idx !== i && x.name.toLowerCase() === name)) {
-                            duplicateFound = w;
-                            duplicatePlace = '2nd Place';
+                            duplicatePlace = checkPlace.nameStr;
                             break;
                         }
                     }
+                    if (duplicateFound) break;
                 }
+                if (duplicateFound) break;
             }
 
             if (duplicateFound) {
@@ -1484,8 +2044,8 @@ async function initClassAwardsUI(container) {
                 const docId = `class_award_${selectedClassId}_${selectedAwardTypeId}`;
                 const awardDocRef = doc(db, "institutes", instId, "metadata", docId);
 
-                if (firstPlaceWinners.length === 0 && secondPlaceWinners.length === 0) {
-                    // Both empty, delete the record
+                if (firstPlaceWinners.length === 0 && secondPlaceWinners.length === 0 && thirdPlaceWinners.length === 0) {
+                    // All empty, delete the record
                     await deleteDoc(awardDocRef);
                     window.showToast("Class awards cleared successfully.", "success");
                 } else {
@@ -1496,6 +2056,7 @@ async function initClassAwardsUI(container) {
                         awardType: selectedAwardTypeName,
                         firstPlaceWinners: firstPlaceWinners,
                         secondPlaceWinners: secondPlaceWinners,
+                        thirdPlaceWinners: thirdPlaceWinners,
                         updatedAt: serverTimestamp()
                     };
 

@@ -5947,6 +5947,13 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
     else if (f.type === 'Results') {
         if (f.resultSubOption === 'Class Wise Academic & Attendance') {
+            let filteredAwards = classAwards.filter(aw => {
+                if (f.classId && aw.classId !== f.classId) return false;
+                const awTypeId = aw.awardTypeId || (aw.awardType ? aw.awardType.toLowerCase() : '');
+                if (f.awardTypeFilter && f.awardTypeFilter !== 'All' && awTypeId !== f.awardTypeFilter && aw.awardType !== f.awardTypeFilter) return false;
+                return true;
+            });
+
             let targetClasses = [];
             const seenClassIds = new Set();
             allCategories.forEach(cat => {
@@ -5960,12 +5967,20 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             });
             targetClasses.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
-            let filteredAwards = classAwards.filter(aw => {
-                if (f.classId && aw.classId !== f.classId) return false;
-                const awTypeId = aw.awardTypeId || (aw.awardType ? aw.awardType.toLowerCase() : '');
-                if (f.awardTypeFilter && f.awardTypeFilter !== 'All' && awTypeId !== f.awardTypeFilter && aw.awardType !== f.awardTypeFilter) return false;
-                return true;
+            // Append Bulk Other Entry / Custom Classes after regular classes
+            const extraClassesMap = new Map();
+            filteredAwards.forEach(aw => {
+                if (aw.classId && !seenClassIds.has(aw.classId)) {
+                    if (!extraClassesMap.has(aw.classId)) {
+                        extraClassesMap.set(aw.classId, {
+                            id: aw.classId,
+                            name: aw.className || 'Other Entry'
+                        });
+                    }
+                }
             });
+            const extraClasses = Array.from(extraClassesMap.values());
+            targetClasses = [...targetClasses, ...extraClasses];
 
             let awardHTML = '';
             const instName = getEventName();
@@ -6037,8 +6052,17 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         secondWinners = [award.secondPlaceWinner];
                     }
 
+                    let thirdWinners = [];
+                    if (Array.isArray(award.thirdPlaceWinners)) {
+                        thirdWinners = award.thirdPlaceWinners;
+                    } else if (award.thirdPlace) {
+                        thirdWinners = [award.thirdPlace];
+                    } else if (award.thirdPlaceWinner) {
+                        thirdWinners = [award.thirdPlaceWinner];
+                    }
+
                     // Hide empty award sections completely
-                    if (firstWinners.length === 0 && secondWinners.length === 0) return;
+                    if (firstWinners.length === 0 && secondWinners.length === 0 && thirdWinners.length === 0) return;
 
                     classBodyHTML += `
                         <div style="margin-bottom: 0.4rem; page-break-inside: avoid; break-inside: avoid;">
@@ -6057,26 +6081,32 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 <tbody>
                     `;
 
-                    firstWinners.forEach(w => {
-                        classBodyHTML += `
+                    const renderWinnerRow = (w, placeLabel) => {
+                        const isOS = w.sourceType === 'old_student' || w.isOldStudent === true;
+                        const osBadge = isOS ? ` <span style="background: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; padding: 1px 5px; border-radius: 4px; font-size: 0.65rem; font-weight: 800; margin-left: 4px; display: inline-block;">🟣 OLD STUDENT</span>` : '';
+                        const chestDisp = isOS ? '—' : (w.chestNumber || '—');
+                        const classDisp = w.className || cls.name;
+
+                        return `
                             <tr style="height: 22px; page-break-inside: avoid; break-inside: avoid;">
-                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b; padding: 0.18rem 0.35rem;">🥇 1st Place</td>
-                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b; padding: 0.18rem 0.35rem;">${window.escapeHTML(w.chestNumber || '—')}</td>
-                                <td style="padding: 0.18rem 0.35rem; font-weight: 700; border: 1px solid #cbd5e1; color: #1e293b;">${window.escapeHTML(w.name).toUpperCase()}</td>
-                                <td style="padding: 0.18rem 0.35rem; border: 1px solid #cbd5e1; color: #475569;">${window.escapeHTML(w.className || cls.name)}</td>
+                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b; padding: 0.18rem 0.35rem;">${placeLabel}</td>
+                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b; padding: 0.18rem 0.35rem;">${window.escapeHTML(chestDisp)}</td>
+                                <td style="padding: 0.18rem 0.35rem; font-weight: 700; border: 1px solid #cbd5e1; color: #1e293b;">${window.escapeHTML(w.name).toUpperCase()}${osBadge}</td>
+                                <td style="padding: 0.18rem 0.35rem; border: 1px solid #cbd5e1; color: #475569;">${window.escapeHTML(classDisp)}</td>
                             </tr>
                         `;
+                    };
+
+                    firstWinners.forEach(w => {
+                        classBodyHTML += renderWinnerRow(w, '🥇 1st Place');
                     });
 
                     secondWinners.forEach(w => {
-                        classBodyHTML += `
-                            <tr style="height: 22px; page-break-inside: avoid; break-inside: avoid;">
-                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b; padding: 0.18rem 0.35rem;">🥈 2nd Place</td>
-                                <td style="text-align: center; font-weight: 800; border: 1px solid #cbd5e1; color: #1e1b4b; padding: 0.18rem 0.35rem;">${window.escapeHTML(w.chestNumber || '—')}</td>
-                                <td style="padding: 0.18rem 0.35rem; font-weight: 700; border: 1px solid #cbd5e1; color: #1e293b;">${window.escapeHTML(w.name).toUpperCase()}</td>
-                                <td style="padding: 0.18rem 0.35rem; border: 1px solid #cbd5e1; color: #475569;">${window.escapeHTML(w.className || cls.name)}</td>
-                            </tr>
-                        `;
+                        classBodyHTML += renderWinnerRow(w, '🥈 2nd Place');
+                    });
+
+                    thirdWinners.forEach(w => {
+                        classBodyHTML += renderWinnerRow(w, '🥉 3rd Place');
                     });
 
                     classBodyHTML += `
@@ -7982,6 +8012,13 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
     else if (f.type === 'Results' && f.resultSubOption === 'Class Wise Academic & Attendance') {
         csvContent += "CLASS,AWARD TYPE,PLACE,CHEST NUMBER,STUDENT NAME\n";
 
+        let filteredAwards = classAwards.filter(aw => {
+            if (f.classId && aw.classId !== f.classId) return false;
+            const awTypeId = aw.awardTypeId || (aw.awardType ? aw.awardType.toLowerCase() : '');
+            if (f.awardTypeFilter && f.awardTypeFilter !== 'All' && awTypeId !== f.awardTypeFilter && aw.awardType !== f.awardTypeFilter) return false;
+            return true;
+        });
+
         let targetClasses = [];
         const seenClassIds = new Set();
         allCategories.forEach(cat => {
@@ -7995,12 +8032,20 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
         });
         targetClasses.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
-        let filteredAwards = classAwards.filter(aw => {
-            if (f.classId && aw.classId !== f.classId) return false;
-            const awTypeId = aw.awardTypeId || (aw.awardType ? aw.awardType.toLowerCase() : '');
-            if (f.awardTypeFilter && f.awardTypeFilter !== 'All' && awTypeId !== f.awardTypeFilter && aw.awardType !== f.awardTypeFilter) return false;
-            return true;
+        // Append Bulk Other Entry / Custom Classes after regular classes
+        const extraClassesMap = new Map();
+        filteredAwards.forEach(aw => {
+            if (aw.classId && !seenClassIds.has(aw.classId)) {
+                if (!extraClassesMap.has(aw.classId)) {
+                    extraClassesMap.set(aw.classId, {
+                        id: aw.classId,
+                        name: aw.className || 'Other Entry'
+                    });
+                }
+            }
         });
+        const extraClasses = Array.from(extraClassesMap.values());
+        targetClasses = [...targetClasses, ...extraClasses];
 
         targetClasses.forEach(cls => {
             const classAwardsList = filteredAwards.filter(aw => aw.classId === cls.id);
@@ -8046,12 +8091,27 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     secondWinners = [award.secondPlaceWinner];
                 }
 
-                firstWinners.forEach(w => {
-                    csvContent += `"${cls.name.replace(/"/g, '""')}","${type.name.replace(/"/g, '""')}","1st Place","${(w.chestNumber || '').replace(/"/g, '""')}","${(w.name || '').replace(/"/g, '""')}"\n`;
-                });
-                secondWinners.forEach(w => {
-                    csvContent += `"${cls.name.replace(/"/g, '""')}","${type.name.replace(/"/g, '""')}","2nd Place","${(w.chestNumber || '').replace(/"/g, '""')}","${(w.name || '').replace(/"/g, '""')}"\n`;
-                });
+                let thirdWinners = [];
+                if (Array.isArray(award.thirdPlaceWinners)) {
+                    thirdWinners = award.thirdPlaceWinners;
+                } else if (award.thirdPlace) {
+                    thirdWinners = [award.thirdPlace];
+                } else if (award.thirdPlaceWinner) {
+                    thirdWinners = [award.thirdPlaceWinner];
+                }
+
+                const writeCSVRow = (w, placeStr) => {
+                    const isOS = w.sourceType === 'old_student' || w.isOldStudent === true;
+                    const chestVal = isOS ? '' : (w.chestNumber || '');
+                    const nameVal = `${w.name || ''}${isOS ? ' (Old Student)' : ''}`;
+                    const classVal = w.className || cls.name;
+
+                    csvContent += `"${classVal.replace(/"/g, '""')}","${type.name.replace(/"/g, '""')}","${placeStr}","${chestVal.replace(/"/g, '""')}","${nameVal.replace(/"/g, '""')}"\n`;
+                };
+
+                firstWinners.forEach(w => writeCSVRow(w, "1st Place"));
+                secondWinners.forEach(w => writeCSVRow(w, "2nd Place"));
+                thirdWinners.forEach(w => writeCSVRow(w, "3rd Place"));
             });
         });
     }
