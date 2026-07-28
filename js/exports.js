@@ -4468,6 +4468,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             <thead>
                                 <tr>
                                     <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.35rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
+                                    <th style="width:60px; min-width:60px; max-width:60px; text-align:center; padding:0.35rem 0.2rem; line-height: 1.2; border: 1px solid #000;">CHEST<br>NO.</th>
                                     <th style="width:180px; min-width:180px; max-width:180px; padding:0.35rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
                                     ${columnItems.map(item => {
                     if (item.type === 'separator') {
@@ -4487,6 +4488,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 ${Array.from({ length: 25 }).map((_, idx) => `
                                     <tr style="height:32px; page-break-inside:avoid;">
                                         <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:0.35rem 0.2rem; border: 1px solid #000;">${idx + 1}</td>
+                                        <td style="width:60px; min-width:60px; max-width:60px; text-align:center; font-weight:bold; color:#000; padding:0.35rem 0.2rem; border: 1px solid #000;"></td>
                                         <td style="width:180px; min-width:180px; max-width:180px; border: 1px solid #000;"></td>
                                         ${columnItems.map(item => {
                     if (item.type === 'separator') {
@@ -4936,6 +4938,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                         <thead>
                                             <tr>
                                                 <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
+                                                <th style="width:60px; min-width:60px; max-width:60px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">CHEST<br>NO.</th>
                                                 <th style="width:180px; min-width:180px; max-width:180px; padding:0.25rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
                                                 <th style="width:60px; min-width:60px; max-width:60px; padding:0.25rem 0.5rem; text-align:center; border: 1px solid #000;">CLASS</th>
                                                 ${columnItems.map(item => {
@@ -4958,6 +4961,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 return `
                                                     <tr style="height:${rowHeightVal}; page-break-inside:avoid;">
                                                         <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; border: 1px solid #000;">${globalIdx + 1}</td>
+                                                        <td style="width:60px; min-width:60px; max-width:60px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.chestNumber || '-')}">
+                                                            ${window.escapeHTML(item.chestNumber || '-')}
+                                                        </td>
                                                         <td style="width:180px; min-width:180px; max-width:180px; font-weight:bold; color:#000; padding:${nameCellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.name)}">
                                                             ${window.escapeHTML(item.name).toUpperCase()}
                                                         </td>
@@ -5156,6 +5162,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                             <thead>
                                                 <tr>
                                                     <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
+                                                    <th style="width:60px; min-width:60px; max-width:60px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">CHEST<br>NO.</th>
                                                     <th style="width:180px; min-width:180px; max-width:180px; padding:0.25rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
                                                     ${columnItems.map(item => {
                                     if (item.type === 'separator') {
@@ -5177,6 +5184,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     return `
                                                         <tr style="height:${rowHeightVal}; page-break-inside:avoid;">
                                                             <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; border: 1px solid #000;">${globalIdx + 1}</td>
+                                                            <td style="width:60px; min-width:60px; max-width:60px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.chestNumber || '-')}">
+                                                                ${window.escapeHTML(item.chestNumber || '-')}
+                                                            </td>
                                                             <td style="width:180px; min-width:180px; max-width:180px; font-weight:bold; color:#000; padding:${nameCellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.name)}">
                                                                 ${window.escapeHTML(item.name).toUpperCase()}
                                                             </td>
