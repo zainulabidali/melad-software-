@@ -1455,9 +1455,9 @@ function renderDrawerContent() {
                     <div id="expLocationFilterContainer" style="display:none; flex-direction:column; gap:0.45rem;">
                         <label style="font-weight:700; color:#475569; font-size:0.78rem;">PROGRAM LOCATION</label>
                         <select id="expLocationFilter" class="exp-input" style="background:#fff;">
-                            <option value="">All Locations</option>
-                            <option value="Stage">Stage Programs</option>
-                            <option value="Off Stage">Off Stage Programs</option>
+                            <option value="">All Programs</option>
+                            <option value="Stage">Stage</option>
+                            <option value="Off Stage">Off Stage</option>
                         </select>
                     </div>
 
@@ -1688,6 +1688,17 @@ function renderDrawerContent() {
         if (expTeamFilterContainer) {
             expTeamFilterContainer.style.display = (isClassAwards || (selType === 'Program Participation Register' && progRegSubmode === 'list')) ? 'none' : 'block';
         }
+
+        // 5. Program Location Filter Container
+        const expLocationFilterContainer = document.getElementById('expLocationFilterContainer');
+        if (expLocationFilterContainer) {
+            const allowedLocTypes = ['Green Room Sign', 'Valuation Sheet', 'Call List', 'Results', 'Program Participation Register'];
+            if (allowedLocTypes.includes(selType) && !isClassAwards) {
+                expLocationFilterContainer.style.display = 'flex';
+            } else {
+                expLocationFilterContainer.style.display = 'none';
+            }
+        }
     };
 
     // Submode Buttons handler
@@ -1829,7 +1840,7 @@ function renderDrawerContent() {
                 paperPackingContainer.style.display = 'none';
                 chestListModeContainer.style.display = 'none';
                 expProgFilterContainer.style.display = 'block';
-                if (locCont) locCont.style.display = 'none';
+                if (locCont) locCont.style.display = 'flex';
                 if (partCont) partCont.style.display = 'none';
                 if (regModeCont) regModeCont.style.display = 'none';
                 updateConditionalFilters();
@@ -1843,7 +1854,7 @@ function renderDrawerContent() {
                 packingHint.textContent = "Automatically packing exactly 4 Valuation sheets per A4 page in a 2x2 grid (75% paper savings).";
                 chestListModeContainer.style.display = 'none';
                 expProgFilterContainer.style.display = 'block';
-                if (locCont) locCont.style.display = 'none';
+                if (locCont) locCont.style.display = 'flex';
                 if (partCont) partCont.style.display = 'none';
                 if (regModeCont) regModeCont.style.display = 'none';
             } else if (selectedType === 'Chest Number List') {
@@ -1919,7 +1930,7 @@ function renderDrawerContent() {
                 packingHint.textContent = "Combine multiple programs continuously to avoid wasting paper on blank space.";
                 chestListModeContainer.style.display = 'none';
                 expProgFilterContainer.style.display = 'block';
-                if (locCont) locCont.style.display = 'none';
+                if (locCont) locCont.style.display = 'flex';
                 if (partCont) partCont.style.display = 'none';
                 if (regModeCont) regModeCont.style.display = 'none';
             }
@@ -2015,12 +2026,14 @@ function renderDrawerContent() {
     function updateProgramsDropdown() {
         const catId = expCatFilter.value;
         const classId = expClassFilter.value;
+        const locVal = document.getElementById('expLocationFilter')?.value;
 
         expProgFilter.innerHTML = '<option value="">All Matching Programs</option>';
 
         const filtered = allPrograms.filter(p => {
             if (catId && p.categoryId !== catId) return false;
             if (classId && p.classId !== classId) return false;
+            if (locVal && p.programLocation !== locVal) return false;
             return true;
         });
 
@@ -2028,6 +2041,11 @@ function renderDrawerContent() {
             const numStr = p.programNumber ? `[#${p.programNumber}] ` : '';
             expProgFilter.innerHTML += `<option value="${p.id}">${numStr}${window.escapeHTML(p.programName)}</option>`;
         });
+    }
+
+    const expLocationFilter = document.getElementById('expLocationFilter');
+    if (expLocationFilter) {
+        expLocationFilter.onchange = () => updateProgramsDropdown();
     }
 
     updateProgramsDropdown();
@@ -2076,7 +2094,7 @@ function renderDrawerContent() {
         const compactPacking = selectedType === 'Results' ? true : document.getElementById('expCompactPacking').checked;
         const chestSort = 'chest';
         const chestMode = selectedType === 'Chest Number List' ? document.getElementById('expChestMode').value : 'class-wise';
-        const programLocation = selectedType === 'Program Participation Register' ? document.getElementById('expLocationFilter').value : '';
+        const programLocation = ['Green Room Sign', 'Valuation Sheet', 'Call List', 'Results', 'Program Participation Register'].includes(selectedType) ? document.getElementById('expLocationFilter').value : '';
         const participationType = selectedType === 'Program Participation Register' ? document.getElementById('expParticipationFilter').value : '';
         const registerMode = selectedType === 'Program Participation Register' ? document.getElementById('expRegisterMode').value : 'class-wise';
 
@@ -5567,6 +5585,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         <div style="font-size:0.7rem; font-weight:700; color:#666; text-transform:uppercase;">
                             ${window.escapeHTML(p.categoryName)}${p.className ? ` • ${window.escapeHTML(p.className)}` : ''} • 
                             ${window.escapeHTML(formatLabel(p.genderCategory || p.gender || 'Mixed'))} • 
+                            ${window.escapeHTML((p.programLocation || p.location || 'Stage').toUpperCase())} • 
                             ${p.programType === 'group' ? 'GROUP EVENT' : 'INDIVIDUAL EVENT'} • 
                             ${parts.length} ${p.programType === 'group' ? 'GROUPS' : 'ENTRIES'}
                         </div>
@@ -5932,7 +5951,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     <div style="border-bottom:1.5px solid #1e1b4b; padding-bottom:0.15rem; margin-bottom:0.25rem; display:flex; justify-content:space-between; align-items:baseline;">
                         <div>
                             <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:#1e1b4b; display:inline;">${p.programNumber ? `[#${p.programNumber}] ` : ''}${window.escapeHTML(p.programName)}</h3>
-                            <span style="font-size:0.75rem; font-weight:700; color:#475569; margin-left:0.4rem;">&bull; ${window.escapeHTML(formatLabel(p.categoryName))} &bull; ${window.escapeHTML(formatLabel(p.genderCategory || p.gender || 'Mixed'))}${p.className ? ` &bull; Class: ${window.escapeHTML(formatLabel(p.className))}` : ''} &bull; Location: ${window.escapeHTML(formatLabel(p.programLocation || 'Stage'))}</span>
+                            <span style="font-size:0.75rem; font-weight:700; color:#475569; margin-left:0.4rem;">&bull; ${window.escapeHTML(formatLabel(p.categoryName))} &bull; ${window.escapeHTML(formatLabel(p.genderCategory || p.gender || 'Mixed'))} &bull; ${window.escapeHTML((p.programLocation || p.location || 'Stage').toUpperCase())}${p.className ? ` &bull; Class: ${window.escapeHTML(formatLabel(p.className))}` : ''}</span>
                         </div>
                         <div style="font-size:0.75rem; font-weight:800; color:#1e1b4b;">
                             ${parts.length} ${pType === 'general' ? 'participants' : (pType === 'group' ? 'groups' : 'entries')}
@@ -8136,6 +8155,11 @@ function filterResultsBySource(results, f) {
         if (f.categoryId && r.categoryId !== f.categoryId) return false;
         if (f.classId && r.classId !== f.classId) return false;
         if (f.programId && r.programId !== f.programId) return false;
+        if (f.programLocation) {
+            const prog = allPrograms.find(p => p.id === r.programId);
+            const pLoc = prog ? (prog.programLocation || prog.location || 'Stage') : (r.programLocation || 'Stage');
+            if (pLoc !== f.programLocation) return false;
+        }
 
         const isDraft = r.status === 'draft';
         const isSubmitted = r.markEntryStatus === 'submitted';
