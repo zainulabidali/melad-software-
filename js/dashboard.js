@@ -1028,8 +1028,10 @@ async function initDashboardOverview(container, topActions) {
     const pagesIndex = pathname.indexOf('/pages/');
     const repoPrefix = pagesIndex !== -1 ? pathname.substring(0, pagesIndex) : '';
     const publicUrl = `${origin}${repoPrefix}/pages/public-results.html?id=${instId}`;
+    const publicHubUrl = `${origin}${repoPrefix}/pages/public-results-hub.html?id=${instId}`;
 
     const waMessage = encodeURIComponent(`📢 *${instName}*\nതാഴെയുള്ള ലിങ്ക് ഉപയോഗിച്ച് റിസൾട്ട് പരിശോധിക്കാം:\n${publicUrl}`);
+    const waHubMessage = encodeURIComponent(`📢 *${instName} - Public Results Hub*\nView Official Results, Team Standings and Category Rankings:\n${publicHubUrl}`);
 
     // Reset old listeners first
     clearDashboardListeners();
@@ -1050,7 +1052,7 @@ async function initDashboardOverview(container, topActions) {
                         <span class="stat-title">Students</span>
                         <div class="stat-card-icon-container" style="background: rgba(124, 58, 237, 0.08);">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="color:#7C3AED;">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21c-2.676 0-5.216-.584-7.499-1.632Z" />
                             </svg>
                         </div>
                     </div>
@@ -1177,7 +1179,7 @@ async function initDashboardOverview(container, topActions) {
 
             </div>
 
-            <!-- Public Result Portal Card (Full Width) -->
+            <!-- Official Poster Portal Card (Full Width) -->
             <div class="card public-portal-card" style="border: 1px solid rgba(124, 58, 237, 0.15); background: linear-gradient(135deg, rgba(124, 58, 237, 0.02) 0%, rgba(59, 130, 246, 0.02) 100%); padding: 2rem; border-radius: 20px; box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.04); margin-top: 1rem;">
                 <div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 2rem; flex-wrap: wrap;">
                     
@@ -1185,10 +1187,13 @@ async function initDashboardOverview(container, topActions) {
                     <div style="flex: 1; min-width: 280px;">
                         <h3 class="card-title" style="color: #7C3AED; font-weight: 800; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem; margin-bottom: 0.5rem;">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 1.4rem; height: 1.4rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" /></svg>
-                            Public Result Portal
+                            Official Poster Portal
                         </h3>
                         <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem; line-height: 1.5; font-weight: 500;">
                             Share published standings instantly with parents and students. Results auto-sync in real-time.
+                        </p>
+                        <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem; font-style: italic; opacity: 0.9;">
+                            Official posters are managed by the Administrator. Please do not modify or redistribute unofficial versions.
                         </p>
                         <div id="portalStatus" style="font-size: 0.85rem; font-weight: 700; display: inline-flex; align-items: center;">
                             <span class="spinner-sm"></span> Checking status...
@@ -1206,6 +1211,38 @@ async function initDashboardOverview(container, topActions) {
                         </a>
                         <button class="btn btn-outline" id="dashOpenPortal" style="border-radius: 10px; font-weight: 700; padding: 0.75rem 1.5rem; display: flex; align-items: center; gap: 0.5rem; border-color: #7C3AED; color: #7C3AED;">
                             🌐 Open Portal
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Public Results Hub Card (Full Width) -->
+            <div class="card public-hub-card" style="border: 1px solid rgba(16, 185, 129, 0.25); background: linear-gradient(135deg, rgba(16, 185, 129, 0.03) 0%, rgba(6, 182, 212, 0.03) 100%); padding: 2rem; border-radius: 20px; box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.04); margin-top: 1rem;">
+                <div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 2rem; flex-wrap: wrap;">
+                    
+                    <!-- Left: Description -->
+                    <div style="flex: 1; min-width: 280px;">
+                        <h3 class="card-title" style="color: #059669; font-weight: 800; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem; margin-bottom: 0.5rem;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.4rem; height: 1.4rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" /></svg>
+                            Public Results Hub
+                        </h3>
+                        <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 0px; line-height: 1.5; font-weight: 500;">
+                            View Official Results, Team Standings and Category Rankings.
+                        </p>
+                    </div>
+                    
+                    <!-- Right: Actions Grid -->
+                    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                        <button class="btn btn-secondary" id="dashCopyHubLink" style="border-radius: 10px; font-weight: 600; padding: 0.75rem 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                            🔗 Copy Link
+                        </button>
+                        <a href="https://wa.me/?text=${waHubMessage}" target="_blank" class="btn btn-primary" id="dashWhatsAppHub" 
+                            style="background: #25D366; border-color: #25D366; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; font-weight: 600; padding: 0.75rem 1.25rem; gap: 0.5rem; color: white;">
+                            📤 Share via WhatsApp
+                        </a>
+                        <button class="btn btn-primary" id="dashOpenPublicHub" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; border-radius: 10px; font-weight: 700; padding: 0.75rem 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: white;">
+                            📱 Open Public Results
                         </button>
                     </div>
 
@@ -1251,6 +1288,14 @@ async function initDashboardOverview(container, topActions) {
         });
     };
     document.getElementById('dashOpenPortal').onclick = () => window.open(publicUrl, '_blank');
+
+    // Bind Public Results Hub Actions
+    document.getElementById('dashCopyHubLink').onclick = () => {
+        navigator.clipboard.writeText(publicHubUrl).then(() => {
+            window.showToast("✓ Public Results Hub link copied!");
+        });
+    };
+    document.getElementById('dashOpenPublicHub').onclick = () => window.open(publicHubUrl, '_blank');
 
     // Bind Live Display Actions
     try { localStorage.setItem('currentInstituteId', instId); } catch(e) {}

@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Public Results Hub</title>
+    
+    <!-- Favicon Package -->
+    <link rel="icon" type="image/x-icon" href="../favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-page: #F8F9FA;
+            --card-bg: #FFFFFF;
+            --border-light: #E9ECEF;
+            --border-subtle: #F1F5F9;
+            --text-primary: #1F2937;
+            --text-secondary: #6B7280;
+            --text-muted: #9CA3AF;
+            
+            --purple-primary: #7C3AED;
+            --purple-light: #F3E8FF;
+            --emerald-primary: #059669;
+            --emerald-light: #D1FAE5;
+            --amber-primary: #D97706;
+            --amber-light: #FEF3C7;
+            --blue-primary: #2563EB;
+            --blue-light: #DBEAFE;
+            
+            --radius-card: 16px;
+            --radius-pill: 50px;
+            --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02);
+            --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.02);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-page);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+            padding-bottom: 5.5rem;
+        }
+
+        .hub-container {
+            max-width: 680px;
+            margin: 0 auto;
+            padding: 1.5rem 1rem;
+        }
+
+        /* ─────────────────────────────────────────────
+           HEADER SECTION (Clean, Centered, White)
+           ───────────────────────────────────────────── */
+        .hub-header {
+            text-align: center;
+            padding: 1rem 0 1.75rem;
+        }
+
+        .header-top-tag {
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: var(--purple-primary);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .header-logo-img {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            margin: 0 auto 0.75rem;
+            display: block;
+        }
+
+        .header-logo-fallback {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .header-event-name {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.85rem;
+            font-weight: 900;
+            color: #111827;
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+            margin-bottom: 0.35rem;
+            text-transform: uppercase;
+        }
+
+        .header-event-tagline {
+            font-size: 0.95rem;
+            color: var(--purple-primary);
+            font-weight: 700;
+            margin-bottom: 0.6rem;
+        }
+
+        .header-madrasa-name {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .header-location {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        /* ─────────────────────────────────────────────
+           SUMMARY STATS SECTION (4 Clean White Cards)
+           ───────────────────────────────────────────── */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.65rem;
+            margin-bottom: 1.5rem;
+        }
+
+        @media (max-width: 480px) {
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 0.75rem;
+            }
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-card);
+            padding: 1rem 0.5rem;
+            text-align: center;
+            box-shadow: var(--shadow-card);
+        }
+
+        .stat-icon-wrap {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 0.5rem;
+        }
+
+        .stat-icon-wrap.purple { background: var(--purple-light); color: var(--purple-primary); }
+        .stat-icon-wrap.emerald { background: var(--emerald-light); color: var(--emerald-primary); }
+        .stat-icon-wrap.amber { background: var(--amber-light); color: var(--amber-primary); }
+        .stat-icon-wrap.blue { background: var(--blue-light); color: var(--blue-primary); }
+
+        .stat-val {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.45rem;
+            font-weight: 900;
+            color: #111827;
+            line-height: 1.1;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.65rem;
+            font-weight: 800;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            line-height: 1.2;
+        }
+
+        /* ─────────────────────────────────────────────
+           SEARCH & FILTERS CARD
+           ───────────────────────────────────────────── */
+        .search-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-card);
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow-card);
+        }
+
+        .filter-row-top {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        @media (max-width: 480px) {
+            .filter-row-top {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .field-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .select-box, .input-box {
+            width: 100%;
+            height: 44px;
+            padding: 0 0.85rem;
+            background: #FFFFFF;
+            border: 1.5px solid var(--border-light);
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .select-box:focus, .input-box:focus {
+            border-color: var(--purple-primary);
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+        }
+
+        .search-input-wrap {
+            position: relative;
+            width: 100%;
+        }
+
+        .search-input-wrap svg {
+            position: absolute;
+            left: 0.85rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 1.1rem;
+            height: 1.1rem;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        .search-input-wrap input {
+            padding-left: 2.5rem;
+        }
+
+        /* ─────────────────────────────────────────────
+           SECTION TITLES
+           ───────────────────────────────────────────── */
+        .section-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #111827;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        /* ─────────────────────────────────────────────
+           PROGRAM RESULT SHEET CARD
+           ───────────────────────────────────────────── */
+        .result-sheet-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-card);
+            padding: 1.25rem;
+            margin-bottom: 1.75rem;
+            box-shadow: var(--shadow-card);
+        }
+
+        .result-meta-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.6rem;
+            gap: 0.5rem;
+        }
+
+        .result-meta-left {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .prog-number-pill {
+            background: var(--purple-primary);
+            color: #FFFFFF;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 900;
+            font-size: 0.85rem;
+            padding: 0.25rem 0.65rem;
+            border-radius: 8px;
+        }
+
+        .prog-cat-subtext {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .status-published-pill {
+            background: var(--emerald-light);
+            color: var(--emerald-primary);
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 0.2rem 0.55rem;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .result-prog-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 900;
+            color: #111827;
+            margin-bottom: 1rem;
+            line-height: 1.25;
+        }
+
+        /* Winners List */
+        .winners-sheet-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+        }
+
+        .winner-sheet-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.85rem 1rem;
+            background: #FFFFFF;
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+        }
+
+        .winner-rank-label {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 900;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .winner-rank-label.rank-1st { background: #FEF3C7; color: #D97706; }
+        .winner-rank-label.rank-2nd { background: #F1F5F9; color: #475569; }
+        .winner-rank-label.rank-3rd { background: #FFEDD5; color: #C2410C; }
+        .winner-rank-label.rank-other { background: #F8FAFC; color: #64748B; font-size: 0.95rem; }
+
+        .winner-info-wrap {
+            flex: 1;
+            padding: 0 0.85rem;
+            min-width: 0;
+        }
+
+        .winner-student-name {
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: #111827;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .winner-team-name {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--purple-primary);
+            margin-top: 0.1rem;
+        }
+
+        .winner-grade-badge {
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: var(--emerald-primary);
+            background: var(--emerald-light);
+            padding: 0.25rem 0.55rem;
+            border-radius: 6px;
+            flex-shrink: 0;
+        }
+
+        /* ─────────────────────────────────────────────
+           TEAM CHAMPIONSHIP TABLE CARD
+           ───────────────────────────────────────────── */
+        .championship-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-card);
+            padding: 1.25rem;
+            margin-bottom: 1.75rem;
+            box-shadow: var(--shadow-card);
+            overflow: hidden;
+        }
+
+        .championship-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .championship-table th {
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 0.5rem 0.4rem 0.75rem;
+            text-align: left;
+            border-bottom: 1.5px solid var(--border-light);
+        }
+
+        .championship-table td {
+            padding: 0.85rem 0.4rem;
+            border-bottom: 1px solid var(--border-subtle);
+            vertical-align: middle;
+        }
+
+        .championship-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .rank-num-cell {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 900;
+            font-size: 1rem;
+            width: 40px;
+        }
+
+        .rank-num-cell.r1 { color: #D97706; }
+        .rank-num-cell.r2 { color: #475569; }
+        .rank-num-cell.r3 { color: #C2410C; }
+
+        .team-name-cell {
+            font-size: 0.9rem;
+            font-weight: 800;
+            color: #111827;
+        }
+
+        .points-cell {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 900;
+            font-size: 0.95rem;
+            color: #111827;
+        }
+
+        .progress-bar-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            min-width: 110px;
+        }
+
+        .track-bar {
+            flex: 1;
+            height: 8px;
+            background: #F1F5F9;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .fill-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #A855F7, #7C3AED);
+            border-radius: 10px;
+        }
+
+        .pct-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            width: 34px;
+            text-align: right;
+        }
+
+        /* ─────────────────────────────────────────────
+           CATEGORY STANDINGS (Accordion Cards)
+           ───────────────────────────────────────────── */
+        .category-accordion-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 1.75rem;
+        }
+
+        .cat-accordion-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: var(--shadow-subtle);
+            transition: border-color 0.2s ease;
+        }
+
+        .cat-accordion-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.1rem 1.25rem;
+            cursor: pointer;
+            user-select: none;
+            background: #FFFFFF;
+        }
+
+        .cat-accordion-header:hover {
+            background: #FAFAFA;
+        }
+
+        .cat-title-left {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .cat-accent-bar {
+            width: 4px;
+            height: 18px;
+            background: var(--purple-primary);
+            border-radius: 4px;
+        }
+
+        .cat-name-text {
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: #111827;
+            text-transform: uppercase;
+        }
+
+        .cat-right-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .cat-teams-count {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .cat-chevron {
+            width: 1.1rem;
+            height: 1.1rem;
+            color: var(--text-muted);
+            transition: transform 0.2s ease;
+        }
+
+        .cat-accordion-card.open .cat-chevron {
+            transform: rotate(90deg);
+        }
+
+        .cat-accordion-body {
+            display: none;
+            padding: 0.5rem 1.25rem 1.25rem;
+            border-top: 1px solid var(--border-subtle);
+            background: #FFFFFF;
+        }
+
+        .cat-accordion-card.open .cat-accordion-body {
+            display: block;
+        }
+
+        /* ─────────────────────────────────────────────
+           BOTTOM NAV BAR (Mobile Experience)
+           ───────────────────────────────────────────── */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #FFFFFF;
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0.5rem 0.25rem;
+            z-index: 1000;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.2rem;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.725rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0.35rem 0.65rem;
+            border-radius: 12px;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            width: 20%;
+        }
+
+        .nav-item svg {
+            width: 1.25rem;
+            height: 1.25rem;
+            transition: transform 0.2s ease, stroke 0.2s ease;
+        }
+
+        .nav-item.active {
+            color: var(--purple-primary);
+            background: var(--purple-light);
+        }
+
+        .nav-item.active svg {
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body>
+    <div class="hub-container">
+        <!-- ─────────────────────────────────────────────
+             HEADER SECTION
+             ───────────────────────────────────────────── -->
+        <header class="hub-header">
+            <!-- Logo without border or glow -->
+            <img id="hubLogoImg" class="header-logo-img" style="display: none;" alt="Madrasa Logo">
+            <span id="hubLogoFallback" class="header-logo-fallback" style="display: none;">🏆</span>
+            
+            <h1 class="header-event-name" id="hubEventName">Official Results</h1>
+            <div class="header-event-tagline" id="hubEventTagline" style="display: none;"></div>
+            <div class="header-madrasa-name" id="hubMadrasaName">--</div>
+            <div class="header-location" id="hubEventLocation"></div>
+        </header>
+
+        <!-- ─────────────────────────────────────────────
+             SUMMARY STATS SECTION (4 Minimal White Cards)
+             ───────────────────────────────────────────── -->
+        <section class="summary-grid">
+            <!-- Published Programs -->
+            <div class="stat-card">
+                <div class="stat-icon-wrap purple">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.25rem; height: 1.25rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-.668-.344-1.284-.916-1.636l-6-3.75a2.25 2.25 0 0 0-2.368 0l-6 3.75A1.875 1.875 0 0 0 3 6.108V16.5A2.25 2.25 0 0 0 5.25 18.75h1.5m10.5 0v2.25a2.25 2.25 0 0 1-2.25 2.25H9a2.25 2.25 0 0 1-2.25-2.25v-2.25m10.5 0H6.75" /></svg>
+                </div>
+                <div class="stat-val" id="statPublishedVal">-</div>
+                <div class="stat-label">Published Programs</div>
+            </div>
+
+            <!-- Pending Programs -->
+            <div class="stat-card">
+                <div class="stat-icon-wrap emerald">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.25rem; height: 1.25rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                </div>
+                <div class="stat-val" id="statPendingVal">-</div>
+                <div class="stat-label">Pending Programs</div>
+            </div>
+
+            <!-- Total Programs -->
+            <div class="stat-card">
+                <div class="stat-icon-wrap blue">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.25rem; height: 1.25rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.504-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 0a7.454 7.454 0 0 0 .981 3.172M8.312 14.375a6.002 6.002 0 0 1-2.813-5.326m13.002 0a6.002 6.002 0 0 1-2.813 5.326M5.499 9.049a3.75 3.75 0 0 1 2.812-4.673M18.501 9.049a3.75 3.75 0 0 0-2.812-4.673M12 2.25A2.25 2.25 0 0 0 9.75 4.5v1.25a2.25 2.25 0 0 0 4.5 0V4.5A2.25 2.25 0 0 0 12 2.25z" /></svg>
+                </div>
+                <div class="stat-val" id="statTotalVal">-</div>
+                <div class="stat-label">Total Programs</div>
+            </div>
+
+            <!-- Overall Progress -->
+            <div class="stat-card">
+                <div class="stat-icon-wrap amber">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.25rem; height: 1.25rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 13.875v-.75ZM3 19.125c0-.621.504-1.125 1.125-1.125h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 19.875v-.75ZM3 7.125C3 6.504 3.504 6 4.125 6h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 7.875v-.75Z" /></svg>
+                </div>
+                <div class="stat-val" id="statProgressVal">-%</div>
+                <div class="stat-label">Overall Progress</div>
+            </div>
+        </section>
+
+        <!-- ─────────────────────────────────────────────
+             SEARCH SECTION
+             ───────────────────────────────────────────── -->
+        <section class="search-card" id="secSearch">
+            <div class="filter-row-top" style="margin-bottom: 0;">
+                <div class="field-group">
+                    <label class="field-label" for="hubCategorySelect">Category</label>
+                    <select class="select-box" id="hubCategorySelect">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
+
+                <div class="field-group">
+                    <label class="field-label" for="hubProgramSelect">Program</label>
+                    <select class="select-box" id="hubProgramSelect">
+                        <option value="">All Programs</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─────────────────────────────────────────────
+             PROGRAM RESULT CARD SECTION
+             ───────────────────────────────────────────── -->
+        <section id="hubProgramResultSection" style="display: none;">
+            <div class="result-sheet-card" id="hubProgramResultContent">
+                <!-- Dynamic Result Sheet -->
+            </div>
+        </section>
+
+        <!-- ─────────────────────────────────────────────
+             TEAM CHAMPIONSHIP SECTION
+             ───────────────────────────────────────────── -->
+        <section id="secTeamChampionship">
+            <div class="section-title">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.2rem; height: 1.2rem; color: var(--purple-primary);"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.504-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 0a7.454 7.454 0 0 0 .981 3.172M8.312 14.375a6.002 6.002 0 0 1-2.813-5.326m13.002 0a6.002 6.002 0 0 1-2.813 5.326M5.499 9.049a3.75 3.75 0 0 1 2.812-4.673M18.501 9.049a3.75 3.75 0 0 0-2.812-4.673M12 2.25A2.25 2.25 0 0 0 9.75 4.5v1.25a2.25 2.25 0 0 0 4.5 0V4.5A2.25 2.25 0 0 0 12 2.25z" /></svg>
+                Team Championship
+            </div>
+
+            <div class="championship-card">
+                <table class="championship-table">
+                    <thead>
+                        <tr>
+                            <th>RANK</th>
+                            <th>TEAM</th>
+                            <th>POINTS</th>
+                            <th>PROGRESS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hubTeamChampionshipBody">
+                        <tr><td colspan="4" class="empty-state-box">Loading standings...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ─────────────────────────────────────────────
+             CATEGORY STANDINGS SECTION
+             ───────────────────────────────────────────── -->
+        <section id="secCategoryStandings">
+            <div class="section-title">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.2rem; height: 1.2rem; color: var(--purple-primary);"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 13.875v-.75ZM3 19.125c0-.621.504-1.125 1.125-1.125h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 19.875v-.75ZM3 7.125C3 6.504 3.504 6 4.125 6h15.75c.621 0 1.125.504 1.125 1.125v.75c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 0 1 3 7.875v-.75Z" /></svg>
+                Category Standings
+            </div>
+
+            <div class="category-accordion-list" id="hubCategoryAccordionContent">
+                <div class="empty-state-box">Loading category rankings...</div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer-notice">
+            <p>Official examination results portal.</p>
+        </footer>
+
+    </div>
+
+    <!-- ─────────────────────────────────────────────
+         BOTTOM NAVIGATION BAR (Mobile First)
+         ───────────────────────────────────────────── -->
+    <nav class="bottom-nav">
+        <button class="nav-item active" id="navHome">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>
+            <span>Home</span>
+        </button>
+        
+        <button class="nav-item" id="navPrograms">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12M8.25 17.25h12M3.75 6.75h.007v.008H3.75V6.75Zm0 5.25h.007v.008H3.75V12Zm0 5.25h.007v.008H3.75v-.008Z" /></svg>
+            <span>Programs</span>
+        </button>
+
+        <button class="nav-item" id="navResults">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.504-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 0a7.454 7.454 0 0 0 .981 3.172M8.312 14.375a6.002 6.002 0 0 1-2.813-5.326m13.002 0a6.002 6.002 0 0 1-2.813 5.326M5.499 9.049a3.75 3.75 0 0 1 2.812-4.673M18.501 9.049a3.75 3.75 0 0 0-2.812-4.673M12 2.25A2.25 2.25 0 0 0 9.75 4.5v1.25a2.25 2.25 0 0 0 4.5 0V4.5A2.25 2.25 0 0 0 12 2.25z" /></svg>
+            <span>Results</span>
+        </button>
+
+        <button class="nav-item" id="navTeams">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" /></svg>
+            <span>Teams</span>
+        </button>
+
+        <button class="nav-item" id="navAbout">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
+            <span>About</span>
+        </button>
+    </nav>
+
+    <!-- Script Import -->
+    <script type="module" src="../js/public-results-hub.js"></script>
+
+</body>
+</html>
