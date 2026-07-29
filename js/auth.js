@@ -149,7 +149,14 @@ export async function getUserProfile(uid) {
         }
         return null;
     } catch (e) {
-        console.error("Error fetching user profile:", e);
+        const isPermError = e && (
+            e.code === 'permission-denied' || 
+            e.code === 'unauthenticated' || 
+            (e.message && e.message.toLowerCase().includes('permission'))
+        );
+        if (!isPermError) {
+            console.error("Error fetching user profile:", e);
+        }
         return null;
     }
 }
@@ -196,32 +203,36 @@ export async function validateInstituteAccess(user) {
         const profile = await getUserProfile(user.uid);
         if (!profile) {
             // Check if they exist in the teachers collection
-            const teacherRef = doc(db, "teachers", user.uid);
-            const teacherSnap = await getDocWithRetry(teacherRef);
-            if (teacherSnap.exists()) {
-                const teacherData = teacherSnap.data();
-                const status = teacherData.status || 'pending';
-                
-                safeSessionClear();
-                await signOut(auth);
-                
-                if (status === 'pending') {
-                    if (typeof showAlert === 'function' && document.getElementById('alertMessage')) {
-                        showAlert('Your registration is under review. Please wait for Super Admin approval.', 'info');
+            try {
+                const teacherRef = doc(db, "teachers", user.uid);
+                const teacherSnap = await getDocWithRetry(teacherRef);
+                if (teacherSnap && teacherSnap.exists()) {
+                    const teacherData = teacherSnap.data();
+                    const status = teacherData.status || 'pending';
+                    
+                    safeSessionClear();
+                    await signOut(auth);
+                    
+                    if (status === 'pending') {
+                        if (typeof showAlert === 'function' && document.getElementById('alertMessage')) {
+                            showAlert('Your registration is under review. Please wait for Super Admin approval.', 'info');
+                        }
+                        window.location.href = `${pathPrefix}pages/registration-complete.html`;
+                    } else if (status === 'rejected') {
+                        if (typeof showAlert === 'function' && document.getElementById('alertMessage')) {
+                            const reason = teacherData.rejectionReason || teacherData.message || '';
+                            const msg = reason ? `Your registration request has been rejected. Reason: ${reason}. Please contact the administrator.` : 'Your registration request has been rejected. Please contact the administrator.';
+                            showAlert(msg, 'error');
+                        }
+                    } else {
+                        if (typeof showAlert === 'function' && document.getElementById('alertMessage')) {
+                            showAlert('Invalid account configuration. Contact support.', 'error');
+                        }
                     }
-                    window.location.href = `${pathPrefix}pages/registration-complete.html`;
-                } else if (status === 'rejected') {
-                    if (typeof showAlert === 'function' && document.getElementById('alertMessage')) {
-                        const reason = teacherData.rejectionReason || teacherData.message || '';
-                        const msg = reason ? `Your registration request has been rejected. Reason: ${reason}. Please contact the administrator.` : 'Your registration request has been rejected. Please contact the administrator.';
-                        showAlert(msg, 'error');
-                    }
-                } else {
-                    if (typeof showAlert === 'function' && document.getElementById('alertMessage')) {
-                        showAlert('Invalid account configuration. Contact support.', 'error');
-                    }
+                    return false;
                 }
-                return false;
+            } catch (err) {
+                // Teacher profile read restricted or missing
             }
 
             safeSessionClear();
@@ -304,7 +315,14 @@ export async function validateInstituteAccess(user) {
         await signOut(auth);
         return false;
     } catch (e) {
-        console.error("Centralized Access Validation Error:", e);
+        const isPermError = e && (
+            e.code === 'permission-denied' || 
+            e.code === 'unauthenticated' || 
+            (e.message && e.message.toLowerCase().includes('permission'))
+        );
+        if (!isPermError) {
+            console.error("Centralized Access Validation Error:", e);
+        }
         safeSessionClear();
         await signOut(auth);
         return false;
