@@ -583,16 +583,44 @@ function injectTableScheduleStyles() {
             }
         }
 
+        /* Dense Compact Single-Line Table Styling */
+        .sched-compact-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .sched-compact-table th {
+            padding: 0.45rem 0.6rem !important;
+            font-size: 0.75rem !important;
+            font-weight: 800 !important;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            background: #f8fafc;
+            color: #475569;
+            border-bottom: 2px solid #cbd5e1;
+            white-space: nowrap !important;
+        }
+        .sched-compact-table td {
+            padding: 0.35rem 0.6rem !important;
+            font-size: 0.85rem !important;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle !important;
+            white-space: nowrap !important;
+        }
+        .sched-table-row {
+            height: 40px !important;
+        }
+
         @media print {
             body * { visibility: hidden !important; }
             #printableStageTable, #printableStageTable * { visibility: visible !important; }
             #printableStageTable { position: absolute; left: 0; top: 0; width: 100% !important; margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important; }
-            .sched-tabs-container, .sched-config-bar, .topbar, .sidebar, .bottom-nav, .sched-bulk-bar, .modal-overlay, #settingsWarningModal { display: none !important; }
+            .sched-tabs-container, .sched-config-bar, .topbar, .sidebar, .bottom-nav, .sched-bulk-bar, .modal-overlay, #settingsWarningModal, #schedTableFooter { display: none !important; }
             
-            /* Hide non-printable table columns and icons */
-            .sched-compact-table th:first-child, .sched-compact-table td:first-child { display: none !important; }
-            .sched-compact-table th:nth-child(7), .sched-compact-table td:nth-child(7) { display: none !important; }
-            .sched-compact-table th:last-child, .sched-compact-table td:last-child { display: none !important; }
+            /* Hide non-printable table columns (Checkbox, Same Time/Group, Status, Actions) */
+            .sched-compact-table th:nth-child(1), .sched-compact-table td:nth-child(1) { display: none !important; }
+            .sched-compact-table th:nth-child(5), .sched-compact-table td:nth-child(5) { display: none !important; }
+            .sched-compact-table th:nth-child(9), .sched-compact-table td:nth-child(9) { display: none !important; }
+            .sched-compact-table th:nth-child(10), .sched-compact-table td:nth-child(10) { display: none !important; }
             .sched-lock-btn, .btn-tbl-act, .sched-row-actions { display: none !important; }
             
             /* Clean form elements formatting for print */
@@ -675,23 +703,29 @@ export async function initScheduleView(container, topActions) {
             <!-- Printable Main Table Wrapper -->
             <div class="sched-table-wrapper" id="printableStageTable">
                 <div class="table-responsive">
-                    <table class="sched-compact-table">
+                    <table class="sched-compact-table" style="background:#ffffff; border-radius:12px; overflow:hidden; border:1px solid #e2e8f0; box-shadow:0 1px 3px rgba(0,0,0,0.02); width:100%;">
                         <thead>
-                            <tr>
-                                <th style="width:40px; text-align:center;"><input type="checkbox" id="chkHeaderAll" style="cursor:pointer;"></th>
-                                <th style="width:60px; text-align:center;">Order</th>
-                                <th>Program Name</th>
-                                <th style="width:110px;">Duration</th>
-                                <th style="width:100px;">Start</th>
-                                <th style="width:100px;">End</th>
-                                <th style="width:140px;">Status</th>
-                                <th style="width:180px; text-align:right;">Quick Controls</th>
+                            <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0;">
+                                <th style="width:36px; text-align:center; padding:0.65rem 0.5rem;"><input type="checkbox" id="chkHeaderAll" style="cursor:pointer; width:15px; height:15px;"></th>
+                                <th style="width:55px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">ORDER</th>
+                                <th style="text-align:left; padding:0.65rem 0.75rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">PROGRAM NAME</th>
+                                <th style="width:130px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">CATEGORY</th>
+                                <th style="width:130px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">SAME TIME / GROUP</th>
+                                <th style="width:90px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">DURATION</th>
+                                <th style="width:90px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">START</th>
+                                <th style="width:90px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">END</th>
+                                <th style="width:120px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">STATUS</th>
+                                <th style="width:80px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">ACTIONS</th>
                             </tr>
                         </thead>
                         <tbody id="schedTableBody">
-                            <tr><td colspan="8" style="text-align:center; padding:2rem; color:#64748b;">Loading Stage Schedule...</td></tr>
+                            <tr><td colspan="10" style="text-align:center; padding:2rem; color:#64748b;">Loading Stage Schedule...</td></tr>
                         </tbody>
                     </table>
+                    <div id="schedTableFooter" style="display:flex; justify-content:space-between; align-items:center; padding:0.75rem 1rem; border-top:1px solid #e2e8f0; font-size:0.8rem; font-weight:600; color:#64748b; background:#ffffff; border-radius:0 0 12px 12px; margin-top: -1px;">
+                        <span id="schedFooterCount">Total Programs: 0</span>
+                        <span>Note: Next program starts after the longest parallel group finishes.</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -841,7 +875,9 @@ function mergeAndRender() {
             runningOrder: parseInt(sched.runningOrder, 10) || 1,
             status: sched.status || 'Pending',
             isLocked: !!sched.isLocked,
-            isOffStage: !!sched.isOffStage
+            isOffStage: !!sched.isOffStage,
+            isParallel: !!sched.isParallel,
+            parallelGroupId: sched.parallelGroupId || null
         };
     });
 
@@ -870,30 +906,51 @@ function mergeAndRender() {
 // ─────────────────────────────────────────────
 function timeToMinutes(timeStr) {
     if (!timeStr) return 540; // Default 09:00 AM = 540 mins
-    const [h, m] = timeStr.split(':').map(Number);
-    return (h || 0) * 60 + (m || 0);
+
+    const ampmMatch = String(timeStr).trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+    if (ampmMatch) {
+        let h = parseInt(ampmMatch[1], 10);
+        const m = parseInt(ampmMatch[2], 10) || 0;
+        const period = ampmMatch[3].toUpperCase();
+        if (period === 'PM' && h < 12) h += 12;
+        if (period === 'AM' && h === 12) h = 0;
+        return h * 60 + m;
+    }
+
+    const parts = String(timeStr).split(':');
+    let h = parseInt(parts[0], 10);
+    let m = parseInt(parts[1], 10);
+    if (isNaN(h)) h = 9;
+    if (isNaN(m)) m = 0;
+    return h * 60 + m;
 }
 
 function minutesToTime(mins) {
-    let h = Math.floor(mins / 60) % 24;
-    let m = mins % 60;
+    let totalMins = Math.round(mins);
+    if (isNaN(totalMins)) totalMins = 540;
+    let normalized = ((totalMins % 1440) + 1440) % 1440;
+    let h = Math.floor(normalized / 60);
+    let m = normalized % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 function formatTimeTo12Hour(timeStr) {
     if (!timeStr) return '';
-    const parts = timeStr.split(':');
-    if (parts.length < 2) return timeStr;
+    if (/\s*(AM|PM)$/i.test(String(timeStr))) return String(timeStr);
+
+    const parts = String(timeStr).split(':');
+    if (parts.length < 2) return String(timeStr);
     let h = parseInt(parts[0], 10);
-    const m = parts[1];
-    if (isNaN(h)) return timeStr;
+    let m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return String(timeStr);
+
     const ampm = h >= 12 ? 'PM' : 'AM';
     h = h % 12;
     if (h === 0) h = 12;
-    return `${h}:${m} ${ampm}`;
+    return `${h}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-// Automatically recalculates Start and End times down the active stage table
+// Automatically recalculates Start and End times down the active stage table (respecting Parallel Groups)
 async function triggerTimeCascade(stageItems, saveToDb = true) {
     if (!stageItems || stageItems.length === 0) return;
 
@@ -905,36 +962,124 @@ async function triggerTimeCascade(stageItems, saveToDb = true) {
 
     stageItems.sort((a, b) => a.runningOrder - b.runningOrder);
 
+    let activeGroupStartMins = currentMins;
+    let activeGroupMaxEndMins = currentMins;
+    let groupCounter = 1;
+
     stageItems.forEach((item, idx) => {
-        const dur = parseInt(item.duration, 10) || cfg.defaultDuration || 20;
-        
-        let startStr = minutesToTime(currentMins);
-        if (item.isLocked && item.startTime) {
-            startStr = item.startTime;
-            currentMins = timeToMinutes(startStr);
-        }
+        const dur = Math.max(1, parseInt(item.duration, 10) || cfg.defaultDuration || 20);
 
-        const endMins = currentMins + dur;
-        const endStr = minutesToTime(endMins);
+        if (idx === 0) {
+            // First item in stage is always a sequential anchor
+            item.isParallel = false;
+            item.parallelGroupId = null;
 
-        if (item.startTime !== startStr || item.endTime !== endStr || item.runningOrder !== idx + 1) {
-            changed = true;
-            item.startTime = startStr;
-            item.endTime = endStr;
-            item.runningOrder = idx + 1;
+            let startMins = currentMins;
+            if (item.isLocked && item.startTime) {
+                startMins = timeToMinutes(item.startTime);
+            } else {
+                startMins = currentMins;
+            }
 
-            if (saveToDb) {
-                const ref = doc(db, "institutes", window.currentInstituteId, "schedules", item.id);
-                batch.update(ref, {
-                    startTime: startStr,
-                    endTime: endStr,
-                    runningOrder: idx + 1,
-                    updatedAt: serverTimestamp()
-                });
+            const endMins = startMins + dur;
+            activeGroupStartMins = startMins;
+            activeGroupMaxEndMins = endMins;
+            currentMins = activeGroupMaxEndMins;
+
+            const startStr = minutesToTime(startMins);
+            const endStr = minutesToTime(endMins);
+
+            if (item.startTime !== startStr || item.endTime !== endStr || item.runningOrder !== idx + 1) {
+                changed = true;
+                item.startTime = startStr;
+                item.endTime = endStr;
+                item.runningOrder = idx + 1;
+
+                if (saveToDb) {
+                    const ref = doc(db, "institutes", window.currentInstituteId, "schedules", item.id);
+                    batch.update(ref, {
+                        startTime: startStr,
+                        endTime: endStr,
+                        runningOrder: idx + 1,
+                        isParallel: false,
+                        parallelGroupId: null,
+                        updatedAt: serverTimestamp()
+                    });
+                }
+            }
+        } else {
+            if (item.isParallel) {
+                // Runs in parallel with the active parallel group (inherits activeGroupStartMins)
+                let startMins = activeGroupStartMins;
+                if (item.isLocked && item.startTime) {
+                    startMins = timeToMinutes(item.startTime);
+                }
+
+                const endMins = startMins + dur;
+                activeGroupMaxEndMins = Math.max(activeGroupMaxEndMins, endMins);
+
+                // Assign or maintain parallel group label (Group A, Group B...)
+                const currentGrpLabel = `Group ${String.fromCharCode(64 + Math.max(1, groupCounter))}`;
+                item.parallelGroupId = item.parallelGroupId || currentGrpLabel;
+
+                const startStr = minutesToTime(startMins);
+                const endStr = minutesToTime(endMins);
+
+                if (item.startTime !== startStr || item.endTime !== endStr || item.runningOrder !== idx + 1) {
+                    changed = true;
+                    item.startTime = startStr;
+                    item.endTime = endStr;
+                    item.runningOrder = idx + 1;
+
+                    if (saveToDb) {
+                        const ref = doc(db, "institutes", window.currentInstituteId, "schedules", item.id);
+                        batch.update(ref, {
+                            startTime: startStr,
+                            endTime: endStr,
+                            runningOrder: idx + 1,
+                            isParallel: true,
+                            parallelGroupId: item.parallelGroupId,
+                            updatedAt: serverTimestamp()
+                        });
+                    }
+                }
+            } else {
+                // Sequential item: starts after preceding group completes (at activeGroupMaxEndMins)
+                groupCounter++;
+                let startMins = activeGroupMaxEndMins;
+                if (item.isLocked && item.startTime) {
+                    startMins = timeToMinutes(item.startTime);
+                }
+
+                const endMins = startMins + dur;
+                activeGroupStartMins = startMins;
+                activeGroupMaxEndMins = endMins;
+                currentMins = activeGroupMaxEndMins;
+                item.parallelGroupId = null;
+
+                const startStr = minutesToTime(startMins);
+                const endStr = minutesToTime(endMins);
+
+                if (item.startTime !== startStr || item.endTime !== endStr || item.runningOrder !== idx + 1) {
+                    changed = true;
+                    item.startTime = startStr;
+                    item.endTime = endStr;
+                    item.runningOrder = idx + 1;
+
+                    if (saveToDb) {
+                        const ref = doc(db, "institutes", window.currentInstituteId, "schedules", item.id);
+                        batch.update(ref, {
+                            startTime: startStr,
+                            endTime: endStr,
+                            runningOrder: idx + 1,
+                            isParallel: false,
+                            parallelGroupId: null,
+                            updatedAt: serverTimestamp()
+                        });
+                    }
+                }
             }
         }
-
-        currentMins = endMins;
     });
 
     if (changed && saveToDb) {
@@ -1537,115 +1682,147 @@ function refreshScheduleTable() {
         return;
     }
 
+    const footerCountEl = document.getElementById('schedFooterCount');
+    if (footerCountEl) {
+        footerCountEl.textContent = `Total Programs: ${activeItems.length}`;
+    }
+
     tbody.innerHTML = activeItems.map((item, idx) => {
         const isChecked = selectedScheduleIds.has(item.id);
         const statusColors = {
-            'Not Scheduled': 'background:#f1f5f9; color:#475569;',
-            'Scheduled': 'background:#fef9c3; color:#ca8a04;',
-            'Pending': 'background:#fef9c3; color:#ca8a04;',
-            'Running': 'background:#dbeafe; color:#1d4ed8;',
-            'Completed': 'background:#dcfce7; color:#16a34a;',
-            'Delayed': 'background:#ffedd5; color:#ea580c;',
-            'Cancelled': 'background:#fee2e2; color:#dc2626;'
+            'Not Scheduled': 'background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;',
+            'Scheduled': 'background:#dcfce7; color:#15803d; border:1px solid #bbf7d0;',
+            'Pending': 'background:#fef9c3; color:#a16207; border:1px solid #fef08a;',
+            'Running': 'background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe;',
+            'Completed': 'background:#dcfce7; color:#15803d; border:1px solid #bbf7d0;',
+            'Delayed': 'background:#ffedd5; color:#c2410c; border:1px solid #fed7aa;',
+            'Cancelled': 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;'
         };
 
         if (item.isBreak) {
             const icon = getBreakIcon(item.programName);
             return `
-                <tr class="sched-table-row is-break-row ${item.isLocked ? 'is-locked' : ''}" draggable="true" data-id="${item.id}" data-idx="${idx}" style="background:#fffbeb; border-left:4px solid #f59e0b;">
-                    <td style="text-align:center;">
-                        <input type="checkbox" class="sched-row-chk" data-id="${item.id}" ${isChecked ? 'checked' : ''} style="cursor:pointer;">
+                <tr class="sched-table-row is-break-row ${item.isLocked ? 'is-locked' : ''} ${item.isParallel ? 'is-parallel-row' : ''}" 
+                    draggable="${item.isLocked ? 'false' : 'true'}" 
+                    data-id="${item.id}" 
+                    data-idx="${idx}" 
+                    title="${item.isLocked ? '🔒 Locked Slot - Cannot be moved or reordered' : 'Drag to reorder slot'}"
+                    style="background:#ffffff; border-bottom:1px solid #f1f5f9; cursor:${item.isLocked ? 'not-allowed' : 'grab'};">
+                    <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle;">
+                        <input type="checkbox" class="sched-row-chk" data-id="${item.id}" ${isChecked ? 'checked' : ''} style="cursor:pointer; width:15px; height:15px;">
                     </td>
-                    <td style="text-align:center; font-weight:800; color:#b45309;">
+                    <td style="text-align:center; font-weight:800; color:#2563eb; padding:0.65rem 0.5rem; vertical-align:middle; font-size:0.9rem;">
                         ${idx + 1}
                     </td>
-                    <td style="font-weight:700; color:#92400e;">
-                        <div style="display:flex; align-items:center; gap:0.5rem;">
-                            <span style="font-size:1.1rem;">${icon}</span>
-                            <div>
-                                ${item.isLocked ? '<span title="Locked Slot" style="margin-right:4px;">🔒</span>' : ''}
-                                <span style="font-weight:800; font-size:0.95rem; color:#78350f;">${window.escapeHTML(item.programName)}</span>
-                                <span style="margin-left:6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.7rem; text-transform:uppercase;">BREAK</span>
-                            </div>
+                    <td style="padding:0.65rem 0.75rem; vertical-align:middle; font-weight:800; color:#0f172a; font-size:0.9rem;">
+                        <div style="display:inline-flex; align-items:center; gap:0.4rem;">
+                            <span style="font-size:1.05rem; color:#2563eb;">${icon}</span>
+                            ${item.isLocked ? '<span title="Locked Slot">🔒</span>' : ''}
+                            <span>${window.escapeHTML(item.programName)}</span>
                         </div>
                     </td>
-                    <td>
-                        <input type="number" class="sched-tbl-input row-duration-in" data-id="${item.id}" value="${item.duration}" style="width:75px; border-color:#fde68a; background:#ffffff;" min="1"> mins
+                    <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle;">
+                        <span style="background:#ffedd5; color:#c2410c; padding:3px 10px; border-radius:6px; font-weight:800; font-size:0.75rem; text-transform:uppercase; display:inline-block;">BREAK</span>
                     </td>
-                    <td style="font-weight:700; color:#b45309;">
+                    <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap;">
+                        <label style="display:inline-flex; flex-direction:column; align-items:center; cursor:pointer; margin:0;">
+                            <input type="checkbox" class="row-parallel-chk" data-id="${item.id}" ${item.isParallel ? 'checked' : ''} ${idx === 0 ? 'disabled title="First item cannot be set to Same Time"' : ''} style="display:none;">
+                            ${item.isParallel ? `
+                                <span style="background:#e0e7ff; color:#4338ca; padding:2px 8px; border-radius:6px; font-size:0.75rem; font-weight:800;">Same Time</span>
+                                <span style="font-size:0.75rem; font-weight:700; color:#475569; margin-top:2px;">${item.parallelGroupId || 'Group A'}</span>
+                            ` : `
+                                <span style="color:#64748b; font-weight:700; font-size:0.85rem;">—</span>
+                                <span style="font-size:0.75rem; color:#64748b; font-weight:600;">(Break)</span>
+                            `}
+                        </label>
+                    </td>
+                    <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap; font-weight:800; color:#0f172a; font-size:0.875rem;">
+                        <input type="number" class="sched-tbl-input row-duration-in" data-id="${item.id}" value="${item.duration}" style="width:45px; border:none; background:transparent; padding:0; font-weight:800; text-align:center; font-size:0.875rem;" min="1"> min
+                    </td>
+                    <td style="text-align:center; font-weight:800; color:#0f172a; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap; font-size:0.875rem;">
                         ${formatTimeTo12Hour(item.startTime || '09:00')}
                     </td>
-                    <td style="font-weight:700; color:#b45309;">
+                    <td style="text-align:center; font-weight:800; color:#0f172a; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap; font-size:0.875rem;">
                         ${formatTimeTo12Hour(item.endTime || '09:20')}
                     </td>
-                    <td>
-                        <select class="sched-tbl-select row-status-sel" data-id="${item.id}" style="${statusColors[item.status] || ''}">
+                    <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle;">
+                        <select class="sched-tbl-select row-status-sel" data-id="${item.id}" style="${statusColors[item.status] || ''} border-radius:20px; padding:4px 10px; font-size:0.775rem; font-weight:800; cursor:pointer; outline:none;">
                             <option value="Pending" ${item.status === 'Pending' || item.status === 'Not Scheduled' ? 'selected' : ''}>🟡 Pending</option>
-                            <option value="Scheduled" ${item.status === 'Scheduled' ? 'selected' : ''}>🟡 Scheduled</option>
+                            <option value="Scheduled" ${item.status === 'Scheduled' ? 'selected' : ''}>🟢 Scheduled</option>
                             <option value="Running" ${item.status === 'Running' ? 'selected' : ''}>🔵 Running</option>
                             <option value="Completed" ${item.status === 'Completed' ? 'selected' : ''}>🟢 Completed</option>
                             <option value="Delayed" ${item.status === 'Delayed' ? 'selected' : ''}>🟠 Delayed</option>
                             <option value="Cancelled" ${item.status === 'Cancelled' ? 'selected' : ''}>🔴 Cancelled</option>
                         </select>
                     </td>
-                    <td style="text-align:right;">
-                        <div class="sched-row-actions">
-                            <button class="btn-tbl-act btn-move-up" data-id="${item.id}" data-idx="${idx}" title="Move Up">⬆️</button>
-                            <button class="btn-tbl-act btn-move-down" data-id="${item.id}" data-idx="${idx}" title="Move Down">⬇️</button>
-                            <button class="btn-tbl-act btn-toggle-lock" data-id="${item.id}" title="${item.isLocked ? 'Unlock Time' : 'Lock Time'}">${item.isLocked ? '🔒' : '🔓'}</button>
-                            <button class="btn-tbl-act btn-dup-row" data-id="${item.id}" title="Duplicate Slot">📋</button>
-                            <button class="btn-tbl-act btn-del-row text-danger" data-id="${item.id}" title="Delete Slot">🗑️</button>
+                    <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap;">
+                        <div style="display:inline-flex; align-items:center; gap:0.6rem; justify-content:center;">
+                            <button class="btn-tbl-act btn-toggle-lock" data-id="${item.id}" title="${item.isLocked ? 'Unlock Slot (Allows moving)' : 'Lock Slot (Prevents moving)'}" style="background:none; border:none; cursor:pointer; font-size:1.05rem; opacity:${item.isLocked ? '1' : '0.65'};">${item.isLocked ? '🔒' : '🔓'}</button>
+                            <button class="btn-tbl-act btn-del-row text-danger" data-id="${item.id}" title="Delete Slot" style="background:none; border:none; cursor:pointer; font-size:1.05rem; color:#ef4444;">🗑️</button>
                         </div>
                     </td>
                 </tr>
             `;
         }
 
+        const catNameUpper = (item.categoryName || 'GENERAL').toUpperCase();
+        const catBadgeBg = catNameUpper.includes('SUB') ? 'background:#dbeafe; color:#1d4ed8;' : (catNameUpper === 'GENERAL' ? 'background:#dcfce7; color:#15803d;' : 'background:#e0e7ff; color:#3730a3;');
+
         return `
-            <tr class="sched-table-row ${item.isLocked ? 'is-locked' : ''}" draggable="true" data-id="${item.id}" data-idx="${idx}">
-                <td style="text-align:center;">
-                    <input type="checkbox" class="sched-row-chk" data-id="${item.id}" ${isChecked ? 'checked' : ''} style="cursor:pointer;">
+            <tr class="sched-table-row ${item.isLocked ? 'is-locked' : ''} ${item.isParallel ? 'is-parallel-row' : ''}" 
+                draggable="${item.isLocked ? 'false' : 'true'}" 
+                data-id="${item.id}" 
+                data-idx="${idx}" 
+                title="${item.isLocked ? '🔒 Locked Slot - Cannot be moved or dragged' : 'Drag to reorder slot'}"
+                style="background:#ffffff; border-bottom:1px solid #f1f5f9; cursor:${item.isLocked ? 'not-allowed' : 'grab'};">
+                <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle;">
+                    <input type="checkbox" class="sched-row-chk" data-id="${item.id}" ${isChecked ? 'checked' : ''} style="cursor:pointer; width:15px; height:15px;">
                 </td>
-                <td style="text-align:center; font-weight:800; color:#4338ca;">
+                <td style="text-align:center; font-weight:800; color:#2563eb; padding:0.65rem 0.5rem; vertical-align:middle; font-size:0.9rem;">
                     ${idx + 1}
                 </td>
-                <td style="font-weight:700; color:#0f172a;">
-                    <div style="display:flex; flex-direction:column; align-items:flex-start; gap:0.25rem;">
-                        <div style="line-height:1.2;">
-                            ${item.isLocked ? '<span title="Locked Slot" style="margin-right:4px;">🔒</span>' : ''}
-                            ${item.programNumber ? `<span style="color:#64748b; font-weight:600;">[#${item.programNumber}]</span> ` : ''}${window.escapeHTML(item.programName)}
-                        </div>
-                        <div style="margin-top:2px;">
-                            <span class="sched-cat-badge">${window.escapeHTML(item.categoryName || 'Uncategorized')}</span>
-                        </div>
-                    </div>
+                <td style="padding:0.65rem 0.75rem; vertical-align:middle; font-weight:800; color:#0f172a; font-size:0.9rem;">
+                    ${item.isLocked ? '<span title="Locked Slot" style="margin-right:4px;">🔒</span>' : ''}
+                    ${item.programNumber ? `<span style="color:#64748b; font-weight:700; margin-right:4px;">[#${item.programNumber}]</span>` : ''}<span>${window.escapeHTML(item.programName)}</span>
                 </td>
-                <td>
-                    <input type="number" class="sched-tbl-input row-duration-in" data-id="${item.id}" value="${item.duration}" style="width:75px;" min="1"> mins
+                <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle;">
+                    <span class="sched-cat-badge" style="${catBadgeBg} padding:3px 10px; border-radius:6px; font-weight:800; font-size:0.75rem; text-transform:uppercase; display:inline-block;">${window.escapeHTML(catNameUpper)}</span>
                 </td>
-                <td style="font-weight:700; color:#312e81;">
+                <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap;">
+                    <label style="display:inline-flex; flex-direction:column; align-items:center; cursor:pointer; margin:0;">
+                        <input type="checkbox" class="row-parallel-chk" data-id="${item.id}" ${item.isParallel ? 'checked' : ''} ${idx === 0 ? 'disabled title="First item cannot be set to Same Time"' : ''} style="display:none;">
+                        ${item.isParallel ? `
+                            <span style="background:#e0e7ff; color:#4338ca; padding:2px 8px; border-radius:6px; font-size:0.75rem; font-weight:800;">Same Time</span>
+                            <span style="font-size:0.75rem; font-weight:700; color:#475569; margin-top:2px;">${item.parallelGroupId || 'Group A'}</span>
+                        ` : `
+                            <span style="color:#64748b; font-weight:700; font-size:0.85rem;">—</span>
+                            <span style="font-size:0.75rem; color:#64748b; font-weight:600;">(Solo)</span>
+                        `}
+                    </label>
+                </td>
+                <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap; font-weight:800; color:#0f172a; font-size:0.875rem;">
+                    <input type="number" class="sched-tbl-input row-duration-in" data-id="${item.id}" value="${item.duration}" style="width:45px; border:none; background:transparent; padding:0; font-weight:800; text-align:center; font-size:0.875rem;" min="1"> min
+                </td>
+                <td style="text-align:center; font-weight:800; color:#0f172a; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap; font-size:0.875rem;">
                     ${formatTimeTo12Hour(item.startTime || '09:00')}
                 </td>
-                <td style="font-weight:700; color:#312e81;">
+                <td style="text-align:center; font-weight:800; color:#0f172a; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap; font-size:0.875rem;">
                     ${formatTimeTo12Hour(item.endTime || '09:20')}
                 </td>
-                <td>
-                    <select class="sched-tbl-select row-status-sel" data-id="${item.id}" style="${statusColors[item.status] || ''}">
+                <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle;">
+                    <select class="sched-tbl-select row-status-sel" data-id="${item.id}" style="${statusColors[item.status] || ''} border-radius:20px; padding:4px 10px; font-size:0.775rem; font-weight:800; cursor:pointer; outline:none;">
                         <option value="Pending" ${item.status === 'Pending' || item.status === 'Not Scheduled' ? 'selected' : ''}>🟡 Pending</option>
-                        <option value="Scheduled" ${item.status === 'Scheduled' ? 'selected' : ''}>🟡 Scheduled</option>
+                        <option value="Scheduled" ${item.status === 'Scheduled' ? 'selected' : ''}>🟢 Scheduled</option>
                         <option value="Running" ${item.status === 'Running' ? 'selected' : ''}>🔵 Running</option>
                         <option value="Completed" ${item.status === 'Completed' ? 'selected' : ''}>🟢 Completed</option>
                         <option value="Delayed" ${item.status === 'Delayed' ? 'selected' : ''}>🟠 Delayed</option>
                         <option value="Cancelled" ${item.status === 'Cancelled' ? 'selected' : ''}>🔴 Cancelled</option>
                     </select>
                 </td>
-                <td style="text-align:right;">
-                    <div class="sched-row-actions">
-                        <button class="btn-tbl-act btn-move-up" data-id="${item.id}" data-idx="${idx}" title="Move Up">⬆️</button>
-                        <button class="btn-tbl-act btn-move-down" data-id="${item.id}" data-idx="${idx}" title="Move Down">⬇️</button>
-                        <button class="btn-tbl-act btn-toggle-lock" data-id="${item.id}" title="${item.isLocked ? 'Unlock Time' : 'Lock Time'}">${item.isLocked ? '🔒' : '🔓'}</button>
-                        <button class="btn-tbl-act btn-dup-row" data-id="${item.id}" title="Duplicate Slot">📋</button>
-                        <button class="btn-tbl-act btn-del-row text-danger" data-id="${item.id}" title="Delete Slot">🗑️</button>
+                <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap;">
+                    <div style="display:inline-flex; align-items:center; gap:0.6rem; justify-content:center;">
+                        <button class="btn-tbl-act btn-toggle-lock" data-id="${item.id}" title="${item.isLocked ? 'Unlock Slot (Allows moving)' : 'Lock Slot (Prevents moving)'}" style="background:none; border:none; cursor:pointer; font-size:1.05rem; opacity:${item.isLocked ? '1' : '0.65'};">${item.isLocked ? '🔒' : '🔓'}</button>
+                        <button class="btn-tbl-act btn-del-row text-danger" data-id="${item.id}" title="Delete Slot" style="background:none; border:none; cursor:pointer; font-size:1.05rem; color:#ef4444;">🗑️</button>
                     </div>
                 </td>
             </tr>
@@ -1665,6 +1842,24 @@ function attachTableEvents(tbody, activeItems) {
             if (e.target.checked) selectedScheduleIds.add(id);
             else selectedScheduleIds.delete(id);
             updateBulkBar();
+        };
+    });
+
+    tbody.querySelectorAll('.row-parallel-chk').forEach(chk => {
+        chk.onchange = async (e) => {
+            const id = e.target.dataset.id;
+            const isChecked = e.target.checked;
+
+            await updateDoc(doc(db, "institutes", window.currentInstituteId, "schedules", id), {
+                isParallel: isChecked,
+                updatedAt: serverTimestamp()
+            });
+
+            const item = activeItems.find(x => x.id === id);
+            if (item) item.isParallel = isChecked;
+
+            await triggerTimeCascade(activeItems, true);
+            refreshScheduleTable();
         };
     });
 
@@ -1692,43 +1887,68 @@ function attachTableEvents(tbody, activeItems) {
         };
     });
 
-    tbody.querySelectorAll('.btn-move-up').forEach(btn => {
-        btn.onclick = () => moveRowOrder(activeItems, parseInt(btn.dataset.idx, 10), -1);
-    });
-    tbody.querySelectorAll('.btn-move-down').forEach(btn => {
-        btn.onclick = () => moveRowOrder(activeItems, parseInt(btn.dataset.idx, 10), 1);
-    });
     tbody.querySelectorAll('.btn-toggle-lock').forEach(btn => {
         btn.onclick = async () => {
             const id = btn.dataset.id;
             const item = activeItems.find(x => x.id === id);
             if (item) {
+                const newLockState = !item.isLocked;
                 await updateDoc(doc(db, "institutes", window.currentInstituteId, "schedules", id), {
-                    isLocked: !item.isLocked, updatedAt: serverTimestamp()
+                    isLocked: newLockState, updatedAt: serverTimestamp()
                 });
+                item.isLocked = newLockState;
+                window.showToast(newLockState ? '🔒 Slot locked (movement disabled)' : '🔓 Slot unlocked (movement enabled)');
+                refreshScheduleTable();
             }
         };
-    });
-    tbody.querySelectorAll('.btn-dup-row').forEach(btn => {
-        btn.onclick = () => duplicateRowSlot(btn.dataset.id);
     });
     tbody.querySelectorAll('.btn-del-row').forEach(btn => {
         btn.onclick = () => deleteRowSlot(btn.dataset.id);
     });
 
-    // Table Drag and Drop
+    // Table Drag and Drop (Enforces Lock Behavior)
     let dragSrcIdx = null;
     tbody.querySelectorAll('.sched-table-row').forEach(row => {
         row.addEventListener('dragstart', (e) => {
+            const id = row.dataset.id;
+            const item = activeItems.find(x => x.id === id);
+            if (item && item.isLocked) {
+                e.preventDefault();
+                window.showToast('🔒 Locked schedule items cannot be moved', 'warning');
+                return false;
+            }
             dragSrcIdx = parseInt(row.dataset.idx, 10);
             row.classList.add('dragging');
             e.dataTransfer.setData('text/plain', dragSrcIdx);
         });
+
         row.addEventListener('dragend', () => row.classList.remove('dragging'));
-        row.addEventListener('dragover', (e) => e.preventDefault());
+
+        row.addEventListener('dragover', (e) => {
+            const id = row.dataset.id;
+            const item = activeItems.find(x => x.id === id);
+            if (item && item.isLocked) {
+                e.dataTransfer.dropEffect = 'none';
+            } else {
+                e.preventDefault();
+            }
+        });
+
         row.addEventListener('drop', (e) => {
             e.preventDefault();
             const targetIdx = parseInt(row.dataset.idx, 10);
+            const targetItem = activeItems[targetIdx];
+            const srcItem = dragSrcIdx !== null ? activeItems[dragSrcIdx] : null;
+
+            if (srcItem && srcItem.isLocked) {
+                window.showToast('🔒 Cannot move locked schedule slot', 'warning');
+                return;
+            }
+            if (targetItem && targetItem.isLocked) {
+                window.showToast('🔒 Target position is locked', 'warning');
+                return;
+            }
+
             if (dragSrcIdx !== null && dragSrcIdx !== targetIdx) {
                 reorderRowsByIndex(activeItems, dragSrcIdx, targetIdx);
             }
@@ -1746,6 +1966,13 @@ async function moveRowOrder(items, currentIdx, direction) {
 }
 
 async function reorderRowsByIndex(items, fromIdx, toIdx) {
+    const srcItem = items[fromIdx];
+    const targetItem = items[toIdx];
+    if ((srcItem && srcItem.isLocked) || (targetItem && targetItem.isLocked)) {
+        window.showToast('🔒 Locked schedule slots cannot be reordered', 'warning');
+        return;
+    }
+
     const itemToMove = items.splice(fromIdx, 1)[0];
     items.splice(toIdx, 0, itemToMove);
 
@@ -1787,6 +2014,10 @@ function openAddBreakModal() {
                 <label class="form-label">Duration (Minutes) *</label>
                 <input type="number" id="selBreakDur" class="form-input" value="${stageConfigs[activeStage]?.defaultDuration || 20}" min="1" required>
             </div>
+            <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+                <input type="checkbox" id="chkBreakIsParallel" style="width:18px; height:18px; cursor:pointer;">
+                <label for="chkBreakIsParallel" style="font-weight:700; font-size:0.875rem; color:#334155; cursor:pointer;">⚡ Run at Same Time (starts together with previous program)</label>
+            </div>
             <div class="modal-actions" style="margin-top:1.25rem;">
                 <button type="submit" class="btn btn-primary w-full" id="btnSaveBreakSlot">Save Break Slot</button>
             </div>
@@ -1819,6 +2050,7 @@ function openAddBreakModal() {
         const customVal = customInput.value.trim();
         const breakTitle = (selectVal === 'Other') ? (customVal || 'Break') : selectVal;
         const duration = parseInt(document.getElementById('selBreakDur').value, 10) || 20;
+        const isParallel = !!document.getElementById('chkBreakIsParallel')?.checked;
 
         const btn = document.getElementById('btnSaveBreakSlot');
         btn.disabled = true;
@@ -1836,6 +2068,7 @@ function openAddBreakModal() {
                 stage: activeStage,
                 scheduleDate: stageConfigs[activeStage]?.date || new Date().toISOString().split('T')[0],
                 duration: duration,
+                isParallel: isParallel,
                 runningOrder: activeItems.length + 1,
                 status: 'Scheduled',
                 isOffStage: isOff,
@@ -1980,9 +2213,15 @@ async function openAddProgramRowModal() {
 
             <!-- Bottom Action Controls -->
             <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; background:#f8fafc; padding:12px 16px; border-radius:12px; border:1px solid #cbd5e1; flex-wrap:wrap; margin-top:4px;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <label style="font-weight:700; font-size:0.85rem; color:#334155; white-space:nowrap;">Duration (Mins):</label>
-                    <input type="number" id="selProgDur" class="form-input" value="${stageConfigs[activeStage]?.defaultDuration || 20}" min="1" style="width:90px; height:38px; font-weight:700;" required>
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <label style="font-weight:700; font-size:0.85rem; color:#334155; white-space:nowrap;">Duration (Mins):</label>
+                        <input type="number" id="selProgDur" class="form-input" value="${stageConfigs[activeStage]?.defaultDuration || 20}" min="1" style="width:90px; height:38px; font-weight:700;" required>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" id="chkAddProgIsParallel" style="width:18px; height:18px; cursor:pointer;">
+                        <label for="chkAddProgIsParallel" style="font-weight:700; font-size:0.85rem; color:#334155; cursor:pointer;">⚡ Run at Same Time</label>
+                    </div>
                 </div>
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                     <span id="selectedProgNotice" style="font-size:0.85rem; font-weight:700; color:#4338ca;">No program selected</span>
@@ -2166,6 +2405,7 @@ async function openAddProgramRowModal() {
         }
 
         const dur = parseInt(document.getElementById('selProgDur').value, 10) || 20;
+        const isParallel = !!document.getElementById('chkAddProgIsParallel')?.checked;
         const prog = sortedPrograms.find(p => p.id === progId);
         if (!prog) return;
 
@@ -2182,6 +2422,7 @@ async function openAddProgramRowModal() {
                 stage: activeStage,
                 scheduleDate: stageConfigs[activeStage]?.date || new Date().toISOString().split('T')[0],
                 duration: dur,
+                isParallel: isParallel,
                 runningOrder: activeItems.length + 1,
                 status: 'Pending',
                 isOffStage: isOff,
@@ -2232,6 +2473,9 @@ async function duplicateRowSlot(id) {
         stage: activeStage,
         scheduleDate: item.scheduleDate,
         duration: item.duration,
+        isParallel: !!item.isParallel,
+        parallelGroupId: item.parallelGroupId || null,
+        isLocked: !!item.isLocked,
         runningOrder: activeItems.length + 1,
         status: 'Pending',
         isOffStage: item.isOffStage,
@@ -2365,12 +2609,13 @@ function shareActiveStageWhatsApp() {
     msg += `📅 Date: ${stageConfigs[activeStage]?.date || 'N/A'}\n\n`;
 
     activeItems.forEach((item, idx) => {
+        const parallelTag = item.isParallel ? ` [⚡ SAME TIME${item.parallelGroupId ? ` - ${item.parallelGroupId}` : ''}]` : ``;
         if (item.isBreak) {
             const icon = getBreakIcon(item.programName);
-            msg += `*${idx + 1}. ${icon} ${item.programName} [BREAK]*\n`;
+            msg += `*${idx + 1}. ${icon} ${item.programName} [BREAK]${parallelTag}*\n`;
             msg += `   ⏱️ ${formatTimeTo12Hour(item.startTime || 'TBD')} - ${formatTimeTo12Hour(item.endTime || 'TBD')} (${item.duration}m) | Status: ${item.status}\n\n`;
         } else {
-            msg += `*${idx + 1}. ${item.programNumber ? `[#${item.programNumber}] ` : ''}${item.programName}*\n`;
+            msg += `*${idx + 1}. ${item.programNumber ? `[#${item.programNumber}] ` : ''}${item.programName}${parallelTag}*\n`;
             msg += `   🏷️ Category: ${item.categoryName || 'Uncategorized'}\n`;
             msg += `   ⏱️ ${formatTimeTo12Hour(item.startTime || 'TBD')} - ${formatTimeTo12Hour(item.endTime || 'TBD')} (${item.duration}m) | Status: ${item.status}\n\n`;
         }
@@ -2406,8 +2651,8 @@ function printActiveStage() {
                             </div>
                         </td>
                         <td style="text-align:center; color:#b45309; font-weight:600; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${item.duration} mins</td>
-                        <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#b45309; font-size:12px;">${item.startTime || '—'}</td>
-                        <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#b45309; font-size:12px;">${item.endTime || '—'}</td>
+                        <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#b45309; font-size:12px;">${formatTimeTo12Hour(item.startTime) || '—'}</td>
+                        <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#b45309; font-size:12px;">${formatTimeTo12Hour(item.endTime) || '—'}</td>
                     </tr>
                 `;
             }
@@ -2424,8 +2669,8 @@ function printActiveStage() {
                         </div>
                     </td>
                     <td style="text-align:center; color:#334155; font-weight:600; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${item.duration} mins</td>
-                    <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${item.startTime || '—'}</td>
-                    <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${item.endTime || '—'}</td>
+                    <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${formatTimeTo12Hour(item.startTime) || '—'}</td>
+                    <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${formatTimeTo12Hour(item.endTime) || '—'}</td>
                 </tr>
             `;
         }).join('');
