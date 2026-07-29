@@ -806,7 +806,8 @@ async function loadStaticData(force = false) {
                 programNumber: p.programNumber || '',
                 programType: pType,
                 type: regType === 'group' ? 'Group' : 'Individual',
-                genderCategory: p.genderCategory || 'Mixed',
+                genderCategory: p.genderCategory || p.gender || 'Mixed',
+                gender: p.gender || p.genderCategory || 'Mixed',
                 programLocation: p.programLocation || p.location || 'Stage',
                 categoryId: p.categoryId || '',
                 categoryName: p.categoryName || p.categoryId || 'General',
@@ -2673,6 +2674,112 @@ function getProgramExportLabel(p) {
     return `${numStr}${p.programName} (${typeLabel} • ${locLabel})`;
 }
 
+function getProgramGenderDisplay(p) {
+    const raw = (p.genderCategory || p.gender || '').toString().trim();
+    const lower = raw.toLowerCase();
+    if (lower === 'boys') return 'Boys';
+    if (lower === 'girls') return 'Girls';
+    return 'General';
+}
+
+function getCategoryMinClassSortInfo(catName) {
+    const isGeneral = (catName || '').trim().toUpperCase() === 'GENERAL';
+    if (isGeneral) {
+        return { isGeneral: true, minNum: -Infinity, maxNum: -Infinity, minName: '', maxName: '', catIndex: -1 };
+    }
+
+    const catIndex = allCategories.findIndex(c => 
+        (c.name || '').trim().toLowerCase() === (catName || '').trim().toLowerCase() || c.id === catName
+    );
+    const cat = catIndex !== -1 ? allCategories[catIndex] : null;
+
+    if (!cat || !Array.isArray(cat.classes) || cat.classes.length === 0) {
+        return { isGeneral: false, minNum: Infinity, maxNum: Infinity, minName: catName, maxName: catName, catIndex: catIndex !== -1 ? catIndex : Infinity };
+    }
+
+    let minNum = Infinity;
+    let maxNum = -Infinity;
+    let minName = '';
+    let maxName = '';
+
+    cat.classes.forEach(cls => {
+        const name = (typeof cls === 'string' ? cls : (cls.name || cls.id || '')).trim();
+        let num = Infinity;
+        const match = name.match(/\d+/);
+        if (match) {
+            num = parseInt(match[0], 10);
+        } else {
+            const lower = name.toLowerCase();
+            if (lower.includes('lkg')) num = -2;
+            else if (lower.includes('ukg')) num = -1;
+            else if (lower.includes('kg') || lower.includes('nursery') || lower.includes('play')) num = -3;
+        }
+
+        if (num < minNum) {
+            minNum = num;
+            minName = name;
+        }
+        if (num > maxNum) {
+            maxNum = num;
+            maxName = name;
+        }
+    });
+
+    if (minNum === Infinity) {
+        const sortedNames = cat.classes
+            .map(cls => typeof cls === 'string' ? cls : (cls.name || cls.id || ''))
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        minName = sortedNames[0] || '';
+        maxName = sortedNames[sortedNames.length - 1] || '';
+    }
+
+    return {
+        isGeneral: false,
+        minNum,
+        maxNum,
+        minName,
+        maxName,
+        catIndex: catIndex !== -1 ? catIndex : Infinity
+    };
+}
+
+function compareCategoriesByMinClass(catNameA, catNameB) {
+    const infoA = getCategoryMinClassSortInfo(catNameA);
+    const infoB = getCategoryMinClassSortInfo(catNameB);
+
+    if (infoA.isGeneral) return -1;
+    if (infoB.isGeneral) return 1;
+
+    // 1. Sort by minimum class
+    if (infoA.minNum !== infoB.minNum) {
+        return infoA.minNum - infoB.minNum;
+    }
+    if (infoA.minNum === Infinity && infoB.minNum === Infinity) {
+        if (infoA.minName !== infoB.minName) {
+            const cmp = infoA.minName.localeCompare(infoB.minName, undefined, { numeric: true, sensitivity: 'base' });
+            if (cmp !== 0) return cmp;
+        }
+    }
+
+    // 2. Tie breaker: Sort by maximum class in ascending order
+    if (infoA.maxNum !== infoB.maxNum) {
+        return infoA.maxNum - infoB.maxNum;
+    }
+    if (infoA.maxNum === -Infinity && infoB.maxNum === -Infinity) {
+        if (infoA.maxName !== infoB.maxName) {
+            const cmp = infoA.maxName.localeCompare(infoB.maxName, undefined, { numeric: true, sensitivity: 'base' });
+            if (cmp !== 0) return cmp;
+        }
+    }
+
+    // 3. Final tie breaker: Preserve category creation order (catIndex in allCategories)
+    if (infoA.catIndex !== infoB.catIndex) {
+        return infoA.catIndex - infoB.catIndex;
+    }
+
+    return catNameA.localeCompare(catNameB, undefined, { sensitivity: 'base' });
+}
+
 // Dynamic script loader for html2pdf
 async function loadHtml2Pdf() {
     if (window.html2pdf) return window.html2pdf;
@@ -4285,10 +4392,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 categoryGroups[catName].push(p);
             });
 
-            // Sort Category names alphabetically
-            const sortedCatNames = Object.keys(categoryGroups).sort((a, b) =>
-                a.localeCompare(b, undefined, { sensitivity: 'base' })
-            );
+            // Sort Category sections: General first, then by minimum assigned class/standard
+            const sortedCatNames = Object.keys(categoryGroups).sort(compareCategoriesByMinClass);
 
             // Sort programs inside each category: Stage programs first, then Off Stage programs (sorted using existing program order)
             sortedCatNames.forEach(catName => {
@@ -4359,6 +4464,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                             <th style="width: 45px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">#</th>
                                             <th style="width: 130px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">PROGRAM NO</th>
                                             <th style="padding: 0.45rem 0.75rem; text-align: left; border: 1px solid #000; font-weight: 800;">PROGRAM NAME</th>
+                                            <th style="width: 100px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">GENDER</th>
                                             <th style="width: 140px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">STAGE / OFF STAGE</th>
                                         </tr>
                                     </thead>
@@ -4368,6 +4474,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                 <td style="text-align: center; font-weight: 700; padding: 0.4rem 0.5rem; border: 1px solid #000;">${idx + 1}</td>
                                                 <td style="text-align: center; font-weight: 800; padding: 0.4rem 0.5rem; border: 1px solid #000; color: #1e1b4b;">${window.escapeHTML(p.programNumber || '—')}</td>
                                                 <td style="padding: 0.4rem 0.75rem; font-weight: 700; border: 1px solid #000;">${window.escapeHTML(p.programName)}</td>
+                                                <td style="text-align: center; font-weight: 700; padding: 0.4rem 0.5rem; border: 1px solid #000;">${window.escapeHTML(getProgramGenderDisplay(p))}</td>
                                                 <td style="text-align: center; font-weight: 700; padding: 0.4rem 0.5rem; border: 1px solid #000;">
                                                     ${window.escapeHTML(p.programLocation || 'Stage')}
                                                 </td>
@@ -7363,7 +7470,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
     } else if (f.type === 'Program Participation Register') {
         if (f.progRegSubmode === 'list') {
             let csvContent = "\uFEFF";
-            csvContent += "CATEGORY,PROGRAM NUMBER,PROGRAM NAME,STAGE / OFF STAGE\n";
+            csvContent += "CATEGORY,PROGRAM NUMBER,PROGRAM NAME,GENDER,STAGE / OFF STAGE\n";
 
             const categoryGroups = {};
             programs.forEach(p => {
@@ -7381,9 +7488,8 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 categoryGroups[catName].push(p);
             });
 
-            const sortedCatNames = Object.keys(categoryGroups).sort((a, b) =>
-                a.localeCompare(b, undefined, { sensitivity: 'base' })
-            );
+            // Sort Category sections: General first, then by minimum assigned class/standard
+            const sortedCatNames = Object.keys(categoryGroups).sort(compareCategoriesByMinClass);
 
             sortedCatNames.forEach(catName => {
                 categoryGroups[catName].sort((a, b) => {
@@ -7410,8 +7516,9 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     const catEsc = `"${catName.replace(/"/g, '""')}"`;
                     const numEsc = `"${String(p.programNumber ?? '').replace(/"/g, '""')}"`;
                     const nameEsc = `"${(p.programName || '').replace(/"/g, '""')}"`;
+                    const genEsc = `"${getProgramGenderDisplay(p).replace(/"/g, '""')}"`;
                     const locEsc = `"${(p.programLocation || 'Stage').replace(/"/g, '""')}"`;
-                    csvContent += `${catEsc},${numEsc},${nameEsc},${locEsc}\n`;
+                    csvContent += `${catEsc},${numEsc},${nameEsc},${genEsc},${locEsc}\n`;
                 });
             });
 

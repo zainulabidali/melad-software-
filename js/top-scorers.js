@@ -40,6 +40,14 @@ export async function initTopScorersView(container, topActions) {
     allTeams = [];
     studentLookupMap.clear();
     computedScorers = [];
+    filters = {
+        search: '',
+        categoryId: '',
+        teamId: '',
+        gender: '',
+        stage: '',
+        status: ''
+    };
 
     topActions.innerHTML = `
         <button class="btn btn-secondary" id="btnBackToResults" style="font-weight:600;">← Back to Results</button>
@@ -318,17 +326,26 @@ function recalculateScorers(publishedResults) {
 
     computedScorers = [...scorersMap.values()];
 
-    // Run summary card calculations
-    calculateFestContenders();
-    
     // Trigger render main grid
     renderContendersList();
 }
 
 // ─────────────────────────────────────────────
+// Gender Normalization Helper
+// ─────────────────────────────────────────────
+function normalizeGender(g) {
+    if (!g) return '';
+    const str = String(g).trim().toLowerCase();
+    if (str === 'boys' || str === 'boy' || str === 'male' || str === 'm') return 'boys';
+    if (str === 'girls' || str === 'girl' || str === 'female' || str === 'f') return 'girls';
+    if (str === 'mixed' || str === 'general' || str === 'common') return 'mixed';
+    return str;
+}
+
+// ─────────────────────────────────────────────
 // Summary Cards & Ties Handling
 // ─────────────────────────────────────────────
-function calculateFestContenders() {
+function calculateFestContenders(scorers = computedScorers) {
     const cardVocal = document.getElementById('cardVocalBody');
     const cardPen = document.getElementById('cardPenBody');
     const cardTotalPart = document.getElementById('cardTotalPart');
@@ -336,25 +353,25 @@ function calculateFestContenders() {
 
     if (!cardVocal || !cardPen) return;
 
-    // 1. Total Scouring Participants Count
-    const scoringCount = computedScorers.filter(x => x.totalPoints > 0).length;
-    cardTotalPart.textContent = scoringCount;
+    // 1. Total Scoring Participants Count
+    const scoringCount = scorers.filter(x => x.totalPoints > 0).length;
+    if (cardTotalPart) cardTotalPart.textContent = scoringCount;
 
     // 2. Highest Score
     let highScore = 0;
-    computedScorers.forEach(x => {
+    scorers.forEach(x => {
         if (x.totalPoints > highScore) highScore = x.totalPoints;
     });
-    cardHighScore.textContent = `${highScore} pts`;
+    if (cardHighScore) cardHighScore.textContent = `${highScore} pts`;
 
     // 3. Vocal of the Fest (Stage Only)
     let maxStagePoints = 0;
-    computedScorers.forEach(x => {
+    scorers.forEach(x => {
         if (x.stagePoints > maxStagePoints) maxStagePoints = x.stagePoints;
     });
 
     if (maxStagePoints > 0) {
-        const vocalWinners = computedScorers.filter(x => x.stagePoints === maxStagePoints);
+        const vocalWinners = scorers.filter(x => x.stagePoints === maxStagePoints);
         
         cardVocal.innerHTML = vocalWinners.map(w => `
             <div style="display:flex; flex-direction:column; border-bottom:1px solid #f1f5f9; padding-bottom:0.4rem; margin-bottom:0.4rem;">
@@ -373,12 +390,12 @@ function calculateFestContenders() {
 
     // 4. Pen of the Fest (Off Stage Only)
     let maxOffStagePoints = 0;
-    computedScorers.forEach(x => {
+    scorers.forEach(x => {
         if (x.offStagePoints > maxOffStagePoints) maxOffStagePoints = x.offStagePoints;
     });
 
     if (maxOffStagePoints > 0) {
-        const penWinners = computedScorers.filter(x => x.offStagePoints === maxOffStagePoints);
+        const penWinners = scorers.filter(x => x.offStagePoints === maxOffStagePoints);
         
         cardPen.innerHTML = penWinners.map(w => `
             <div style="display:flex; flex-direction:column; border-bottom:1px solid #f1f5f9; padding-bottom:0.4rem; margin-bottom:0.4rem;">
@@ -403,9 +420,10 @@ function renderContendersList() {
     const container = document.getElementById('tsTableContainer');
     if (!container) return;
 
-    // Apply active Search and Select filters
+    // Apply active Search and Select filters in specified order:
+    // 1. Search -> 2. Category -> 3. Gender -> 4. Stage -> 5. Team
     let filtered = computedScorers.filter(c => {
-        // Search
+        // 1. Search
         if (filters.search) {
             const query = filters.search.trim().toLowerCase();
             const chest = (c.chestNumber || '').toLowerCase();
@@ -413,21 +431,28 @@ function renderContendersList() {
             if (!chest.includes(query) && !name.includes(query)) return false;
         }
 
-        // Category
+        // 2. Category
         if (filters.categoryId && c.categoryId !== filters.categoryId) return false;
 
-        // Team
-        if (filters.teamId && c.teamId !== filters.teamId) return false;
+        // 3. Gender
+        if (filters.gender) {
+            const targetGender = normalizeGender(filters.gender);
+            const contestantGender = normalizeGender(c.gender);
+            if (contestantGender !== targetGender) return false;
+        }
 
-        // Gender
-        if (filters.gender && c.gender !== filters.gender) return false;
-
-        // Stage
+        // 4. Stage
         if (filters.stage === 'Stage' && c.stagePoints <= 0) return false;
         if (filters.stage === 'Off Stage' && c.offStagePoints <= 0) return false;
 
+        // 5. Team
+        if (filters.teamId && c.teamId !== filters.teamId) return false;
+
         return true;
     });
+
+    // Dynamically update card statistics for active filtered contenders
+    calculateFestContenders(filtered);
 
     if (filtered.length === 0) {
         container.innerHTML = `
