@@ -820,21 +820,7 @@ async function loadStaticData(force = false) {
         allTeams = await getCachedTeams(instId, force) || [];
 
         // Load configured dynamic award types
-        allAwardTypes = [
-            { id: "attendance", name: "Attendance" },
-            { id: "examination", name: "Examination" }
-        ];
-        try {
-            const configSnap = await getDoc(doc(db, "institutes", instId, "metadata", "awardTypesConfig"));
-            if (configSnap.exists()) {
-                const data = configSnap.data();
-                if (Array.isArray(data.awardTypes)) {
-                    allAwardTypes = data.awardTypes;
-                }
-            }
-        } catch (err) {
-            console.error("Error loading award types config:", err);
-        }
+        await refreshAwardTypesConfig();
 
     } catch (e) {
         console.error("Failed loading cached collections:", e);
@@ -1304,8 +1290,29 @@ function ensureExportDrawerExists() {
     return drawer;
 }
 
-function openExportDrawer() {
+async function refreshAwardTypesConfig() {
+    const instId = window.currentInstituteId;
+    if (!instId) return;
+    allAwardTypes = [
+        { id: "attendance", name: "Attendance" },
+        { id: "examination", name: "Examination" }
+    ];
+    try {
+        const configSnap = await getDoc(doc(db, "institutes", instId, "metadata", "awardTypesConfig"));
+        if (configSnap.exists()) {
+            const data = configSnap.data();
+            if (Array.isArray(data.awardTypes) && data.awardTypes.length > 0) {
+                allAwardTypes = data.awardTypes;
+            }
+        }
+    } catch (err) {
+        console.error("Error loading award types config:", err);
+    }
+}
+
+async function openExportDrawer() {
     loadTeamBackgrounds();
+    await refreshAwardTypesConfig();
     const drawer = ensureExportDrawerExists();
     renderDrawerContent();
 
@@ -1432,10 +1439,27 @@ function renderDrawerContent() {
                     <!-- Award Type filter (Only visible for Class Wise Academic & Attendance Results) -->
                     <div id="expAwardTypeContainer" style="display:none; flex-direction:column; gap:0.45rem;">
                         <label style="font-weight:700; color:#475569; font-size:0.78rem;">AWARD TYPE</label>
-                        <select id="expAwardTypeVal" class="exp-input" style="background:#fff;">
-                            <option value="All">All Awards</option>
-                            ${allAwardTypes.map(t => `<option value="${t.id}">${window.escapeHTML(t.name)}</option>`).join('')}
-                        </select>
+                        <div id="expAwardTypeMultiSelect" style="position:relative; width:100%;">
+                            <button type="button" id="expAwardTypeBtn" class="exp-input" style="background:#fff; text-align:left; display:flex; justify-content:space-between; align-items:center; cursor:pointer; width:100%; min-height:38px; padding:0.45rem 0.75rem; box-sizing:border-box;">
+                                <span id="expAwardTypeBtnText" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.85rem; font-weight:600; color:#1e1b4b;">All Awards</span>
+                                <span style="font-size:0.7rem; color:#64748b; margin-left:0.5rem;">▼</span>
+                            </button>
+                            <div id="expAwardTypeDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1050; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); margin-top:4px; max-height:260px; overflow-y:auto; padding:0.5rem; box-sizing:border-box;">
+                                <input type="text" id="expAwardTypeSearch" placeholder="Search Award Types..." style="width:100%; padding:0.35rem 0.5rem; font-size:0.82rem; border:1px solid #cbd5e1; border-radius:6px; margin-bottom:0.5rem; box-sizing:border-box;" />
+                                <div id="expAwardTypeList" style="display:flex; flex-direction:column; gap:0.25rem;">
+                                    <label class="exp-award-opt" style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; color:#1e1b4b; cursor:pointer; padding:0.3rem 0.4rem; border-radius:4px; transition:background 0.15s;">
+                                        <input type="checkbox" class="exp-award-chk" value="All" checked style="accent-color:#4f46e5; cursor:pointer; width:15px; height:15px;" />
+                                        <strong style="font-weight:700;">All Awards</strong>
+                                    </label>
+                                    ${allAwardTypes.map(t => `
+                                        <label class="exp-award-opt" style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; color:#334155; cursor:pointer; padding:0.3rem 0.4rem; border-radius:4px; transition:background 0.15s;">
+                                            <input type="checkbox" class="exp-award-chk" value="${t.id}" data-name="${window.escapeHTML(t.name)}" style="accent-color:#4f46e5; cursor:pointer; width:15px; height:15px;" />
+                                            <span>${window.escapeHTML(t.name)}</span>
+                                        </label>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Category / Class filters -->
@@ -2051,6 +2075,98 @@ function renderDrawerContent() {
 
     updateProgramsDropdown();
 
+    function initAwardTypeMultiSelect() {
+        const btn = document.getElementById('expAwardTypeBtn');
+        const dropdown = document.getElementById('expAwardTypeDropdown');
+        const btnText = document.getElementById('expAwardTypeBtnText');
+        const searchInput = document.getElementById('expAwardTypeSearch');
+        const listContainer = document.getElementById('expAwardTypeList');
+        const container = document.getElementById('expAwardTypeMultiSelect');
+
+        if (!btn || !dropdown || !listContainer) return;
+
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const isHidden = dropdown.style.display === 'none';
+            dropdown.style.display = isHidden ? 'block' : 'none';
+        };
+
+        dropdown.onclick = (e) => {
+            e.stopPropagation();
+        };
+
+        const onDocClick = (e) => {
+            if (container && !container.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        };
+        document.removeEventListener('click', onDocClick);
+        document.addEventListener('click', onDocClick);
+
+        if (searchInput) {
+            searchInput.oninput = (e) => {
+                const query = e.target.value.trim().toLowerCase();
+                const options = listContainer.querySelectorAll('.exp-award-opt');
+                options.forEach(opt => {
+                    const text = opt.textContent.trim().toLowerCase();
+                    opt.style.display = text.includes(query) ? 'flex' : 'none';
+                });
+            };
+        }
+
+        const checkboxes = listContainer.querySelectorAll('.exp-award-chk');
+        const allChk = Array.from(checkboxes).find(c => c.value === 'All');
+        const itemChks = Array.from(checkboxes).filter(c => c.value !== 'All');
+
+        const updateDisplay = () => {
+            const checkedItems = itemChks.filter(c => c.checked);
+            if (allChk && allChk.checked) {
+                btnText.textContent = 'All Awards';
+            } else if (checkedItems.length === 0) {
+                if (allChk) allChk.checked = true;
+                btnText.textContent = 'All Awards';
+            } else if (checkedItems.length === 1) {
+                btnText.textContent = checkedItems[0].dataset.name || checkedItems[0].value;
+            } else {
+                const names = checkedItems.map(c => c.dataset.name || c.value);
+                if (names.length <= 2) {
+                    btnText.textContent = names.join(', ');
+                } else {
+                    btnText.textContent = `${names.length} Award Types Selected`;
+                }
+            }
+        };
+
+        checkboxes.forEach(chk => {
+            chk.onchange = () => {
+                if (chk.value === 'All') {
+                    if (chk.checked) {
+                        itemChks.forEach(c => c.checked = false);
+                    } else {
+                        const anyItemChecked = itemChks.some(c => c.checked);
+                        if (!anyItemChecked) {
+                            chk.checked = true;
+                        }
+                    }
+                } else {
+                    if (chk.checked) {
+                        if (allChk) allChk.checked = false;
+                    } else {
+                        const anyItemChecked = itemChks.some(c => c.checked);
+                        if (!anyItemChecked && allChk) {
+                            allChk.checked = true;
+                        }
+                    }
+                }
+                updateDisplay();
+            };
+        });
+
+        updateDisplay();
+    }
+
+    initAwardTypeMultiSelect();
+
     // Trigger initial click on the default card to synchronize UI state
     const defaultActiveCard = body.querySelector('.exp-type-card.active') || body.querySelector('.exp-type-card');
     if (defaultActiveCard && typeof defaultActiveCard.onclick === 'function') {
@@ -2085,9 +2201,25 @@ function renderDrawerContent() {
         const teamName = teamId ? allTeams.find(t => t.id === teamId)?.name : 'All';
 
         const resultSubOption = selectedType === 'Results' ? document.getElementById('expResultSubVal').value : 'Team Wise';
-        const awardTypeFilter = (selectedType === 'Results' && resultSubOption === 'Class Wise Academic & Attendance')
-            ? document.getElementById('expAwardTypeVal').value
-            : 'All';
+        let awardTypeFilter = 'All';
+        if (selectedType === 'Results' && resultSubOption === 'Class Wise Academic & Attendance') {
+            const listContainer = document.getElementById('expAwardTypeList');
+            if (listContainer) {
+                const checkboxes = listContainer.querySelectorAll('.exp-award-chk');
+                const allChk = Array.from(checkboxes).find(c => c.value === 'All');
+                if (allChk && allChk.checked) {
+                    awardTypeFilter = 'All';
+                } else {
+                    const checkedItems = Array.from(checkboxes).filter(c => c.value !== 'All' && c.checked);
+                    if (checkedItems.length === 0) {
+                        awardTypeFilter = 'All';
+                    } else {
+                        awardTypeFilter = checkedItems.map(c => c.value);
+                    }
+                }
+            }
+        }
+
         const format = document.getElementById('expFormat').value;
         const orientation = document.getElementById('expOrientation').value;
         const srcIncludeSubmitted = selectedType === 'Results' && document.getElementById('srcIncludeSubmitted').checked;
@@ -2162,6 +2294,17 @@ function renderDrawerContent() {
 
         const finalFilename = `${fileTypePrefix}${scopeText}_${dateStr}.${format}`;
 
+        let awardTypeSummary = 'All';
+        if (Array.isArray(awardTypeFilter)) {
+            const checkedNames = awardTypeFilter.map(val => {
+                const found = allAwardTypes.find(t => t.id === val);
+                return found ? found.name : val;
+            });
+            awardTypeSummary = checkedNames.join(', ');
+        } else {
+            awardTypeSummary = awardTypeFilter;
+        }
+
         try {
             const instId = window.currentInstituteId;
             const ref = collection(db, "institutes", instId, "exports");
@@ -2170,7 +2313,7 @@ function renderDrawerContent() {
                 type: selectedType,
                 fileName: finalFilename,
                 summary: selectedType === 'Results' && resultSubOption === 'Class Wise Academic & Attendance'
-                    ? `Scope: ${classId ? className : 'All Classes'} | Award Type: ${awardTypeFilter} [${format.toUpperCase()}]`
+                    ? `Scope: ${classId ? className : 'All Classes'} | Award Type: ${awardTypeSummary} [${format.toUpperCase()}]`
                     : (selectedType === 'Program Participation Register'
                         ? (progRegSubmode === 'list'
                             ? `Scope: ${categoryName} | Mode: Program List [${format.toUpperCase()}]`
@@ -6086,7 +6229,29 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             let filteredAwards = classAwards.filter(aw => {
                 if (f.classId && aw.classId !== f.classId) return false;
                 const awTypeId = aw.awardTypeId || (aw.awardType ? aw.awardType.toLowerCase() : '');
-                if (f.awardTypeFilter && f.awardTypeFilter !== 'All' && awTypeId !== f.awardTypeFilter && aw.awardType !== f.awardTypeFilter) return false;
+                const awType = aw.awardType || '';
+
+                if (f.awardTypeFilter) {
+                    if (Array.isArray(f.awardTypeFilter)) {
+                        if (!f.awardTypeFilter.includes('All')) {
+                            const match = f.awardTypeFilter.some(filterVal => {
+                                const fVal = filterVal.toLowerCase();
+                                return (awTypeId && awTypeId.toLowerCase() === fVal) ||
+                                       (awType && awType.toLowerCase() === fVal) ||
+                                       (awTypeId === filterVal) ||
+                                       (awType === filterVal);
+                            });
+                            if (!match) return false;
+                        }
+                    } else if (f.awardTypeFilter !== 'All') {
+                        const filterVal = f.awardTypeFilter.toLowerCase();
+                        const match = (awTypeId && awTypeId.toLowerCase() === filterVal) ||
+                                      (awType && awType.toLowerCase() === filterVal) ||
+                                      (awTypeId === f.awardTypeFilter) ||
+                                      (awType === f.awardTypeFilter);
+                        if (!match) return false;
+                    }
+                }
                 return true;
             });
 
@@ -6155,7 +6320,27 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 });
 
                 const awardTypes = classAwardTypes.filter(t => {
-                    if (f.awardTypeFilter && f.awardTypeFilter !== 'All' && t.id !== f.awardTypeFilter) return false;
+                    if (f.awardTypeFilter) {
+                        if (Array.isArray(f.awardTypeFilter)) {
+                            if (!f.awardTypeFilter.includes('All')) {
+                                const match = f.awardTypeFilter.some(filterVal => {
+                                    const fVal = filterVal.toLowerCase();
+                                    return (t.id && t.id.toLowerCase() === fVal) ||
+                                           (t.name && t.name.toLowerCase() === fVal) ||
+                                           (t.id === filterVal) ||
+                                           (t.name === filterVal);
+                                });
+                                if (!match) return false;
+                            }
+                        } else if (f.awardTypeFilter !== 'All') {
+                            const filterVal = f.awardTypeFilter.toLowerCase();
+                            const match = (t.id && t.id.toLowerCase() === filterVal) ||
+                                          (t.name && t.name.toLowerCase() === filterVal) ||
+                                          (t.id === filterVal) ||
+                                          (t.name === filterVal);
+                            if (!match) return false;
+                        }
+                    }
                     return true;
                 });
 
@@ -8151,7 +8336,29 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
         let filteredAwards = classAwards.filter(aw => {
             if (f.classId && aw.classId !== f.classId) return false;
             const awTypeId = aw.awardTypeId || (aw.awardType ? aw.awardType.toLowerCase() : '');
-            if (f.awardTypeFilter && f.awardTypeFilter !== 'All' && awTypeId !== f.awardTypeFilter && aw.awardType !== f.awardTypeFilter) return false;
+            const awType = aw.awardType || '';
+
+            if (f.awardTypeFilter) {
+                if (Array.isArray(f.awardTypeFilter)) {
+                    if (!f.awardTypeFilter.includes('All')) {
+                        const match = f.awardTypeFilter.some(filterVal => {
+                            const fVal = filterVal.toLowerCase();
+                            return (awTypeId && awTypeId.toLowerCase() === fVal) ||
+                                   (awType && awType.toLowerCase() === fVal) ||
+                                   (awTypeId === filterVal) ||
+                                   (awType === filterVal);
+                        });
+                        if (!match) return false;
+                    }
+                } else if (f.awardTypeFilter !== 'All') {
+                    const filterVal = f.awardTypeFilter.toLowerCase();
+                    const match = (awTypeId && awTypeId.toLowerCase() === filterVal) ||
+                                  (awType && awType.toLowerCase() === filterVal) ||
+                                  (awTypeId === f.awardTypeFilter) ||
+                                  (awType === f.awardTypeFilter);
+                    if (!match) return false;
+                }
+            }
             return true;
         });
 
@@ -8198,7 +8405,27 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             });
 
             const awardTypes = classAwardTypes.filter(t => {
-                if (f.awardTypeFilter && f.awardTypeFilter !== 'All' && t.id !== f.awardTypeFilter) return false;
+                if (f.awardTypeFilter) {
+                    if (Array.isArray(f.awardTypeFilter)) {
+                        if (!f.awardTypeFilter.includes('All')) {
+                            const match = f.awardTypeFilter.some(filterVal => {
+                                const fVal = filterVal.toLowerCase();
+                                return (t.id && t.id.toLowerCase() === fVal) ||
+                                       (t.name && t.name.toLowerCase() === fVal) ||
+                                       (t.id === filterVal) ||
+                                       (t.name === filterVal);
+                            });
+                            if (!match) return false;
+                        }
+                    } else if (f.awardTypeFilter !== 'All') {
+                        const filterVal = f.awardTypeFilter.toLowerCase();
+                        const match = (t.id && t.id.toLowerCase() === filterVal) ||
+                                      (t.name && t.name.toLowerCase() === filterVal) ||
+                                      (t.id === filterVal) ||
+                                      (t.name === filterVal);
+                        if (!match) return false;
+                    }
+                }
                 return true;
             });
 
