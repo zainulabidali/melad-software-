@@ -104,8 +104,8 @@ export function initTeamsView(container, topActions) {
     // Start synchronising teams and students collections in real time
     startRealtimeSync();
 
-    // Trigger one-time load for Program Assignment Overview
-    loadProgramAssignmentOverview();
+    // Trigger load for Program Assignment Overview (force refresh to bypass stale cache)
+    loadProgramAssignmentOverview(true);
 }
 
 function startRealtimeSync() {
@@ -247,6 +247,53 @@ async function loadProgramAssignmentOverview(forceRefresh = false) {
         // 1. Get cached programs
         localOverviewPrograms = await getCachedPrograms(instId) || [];
 
+        // Build a lookup map from localTeams mapping both team ID and team name to canonical team ID
+        const teamLookup = new Map();
+        localTeams.forEach(t => {
+            if (t.id) teamLookup.set(t.id, t.id);
+            if (t.name) teamLookup.set(t.name, t.id);
+        });
+
+        const processDocData = (data, fallbackProgId) => {
+            const progId = data.programId || fallbackProgId;
+            if (!progId) return;
+
+            // Determine participant entry count for this document
+            let entriesCount = 0;
+            if (data.type === 'group') {
+                if (Array.isArray(data.groups)) {
+                    data.groups.forEach(g => {
+                        if (Array.isArray(g.members)) {
+                            entriesCount += g.members.length;
+                        } else if (g.studentId || g.studentName) {
+                            entriesCount += 1;
+                        }
+                    });
+                }
+            } else {
+                entriesCount = 1;
+            }
+
+            // Only count program as covered if there is at least ONE valid participant entry
+            if (entriesCount > 0) {
+                totalAssignedProgramsSet.add(progId);
+
+                const rawTeamKey = data.teamId || data.teamName;
+                if (rawTeamKey) {
+                    const canonicalTeamId = teamLookup.get(rawTeamKey) || rawTeamKey;
+                    if (!localAssignedProgramsByTeam.has(canonicalTeamId)) {
+                        localAssignedProgramsByTeam.set(canonicalTeamId, new Set());
+                    }
+                    localAssignedProgramsByTeam.get(canonicalTeamId).add(progId);
+
+                    localParticipantEntriesByTeam.set(
+                        canonicalTeamId,
+                        (localParticipantEntriesByTeam.get(canonicalTeamId) || 0) + entriesCount
+                    );
+                }
+            }
+        };
+
         // 2. Fetch participant docs in a single collectionGroup query
         const partQuery = query(collectionGroup(db, "participants"));
         const partSnap = await getDocs(partQuery);
@@ -256,42 +303,19 @@ async function loadProgramAssignmentOverview(forceRefresh = false) {
             if (docSnap.ref.path.startsWith(instPrefix)) {
                 const data = docSnap.data();
                 const pathTokens = docSnap.ref.path.split('/');
-                const progId = data.programId || pathTokens[3];
-                const teamId = data.teamId;
-
-                if (progId) {
-                    totalAssignedProgramsSet.add(progId);
-                    if (teamId) {
-                        // 1. Track unique program IDs per team (Programs Covered)
-                        if (!localAssignedProgramsByTeam.has(teamId)) {
-                            localAssignedProgramsByTeam.set(teamId, new Set());
-                        }
-                        localAssignedProgramsByTeam.get(teamId).add(progId);
-
-                        // 2. Track total participant entries per team (Participant Entries)
-                        let entriesCount = 1;
-                        if (data.type === 'group' && Array.isArray(data.groups)) {
-                            let groupMembersCount = 0;
-                            data.groups.forEach(g => {
-                                if (Array.isArray(g.members)) {
-                                    groupMembersCount += g.members.length;
-                                } else {
-                                    groupMembersCount += 1;
-                                }
-                            });
-                            entriesCount = groupMembersCount > 0 ? groupMembersCount : data.groups.length;
-                        }
-                        localParticipantEntriesByTeam.set(
-                            teamId,
-                            (localParticipantEntriesByTeam.get(teamId) || 0) + entriesCount
-                        );
-                    }
-                }
+                const fallbackProgId = pathTokens[3];
+                processDocData(data, fallbackProgId);
             }
         });
     } catch (e) {
         console.warn("CollectionGroup fetch error, using program subcollections fallback:", e);
         if (localOverviewPrograms.length > 0) {
+            const teamLookup = new Map();
+            localTeams.forEach(t => {
+                if (t.id) teamLookup.set(t.id, t.id);
+                if (t.name) teamLookup.set(t.name, t.id);
+            });
+
             const batchSize = 10;
             for (let i = 0; i < localOverviewPrograms.length; i += batchSize) {
                 const chunk = localOverviewPrograms.slice(i, i + batchSize);
@@ -299,32 +323,41 @@ async function loadProgramAssignmentOverview(forceRefresh = false) {
                     try {
                         const partSnap = await getDocs(collection(db, "institutes", instId, "programs", prog.id, "participants"));
                         if (!partSnap.empty) {
-                            totalAssignedProgramsSet.add(prog.id);
                             partSnap.forEach(d => {
                                 const data = d.data();
-                                const tId = data.teamId;
-                                if (tId) {
-                                    if (!localAssignedProgramsByTeam.has(tId)) {
-                                        localAssignedProgramsByTeam.set(tId, new Set());
-                                    }
-                                    localAssignedProgramsByTeam.get(tId).add(prog.id);
+                                const progId = data.programId || prog.id;
 
-                                    let entriesCount = 1;
-                                    if (data.type === 'group' && Array.isArray(data.groups)) {
-                                        let groupMembersCount = 0;
+                                let entriesCount = 0;
+                                if (data.type === 'group') {
+                                    if (Array.isArray(data.groups)) {
                                         data.groups.forEach(g => {
                                             if (Array.isArray(g.members)) {
-                                                groupMembersCount += g.members.length;
-                                            } else {
-                                                groupMembersCount += 1;
+                                                entriesCount += g.members.length;
+                                            } else if (g.studentId || g.studentName) {
+                                                entriesCount += 1;
                                             }
                                         });
-                                        entriesCount = groupMembersCount > 0 ? groupMembersCount : data.groups.length;
                                     }
-                                    localParticipantEntriesByTeam.set(
-                                        tId,
-                                        (localParticipantEntriesByTeam.get(tId) || 0) + entriesCount
-                                    );
+                                } else {
+                                    entriesCount = 1;
+                                }
+
+                                if (entriesCount > 0) {
+                                    totalAssignedProgramsSet.add(progId);
+
+                                    const rawTeamKey = data.teamId || data.teamName;
+                                    if (rawTeamKey) {
+                                        const canonicalTeamId = teamLookup.get(rawTeamKey) || rawTeamKey;
+                                        if (!localAssignedProgramsByTeam.has(canonicalTeamId)) {
+                                            localAssignedProgramsByTeam.set(canonicalTeamId, new Set());
+                                        }
+                                        localAssignedProgramsByTeam.get(canonicalTeamId).add(progId);
+
+                                        localParticipantEntriesByTeam.set(
+                                            canonicalTeamId,
+                                            (localParticipantEntriesByTeam.get(canonicalTeamId) || 0) + entriesCount
+                                        );
+                                    }
                                 }
                             });
                         }
@@ -408,17 +441,24 @@ function renderProgramAssignmentOverview() {
     localTeams.forEach((team, index) => {
         const teamIcon = teamIcons[index % teamIcons.length];
 
-        // Unique programs count covered by this team (by ID or Name fallback)
-        let coveredSet = localAssignedProgramsByTeam.get(team.id);
-        if (!coveredSet || coveredSet.size === 0) {
-            coveredSet = localAssignedProgramsByTeam.get(team.name) || new Set();
+        // Unique programs count covered by this team (combine both team.id and team.name lookups)
+        const coveredSet = new Set();
+        const setById = localAssignedProgramsByTeam.get(team.id);
+        if (setById) setById.forEach(p => coveredSet.add(p));
+        if (team.name && team.name !== team.id) {
+            const setName = localAssignedProgramsByTeam.get(team.name);
+            if (setName) setName.forEach(p => coveredSet.add(p));
         }
+
         const programsCovered = coveredSet.size;
         const pendingPrograms = Math.max(0, totalProgramsCount - programsCovered);
         const pct = totalProgramsCount > 0 ? Math.round((programsCovered / totalProgramsCount) * 100) : 0;
 
         // Total Participant Entries for this team
-        const participantEntries = (localParticipantEntriesByTeam.get(team.id) || 0) || (localParticipantEntriesByTeam.get(team.name) || 0);
+        let participantEntries = localParticipantEntriesByTeam.get(team.id) || 0;
+        if (team.name && team.name !== team.id && localParticipantEntriesByTeam.has(team.name)) {
+            participantEntries += localParticipantEntriesByTeam.get(team.name) || 0;
+        }
 
         // Progress Color: 100% = Green, 1-99% = Orange, 0% = Red
         let statusColor = '#10b981'; // Green

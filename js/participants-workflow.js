@@ -159,8 +159,16 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
           <aside class="pw-panel">
             <div class="pw-panel-header" style="gap: 0.5rem;">
               <div class="pw-panel-title">🏢 Choose Team</div>
-              <!-- Compact segmented button group -->
-              <div class="pw-segments" id="pwTeamList"></div>
+              <!-- Compact segmented button group with nav arrows -->
+              <div class="pw-team-selector-wrapper">
+                <button type="button" class="pw-team-nav-btn prev" id="pwTeamNavPrev" aria-label="Scroll left" disabled title="Scroll left">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                <div class="pw-segments" id="pwTeamList"></div>
+                <button type="button" class="pw-team-nav-btn next" id="pwTeamNavNext" aria-label="Scroll right" title="Scroll right">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
+              </div>
             </div>
             
             <div class="pw-panel-body">
@@ -640,6 +648,40 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         }
     }
 
+    function autoScrollSelectedTeamIntoView() {
+        const el = document.getElementById('pwTeamList');
+        if (!el) return;
+        const activeBtn = el.querySelector('.pw-segment-btn.is-active');
+        if (!activeBtn) return;
+
+        const containerLeft = el.scrollLeft;
+        const containerRight = containerLeft + el.clientWidth;
+        const btnLeft = activeBtn.offsetLeft;
+        const btnRight = btnLeft + activeBtn.offsetWidth;
+
+        if (btnLeft < containerLeft) {
+            el.scrollTo({ left: Math.max(0, btnLeft - 16), behavior: 'smooth' });
+        } else if (btnRight > containerRight) {
+            el.scrollTo({ left: btnRight - el.clientWidth + 16, behavior: 'smooth' });
+        }
+    }
+
+    function updateTeamNavButtons() {
+        const el = document.getElementById('pwTeamList');
+        const prevBtn = document.getElementById('pwTeamNavPrev');
+        const nextBtn = document.getElementById('pwTeamNavNext');
+        if (!el || !prevBtn || !nextBtn) return;
+
+        const maxScroll = el.scrollWidth - el.clientWidth;
+        if (maxScroll <= 2) {
+            prevBtn.disabled = true;
+            nextBtn.disabled = true;
+        } else {
+            prevBtn.disabled = el.scrollLeft <= 2;
+            nextBtn.disabled = el.scrollLeft >= maxScroll - 2;
+        }
+    }
+
     function renderTeamSegments() {
         const el = document.getElementById('pwTeamList');
         if (!el) return;
@@ -659,6 +701,11 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             </button>
         `;
         el.innerHTML = html;
+
+        setTimeout(() => {
+            autoScrollSelectedTeamIntoView();
+            updateTeamNavButtons();
+        }, 50);
     }
 
     // 4. Data Loading Methods
@@ -1665,6 +1712,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             // Segment UI active classes toggling
             document.querySelectorAll('[data-team-segment]').forEach(b => b.classList.remove('is-active'));
             btn.classList.add('is-active');
+            autoScrollSelectedTeamIntoView();
+            updateTeamNavButtons();
 
             const tName = selectedTeamId === 'teamless' ? 'No Team' : (teamById.get(selectedTeamId)?.name || '');
             setPill('Team', tName);
@@ -1680,6 +1729,83 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             loadStudentsForSelection();
             if (isGroupEvent) loadGroupsForTeam();
         });
+
+        // Team selector navigation & interaction handlers
+        const teamListContainer = document.getElementById('pwTeamList');
+        const prevBtn = document.getElementById('pwTeamNavPrev');
+        const nextBtn = document.getElementById('pwTeamNavNext');
+
+        if (teamListContainer) {
+            // Update button states on scroll
+            teamListContainer.addEventListener('scroll', updateTeamNavButtons, { passive: true });
+
+            // Horizontal scroll for team selector using mouse wheel on desktop
+            teamListContainer.addEventListener('wheel', (e) => {
+                if (e.deltaY !== 0 && e.deltaX === 0) {
+                    e.preventDefault();
+                    teamListContainer.scrollLeft += e.deltaY;
+                }
+            }, { passive: false });
+
+            // Mouse Drag-to-Scroll on Desktop
+            let isDragging = false;
+            let startX = 0;
+            let scrollStartLeft = 0;
+            let draggedDistance = 0;
+
+            teamListContainer.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                isDragging = true;
+                draggedDistance = 0;
+                startX = e.pageX - teamListContainer.offsetLeft;
+                scrollStartLeft = teamListContainer.scrollLeft;
+                teamListContainer.style.cursor = 'grabbing';
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const x = e.pageX - teamListContainer.offsetLeft;
+                const walk = (x - startX);
+                draggedDistance = Math.abs(walk);
+                if (draggedDistance > 3) {
+                    e.preventDefault();
+                    teamListContainer.scrollLeft = scrollStartLeft - walk;
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    teamListContainer.style.cursor = '';
+                }
+            });
+
+            // Prevent team button click if user was dragging
+            teamListContainer.addEventListener('click', (e) => {
+                if (draggedDistance > 5) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                    draggedDistance = 0;
+                }
+            }, true);
+        }
+
+        // Left / Right arrow navigation click handlers
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                if (teamListContainer) {
+                    teamListContainer.scrollBy({ left: -200, behavior: 'smooth' });
+                }
+            });
+        }
+
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                if (teamListContainer) {
+                    teamListContainer.scrollBy({ left: 200, behavior: 'smooth' });
+                }
+            });
+        }
 
         // Smart Filters (pills) logic
         document.querySelectorAll('.pw-filter-pill').forEach(pill => {
