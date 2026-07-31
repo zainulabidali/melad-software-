@@ -1144,44 +1144,180 @@ export function sortCategories(categories) {
 }
 
 // ─────────────────────────────────────────────
-// Point Rules & Calculations Config
+// Point Rules & Dynamic Grade Engine Config
 // ─────────────────────────────────────────────
+export const DEFAULT_GRADES = [
+    { name: 'A+', minMark: 90, maxMark: 100, gradePoint: 5 },
+    { name: 'A',  minMark: 80, maxMark: 89,  gradePoint: 4 },
+    { name: 'B+', minMark: 70, maxMark: 79,  gradePoint: 3 },
+    { name: 'B',  minMark: 60, maxMark: 69,  gradePoint: 2 },
+    { name: 'C',  minMark: 50, maxMark: 59,  gradePoint: 1 }
+];
+
 export const DEFAULT_POINTS = {
     individual: {
         first: 10,
         second: 8,
-        third: 6,
-        gradeAPlus: 5,
-        gradeA: 4,
-        gradeBPlus: 3,
-        gradeB: 2,
-        gradeC: 1
+        third: 6
     },
     group: {
         first: 10,
         second: 8,
-        third: 6,
-        gradeAPlus: 5,
-        gradeA: 4,
-        gradeBPlus: 3,
-        gradeB: 2,
-        gradeC: 1
+        third: 6
     },
     general: {
         first: 10,
         second: 8,
-        third: 6,
-        gradeAPlus: 5,
-        gradeA: 4,
-        gradeBPlus: 3,
-        gradeB: 2,
-        gradeC: 1
-    }
+        third: 6
+    },
+    grades: DEFAULT_GRADES
 };
+
+/**
+ * Normalizes point configuration data loaded from Firestore or fallback.
+ * Ensures `grades` property exists and is a valid, sorted array of grade objects.
+ */
+export function normalizePointsConfig(data) {
+    if (!data || typeof data !== 'object') {
+        return JSON.parse(JSON.stringify(DEFAULT_POINTS));
+    }
+    const config = { ...data };
+    if (!config.individual) config.individual = { ...DEFAULT_POINTS.individual };
+    if (!config.group) config.group = { ...DEFAULT_POINTS.group };
+    if (!config.general) config.general = { ...DEFAULT_POINTS.general };
+
+    if (!Array.isArray(config.grades) || config.grades.length === 0) {
+        config.grades = JSON.parse(JSON.stringify(DEFAULT_GRADES));
+    } else {
+        // Clean and sanitize grade items
+        config.grades = config.grades.map(g => ({
+            name: String(g.name || '').trim(),
+            minMark: Number(g.minMark),
+            maxMark: Number(g.maxMark),
+            gradePoint: Number(g.gradePoint || 0)
+        })).filter(g => g.name !== '' && !isNaN(g.minMark) && !isNaN(g.maxMark));
+    }
+
+    // Keep grades sorted by minMark descending
+    config.grades.sort((a, b) => b.minMark - a.minMark);
+    return config;
+}
+
+/**
+ * Validates a list of grade objects according to institutional grading rules.
+ * Checks for range bounds (0-100), min <= max, non-overlapping mark ranges, and unique names.
+ */
+export function validateGradesConfig(gradesList) {
+    if (!Array.isArray(gradesList) || gradesList.length === 0) {
+        return { valid: false, message: "At least one grade definition is required." };
+    }
+
+    const seenNames = new Set();
+    const sorted = [...gradesList].map(g => ({
+        name: String(g.name || '').trim(),
+        minMark: Number(g.minMark),
+        maxMark: Number(g.maxMark),
+        gradePoint: Number(g.gradePoint)
+    }));
+
+    for (let i = 0; i < sorted.length; i++) {
+        const g = sorted[i];
+        if (!g.name) {
+            return { valid: false, message: `Grade row #${i + 1} has an empty grade name.` };
+        }
+        const lowerName = g.name.toLowerCase();
+        if (seenNames.has(lowerName)) {
+            return { valid: false, message: `Duplicate grade name "${g.name}" is not allowed.` };
+        }
+        seenNames.add(lowerName);
+
+        if (isNaN(g.minMark) || g.minMark < 0 || g.minMark > 100) {
+            return { valid: false, message: `Grade "${g.name}" minimum mark must be between 0 and 100.` };
+        }
+        if (isNaN(g.maxMark) || g.maxMark < 0 || g.maxMark > 100) {
+            return { valid: false, message: `Grade "${g.name}" maximum mark must be between 0 and 100.` };
+        }
+        if (g.minMark > g.maxMark) {
+            return { valid: false, message: `Grade "${g.name}" minimum mark (${g.minMark}) cannot be greater than maximum mark (${g.maxMark}).` };
+        }
+        if (isNaN(g.gradePoint) || g.gradePoint < 0) {
+            return { valid: false, message: `Grade "${g.name}" grade point must be a valid non-negative number.` };
+        }
+    }
+
+    // Check for range overlaps: two ranges [minA, maxA] and [minB, maxB] overlap if Math.max(minA, minB) <= Math.min(maxA, maxB)
+    for (let i = 0; i < sorted.length; i++) {
+        for (let j = i + 1; j < sorted.length; j++) {
+            const a = sorted[i];
+            const b = sorted[j];
+            const overlapStart = Math.max(a.minMark, b.minMark);
+            const overlapEnd = Math.min(a.maxMax || a.maxMark, b.maxMark);
+
+            if (overlapStart <= overlapEnd) {
+                return {
+                    valid: false,
+                    message: `Mark range for Grade "${a.name}" (${a.minMark}-${a.maxMark}) overlaps with Grade "${b.name}" (${b.minMark}-${b.maxMark}). Range overlapping is strictly forbidden.`
+                };
+            }
+        }
+    }
+
+    return { valid: true };
+}
+
+/**
+ * Dynamically computes Grade Name and Grade Points for a given score mark
+ * based on the active institute's points configuration.
+ */
+export function getGradeAndPoints(score, pointsConfig = null, classType = 'individual') {
+    if (score === null || score === undefined || score === '' || isNaN(Number(score))) {
+        return { grade: '', points: 0 };
+    }
+
+    const numScore = Number(score);
+    const config = normalizePointsConfig(pointsConfig);
+    const gradesList = config.grades;
+
+    const matched = gradesList.find(g => numScore >= g.minMark && numScore <= g.maxMark);
+    if (matched) {
+        return {
+            grade: matched.name,
+            points: Number(matched.gradePoint) || 0
+        };
+    }
+
+    return { grade: '', points: 0 };
+}
+
+/**
+ * Returns the grade points awarded for a given grade string (e.g. "A+", "A", "PASS")
+ * based on the active points configuration.
+ */
+export function getGradePointsForGrade(gradeName, pointsConfig = null, classType = 'individual') {
+    if (!gradeName || typeof gradeName !== 'string') return 0;
+    const config = normalizePointsConfig(pointsConfig);
+    const cleanGrade = gradeName.trim().toLowerCase();
+
+    const matched = config.grades.find(g => g.name.toLowerCase() === cleanGrade);
+    if (matched) {
+        return Number(matched.gradePoint) || 0;
+    }
+
+    // Fallback for legacy database properties if any
+    if (pointsConfig && pointsConfig[classType]) {
+        const legacyMap = { 'a+': 'gradeAPlus', 'a': 'gradeA', 'b+': 'gradeBPlus', 'b': 'gradeB', 'c': 'gradeC' };
+        const key = legacyMap[cleanGrade];
+        if (key && pointsConfig[classType][key] !== undefined) {
+            return Number(pointsConfig[classType][key]) || 0;
+        }
+    }
+
+    return 0;
+}
 
 export async function getCachedPointsConfig(instituteId, forceRefresh = false) {
     const instId = instituteId || window.currentInstituteId;
-    if (!instId) return DEFAULT_POINTS;
+    if (!instId) return normalizePointsConfig(DEFAULT_POINTS);
     const key = `melad_cached_points_${instId}`;
     if (!forceRefresh) {
         if (window.cachedPointsConfig && window.cachedPointsConfig.lastFetched && (Date.now() - window.cachedPointsConfig.lastFetched < 300000)) {
@@ -1192,8 +1328,9 @@ export async function getCachedPointsConfig(instituteId, forceRefresh = false) {
             if (local) {
                 const parsed = JSON.parse(local);
                 if (parsed && parsed.lastFetched && (Date.now() - parsed.lastFetched < 300000)) {
-                    window.cachedPointsConfig = parsed;
-                    return parsed.data;
+                    const normData = normalizePointsConfig(parsed.data);
+                    window.cachedPointsConfig = { data: normData, lastFetched: parsed.lastFetched };
+                    return normData;
                 }
             }
         } catch (e) {
@@ -1202,14 +1339,28 @@ export async function getCachedPointsConfig(instituteId, forceRefresh = false) {
     }
     try {
         const snap = await getDoc(doc(db, "institutes", instId, "metadata", "points"));
-        const data = snap.exists() ? snap.data() : DEFAULT_POINTS;
-        const cacheObj = { data, lastFetched: Date.now() };
+        const rawData = snap.exists() ? snap.data() : DEFAULT_POINTS;
+        const normData = normalizePointsConfig(rawData);
+        const cacheObj = { data: normData, lastFetched: Date.now() };
         window.cachedPointsConfig = cacheObj;
         localStorage.setItem(key, JSON.stringify(cacheObj));
-        return data;
+        return normData;
     } catch (err) {
-        console.error("Failed to load points config from database:", err);
-        return DEFAULT_POINTS;
+        console.warn("Network error loading points config from Firestore, attempting offline cache:", err);
+        try {
+            const local = localStorage.getItem(key);
+            if (local) {
+                const parsed = JSON.parse(local);
+                if (parsed && parsed.data) {
+                    const normData = normalizePointsConfig(parsed.data);
+                    window.cachedPointsConfig = { data: normData, lastFetched: Date.now() };
+                    return normData;
+                }
+            }
+        } catch (e) {
+            console.error("Error reading offline points cache:", e);
+        }
+        return normalizePointsConfig(DEFAULT_POINTS);
     }
 }
 
@@ -1220,10 +1371,18 @@ export function invalidatePointsConfigCache(instituteId) {
     localStorage.removeItem(`melad_cached_points_${instId}`);
 }
 
+if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (e) => {
+        if (e.key && e.key.startsWith('melad_cached_points_')) {
+            window.cachedPointsConfig = null;
+        }
+    });
+}
+
 export async function recalculateAllResultsPoints(instituteId) {
     if (!instituteId) return 0;
 
-    // 1. Fetch points configuration
+    // 1. Fetch normalized points configuration
     const pointsConfig = await getCachedPointsConfig(instituteId, true);
 
     // 2. Fetch all programs
@@ -1251,14 +1410,6 @@ export async function recalculateAllResultsPoints(instituteId) {
 
         const config = pointsConfig[classType] || DEFAULT_POINTS[classType];
 
-        const gradePointsMap = {
-            'A+': config.gradeAPlus !== undefined ? Number(config.gradeAPlus) : 5,
-            'A': config.gradeA !== undefined ? Number(config.gradeA) : 4,
-            'B+': config.gradeBPlus !== undefined ? Number(config.gradeBPlus) : 3,
-            'B': config.gradeB !== undefined ? Number(config.gradeB) : 2,
-            'C': config.gradeC !== undefined ? Number(config.gradeC) : 1
-        };
-
         const positionPointsMap = {
             'First': config.first !== undefined ? Number(config.first) : 10,
             'Second': config.second !== undefined ? Number(config.second) : 8,
@@ -1272,15 +1423,22 @@ export async function recalculateAllResultsPoints(instituteId) {
         let updatedMarksData = [];
         if (Array.isArray(res.marksData)) {
             updatedMarksData = res.marksData.map(m => {
+                const markVal = (m.mark !== undefined && m.mark !== null && m.mark !== '') ? m.mark
+                    : ((m.finalMark !== undefined && m.finalMark !== null && m.finalMark !== '') ? m.finalMark : m.score);
+
+                const dynamicAuto = getGradeAndPoints(markVal, pointsConfig, classType);
+
                 const effectiveGrade = resolveEffectiveGrade({
-                    automaticGrade: m.grade,
+                    automaticGrade: dynamicAuto.grade || m.grade,
                     adminManualGrade: m.adminManualGrade,
                     legacyManualGrade: m.manualGrade,
                     manualGrades: m.manualGrades,
                     judgeSubmissionStatus: res.judgeSubmissionStatus,
-                    judgeIds: res.judgeIds
+                    judgeIds: res.judgeIds,
+                    pointsConfig: pointsConfig
                 });
-                const gp = gradePointsMap[effectiveGrade] || 0;
+
+                const gp = getGradePointsForGrade(effectiveGrade, pointsConfig, classType);
                 const pp = positionPointsMap[m.position] || 0;
                 const totalPoints = gp + pp;
 
@@ -1302,15 +1460,20 @@ export async function recalculateAllResultsPoints(instituteId) {
         let updatedWinners = [];
         if (Array.isArray(res.winners)) {
             updatedWinners = res.winners.map(w => {
+                const markVal = (w.marks !== undefined && w.marks !== null && w.marks !== '') ? w.marks : w.mark;
+                const dynamicAuto = getGradeAndPoints(markVal, pointsConfig, classType);
+
                 const effectiveGrade = resolveEffectiveGrade({
-                    automaticGrade: w.grade,
+                    automaticGrade: dynamicAuto.grade || w.grade,
                     adminManualGrade: w.adminManualGrade,
                     legacyManualGrade: w.manualGrade,
                     manualGrades: w.manualGrades,
                     judgeSubmissionStatus: res.judgeSubmissionStatus,
-                    judgeIds: res.judgeIds
+                    judgeIds: res.judgeIds,
+                    pointsConfig: pointsConfig
                 });
-                const gp = gradePointsMap[effectiveGrade] || 0;
+
+                const gp = getGradePointsForGrade(effectiveGrade, pointsConfig, classType);
                 const pp = positionPointsMap[w.position] || 0;
                 const totalPoints = gp + pp;
 
@@ -1534,8 +1697,11 @@ export const SCORE_TO_GRADE = {
     1: 'C'
 };
 
-export function isValidManualGrade(grade) {
-    return grade === 'A+' || grade === 'A' || grade === 'B+' || grade === 'B' || grade === 'C';
+export function isValidManualGrade(grade, pointsConfig = null) {
+    if (!grade || typeof grade !== 'string') return false;
+    const clean = grade.trim().toLowerCase();
+    const config = normalizePointsConfig(pointsConfig);
+    return config.grades.some(g => g.name.toLowerCase() === clean);
 }
 
 export function resolveEffectiveGrade({
@@ -1544,18 +1710,19 @@ export function resolveEffectiveGrade({
     legacyManualGrade,
     manualGrades,
     judgeSubmissionStatus,
-    judgeIds
+    judgeIds,
+    pointsConfig = null
 }) {
-    if (isValidManualGrade(adminManualGrade)) {
+    if (isValidManualGrade(adminManualGrade, pointsConfig)) {
         return adminManualGrade;
     }
-    if (isValidManualGrade(legacyManualGrade)) {
+    if (isValidManualGrade(legacyManualGrade, pointsConfig)) {
         return legacyManualGrade;
     }
     if (Array.isArray(manualGrades) && manualGrades.length > 0) {
         const validJudgeGrades = [];
         manualGrades.forEach((g, idx) => {
-            if (isValidManualGrade(g)) {
+            if (isValidManualGrade(g, pointsConfig)) {
                 let isSubmitted = true;
                 if (Array.isArray(judgeIds) && judgeIds[idx]) {
                     const jid = judgeIds[idx];
@@ -1568,18 +1735,33 @@ export function resolveEffectiveGrade({
             }
         });
         if (validJudgeGrades.length > 0) {
-            return aggregateManualGrades(validJudgeGrades);
+            return aggregateManualGrades(validJudgeGrades, pointsConfig);
         }
     }
     return automaticGrade || '';
 }
 
-export function aggregateManualGrades(grades) {
-    const scores = grades.map(g => GRADE_LEVEL_SCORE[g]).filter(s => s !== undefined);
-    if (scores.length === 0) return '';
-    const average = scores.reduce((sum, val) => sum + val, 0) / scores.length;
-    const resolvedLevel = Math.round(average);
-    return SCORE_TO_GRADE[resolvedLevel] || '';
+export function aggregateManualGrades(grades, pointsConfig = null) {
+    if (!Array.isArray(grades) || grades.length === 0) return '';
+    const pointsList = grades
+        .map(g => getGradePointsForGrade(g, pointsConfig))
+        .filter(p => p !== undefined && p !== null && !isNaN(p));
+    if (pointsList.length === 0) return grades[0] || '';
+    const avgPoint = pointsList.reduce((sum, val) => sum + val, 0) / pointsList.length;
+
+    const config = normalizePointsConfig(pointsConfig);
+    const gradesList = config.grades;
+
+    let closest = gradesList[0];
+    let minDiff = Infinity;
+    for (const g of gradesList) {
+        const diff = Math.abs(Number(g.gradePoint) - avgPoint);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closest = g;
+        }
+    }
+    return closest ? closest.name : '';
 }
 
 

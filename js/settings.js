@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, invalidateTeamsCache, invalidateCategoriesCache, invalidateProgramsCache, getCachedCategories, getCachedPointsConfig, recalculateAllResultsPoints, invalidatePointsConfigCache } from './firebase.js';
+import { db, updateDashboardMetadata, invalidateTeamsCache, invalidateCategoriesCache, invalidateProgramsCache, getCachedCategories, getCachedPointsConfig, recalculateAllResultsPoints, invalidatePointsConfigCache, DEFAULT_GRADES, validateGradesConfig } from './firebase.js';
 import {
     collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -358,328 +358,495 @@ async function openPointManageModal() {
     const modalBody = document.getElementById('dynamicModalBody');
 
     const modalEl = modal.querySelector('.modal');
+    if (modalEl) modalEl.classList.add('modal-large');
+
     document.getElementById('closeDynamicModalBtn').onclick = () => {
         if (modalEl) modalEl.classList.remove('modal-large');
         modal.classList.add('hidden');
     };
 
-    modalTitle.textContent = "⚙️ Points System Management";
+    modalTitle.textContent = "⚙️ Grade & Point Management System";
     modalBody.innerHTML = `
         <div style="text-align:center;padding:3rem;">
             <span class="spinner" style="display:inline-block;width:2rem;height:2rem;border-width:3px;border-top-color:transparent;"></span>
-            <p style="margin-top:1rem;color:#64748b;font-weight:600;">Loading points configuration rules...</p>
+            <p style="margin-top:1rem;color:#64748b;font-weight:600;">Loading grade and point rules...</p>
         </div>
     `;
     modal.classList.remove('hidden');
 
     try {
         const points = await getCachedPointsConfig(window.currentInstituteId, true);
+        let currentGrades = JSON.parse(JSON.stringify(points.grades || DEFAULT_GRADES));
+        // Sort grades by minMark descending
+        currentGrades.sort((a, b) => Number(b.minMark) - Number(a.minMark));
 
-        modalBody.innerHTML = `
-            <style>
-                .points-mgmt-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    text-align: left;
-                    font-size: 13px;
+        const renderModalUI = () => {
+            const renderGradeRowsHTML = () => {
+                if (currentGrades.length === 0) {
+                    return `<tr><td colspan="5" style="text-align:center; padding:2rem; color:#64748b;">No grades defined yet. Click <strong>+ Add Grade</strong> to define one.</td></tr>`;
                 }
-                .points-mobile-label {
-                    display: none;
-                }
-                @media (max-width: 600px) {
-                    .points-mgmt-table, .points-mgmt-table tbody {
-                        display: block !important;
-                        width: 100% !important;
-                    }
-                    .points-mgmt-table thead {
-                        display: none !important;
-                    }
-                    .points-mgmt-table tr {
-                        display: block !important;
-                        background: #ffffff !important;
-                        border: 1px solid #e2e8f0 !important;
-                        border-radius: 8px !important;
-                        padding: 0.85rem !important;
-                        margin-bottom: 0.85rem !important;
-                        box-shadow: 0 1px 3px rgba(0,0,0,0.02) !important;
-                    }
-                    .points-mgmt-table td {
-                        display: block !important;
-                        padding: 0 !important;
-                        border: none !important;
-                    }
-                    .points-mgmt-table td:first-child {
-                        font-weight: 700 !important;
-                        color: #1e293b !important;
-                        font-size: 13.5px !important;
-                        margin-bottom: 0.75rem !important;
-                        border-bottom: 1px solid #f1f5f9 !important;
-                        padding-bottom: 0.5rem !important;
-                    }
-                    .points-mgmt-table td:not(:first-child) {
-                        display: inline-flex !important;
-                        flex-direction: column !important;
-                        align-items: center !important;
-                        width: 32% !important;
-                        box-sizing: border-box !important;
-                        margin-top: 0.25rem !important;
-                    }
-                    .points-mobile-label {
-                        display: block !important;
-                        font-size: 11px !important;
-                        font-weight: 600 !important;
-                        color: #64748b !important;
-                        margin-bottom: 0.25rem !important;
-                        text-align: center !important;
-                    }
-                    .pt-input {
-                        width: 100% !important;
-                        max-width: 80px !important;
-                    }
-                }
-            </style>
 
-            <div style="padding: 1rem 1.5rem; max-height: 80vh; overflow-y: auto;">
-                <p style="margin: 0 0 1.25rem 0; font-size: 0.85rem; color: #64748b; line-height: 1.5;">
-                    Configure points awarded for each rank and grade level. Customize these settings per program type. Standings & dashboards will automatically refresh.
-                </p>
-                
-                <div style="margin-bottom: 1.25rem; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background:#ffffff;">
-                    <table class="points-mgmt-table">
-                        <thead>
-                            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                                <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155;">Point Rule</th>
-                                <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155; text-align:center;">Individual</th>
-                                <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155; text-align:center;">Group</th>
-                                <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155; text-align:center;">General</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Ranks -->
-                            <tr style="border-bottom: 1px solid #f1f5f9;">
-                                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">🥇 1st Place Points</td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Individual</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_ind_first" value="${points.individual?.first ?? 10}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Group</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_grp_first" value="${points.group?.first ?? 10}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">General</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_gen_first" value="${points.general?.first ?? 10}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid #f1f5f9;">
-                                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">🥈 2nd Place Points</td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Individual</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_ind_second" value="${points.individual?.second ?? 8}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Group</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_grp_second" value="${points.group?.second ?? 8}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">General</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_gen_second" value="${points.general?.second ?? 8}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                            </tr>
-                            <tr style="border-bottom: 2px solid #cbd5e1;">
-                                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">🥉 3rd Place Points</td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Individual</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_ind_third" value="${points.individual?.third ?? 6}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Group</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_grp_third" value="${points.group?.third ?? 6}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">General</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_gen_third" value="${points.general?.third ?? 6}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                            </tr>
-                            <!-- Grades -->
-                            <tr style="border-bottom: 1px solid #f1f5f9;">
-                                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">⭐ Grade A+ Points</td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Individual</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_ind_aplus" value="${points.individual?.gradeAPlus ?? 5}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Group</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_grp_aplus" value="${points.group?.gradeAPlus ?? 5}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">General</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_gen_aplus" value="${points.general?.gradeAPlus ?? 5}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid #f1f5f9;">
-                                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">⭐ Grade A Points</td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Individual</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_ind_a" value="${points.individual?.gradeA ?? 4}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Group</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_grp_a" value="${points.group?.gradeA ?? 4}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">General</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_gen_a" value="${points.general?.gradeA ?? 4}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid #f1f5f9;">
-                                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">⭐ Grade B+ Points</td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Individual</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_ind_bplus" value="${points.individual?.gradeBPlus ?? 3}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Group</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_grp_bplus" value="${points.group?.gradeBPlus ?? 3}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">General</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_gen_bplus" value="${points.general?.gradeBPlus ?? 3}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid #f1f5f9;">
-                                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">⭐ Grade B Points</td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Individual</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_ind_b" value="${points.individual?.gradeB ?? 2}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Group</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_grp_b" value="${points.group?.gradeB ?? 2}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">General</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_gen_b" value="${points.general?.gradeB ?? 2}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid #e2e8f0;">
-                                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">⭐ Grade C Points</td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Individual</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_ind_c" value="${points.individual?.gradeC ?? 1}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">Group</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_grp_c" value="${points.group?.gradeC ?? 1}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                                <td style="padding: 0.5rem 1rem; text-align:center;">
-                                    <span class="points-mobile-label">General</span>
-                                    <input type="number" min="0" class="form-input pt-input" id="pt_gen_c" value="${points.general?.gradeC ?? 1}" style="width:75px; text-align:center; padding:0.35rem;" />
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                return currentGrades.map((g, idx) => `
+                    <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                        <td style="padding: 0.75rem 1rem; font-weight: 700;">
+                            <span class="badge" style="background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe; font-size:0.85rem; font-weight:800; padding:0.25rem 0.65rem; border-radius:6px;">
+                                ${window.escapeHTML(g.name)}
+                            </span>
+                        </td>
+                        <td style="padding: 0.75rem 1rem; text-align:center; font-weight:700; color:#334155;">
+                            ${g.minMark}
+                        </td>
+                        <td style="padding: 0.75rem 1rem; text-align:center; font-weight:700; color:#334155;">
+                            ${g.maxMark}
+                        </td>
+                        <td style="padding: 0.75rem 1rem; text-align:center;">
+                            <span class="badge" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; font-size:0.85rem; font-weight:800; padding:0.2rem 0.6rem; border-radius:6px;">
+                                ${g.gradePoint} pts
+                            </span>
+                        </td>
+                        <td style="padding: 0.75rem 1rem; text-align:center;">
+                            <div style="display:inline-flex; gap:0.4rem;">
+                                <button type="button" class="btn btn-secondary btn-sm btn-edit-grade" data-index="${idx}" style="padding:0.3rem 0.65rem; font-weight:700; font-size:0.75rem; border-radius:6px; cursor:pointer;">
+                                    ✏️ Edit
+                                </button>
+                                <button type="button" class="btn btn-danger btn-sm btn-delete-grade" data-index="${idx}" style="padding:0.3rem 0.65rem; font-weight:700; font-size:0.75rem; border-radius:6px; background:#ef4444; color:#fff; border:none; cursor:pointer;">
+                                    🗑️ Delete
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            };
+
+            modalBody.innerHTML = `
+                <style>
+                    .points-mgmt-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        text-align: left;
+                        font-size: 13px;
+                    }
+                    .points-mobile-label { display: none; }
+                    @media (max-width: 640px) {
+                        .points-mgmt-table, .points-mgmt-table tbody { display: block !important; width: 100% !important; }
+                        .points-mgmt-table thead { display: none !important; }
+                        .points-mgmt-table tr {
+                            display: block !important;
+                            background: #ffffff !important;
+                            border: 1px solid #e2e8f0 !important;
+                            border-radius: 8px !important;
+                            padding: 0.85rem !important;
+                            margin-bottom: 0.85rem !important;
+                            box-shadow: 0 1px 3px rgba(0,0,0,0.02) !important;
+                        }
+                        .points-mgmt-table td { display: block !important; padding: 0 !important; border: none !important; }
+                        .points-mgmt-table td:first-child {
+                            font-weight: 700 !important;
+                            color: #1e293b !important;
+                            font-size: 13.5px !important;
+                            margin-bottom: 0.75rem !important;
+                            border-bottom: 1px solid #f1f5f9 !important;
+                            padding-bottom: 0.5rem !important;
+                        }
+                        .points-mgmt-table td:not(:first-child) {
+                            display: inline-flex !important;
+                            flex-direction: column !important;
+                            align-items: center !important;
+                            width: 32% !important;
+                            box-sizing: border-box !important;
+                            margin-top: 0.25rem !important;
+                        }
+                        .points-mobile-label {
+                            display: block !important;
+                            font-size: 11px !important;
+                            font-weight: 600 !important;
+                            color: #64748b !important;
+                            margin-bottom: 0.25rem !important;
+                            text-align: center !important;
+                        }
+                        .pt-input { width: 100% !important; max-width: 80px !important; }
+                    }
+                </style>
+
+                <div style="padding: 1rem 1.5rem; max-height: 80vh; overflow-y: auto;">
+                    <!-- Section 1: Rank / Place Points -->
+                    <div style="margin-bottom: 1.75rem;">
+                        <h4 style="margin:0 0 0.4rem 0; font-size:0.95rem; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:0.4rem;">
+                            🏅 Position / Rank Points Configuration
+                        </h4>
+                        <p style="margin: 0 0 0.85rem 0; font-size: 0.8rem; color: #64748b; line-height: 1.4;">
+                            Configure points awarded for 1st, 2nd, and 3rd place across Individual, Group, and General program types.
+                        </p>
+                        
+                        <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background:#ffffff;">
+                            <table class="points-mgmt-table">
+                                <thead>
+                                    <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                                        <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155;">Point Rule</th>
+                                        <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155; text-align:center;">Individual</th>
+                                        <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155; text-align:center;">Group</th>
+                                        <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155; text-align:center;">General</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">🥇 1st Place Points</td>
+                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                            <span class="points-mobile-label">Individual</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_ind_first" value="${points.individual?.first ?? 10}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                        </td>
+                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                            <span class="points-mobile-label">Group</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_grp_first" value="${points.group?.first ?? 10}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                        </td>
+                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                            <span class="points-mobile-label">General</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_gen_first" value="${points.general?.first ?? 10}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                        </td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">🥈 2nd Place Points</td>
+                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                            <span class="points-mobile-label">Individual</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_ind_second" value="${points.individual?.second ?? 8}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                        </td>
+                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                            <span class="points-mobile-label">Group</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_grp_second" value="${points.group?.second ?? 8}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                        </td>
+                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                            <span class="points-mobile-label">General</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_gen_second" value="${points.general?.second ?? 8}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">🥉 3rd Place Points</td>
+                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                            <span class="points-mobile-label">Individual</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_ind_third" value="${points.individual?.third ?? 6}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                        </td>
+                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                            <span class="points-mobile-label">Group</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_grp_third" value="${points.group?.third ?? 6}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                        </td>
+                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                            <span class="points-mobile-label">General</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_gen_third" value="${points.general?.third ?? 6}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Redesigned Grade Management System -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem; flex-wrap:wrap; gap:0.5rem;">
+                            <div>
+                                <h4 style="margin:0; font-size:0.95rem; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:0.4rem;">
+                                    🎓 Grade Management System
+                                </h4>
+                                <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: #64748b;">
+                                    Define customized grade tiers, mark range boundaries, and grade point allocations.
+                                </p>
+                            </div>
+                            <button type="button" id="btnAddNewGrade" class="btn btn-primary btn-sm" style="font-weight:700; font-size:0.8rem; padding:0.45rem 1rem; border-radius:6px; display:inline-flex; align-items:center; gap:0.35rem;">
+                                ➕ Add Grade
+                            </button>
+                        </div>
+
+                        <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background:#ffffff;">
+                            <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
+                                <thead>
+                                    <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                                        <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155;">Grade</th>
+                                        <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155; text-align:center;">Minimum Mark</th>
+                                        <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155; text-align:center;">Maximum Mark</th>
+                                        <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155; text-align:center;">Grade Point</th>
+                                        <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155; text-align:center; width:140px;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${renderGradeRowsHTML()}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Recalculation Checkbox -->
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; display: flex; align-items: flex-start; gap: 0.75rem;">
+                        <input type="checkbox" id="chkRecalculatePoints" style="margin-top: 0.2rem; cursor: pointer;" checked />
+                        <div>
+                            <label for="chkRecalculatePoints" style="font-weight: 700; font-size: 13px; color: #1e293b; cursor: pointer; display: block; margin-bottom: 0.25rem;">
+                                🔄 Apply updated grade & point rules to all existing results?
+                            </label>
+                            <p style="margin: 0; font-size: 11px; color: #64748b; line-height: 1.4;">
+                                Highly Recommended. When enabled, points & automatic grades across all historical program results will be dynamically recalculated to reflect your new rules.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Buttons -->
+                    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid #f1f5f9; padding-top: 1rem;">
+                        <button class="btn btn-secondary" id="btnCancelPoints" style="padding: 0.5rem 1rem; font-size: 12px; font-weight: 700; color: #475569; background: transparent; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer;">Cancel</button>
+                        <button class="btn btn-primary" id="btnSavePoints" style="padding: 0.5rem 1.25rem; font-size: 12px; font-weight: 700; color: #ffffff; background: #4f46e5; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem;">Save Rules</button>
+                    </div>
+                </div>
+            `;
+
+            // Attach event listeners
+            document.getElementById('btnCancelPoints').onclick = () => {
+                if (modalEl) modalEl.classList.remove('modal-large');
+                modal.classList.add('hidden');
+            };
+
+            // Add Grade handler
+            document.getElementById('btnAddNewGrade').onclick = () => {
+                openGradeFormModal(null, (newGrade) => {
+                    currentGrades.push(newGrade);
+                    currentGrades.sort((a, b) => Number(b.minMark) - Number(a.minMark));
+                    renderModalUI();
+                });
+            };
+
+            // Edit Grade handlers
+            modalBody.querySelectorAll('.btn-edit-grade').forEach(btn => {
+                btn.onclick = () => {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    openGradeFormModal(currentGrades[idx], (updatedGrade) => {
+                        currentGrades[idx] = updatedGrade;
+                        currentGrades.sort((a, b) => Number(b.minMark) - Number(a.minMark));
+                        renderModalUI();
+                    });
+                };
+            });
+
+            // Delete Grade handlers
+            modalBody.querySelectorAll('.btn-delete-grade').forEach(btn => {
+                btn.onclick = () => {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    const targetGrade = currentGrades[idx];
+                    if (confirm(`Are you sure you want to delete Grade "${targetGrade.name}" (${targetGrade.minMark}–${targetGrade.maxMark})?`)) {
+                        currentGrades.splice(idx, 1);
+                        renderModalUI();
+                    }
+                };
+            });
+
+            // Save rules handler
+            document.getElementById('btnSavePoints').onclick = async () => {
+                const btnSave = document.getElementById('btnSavePoints');
+                const btnCancel = document.getElementById('btnCancelPoints');
+                const chkRecalc = document.getElementById('chkRecalculatePoints');
+
+                // Validation before saving
+                const valResult = validateGradesConfig(currentGrades);
+                if (!valResult.valid) {
+                    alert(`Validation Error: ${valResult.message}`);
+                    return;
+                }
+
+                btnSave.disabled = true;
+                btnCancel.disabled = true;
+                btnSave.innerHTML = `<span class="spinner" style="width:0.8rem;height:0.8rem;border-width:2px;border-top-color:transparent;"></span> Saving...`;
+
+                const payload = {
+                    individual: {
+                        first: parseInt(document.getElementById('pt_ind_first').value, 10) || 0,
+                        second: parseInt(document.getElementById('pt_ind_second').value, 10) || 0,
+                        third: parseInt(document.getElementById('pt_ind_third').value, 10) || 0
+                    },
+                    group: {
+                        first: parseInt(document.getElementById('pt_grp_first').value, 10) || 0,
+                        second: parseInt(document.getElementById('pt_grp_second').value, 10) || 0,
+                        third: parseInt(document.getElementById('pt_grp_third').value, 10) || 0
+                    },
+                    general: {
+                        first: parseInt(document.getElementById('pt_gen_first').value, 10) || 0,
+                        second: parseInt(document.getElementById('pt_gen_second').value, 10) || 0,
+                        third: parseInt(document.getElementById('pt_gen_third').value, 10) || 0
+                    },
+                    grades: currentGrades
+                };
+
+                // Immediately update local cache for offline reliability
+                const instId = window.currentInstituteId;
+                if (instId) {
+                    const normPayload = (typeof validateGradesConfig === 'function') ? payload : payload;
+                    const cacheObj = { data: normPayload, lastFetched: Date.now() };
+                    window.cachedPointsConfig = cacheObj;
+                    try {
+                        localStorage.setItem(`melad_cached_points_${instId}`, JSON.stringify(cacheObj));
+                    } catch (e) {
+                        console.error("Failed writing points to localStorage:", e);
+                    }
+                }
+
+                try {
+                    const docRef = doc(db, "institutes", instId, "metadata", "points");
+                    await setDoc(docRef, payload);
+
+                    if (chkRecalc && chkRecalc.checked) {
+                        btnSave.innerHTML = `<span class="spinner" style="width:0.8rem;height:0.8rem;border-width:2px;border-top-color:transparent;"></span> Recalculating...`;
+                        try {
+                            const updatedCount = await recalculateAllResultsPoints(instId);
+                            window.showToast?.(`Saved & recalculated ${updatedCount} results successfully!`, "success");
+                        } catch (recalcErr) {
+                            console.warn("Recalculation network issue:", recalcErr);
+                            window.showToast?.("Rules saved! Note: Some results recalculation deferred due to network connection.", "warning");
+                        }
+                    } else {
+                        window.showToast?.("Grade & point rules saved successfully!", "success");
+                    }
+
+                    try {
+                        await updateDashboardMetadata(instId);
+                    } catch (metaErr) {
+                        console.warn("Dashboard metadata update deferred:", metaErr);
+                    }
+
+                    if (modalEl) modalEl.classList.remove('modal-large');
+                    modal.classList.add('hidden');
+                } catch (err) {
+                    console.error("Error saving point rules to server:", err);
+                    const isNetworkErr = err.message && (err.message.includes('offline') || err.message.includes('fetch') || err.message.includes('network') || err.code === 'unavailable');
+                    if (isNetworkErr) {
+                        window.showToast?.("⚠️ Saved rules locally! Server sync pending connection restore.", "warning");
+                        if (modalEl) modalEl.classList.remove('modal-large');
+                        modal.classList.add('hidden');
+                    } else {
+                        alert("Failed to save rules to server: " + (err.message || err));
+                        btnSave.disabled = false;
+                        btnCancel.disabled = false;
+                        btnSave.textContent = "Save Rules";
+                    }
+                }
+            };
+        };
+
+        renderModalUI();
+
+    } catch (err) {
+        console.error("Error loading points settings:", err);
+        modalBody.innerHTML = `<div style="padding:2rem; color:#ef4444; text-align:center;">Failed to load points settings: ${err.message}</div>`;
+    }
+}
+
+/**
+ * Sub-modal dialog for adding or editing a Grade rule item.
+ */
+function openGradeFormModal(existingGrade, onSaveCallback) {
+    const isEdit = !!existingGrade;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; padding:1rem; backdrop-filter:blur(4px);";
+
+    overlay.innerHTML = `
+        <div style="background:#ffffff; border-radius:12px; width:100%; max-width:440px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); overflow:hidden;">
+            <div style="padding:1.25rem 1.5rem; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#0f172a;">
+                    ${isEdit ? '✏️ Edit Grade' : '➕ Add Grade'}
+                </h3>
+                <button type="button" id="btnCloseGradeForm" style="background:none; border:none; font-size:1.25rem; color:#64748b; cursor:pointer;">✕</button>
+            </div>
+            
+            <div style="padding:1.25rem 1.5rem;">
+                <div id="gradeFormAlert" style="display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; padding:0.75rem; border-radius:6px; font-size:0.8rem; margin-bottom:1rem; line-height:1.4;"></div>
+
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block; font-size:0.8rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Grade Name *</label>
+                    <input type="text" id="gf_name" class="form-input" placeholder="e.g. A+, A, B+, PASS" value="${window.escapeHTML(existingGrade?.name || '')}" style="width:100%; box-sizing:border-box; padding:0.5rem 0.75rem;" />
                 </div>
 
-                <!-- Apply option -->
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; display: flex; align-items: flex-start; gap: 0.75rem;">
-                    <input type="checkbox" id="chkRecalculatePoints" style="margin-top: 0.2rem; cursor: pointer;" checked />
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:1rem;">
                     <div>
-                        <label for="chkRecalculatePoints" style="font-weight: 700; font-size: 13px; color: #1e293b; cursor: pointer; display: block; margin-bottom: 0.25rem;">
-                            🔄 Apply new point rules to all existing results?
-                        </label>
-                        <p style="margin: 0; font-size: 11px; color: #64748b; line-height: 1.4;">
-                            Highly Recommended. If checked, the system will instantly recalculate points across all past program results to reflect the updated point structure. Leaderboards and standings will update immediately.
-                        </p>
+                        <label style="display:block; font-size:0.8rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Minimum Mark *</label>
+                        <input type="number" id="gf_min" min="0" max="100" class="form-input" placeholder="0 - 100" value="${existingGrade?.minMark !== undefined ? existingGrade.minMark : ''}" style="width:100%; box-sizing:border-box; padding:0.5rem 0.75rem;" />
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.8rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Maximum Mark *</label>
+                        <input type="number" id="gf_max" min="0" max="100" class="form-input" placeholder="0 - 100" value="${existingGrade?.maxMark !== undefined ? existingGrade.maxMark : ''}" style="width:100%; box-sizing:border-box; padding:0.5rem 0.75rem;" />
                     </div>
                 </div>
 
-                <!-- Actions -->
-                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid #f1f5f9; padding-top: 1rem;">
-                    <button class="btn btn-secondary" id="btnCancelPoints" style="padding: 0.5rem 1rem; font-size: 12px; font-weight: 700; color: #475569; background: transparent; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer;">Cancel</button>
-                    <button class="btn btn-primary" id="btnSavePoints" style="padding: 0.5rem 1.25rem; font-size: 12px; font-weight: 700; color: #ffffff; background: #4f46e5; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem;">Save Rules</button>
+                <div style="margin-bottom:1.25rem;">
+                    <label style="display:block; font-size:0.8rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Grade Point *</label>
+                    <input type="number" id="gf_point" min="0" class="form-input" placeholder="e.g. 5" value="${existingGrade?.gradePoint !== undefined ? existingGrade.gradePoint : ''}" style="width:100%; box-sizing:border-box; padding:0.5rem 0.75rem;" />
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.75rem; border-top:1px solid #f1f5f9; padding-top:1rem;">
+                    <button type="button" id="btnCancelGradeForm" class="btn btn-secondary" style="padding:0.45rem 1rem; font-size:0.8rem; font-weight:700; color:#475569; background:transparent; border:1px solid #cbd5e1; border-radius:6px; cursor:pointer;">Cancel</button>
+                    <button type="button" id="btnSaveGradeForm" class="btn btn-primary" style="padding:0.45rem 1.25rem; font-size:0.8rem; font-weight:700; color:#ffffff; background:#4f46e5; border:none; border-radius:6px; cursor:pointer;">Save Grade</button>
                 </div>
             </div>
-        `;
+        </div>
+    `;
 
-        const btnSave = document.getElementById('btnSavePoints');
-        const btnCancel = document.getElementById('btnCancelPoints');
-        const chkRecalc = document.getElementById('chkRecalculatePoints');
+    document.body.appendChild(overlay);
 
-        btnCancel.onclick = () => {
-            if (modalEl) modalEl.classList.remove('modal-large');
-            modal.classList.add('hidden');
+    const closeOverlay = () => {
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    };
+
+    document.getElementById('btnCloseGradeForm').onclick = closeOverlay;
+    document.getElementById('btnCancelGradeForm').onclick = closeOverlay;
+
+    document.getElementById('btnSaveGradeForm').onclick = () => {
+        const name = document.getElementById('gf_name').value.trim();
+        const minVal = document.getElementById('gf_min').value.trim();
+        const maxVal = document.getElementById('gf_max').value.trim();
+        const ptVal = document.getElementById('gf_point').value.trim();
+
+        const alertEl = document.getElementById('gradeFormAlert');
+
+        if (!name) {
+            alertEl.style.display = 'block';
+            alertEl.textContent = 'Please enter a Grade Name.';
+            return;
+        }
+        if (minVal === '' || isNaN(Number(minVal))) {
+            alertEl.style.display = 'block';
+            alertEl.textContent = 'Please enter a valid Minimum Mark (0 - 100).';
+            return;
+        }
+        if (maxVal === '' || isNaN(Number(maxVal))) {
+            alertEl.style.display = 'block';
+            alertEl.textContent = 'Please enter a valid Maximum Mark (0 - 100).';
+            return;
+        }
+        const minNum = Number(minVal);
+        const maxNum = Number(maxVal);
+
+        if (minNum < 0 || minNum > 100) {
+            alertEl.style.display = 'block';
+            alertEl.textContent = 'Minimum Mark must be between 0 and 100.';
+            return;
+        }
+        if (maxNum < 0 || maxNum > 100) {
+            alertEl.style.display = 'block';
+            alertEl.textContent = 'Maximum Mark must be between 0 and 100.';
+            return;
+        }
+        if (minNum > maxNum) {
+            alertEl.style.display = 'block';
+            alertEl.textContent = `Minimum Mark (${minNum}) cannot be greater than Maximum Mark (${maxNum}).`;
+            return;
+        }
+        if (ptVal === '' || isNaN(Number(ptVal)) || Number(ptVal) < 0) {
+            alertEl.style.display = 'block';
+            alertEl.textContent = 'Please enter a valid non-negative Grade Point.';
+            return;
+        }
+
+        const resultObj = {
+            name,
+            minMark: minNum,
+            maxMark: maxNum,
+            gradePoint: Number(ptVal)
         };
 
-        btnSave.onclick = async () => {
-            btnSave.disabled = true;
-            btnCancel.disabled = true;
-            btnSave.innerHTML = `<span class="spinner" style="width:0.8rem;height:0.8rem;border-width:2px;border-top-color:transparent;"></span> Saving...`;
-
-            const payload = {
-                individual: {
-                    first: parseInt(document.getElementById('pt_ind_first').value, 10) || 0,
-                    second: parseInt(document.getElementById('pt_ind_second').value, 10) || 0,
-                    third: parseInt(document.getElementById('pt_ind_third').value, 10) || 0,
-                    gradeAPlus: parseInt(document.getElementById('pt_ind_aplus').value, 10) || 0,
-                    gradeA: parseInt(document.getElementById('pt_ind_a').value, 10) || 0,
-                    gradeBPlus: parseInt(document.getElementById('pt_ind_bplus').value, 10) || 0,
-                    gradeB: parseInt(document.getElementById('pt_ind_b').value, 10) || 0,
-                    gradeC: parseInt(document.getElementById('pt_ind_c').value, 10) || 0
-                },
-                group: {
-                    first: parseInt(document.getElementById('pt_grp_first').value, 10) || 0,
-                    second: parseInt(document.getElementById('pt_grp_second').value, 10) || 0,
-                    third: parseInt(document.getElementById('pt_grp_third').value, 10) || 0,
-                    gradeAPlus: parseInt(document.getElementById('pt_grp_aplus').value, 10) || 0,
-                    gradeA: parseInt(document.getElementById('pt_grp_a').value, 10) || 0,
-                    gradeBPlus: parseInt(document.getElementById('pt_grp_bplus').value, 10) || 0,
-                    gradeB: parseInt(document.getElementById('pt_grp_b').value, 10) || 0,
-                    gradeC: parseInt(document.getElementById('pt_grp_c').value, 10) || 0
-                },
-                general: {
-                    first: parseInt(document.getElementById('pt_gen_first').value, 10) || 0,
-                    second: parseInt(document.getElementById('pt_gen_second').value, 10) || 0,
-                    third: parseInt(document.getElementById('pt_gen_third').value, 10) || 0,
-                    gradeAPlus: parseInt(document.getElementById('pt_gen_aplus').value, 10) || 0,
-                    gradeA: parseInt(document.getElementById('pt_gen_a').value, 10) || 0,
-                    gradeBPlus: parseInt(document.getElementById('pt_gen_bplus').value, 10) || 0,
-                    gradeB: parseInt(document.getElementById('pt_gen_b').value, 10) || 0,
-                    gradeC: parseInt(document.getElementById('pt_gen_c').value, 10) || 0
-                }
-            };
-
-            try {
-                const docRef = doc(db, "institutes", window.currentInstituteId, "metadata", "points");
-                await setDoc(docRef, payload);
-
-                invalidatePointsConfigCache(window.currentInstituteId);
-
-                if (chkRecalc && chkRecalc.checked) {
-                    btnSave.innerHTML = `<span class="spinner" style="width:0.8rem;height:0.8rem;border-width:2px;border-top-color:transparent;"></span> Recalculating...`;
-                    const updatedCount = await recalculateAllResultsPoints(window.currentInstituteId);
-                    window.showToast?.(`Saved & recalculated ${updatedCount} results successfully!`, "success");
-                } else {
-                    window.showToast?.("Points rules saved successfully!", "success");
-                }
-
-                // Refresh dashboard standing totals
-                await updateDashboardMetadata(window.currentInstituteId);
-
-                modal.classList.add('hidden');
-            } catch (err) {
-                console.error("Save points rules error:", err);
-                window.showToast?.("Failed to save point rules.", "error");
-                btnSave.disabled = false;
-                btnCancel.disabled = false;
-                btnSave.textContent = "Save Rules";
-            }
-        };
-
-    } catch (e) {
-        console.error("Error opening point config modal:", e);
-        modalBody.innerHTML = `<div style="padding:2rem;text-align:center;color:#ef4444;">Failed to load points config. Please try again.</div>`;
-    }
+        closeOverlay();
+        onSaveCallback(resultObj);
+    };
 }
 
 function renderLimitsCardHTML() {
@@ -1925,3 +2092,8 @@ function showToast(msg) {
         setTimeout(() => t.remove(), 500);
     }, 4000);
 }
+
+// Expose Grade & Point Management System functions globally on window
+window.openPointManageModal = openPointManageModal;
+window.openGradeFormModal = openGradeFormModal;
+

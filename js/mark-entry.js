@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS } from './firebase.js';
+import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades } from './firebase.js';
 import {
     collection, getDocs, doc, getDoc, setDoc, onSnapshot, serverTimestamp, writeBatch, runTransaction
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -52,90 +52,6 @@ gradeOverrideStyle.textContent = `
     }
 `;
 document.head.appendChild(gradeOverrideStyle);
-
-const GRADE_LEVEL_SCORE = {
-    'A+': 5,
-    'A': 4,
-    'B+': 3,
-    'B': 2,
-    'C': 1
-};
-const SCORE_TO_GRADE = {
-    5: 'A+',
-    4: 'A',
-    3: 'B+',
-    2: 'B',
-    1: 'C'
-};
-
-function isValidManualGrade(grade) {
-    return grade === 'A+' || grade === 'A' || grade === 'B+' || grade === 'B' || grade === 'C';
-}
-
-function resolveEffectiveGrade({
-    automaticGrade,
-    adminManualGrade,
-    legacyManualGrade,
-    manualGrades,
-    judgeSubmissionStatus,
-    judgeIds
-}) {
-    if (isValidManualGrade(adminManualGrade)) {
-        return adminManualGrade;
-    }
-    if (isValidManualGrade(legacyManualGrade)) {
-        return legacyManualGrade;
-    }
-    if (Array.isArray(manualGrades) && manualGrades.length > 0) {
-        const validJudgeGrades = [];
-        manualGrades.forEach((g, idx) => {
-            if (isValidManualGrade(g)) {
-                let isSubmitted = true;
-                if (Array.isArray(judgeIds) && judgeIds[idx]) {
-                    const jid = judgeIds[idx];
-                    const status = judgeSubmissionStatus ? judgeSubmissionStatus[jid] : null;
-                    isSubmitted = (status === 'submitted' || status === true);
-                }
-                if (isSubmitted) {
-                    validJudgeGrades.push(g);
-                }
-            }
-        });
-        if (validJudgeGrades.length > 0) {
-            return aggregateManualGrades(validJudgeGrades);
-        }
-    }
-    return automaticGrade || '';
-}
-
-function aggregateManualGrades(grades) {
-    const scores = grades.map(g => GRADE_LEVEL_SCORE[g]).filter(s => s !== undefined);
-    if (scores.length === 0) return '';
-    const average = scores.reduce((sum, val) => sum + val, 0) / scores.length;
-    const resolvedLevel = Math.round(average);
-    return SCORE_TO_GRADE[resolvedLevel] || '';
-}
-
-function getGradeAndPoints(score, classType = 'individual') {
-    const config = activePointsConfig[classType] || DEFAULT_POINTS[classType];
-    const gradePointsMap = {
-        'A+': config.gradeAPlus !== undefined ? Number(config.gradeAPlus) : 5,
-        'A': config.gradeA !== undefined ? Number(config.gradeA) : 4,
-        'B+': config.gradeBPlus !== undefined ? Number(config.gradeBPlus) : 3,
-        'B': config.gradeB !== undefined ? Number(config.gradeB) : 2,
-        'C': config.gradeC !== undefined ? Number(config.gradeC) : 1
-    };
-
-    let grade = '';
-    if (score >= 90) grade = 'A+';
-    else if (score >= 80) grade = 'A';
-    else if (score >= 70) grade = 'B+';
-    else if (score >= 60) grade = 'B';
-    else if (score >= 50) grade = 'C';
-
-    const points = grade ? (gradePointsMap[grade] || 0) : 0;
-    return { grade, points };
-}
 
 // ─────────────────────────────────────────────
 // Module State
@@ -742,7 +658,7 @@ export async function openMarkEntryModal(prog) {
     }
 
     try {
-        activePointsConfig = await getCachedPointsConfig(window.currentInstituteId);
+        activePointsConfig = await getCachedPointsConfig(window.currentInstituteId, true);
     } catch (e) {
         console.error("Failed to load points config in mark entry:", e);
         activePointsConfig = DEFAULT_POINTS;
@@ -1881,6 +1797,10 @@ async function autoSaveParticipantLetter(prog, studentId, codeLetter, existingRe
 
 function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, existingResult) {
     const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
+    const pType = (prog.programType || prog.registrationType || prog.type || 'individual').toLowerCase();
+    let classType = 'individual';
+    if (pType === 'general') classType = 'general';
+    else if (pType === 'group') classType = 'group';
     const savedMarksMap = new Map();
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -2086,7 +2006,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
                             <th class="cell-calc-header" style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:80px; ${!showCalculations ? 'display:none;' : ''}">RANK</th>
                         </tr>
                     </thead>
-                    <tbody id="meSpreadsheetBody" data-is-standalone="${isStandalone}" data-judge-idx="${isStandalone ? judges.indexOf(sJudgeName) : -1}" data-grade-mode="${window.escapeHTML(existingResult?.gradeMode || 'auto')}">
+                    <tbody id="meSpreadsheetBody" data-is-standalone="${isStandalone}" data-judge-idx="${isStandalone ? judges.indexOf(sJudgeName) : -1}" data-grade-mode="${window.escapeHTML(existingResult?.gradeMode || 'auto')}" data-class-type="${classType}">
                         ${rowsHTML}
                     </tbody>
                 </table>
@@ -2210,7 +2130,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, exist
         popover.className = 'grade-selector-popover';
 
         const currentManualGrade = tr.getAttribute('data-manual-grade') || '';
-        const options = ['AUTO', 'A+', 'A', 'B+', 'B', 'C'];
+        const options = ['AUTO', ...(activePointsConfig?.grades || []).map(g => g.name)];
 
         options.forEach(opt => {
             const optDiv = document.createElement('div');
@@ -2304,6 +2224,7 @@ function recalculateSpreadsheet(judgesCount) {
     const tbody = document.getElementById('meSpreadsheetBody');
     const isStandalone = tbody ? (tbody.getAttribute('data-is-standalone') === 'true') : false;
     const gradeMode = tbody ? (tbody.getAttribute('data-grade-mode') || 'auto') : 'auto';
+    const classType = tbody ? (tbody.getAttribute('data-class-type') || 'individual') : 'individual';
 
     const rows = [];
     document.querySelectorAll('.mark-entry-row').forEach(tr => {
@@ -2350,14 +2271,14 @@ function recalculateSpreadsheet(judgesCount) {
         if (r.hasScores || activeScreenManualGrade) {
             finalCell.textContent = r.hasScores ? r.finalMark : '—';
             
-            const { grade: automaticGrade } = getGradeAndPoints(r.finalMark);
+            const { grade: automaticGrade } = getGradeAndPoints(r.finalMark, activePointsConfig, classType);
             
             let effectiveGrade = '';
             let isOverridden = false;
 
             if (isStandalone) {
                 effectiveGrade = activeScreenManualGrade || automaticGrade || '';
-                isOverridden = isValidManualGrade(activeScreenManualGrade);
+                isOverridden = isValidManualGrade(activeScreenManualGrade, activePointsConfig);
             } else {
                 const adminManualGrade = activeScreenManualGrade;
                 let aggregatedJudgeGrade = '';
@@ -2365,16 +2286,16 @@ function recalculateSpreadsheet(judgesCount) {
                 if (jGradesStr) {
                     try {
                         const jGrades = JSON.parse(jGradesStr);
-                        const validJudgeGrades = jGrades.filter(isValidManualGrade);
+                        const validJudgeGrades = jGrades.filter(g => isValidManualGrade(g, activePointsConfig));
                         if (validJudgeGrades.length > 0) {
-                            aggregatedJudgeGrade = aggregateManualGrades(validJudgeGrades);
+                            aggregatedJudgeGrade = aggregateManualGrades(validJudgeGrades, activePointsConfig);
                         }
-                        isOverridden = isValidManualGrade(adminManualGrade) || jGrades.some(isValidManualGrade);
+                        isOverridden = isValidManualGrade(adminManualGrade, activePointsConfig) || jGrades.some(g => isValidManualGrade(g, activePointsConfig));
                     } catch (e) {
                         console.error("Failed to parse judge manual grades:", e);
                     }
                 } else {
-                    isOverridden = isValidManualGrade(adminManualGrade);
+                    isOverridden = isValidManualGrade(adminManualGrade, activePointsConfig);
                 }
                 effectiveGrade = adminManualGrade || aggregatedJudgeGrade || automaticGrade || '';
             }
@@ -2636,27 +2557,20 @@ async function persistMarks(prog, judges, isSubmit) {
                     updatedMarksData.forEach(entry => {
                         const hasScores = entry.marks.some(m => m !== null && m !== undefined);
                         if (hasScores) {
-                            const { grade: automaticGrade } = getGradeAndPoints(entry.finalMark, classType);
+                            const { grade: automaticGrade } = getGradeAndPoints(entry.finalMark, activePointsConfig, classType);
                             const effectiveGrade = resolveEffectiveGrade({
                                 automaticGrade,
                                 adminManualGrade: entry.adminManualGrade,
                                 legacyManualGrade: entry.manualGrade,
                                 manualGrades: entry.manualGrades,
                                 judgeSubmissionStatus: dbJudgeSubmissionStatus,
-                                judgeIds: dbJudgeIds
+                                judgeIds: dbJudgeIds,
+                                pointsConfig: activePointsConfig
                             });
-
-                            const gradePointsMap = {
-                                'A+': config.gradeAPlus !== undefined ? Number(config.gradeAPlus) : 5,
-                                'A': config.gradeA !== undefined ? Number(config.gradeA) : 4,
-                                'B+': config.gradeBPlus !== undefined ? Number(config.gradeBPlus) : 3,
-                                'B': config.gradeB !== undefined ? Number(config.gradeB) : 2,
-                                'C': config.gradeC !== undefined ? Number(config.gradeC) : 1
-                            };
                             
                             const savedGrade = (gradeMode === 'none') ? '' : effectiveGrade;
                             const pointsGrade = (gradeMode === 'none') ? (automaticGrade || '') : effectiveGrade;
-                            const gp = pointsGrade ? (gradePointsMap[pointsGrade] || 0) : 0;
+                            const gp = pointsGrade ? getGradePointsForGrade(pointsGrade, activePointsConfig, classType) : 0;
 
                             const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
                             const position = posMap[entry.rank] || '';
@@ -2817,27 +2731,20 @@ async function persistMarks(prog, judges, isSubmit) {
                 updatedMarksData.forEach(entry => {
                     const hasScores = entry.marks.some(m => m !== null && m !== undefined);
                     if (hasScores) {
-                        const { grade: automaticGrade } = getGradeAndPoints(entry.finalMark, classType);
+                        const { grade: automaticGrade } = getGradeAndPoints(entry.finalMark, activePointsConfig, classType);
                         const effectiveGrade = resolveEffectiveGrade({
                             automaticGrade,
                             adminManualGrade: entry.adminManualGrade,
                             legacyManualGrade: entry.manualGrade,
                             manualGrades: entry.manualGrades,
                             judgeSubmissionStatus: dbJudgeSubmissionStatus,
-                            judgeIds: dbJudgeIds
+                            judgeIds: dbJudgeIds,
+                            pointsConfig: activePointsConfig
                         });
-
-                        const gradePointsMap = {
-                            'A+': config.gradeAPlus !== undefined ? Number(config.gradeAPlus) : 5,
-                            'A': config.gradeA !== undefined ? Number(config.gradeA) : 4,
-                            'B+': config.gradeBPlus !== undefined ? Number(config.gradeBPlus) : 3,
-                            'B': config.gradeB !== undefined ? Number(config.gradeB) : 2,
-                            'C': config.gradeC !== undefined ? Number(config.gradeC) : 1
-                        };
                         
                         const savedGrade = (gradeMode === 'none') ? '' : effectiveGrade;
                         const pointsGrade = (gradeMode === 'none') ? (automaticGrade || '') : effectiveGrade;
-                        const gp = pointsGrade ? (gradePointsMap[pointsGrade] || 0) : 0;
+                        const gp = pointsGrade ? getGradePointsForGrade(pointsGrade, activePointsConfig, classType) : 0;
 
                         const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
                         const position = posMap[entry.rank] || '';
