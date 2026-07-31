@@ -68,6 +68,29 @@ let allPrograms = [];
 let allResults = new Map(); // programId -> resultDoc
 let unsubscribeMarkEntry = null;
 
+export function getLatestResultDocSync(progId) {
+    if (!progId) return null;
+    return allResults.get(progId) || null;
+}
+
+export async function getLatestResultDoc(progId) {
+    if (!progId) return null;
+    let res = allResults.get(progId);
+    if (!res && db && window.currentInstituteId) {
+        try {
+            const docRef = doc(collection(db, "institutes", window.currentInstituteId, "results"), `result_${progId}`);
+            const snap = await getDoc(docRef);
+            if (snap.exists()) {
+                res = { id: snap.id, ...snap.data() };
+                allResults.set(progId, res);
+            }
+        } catch (e) {
+            console.error("Error fetching result doc from Firestore:", e);
+        }
+    }
+    return res || null;
+}
+
 // ─────────────────────────────────────────────
 // Init View
 // ─────────────────────────────────────────────
@@ -766,7 +789,7 @@ export async function openMarkEntryModal(prog) {
         });
 
         const participants = await loadStudentsForProgram(prog);
-        const existingResult = allResults.get(prog.id);
+        const existingResult = await getLatestResultDoc(prog.id);
 
         if (participants.length === 0) {
             modalBody.innerHTML = `
@@ -799,7 +822,8 @@ export async function openMarkEntryModal(prog) {
     }
 }
 
-function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participants, existingResult) {
+function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participants, _legacyResultDoc = null) {
+    const existingResult = getLatestResultDocSync(prog.id) || _legacyResultDoc;
     const urlParams = new URLSearchParams(window.location.search);
     const isStandalone = urlParams.get('mode') === 'standalone';
     const hasUrlJudgeId = urlParams.get('judgeId');
@@ -852,13 +876,14 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
             };
         }
         
-        document.getElementById('jSelectProceedBtn').onclick = () => {
-            let judgesList = existingResult && Array.isArray(existingResult.judges) ? [...existingResult.judges] : [];
+        document.getElementById('jSelectProceedBtn').onclick = async () => {
+            const latestRes = await getLatestResultDoc(prog.id);
+            let judgesList = latestRes && Array.isArray(latestRes.judges) ? [...latestRes.judges] : [];
             if (!judgesList.includes(sJudgeName)) {
                 judgesList.push(sJudgeName);
             }
             document.getElementById('dynamicModalTitle').textContent = `🖋️ Mark Entry — ${sJudgeName}`;
-            renderSpreadsheetUI(modalBody, modal, prog, judgesList, participants, existingResult);
+            renderSpreadsheetUI(modalBody, modal, prog, judgesList, participants, latestRes);
         };
         return;
     }
@@ -1028,8 +1053,9 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
     `;
 
     // Bind separate letter assignment modal button
-    document.getElementById('btnOpenLetterModal').onclick = () => {
-        openParticipantLetterModal(modalBody, modal, prog, activeJudges, participants, existingResult);
+    document.getElementById('btnOpenLetterModal').onclick = async () => {
+        const latestRes = await getLatestResultDoc(prog.id);
+        openParticipantLetterModal(modalBody, modal, prog, activeJudges, participants, latestRes);
     };
 
     document.getElementById('jSelectCancelBtn').onclick = () => {
@@ -1051,7 +1077,7 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
         await saveJudgeAssignment(prog, checkedNames, activeJudges, existingResult, modal);
     };
 
-    document.getElementById('jSelectProceedBtn').onclick = () => {
+    document.getElementById('jSelectProceedBtn').onclick = async () => {
         const checkedNames = [];
         modalBody.querySelectorAll('.j-select-checkbox:checked').forEach(cb => {
             checkedNames.push(cb.getAttribute('data-name'));
@@ -1062,9 +1088,10 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
             return;
         }
 
+        const latestRes = await getLatestResultDoc(prog.id);
         // Change modal title header to dynamic scoresheet and proceed
         document.getElementById('dynamicModalTitle').textContent = `🖋️ Judges List`;
-        renderSpreadsheetUI(modalBody, modal, prog, checkedNames, participants, existingResult);
+        renderSpreadsheetUI(modalBody, modal, prog, checkedNames, participants, latestRes);
     };
 }
 
@@ -1084,7 +1111,8 @@ function getProgramLetterPool(totalParticipants) {
     return pool;
 }
 
-function openParticipantLetterModal(modalBody, modal, prog, activeJudges, participants, existingResult) {
+function openParticipantLetterModal(modalBody, modal, prog, activeJudges, participants, _legacyResultDoc = null) {
+    const existingResult = getLatestResultDocSync(prog.id) || _legacyResultDoc;
     document.getElementById('dynamicModalTitle').textContent = '🏷️ Participant Letter Assignment';
     
     const isPublished = (existingResult && (existingResult.status === 'published' || existingResult.markEntryStatus === 'published')) || 
@@ -1346,8 +1374,9 @@ function openParticipantLetterModal(modalBody, modal, prog, activeJudges, partic
     };
 
     // Bind return button
-    document.getElementById('btnReturnToJudges').onclick = () => {
-        renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participants, existingResult);
+    document.getElementById('btnReturnToJudges').onclick = async () => {
+        const latestRes = await getLatestResultDoc(prog.id);
+        renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participants, latestRes);
     };
 
     // Bind Generate buttons
@@ -1795,7 +1824,8 @@ async function autoSaveParticipantLetter(prog, studentId, codeLetter, existingRe
     }
 }
 
-function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, existingResult) {
+function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _legacyResultDoc = null) {
+    const existingResult = getLatestResultDocSync(prog.id) || _legacyResultDoc;
     const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
     const pType = (prog.programType || prog.registrationType || prog.type || 'individual').toLowerCase();
     let classType = 'individual';

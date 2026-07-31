@@ -323,7 +323,20 @@ async function openScoringView(prog) {
     try {
         activePointsConfig = await getCachedPointsConfig(currentInstituteId, true);
         const participants = await loadParticipants(prog);
-        const resDoc = resultsMap.get(prog.id);
+        let resDoc = resultsMap.get(prog.id);
+
+        if (currentInstituteId && db) {
+            try {
+                const docRef = doc(collection(db, "institutes", currentInstituteId, "results"), `result_${prog.id}`);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    resDoc = { id: docSnap.id, ...docSnap.data() };
+                    resultsMap.set(prog.id, resDoc);
+                }
+            } catch (e) {
+                console.error("Error fetching fresh result doc in Judge Portal:", e);
+            }
+        }
 
         if (participants.length === 0) {
             mainContainer.innerHTML = `
