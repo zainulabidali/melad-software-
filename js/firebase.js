@@ -145,8 +145,41 @@ export async function migrateToNewSchema(instituteId, onProgress = () => { }) {
     }
 }
 
+const metadataUpdateDebounceTimers = new Map();
+
 export async function updateDashboardMetadata(instituteId) {
     if (!instituteId) return;
+    
+    return new Promise((resolve, reject) => {
+        if (metadataUpdateDebounceTimers.has(instituteId)) {
+            const existing = metadataUpdateDebounceTimers.get(instituteId);
+            clearTimeout(existing.timer);
+            existing.pendingResolves.push(resolve);
+            existing.pendingRejects.push(reject);
+            existing.timer = setTimeout(() => runMetadataUpdate(instituteId), 350);
+            return;
+        }
+
+        const pendingResolves = [resolve];
+        const pendingRejects = [reject];
+
+        const runMetadataUpdate = async (id) => {
+            const item = metadataUpdateDebounceTimers.get(id);
+            metadataUpdateDebounceTimers.delete(id);
+            try {
+                const res = await _performUpdateDashboardMetadata(id);
+                item?.pendingResolves.forEach(r => r(res));
+            } catch (err) {
+                item?.pendingRejects.forEach(rj => rj(err));
+            }
+        };
+
+        const timer = setTimeout(() => runMetadataUpdate(instituteId), 350);
+        metadataUpdateDebounceTimers.set(instituteId, { timer, pendingResolves, pendingRejects });
+    });
+}
+
+async function _performUpdateDashboardMetadata(instituteId) {
     try {
         await cleanupOrphanedTeamData(instituteId);
         // Fetch collections in parallel using one-shot getDocs
@@ -204,6 +237,9 @@ export async function updateDashboardMetadata(instituteId) {
             return pType === 'general';
         }).length;
 
+        const progMap = new Map(programs.map(p => [p.id, p]));
+        const teamMap = new Map(teams.map(t => [t.id, t]));
+
         // 2. Real-time Live Team Leaderboard
         const teamPoints = new Map();
         teams.forEach(t => {
@@ -212,7 +248,7 @@ export async function updateDashboardMetadata(instituteId) {
 
         results.forEach(r => {
             if (r.status === 'published') {
-                const prog = programs.find(p => p.id === r.programId);
+                const prog = progMap.get(r.programId);
                 if (prog && prog.leaderboardEnabled === false) return;
 
                 if (Array.isArray(r.marksData) && r.marksData.length > 0) {
@@ -244,7 +280,7 @@ export async function updateDashboardMetadata(instituteId) {
         });
         students.forEach(s => {
             if (s.teamId && s.teamId !== 'teamless') {
-                const team = teams.find(t => t.id === s.teamId);
+                const team = teamMap.get(s.teamId);
                 if (team && team.name) {
                     const current = teamCounts.get(team.name) || 0;
                     teamCounts.set(team.name, current + 1);
@@ -1189,25 +1225,24 @@ window.handleError = function (error, context = "operation") {
 export function computeDenseRanking(items, getScoreFn, rankPropName = 'rank') {
     if (!Array.isArray(items) || items.length === 0) return items;
 
-    // Sort descending strictly by score
-    items.sort((a, b) => {
-        const scoreA = getScoreFn(a) || 0;
-        const scoreB = getScoreFn(b) || 0;
-        return scoreB - scoreA;
-    });
+    // Pre-calculate scores once O(N) to avoid calling getScoreFn repeatedly during N log N sort comparisons
+    const scored = items.map(item => ({
+        item,
+        score: Number(getScoreFn(item) || 0)
+    }));
+
+    scored.sort((a, b) => b.score - a.score);
 
     let currentRank = 0;
     let prevScore = null;
 
-    for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const score = getScoreFn(item);
-
-        if (score !== prevScore) {
+    for (let i = 0; i < scored.length; i++) {
+        const entry = scored[i];
+        if (entry.score !== prevScore) {
             currentRank++;
-            prevScore = score;
+            prevScore = entry.score;
         }
-        item[rankPropName] = currentRank;
+        entry.item[rankPropName] = currentRank;
     }
     return items;
 }

@@ -321,10 +321,11 @@ function renderResultsView() {
     if (publishAllBtn) publishAllBtn.disabled = countSubmitted === 0;
 
     // 2. Dynamic Team Points Live Leaderboard
+    const progMap = new Map(allPrograms.map(p => [p.id, p]));
     const teamPoints = new Map();
     allResults.forEach(r => {
         if (r.status === 'published') {
-            const prog = allPrograms.find(p => p.id === r.programId);
+            const prog = progMap.get(r.programId);
             if (prog && prog.leaderboardEnabled === false) return;
 
             if (Array.isArray(r.marksData) && r.marksData.length > 0) {
@@ -429,6 +430,7 @@ function renderResultsView() {
     `;
 
     const tbody = document.getElementById('resultsTableBody');
+    const fragment = document.createDocumentFragment();
 
     filteredResults.forEach((r, idx) => {
         const isDraft = r.status === 'draft';

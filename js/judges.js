@@ -47,10 +47,18 @@ export async function initJudgesView(container, topActions) {
     const addBtn = document.getElementById('btnAddJudge');
     document.getElementById('btnBackToMarkEntry')?.addEventListener('click', () => window.navigateTo('mark-entry'));
 
-    searchInput.oninput = (e) => {
+    function debounce(fn, ms) {
+        let t;
+        return function(...args) {
+            clearTimeout(t);
+            t = setTimeout(() => fn.apply(this, args), ms);
+        };
+    }
+
+    searchInput.oninput = debounce((e) => {
         judgesFilter.search = e.target.value.toLowerCase().trim();
         renderJudgesGrid();
-    };
+    }, 200);
 
     addBtn.onclick = () => openJudgeModal();
 

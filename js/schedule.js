@@ -2343,10 +2343,18 @@ async function openAddProgramRowModal() {
         renderProgramCards();
     }
 
+    function debounce(fn, ms) {
+        let t;
+        return function(...args) {
+            clearTimeout(t);
+            t = setTimeout(() => fn.apply(this, args), ms);
+        };
+    }
+
     categoryFilter.onchange = applyFilters;
     genderFilter.onchange = applyFilters;
     locationFilter.onchange = applyFilters;
-    searchInput.oninput = applyFilters;
+    searchInput.oninput = debounce(applyFilters, 200);
 
     const closeModal = () => {
         modalOverlay.classList.add('hidden');

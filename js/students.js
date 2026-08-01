@@ -407,74 +407,75 @@ function renderStudentsUI() {
         return;
     }
 
-    let tableHTML = `
-        <div class="students-table">
-            <div class="students-table-header">
-                <div>Sl No.</div>
-                <div>Chest No.</div>
-                <div>Student Name</div>
-                <div>Gender</div>
-                <div>Category</div>
-                <div>Class</div>
-                <div>Team</div>
-                <div>Programs</div>
-                <div style="text-align: right;">Actions</div>
-            </div>
-            <div class="students-table-body">
+    const tableWrap = document.createElement('div');
+    tableWrap.className = 'students-table';
+    tableWrap.innerHTML = `
+        <div class="students-table-header">
+            <div>Sl No.</div>
+            <div>Chest No.</div>
+            <div>Student Name</div>
+            <div>Gender</div>
+            <div>Category</div>
+            <div>Class</div>
+            <div>Team</div>
+            <div>Programs</div>
+            <div style="text-align: right;">Actions</div>
+        </div>
+        <div class="students-table-body"></div>
     `;
+
+    const tbody = tableWrap.querySelector('.students-table-body');
+    const fragment = document.createDocumentFragment();
 
     localStudents.forEach((stu, idx) => {
         const id = stu.id;
         const chest = stu.chestNumber || '—';
         const teamName = teamMap.get(stu.teamId) || '—';
 
-        tableHTML += `
-            <div class="student-row">
-                <div class="student-sl-cell" style="font-weight: 700; color: #475569;">
-                    ${idx + 1}
-                </div>
-                <div class="student-chest-cell">
-                    #${window.escapeHTML(chest)}
-                </div>
-                <div class="student-name-cell">
-                    ${window.escapeHTML(stu.name)}
-                </div>
-                <div class="student-gender-cell">
-                    ${window.escapeHTML(stu.gender || '—')}
-                </div>
-                <div class="student-cat-cell">
-                    ${window.escapeHTML(stu.categoryName || 'General')}
-                </div>
-                <div class="student-class-cell">
-                    ${window.escapeHTML(stu.className || 'Standard')}
-                </div>
-                <div class="student-team-cell">
-                    ${window.escapeHTML(teamName)}
-                </div>
-                <div class="student-programs-cell">
-                    <span class="student-programs-badge btn-view-progs-direct" data-id="${id}" style="cursor:pointer; background:rgba(99, 102, 241, 0.08); color:#4f46e5; border:1px solid rgba(99, 102, 241, 0.15); display:inline-flex; align-items:center; gap:0.25rem;" title="Click to view registered programs">
-                        👥 View Programs
-                    </span>
-                </div>
-                <div class="student-actions-cell">
-                    <div class="actions-dropdown-container">
-                        <button class="btn-action-icon btn-action-more dots-btn student-dots-btn" data-id="${id}">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.95rem; height:0.95rem;">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
-                            </svg>
-                        </button>
-                    </div>
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'student-row';
+        rowDiv.innerHTML = `
+            <div class="student-sl-cell" style="font-weight: 700; color: #475569;">
+                ${idx + 1}
+            </div>
+            <div class="student-chest-cell">
+                #${window.escapeHTML(chest)}
+            </div>
+            <div class="student-name-cell">
+                ${window.escapeHTML(stu.name)}
+            </div>
+            <div class="student-gender-cell">
+                ${window.escapeHTML(stu.gender || '—')}
+            </div>
+            <div class="student-cat-cell">
+                ${window.escapeHTML(stu.categoryName || 'General')}
+            </div>
+            <div class="student-class-cell">
+                ${window.escapeHTML(stu.className || 'Standard')}
+            </div>
+            <div class="student-team-cell">
+                ${window.escapeHTML(teamName)}
+            </div>
+            <div class="student-programs-cell">
+                <span class="student-programs-badge btn-view-progs-direct" data-id="${id}" style="cursor:pointer; background:rgba(99, 102, 241, 0.08); color:#4f46e5; border:1px solid rgba(99, 102, 241, 0.15); display:inline-flex; align-items:center; gap:0.25rem;" title="Click to view registered programs">
+                    👥 View Programs
+                </span>
+            </div>
+            <div class="student-actions-cell">
+                <div class="actions-dropdown-container">
+                    <button class="btn-action-icon btn-action-more dots-btn student-dots-btn" data-id="${id}">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.95rem; height:0.95rem;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+                        </svg>
+                    </button>
                 </div>
             </div>
         `;
+        fragment.appendChild(rowDiv);
     });
 
-    tableHTML += `
-            </div>
-        </div>
-    `;
-
-    tableContainer.innerHTML = tableHTML;
+    tbody.appendChild(fragment);
+    tableContainer.replaceChildren(tableWrap);
 }
 
 async function openViewProgramsModal(stu) {
@@ -2622,12 +2623,21 @@ function openStudentDropdown(btn) {
 
 function sortStudents(students, categories) {
     if (!Array.isArray(students)) return [];
+
+    const catIndexMap = new Map();
+    if (Array.isArray(categories)) {
+        categories.forEach((c, idx) => {
+            if (c.id) catIndexMap.set(c.id, idx);
+            if (c.name) catIndexMap.set(c.name, idx);
+        });
+    }
+
     return [...students].sort((a, b) => {
-        // 1. Category index in class-based sorted order
-        const catA = categories.find(c => c.id === a.categoryId || c.name === a.categoryId || c.name === a.categoryName);
-        const catB = categories.find(c => c.id === b.categoryId || c.name === b.categoryId || c.name === b.categoryName);
-        const idxA = catA ? categories.indexOf(catA) : 999;
-        const idxB = catB ? categories.indexOf(catB) : 999;
+        // 1. Category index in class-based sorted order via O(1) Map lookup
+        const idxA = catIndexMap.has(a.categoryId) ? catIndexMap.get(a.categoryId) :
+                     (catIndexMap.has(a.categoryName) ? catIndexMap.get(a.categoryName) : 999);
+        const idxB = catIndexMap.has(b.categoryId) ? catIndexMap.get(b.categoryId) :
+                     (catIndexMap.has(b.categoryName) ? catIndexMap.get(b.categoryName) : 999);
         
         if (idxA !== idxB) {
             return idxA - idxB;

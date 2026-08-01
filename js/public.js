@@ -46,15 +46,28 @@ const resultsCount = document.getElementById('resultsCount');
 // ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        const snapshot = await getDocs(collection(db, 'institutes'));
+        const cacheKey = 'melad_public_institutes_opts';
+        const cacheTimeKey = 'melad_public_inst_time';
+        const cachedOpts = sessionStorage.getItem(cacheKey);
+        const cachedTime = sessionStorage.getItem(cacheTimeKey);
+        const now = Date.now();
+
+        // 15-minute TTL cache (900,000 ms)
+        if (cachedOpts && cachedTime && (now - parseInt(cachedTime, 10) < 900000)) {
+            instSelect.innerHTML = cachedOpts;
+            return;
+        }
+
+        const qInst = query(collection(db, 'institutes'), where('status', '==', 'active'), limit(100));
+        const snapshot = await getDocs(qInst);
         let opts = '<option value="">— Select an Institute —</option>';
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
-            if (data.status === 'active') {
-                opts += `<option value="${docSnap.id}" data-name="${window.escapeHTML(data.name)}">${window.escapeHTML(data.name)}</option>`;
-            }
+            opts += `<option value="${docSnap.id}" data-name="${window.escapeHTML(data.name || data.instituteName)}">${window.escapeHTML(data.name || data.instituteName)}</option>`;
         });
         instSelect.innerHTML = opts;
+        sessionStorage.setItem(cacheKey, opts);
+        sessionStorage.setItem(cacheTimeKey, now.toString());
     } catch (err) {
         instSelect.innerHTML = '<option value="">Error loading institutes</option>';
         console.error('Failed to load institutes:', err);

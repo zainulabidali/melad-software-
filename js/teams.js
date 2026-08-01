@@ -153,17 +153,20 @@ function renderTeamsUI() {
         return;
     }
 
-    // 3. Render High-Density List/Table
-    let tableHTML = `
-        <div class="teams-table">
-            <div class="teams-table-header">
-                <div>Team Name</div>
-                <div>Description</div>
-                <div>Members</div>
-                <div style="text-align: right;">Actions</div>
-            </div>
-            <div class="teams-table-body">
+    const tableWrap = document.createElement('div');
+    tableWrap.className = 'teams-table';
+    tableWrap.innerHTML = `
+        <div class="teams-table-header">
+            <div>Team Name</div>
+            <div>Description</div>
+            <div>Members</div>
+            <div style="text-align: right;">Actions</div>
+        </div>
+        <div class="teams-table-body"></div>
     `;
+
+    const tbody = tableWrap.querySelector('.teams-table-body');
+    const fragment = document.createDocumentFragment();
 
     localTeams.forEach((team) => {
         const teamId = team.id;
@@ -177,41 +180,38 @@ function renderTeamsUI() {
             migrateTeamMemberCounts(window.currentInstituteId);
         }
 
-        tableHTML += `
-            <div class="team-row">
-                <div class="team-name-cell">
-                    ${window.escapeHTML(team.name)}
-                </div>
-                <div class="team-desc-cell">
-                    ${window.escapeHTML(team.description || "No description")}
-                </div>
-                <div class="team-members-cell">
-                    <span class="team-members-badge">
-                        👥 ${membersLabel}
-                    </span>
-                </div>
-                <div class="team-actions-cell">
-                    <div class="actions-dropdown-container">
-                        <button class="btn-action-icon btn-action-more dots-btn team-dots-btn" 
-                            data-id="${teamId}"
-                            data-name="${window.escapeHTML(team.name)}"
-                            data-desc="${window.escapeHTML(team.description || "")}">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.95rem; height:0.95rem;">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
-                            </svg>
-                        </button>
-                    </div>
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'team-row';
+        rowDiv.innerHTML = `
+            <div class="team-name-cell">
+                ${window.escapeHTML(team.name)}
+            </div>
+            <div class="team-desc-cell">
+                ${window.escapeHTML(team.description || "No description")}
+            </div>
+            <div class="team-members-cell">
+                <span class="team-members-badge">
+                    👥 ${membersLabel}
+                </span>
+            </div>
+            <div class="team-actions-cell">
+                <div class="actions-dropdown-container">
+                    <button class="btn-action-icon btn-action-more dots-btn team-dots-btn" 
+                        data-id="${teamId}"
+                        data-name="${window.escapeHTML(team.name)}"
+                        data-desc="${window.escapeHTML(team.description || "")}">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:0.95rem; height:0.95rem;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+                        </svg>
+                    </button>
                 </div>
             </div>
         `;
+        fragment.appendChild(rowDiv);
     });
 
-    tableHTML += `
-            </div>
-        </div>
-    `;
-
-    tableContainer.innerHTML = tableHTML;
+    tbody.appendChild(fragment);
+    tableContainer.replaceChildren(tableWrap);
     renderProgramAssignmentOverview();
 }
 

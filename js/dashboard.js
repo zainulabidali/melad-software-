@@ -1307,45 +1307,7 @@ async function initDashboardOverview(container, topActions) {
     };
     document.getElementById('dashOpenLiveDisplay').onclick = () => window.open(liveDisplayUrl, '_blank');
 
-    // 1. Real-time Live Listener on Students Collection (Authoritative Live Count & Real-time Auto-Sync)
-    try {
-        const studentsRef = collection(db, "institutes", instId, "students");
-        const studentsUnsub = onSnapshot(studentsRef, async (stuSnap) => {
-            const liveTotal = stuSnap.docs.length;
-            const maleCount = stuSnap.docs.filter(d => (d.data().gender || '').toString().trim().toLowerCase() === 'male').length;
-            const femaleCount = stuSnap.docs.filter(d => (d.data().gender || '').toString().trim().toLowerCase() === 'female').length;
-
-            if (!metadataCache) metadataCache = {};
-
-            const countChanged = metadataCache.studentsCount !== liveTotal ||
-                                metadataCache.maleStudentsCount !== maleCount ||
-                                metadataCache.femaleStudentsCount !== femaleCount;
-
-            metadataCache.studentsCount = liveTotal;
-            metadataCache.maleStudentsCount = maleCount;
-            metadataCache.femaleStudentsCount = femaleCount;
-
-            // Immediately update summary cards in the UI without requiring page refresh
-            const elStudents = document.getElementById('statStudents');
-            if (elStudents) elStudents.textContent = liveTotal;
-
-            const elStudentsDesc = document.getElementById('statStudentsDesc');
-            if (elStudentsDesc) {
-                elStudentsDesc.textContent = `Male: ${maleCount} | Female: ${femaleCount}`;
-            }
-
-            // If metadata document was stale compared to live total, trigger background self-healing update
-            if (countChanged) {
-                console.log(`Live student count sync: ${liveTotal}. Synchronizing dashboard metadata...`);
-                await updateDashboardMetadata(instId).catch(e => console.error("Auto-sync update failed:", e));
-            }
-        }, (err) => {
-            console.error("Error listening to live students collection:", err);
-        });
-        dbUnsubscribes.push(studentsUnsub);
-    } catch (err) {
-        console.error("Error launching live students listener:", err);
-    }
+    // 1. Student counts and statistics are updated real-time via the metadata/dashboard document below.
 
     // 2. Attach Snapshot Listener to the dashboard metadata aggregates document
     try {

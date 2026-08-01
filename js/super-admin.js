@@ -209,12 +209,20 @@ function initInstitutesControls() {
     const pageSizeSelect = document.getElementById('pageSizeSelect');
     const resetBtn = document.getElementById('resetFiltersBtn');
 
+    function debounce(fn, ms) {
+        let t;
+        return function(...args) {
+            clearTimeout(t);
+            t = setTimeout(() => fn.apply(this, args), ms);
+        };
+    }
+
     if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
+        searchInput.addEventListener('input', debounce((e) => {
             searchQuery = e.target.value.trim().toLowerCase();
             currentPage = 1;
             applyFiltersAndRender();
-        });
+        }, 200));
     }
 
     if (statusFilter) {
