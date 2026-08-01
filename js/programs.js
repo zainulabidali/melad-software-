@@ -1,8 +1,9 @@
 import { db, updateDashboardMetadata, migrateParticipantCounts, getCachedCategories, invalidateProgramsCache, getCachedPointsConfig, DEFAULT_POINTS, recalculateAllResultsPoints, invalidatePointsConfigCache } from './firebase.js';
 import {
-    collection, addDoc, getDocs, doc, deleteDoc, updateDoc, setDoc,
+    collection, addDoc, getDocs, getDoc, doc, deleteDoc, updateDoc, setDoc,
     onSnapshot, serverTimestamp, writeBatch, query, where, collectionGroup, orderBy
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+
 import { normalizeClasses } from './categories.js';
 
 let unsubscribePrograms = null;
@@ -74,6 +75,8 @@ export async function initProgramsView(container, topActions) {
                     <button class="btn btn-general" id="btnCreateGeneralProgram">+ General</button>
                     <button class="btn btn-primary" id="btnCreateProgram" disabled>+ Program</button>
                 </div>
+
+
             </div>
         </div>
 
@@ -216,7 +219,7 @@ function applyProgramFiltersAndRender() {
         filtered = filtered.filter(p => {
             const nameMatch = (p.programName || '').toLowerCase().includes(q);
             const typeMatch = (p.programType || p.type || '').toLowerCase().includes(q);
-            
+
             // find category name
             const cat = allCategories.find(c => c.id === p.categoryId || c.name === p.categoryId);
             const catName = cat?.name || (p.categoryId === 'general_programs' ? 'General' : p.categoryId || '');
@@ -268,20 +271,20 @@ function applyProgramFiltersAndRender() {
     filtered.sort((a, b) => {
         const cleanA = String(a.programNumber || '').replace(/[^0-9]/g, '');
         const cleanB = String(b.programNumber || '').replace(/[^0-9]/g, '');
-        
+
         const numA = parseInt(cleanA, 10);
         const numB = parseInt(cleanB, 10);
-        
+
         const hasA = !isNaN(numA) && cleanA !== '';
         const hasB = !isNaN(numB) && cleanB !== '';
-        
+
         if (hasA && hasB) {
             if (numA !== numB) return numA - numB;
             return (a.programName || '').localeCompare(b.programName || '');
         }
         if (hasA) return -1;
         if (hasB) return 1;
-        
+
         return String(a.programNumber || '').localeCompare(String(b.programNumber || ''), undefined, { numeric: true });
     });
 
@@ -298,7 +301,7 @@ function loadProgramsAllData() {
     const programsRef = collection(db, "institutes", window.currentInstituteId, "programs");
     unsubscribePrograms = onSnapshot(programsRef, async (snapshot) => {
         const rawProgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        
+
         // Self-healing backfill for program numbers
         const needsBackfill = rawProgs.some(p => p.programNumber === undefined || p.programNumber === null);
         if (needsBackfill) {
@@ -423,6 +426,8 @@ function renderProgramsUI() {
             partHTML = `<span class="program-participants-text">👥 ${text}</span>`;
             if (count > 0) showActiveStatus = true;
         } else {
+
+
             partHTML = `<span class="program-participants-text">👥 <span class="spinner-small" style="display:inline-block; width:10px; height:10px; border:2px solid #ccc; border-top:2px solid #000; border-radius:50%; animation:spin 1s linear infinite; margin-right:4px; vertical-align:middle;"></span> Migrating...</span>`;
             // Trigger self-healing background migration
             migrateParticipantCounts(window.currentInstituteId);
@@ -447,7 +452,7 @@ function renderProgramsUI() {
 
         const row = document.createElement('div');
         row.className = rowClass;
-        
+
         const cellId = `prog-part-cell-${progId}`;
         const statusCellId = `prog-status-cell-${progId}`;
 
@@ -558,23 +563,23 @@ function openProgramModal(progId = null, data = {}) {
         modalOverlay.classList.add('hidden');
     };
 
-function timeToMinutes(timeStr) {
-    if (!timeStr) return -1;
-    const ampmMatch = String(timeStr).trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
-    if (ampmMatch) {
-        let h = parseInt(ampmMatch[1], 10);
-        const m = parseInt(ampmMatch[2], 10) || 0;
-        const period = ampmMatch[3].toUpperCase();
-        if (period === 'PM' && h < 12) h += 12;
-        if (period === 'AM' && h === 12) h = 0;
+    function timeToMinutes(timeStr) {
+        if (!timeStr) return -1;
+        const ampmMatch = String(timeStr).trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+        if (ampmMatch) {
+            let h = parseInt(ampmMatch[1], 10);
+            const m = parseInt(ampmMatch[2], 10) || 0;
+            const period = ampmMatch[3].toUpperCase();
+            if (period === 'PM' && h < 12) h += 12;
+            if (period === 'AM' && h === 12) h = 0;
+            return h * 60 + m;
+        }
+        const parts = String(timeStr).split(':');
+        let h = parseInt(parts[0], 10);
+        let m = parseInt(parts[1], 10);
+        if (isNaN(h) || isNaN(m)) return -1;
         return h * 60 + m;
     }
-    const parts = String(timeStr).split(':');
-    let h = parseInt(parts[0], 10);
-    let m = parseInt(parts[1], 10);
-    if (isNaN(h) || isNaN(m)) return -1;
-    return h * 60 + m;
-}
 
     if (progId) {
         // --- SINGLE EDIT MODE (Compatibility) ---
@@ -979,7 +984,7 @@ function timeToMinutes(timeStr) {
             } else if (e.target.classList.contains('bulk-row-delete')) {
                 const row = e.target.closest('tr');
                 row.remove();
-                
+
                 const tbody = document.getElementById('bulkTableBody');
                 if (tbody.querySelectorAll('.bulk-row').length === 0) {
                     renderEmptyState();
@@ -1096,7 +1101,7 @@ function timeToMinutes(timeStr) {
             // Real-time duplicates warnings warning check before commits
             let hasDuplicate = false;
             for (const payload of selectedPayloads) {
-                const exists = localProgramsAll.some(p => 
+                const exists = localProgramsAll.some(p =>
                     p.categoryId === payload.categoryId &&
                     p.programName.trim().toLowerCase() === payload.programName.toLowerCase() &&
                     (p.programLocation || p.location) === payload.programLocation &&
@@ -1372,10 +1377,10 @@ async function deleteProgram(id) {
                     if (wasAssigned && comps.includes(progName)) {
                         const newComps = comps.filter(c => c !== progName);
                         const newCompIds = compIds.filter(cid => cid !== r.programId);
-                        batch.update(jDoc.ref, { 
-                            competitions: newComps, 
-                            competitionIds: newCompIds, 
-                            updatedAt: serverTimestamp() 
+                        batch.update(jDoc.ref, {
+                            competitions: newComps,
+                            competitionIds: newCompIds,
+                            updatedAt: serverTimestamp()
                         });
                     }
                 });
@@ -1406,7 +1411,7 @@ function openProgramsDropdown(btn) {
     // 2. Create the dropdown element
     const dropdown = document.createElement('div');
     dropdown.className = 'actions-dropdown-menu active-body-dropdown';
-    
+
     // Get datasets
     const id = btn.dataset.id;
 
@@ -1478,6 +1483,8 @@ function openProgramsDropdown(btn) {
         }
     });
 
+
+
     dropdown.querySelector('.btn-delete-prog').addEventListener('click', () => {
         dropdown.remove();
         deleteProgram(id);
@@ -1517,4 +1524,5 @@ async function backfillProgramNumbers(instId, programs) {
 function getProgramFromLocalCache(id) {
     return localProgramsAll.find(p => p.id === id);
 }
+
 

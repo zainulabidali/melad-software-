@@ -1,4 +1,5 @@
-import { db, getCachedTeams, getCachedCategories, getCachedPrograms, updateDashboardMetadata, classifyProgram, resolveEffectiveParticipationLimits, checkStudentParticipationEligibility, invalidateProgramOverviewCache } from './firebase.js';
+import { db, getCachedTeams, getCachedCategories, getCachedPrograms, updateDashboardMetadata, migrateParticipantCounts, classifyProgram, resolveEffectiveParticipationLimits, checkStudentParticipationEligibility, invalidateProgramOverviewCache } from './firebase.js';
+
 import {
     collection,
     getDocs,
@@ -279,8 +280,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
         const rightPanelTitleText = document.getElementById('pwRightPanelTitleText');
         if (rightPanelTitleText) {
-            rightPanelTitleText.textContent = isGroupEvent 
-                ? `📂 Registered Groups (${groups.length})` 
+            rightPanelTitleText.textContent = isGroupEvent
+                ? `📂 Registered Groups (${groups.length})`
                 : `📋 Assigned Participants (${assignedParticipantsAll.length})`;
         }
 
@@ -538,12 +539,12 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         const frag = visibleStudents.map((s, idx) => {
             const isSelected = selectedStudentIds.has(s.id);
             const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && assignedGroupStudentIds.has(s.id));
-            
+
             // Determine duplicate status
             let statusText = 'Eligible';
             let statusClass = 'pw-badge-eligible';
             let statusDot = '🟢';
-            
+
             const limitEligibility = checkStudentParticipationEligibility(
                 s,
                 progData,
@@ -574,7 +575,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     statusDot = '🟢';
                 }
             }
-            
+
             // Group membership check (Requirement 12)
             const groupInfo = studentGroupsMap.get(s.id);
             let groupInfoHTML = '';
@@ -638,7 +639,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 const containerBottom = containerTop + scrollContainer.clientHeight;
                 const elemTop = activeCard.offsetTop;
                 const elemBottom = elemTop + activeCard.clientHeight;
-                
+
                 if (elemTop < containerTop) {
                     scrollContainer.scrollTop = elemTop;
                 } else if (elemBottom > containerBottom) {
@@ -821,7 +822,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             const instId = window.currentInstituteId;
             const allProgs = await getCachedPrograms(instId);
             programsMap = new Map(allProgs.map(p => [p.id, p]));
-            
+
             let docs = [];
 
             // Try collectionGroup fetch using composite index (teamId, type)
@@ -888,7 +889,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                                 if (sId) {
                                     if (!registrationsMap.has(sId)) registrationsMap.set(sId, new Set());
                                     registrationsMap.get(sId).add(`${progName} (${gName})`);
-                                    
+
                                     if (!registrationsProgramIdsMap.has(sId)) registrationsProgramIdsMap.set(sId, new Set());
                                     registrationsProgramIdsMap.get(sId).add(pId);
 
@@ -1049,7 +1050,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
             studentsFiltered = studentsAll;
             applyStudentSearchFilter();
-            
+
             // Set stats details
             const label = document.getElementById('pwStudentsCountLabel');
             if (label) label.textContent = `Total: ${studentsAll.length}`;
@@ -1170,8 +1171,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             const data = d.data();
             const matchesType = data.type === 'group';
             const matchesTeam = (data.teamId || '') === targetTeamId;
-            const matchesCategory = (pType === 'general' || selectedCategoryId === 'general_programs') || 
-                                    ((data.categoryId || '') === selectedCategoryId);
+            const matchesCategory = (pType === 'general' || selectedCategoryId === 'general_programs') ||
+                ((data.categoryId || '') === selectedCategoryId);
             return matchesType && matchesTeam && matchesCategory;
         });
 
@@ -1290,7 +1291,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                   <button class="pw-group-member-remove-btn" data-group-id="${g.id}" data-student-id="${m.studentId}" data-student-name="${window.escapeHTML(m.studentName)}" title="Remove member">✕</button>
                 </span>
                 `;
-              }).join('')}
+            }).join('')}
             </div>
           </div>
 
@@ -1363,7 +1364,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 const groupId = btn.getAttribute('data-group-id');
                 const studentId = btn.getAttribute('data-student-id');
                 const studentName = btn.getAttribute('data-student-name');
-                
+
                 const confirmed = await window.customConfirm("Remove this student from the group?", "Remove Member", {
                     okText: "Remove",
                     cancelText: "Cancel",
@@ -1483,7 +1484,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     .map(s => ({ studentId: s.id, studentName: s.name }));
 
                 g.members = [...(g.members || []), ...toAdd];
-                
+
                 // Update local state maps instantly
                 toAdd.forEach(s => {
                     studentGroupsMap.set(s.studentId, {
@@ -1495,7 +1496,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     if (!registrationsMap.has(s.studentId)) registrationsMap.set(s.studentId, new Set());
                     registrationsMap.get(s.studentId).add(`${progName} (${g.name})`);
                 });
-                
+
                 // Update other group members' maps count/info
                 g.members.forEach(m => {
                     studentGroupsMap.set(m.studentId, {
@@ -1959,14 +1960,14 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         document.getElementById('pwCopyGroupSelect')?.addEventListener('change', (e) => {
             const val = e.target.value;
             if (!val) return;
-            
+
             const [tId, gId] = val.split(':');
             const group = allEventGroups.find(g => g.teamId === tId && g.id === gId);
             if (!group) return;
 
             selectedStudentIds.clear();
             let copiedCount = 0;
-            
+
             group.members.forEach(m => {
                 const match = studentsAll.find(s => s.name.toLowerCase() === m.studentName.toLowerCase() || s.id === m.studentId);
                 if (match) {
@@ -2071,7 +2072,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 if (blockedStudents.length > 0) {
                     const errorMsg = `Cannot save participants.\n\nParticipation limit reached:\n` + blockedStudents.join('\n');
                     window.customAlert ? window.customAlert(errorMsg, "Limit Reached") : alert(errorMsg);
-                    
+
                     if (statusEl) statusEl.textContent = 'Save cancelled. Limit reached.';
                     btn.disabled = false;
                     btn.textContent = '💾 Save Participants';
@@ -2309,15 +2310,35 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         if (spinner) spinner.style.display = 'block';
 
         try {
-            const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
+            const instId = window.currentInstituteId;
+            const partRef = collection(db, "institutes", instId, "programs", progId, "participants");
             let docId = participantDocIds.get(id) || `individual_${safeDocId(selectedTeamId)}_${safeDocId(id)}`;
             const docRef = doc(partRef, docId);
 
-            await deleteDoc(docRef);
+            const batch = writeBatch(db);
+            batch.delete(docRef);
 
-            const progRef = doc(db, "institutes", window.currentInstituteId, "programs", progId);
-            await setDoc(progRef, { participantCount: increment(-1) }, { merge: true });
-            await updateDashboardMetadata(window.currentInstituteId);
+            // Clean result document for this program
+            const resultsSnap = await getDocs(query(
+                collection(db, "institutes", instId, "results"),
+                where("programId", "==", progId)
+            ));
+            resultsSnap.forEach(resDoc => {
+                const resData = resDoc.data();
+                if (Array.isArray(resData.marksData)) {
+                    const cleanMarks = resData.marksData.filter(m => m.studentId !== id);
+                    if (cleanMarks.length === 0) {
+                        batch.delete(resDoc.ref);
+                    } else if (cleanMarks.length !== resData.marksData.length) {
+                        batch.update(resDoc.ref, { marksData: cleanMarks, participantCount: cleanMarks.length, updatedAt: serverTimestamp() });
+                    }
+                }
+            });
+
+            await batch.commit();
+
+            await migrateParticipantCounts(instId);
+            await updateDashboardMetadata(instId);
             programParticipantsCache = null;
             registrationsByTeamCache.clear();
 
@@ -2333,6 +2354,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             if (spinner) spinner.style.display = 'none';
         }
     }
+
 
     const handleScroll = () => {
         closeAllDropdowns();

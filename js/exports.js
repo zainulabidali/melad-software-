@@ -2439,29 +2439,18 @@ async function triggerDelete(exp) {
 // Sub-Collection Helper: Loads students dynamically
 // ─────────────────────────────────────────────
 async function loadParticipants(prog, limitTeamId, studentMap = {}) {
-    const instId = window.currentInstituteId;
-    const snap = await getDocs(collection(db, "institutes", instId, "programs", prog.id, "participants"));
+    const snap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs", prog.id, "participants"));
     const pType = (prog.programType || '').toLowerCase();
+    const activeTeamIds = new Set((allTeams || []).map(t => t.id));
     const list = [];
 
-    let activeTeamIds = null;
-    try {
-        const teams = await getCachedTeams(instId) || [];
-        if (teams.length > 0) {
-            activeTeamIds = new Set(teams.map(t => t.id));
-        }
-    } catch (err) {
-        console.warn("Could not load active teams set in loadParticipants:", err);
-    }
+
 
     snap.docs.forEach(d => {
         const p = d.data();
+        if (p.teamId && activeTeamIds.size > 0 && !activeTeamIds.has(p.teamId)) return;
         if (limitTeamId && p.teamId !== limitTeamId) return;
 
-        // Skip orphaned records for deleted teams
-        if (p.teamId && activeTeamIds && !activeTeamIds.has(p.teamId)) {
-            return;
-        }
 
         const isGroupData = p.type === 'group' || Array.isArray(p.groups) || pType === 'group' || pType === 'team' || pType === 'team-based' || pType === 'special';
 
@@ -2486,6 +2475,15 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
                         members: members
                     });
                 });
+            } else {
+                list.push({
+                    id: p.teamId || d.id,
+                    isGroup: true,
+                    name: p.teamName || 'Team',
+                    teamName: p.teamName || '',
+                    teamId: p.teamId || '',
+                    members: []
+                });
             }
         } else {
             const resolvedStudent = studentMap[p.studentId];
@@ -2498,8 +2496,27 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
             });
         }
     });
-    return list;
+
+
+    // De-duplicate list items by unique key (teamId + group name + member chests)
+
+    const uniqueList = [];
+    const seenKeys = new Set();
+
+    list.forEach(item => {
+        const memberChests = (item.members || []).map(m => m.chestNumber || m.studentId).sort().join('-');
+        const key = item.isGroup 
+            ? `${item.teamId}_${(item.name || '').trim().toLowerCase()}_${memberChests}`
+            : `${item.teamId}_${item.studentId}`;
+        if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            uniqueList.push(item);
+        }
+    });
+
+    return uniqueList;
 }
+
 
 // Helper to resolve winner participant/group name, team, and member chest numbers
 function resolveWinnerParticipant(prog, w, participantsList, studentMap) {
@@ -2838,7 +2855,7 @@ function getCategoryMinClassSortInfo(catName) {
         return { isGeneral: true, minNum: -Infinity, maxNum: -Infinity, minName: '', maxName: '', catIndex: -1 };
     }
 
-    const catIndex = allCategories.findIndex(c => 
+    const catIndex = allCategories.findIndex(c =>
         (c.name || '').trim().toLowerCase() === (catName || '').trim().toLowerCase() || c.id === catName
     );
     const cat = catIndex !== -1 ? allCategories[catIndex] : null;
@@ -4640,63 +4657,63 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         } else {
             const isCompact = f.compactPacking !== false;
 
-        const isRegistered = (studentId, progId) => {
-            const parts = participantsMap[progId] || [];
-            return parts.some(part => {
-                if (part.isGroup) {
-                    return (part.members || []).some(m => m.studentId === studentId);
-                } else {
-                    return part.studentId === studentId;
+            const isRegistered = (studentId, progId) => {
+                const parts = participantsMap[progId] || [];
+                return parts.some(part => {
+                    if (part.isGroup) {
+                        return (part.members || []).some(m => m.studentId === studentId);
+                    } else {
+                        return part.studentId === studentId;
+                    }
+                });
+            };
+
+            // Retrieve matching programs list (Combine Stage & Off Stage columns)
+            let matchingPrograms = [...programs];
+            if (f.participationType) {
+                if (f.participationType === 'general') {
+                    matchingPrograms = matchingPrograms.filter(p => p.categoryId === 'general_programs' || p.programType === 'general');
+                } else if (f.participationType === 'group') {
+                    matchingPrograms = matchingPrograms.filter(p => p.programType === 'group');
+                } else if (f.participationType === 'individual') {
+                    matchingPrograms = matchingPrograms.filter(p => p.programType === 'individual');
                 }
-            });
-        };
-
-        // Retrieve matching programs list (Combine Stage & Off Stage columns)
-        let matchingPrograms = [...programs];
-        if (f.participationType) {
-            if (f.participationType === 'general') {
-                matchingPrograms = matchingPrograms.filter(p => p.categoryId === 'general_programs' || p.programType === 'general');
-            } else if (f.participationType === 'group') {
-                matchingPrograms = matchingPrograms.filter(p => p.programType === 'group');
-            } else if (f.participationType === 'individual') {
-                matchingPrograms = matchingPrograms.filter(p => p.programType === 'individual');
             }
-        }
 
-        const columnItems = buildColumnItems(matchingPrograms);
+            const columnItems = buildColumnItems(matchingPrograms);
 
-        if (f.categoryId === 'general_programs') {
-            if (columnItems.length === 0) {
-                htmlContent = `
+            if (f.categoryId === 'general_programs') {
+                if (columnItems.length === 0) {
+                    htmlContent = `
                     <div style="text-align:center; padding:4rem; color:#dc2626; border:1px solid #fecaca; border-radius:12px; background:#fef2f2;">
                         <h3 style="margin:0;">⚠️ No matching general programs found.</h3>
                         <p style="color:#64748b; margin-top:0.25rem; font-weight:600;">Check your filter criteria and try again.</p>
                     </div>
                 `;
-            } else {
-                const instName = getEventName();
-                const teamName = f.teamId ? (allTeams.find(t => t.id === f.teamId)?.name || '') : '';
-                const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
+                } else {
+                    const instName = getEventName();
+                    const teamName = f.teamId ? (allTeams.find(t => t.id === f.teamId)?.name || '') : '';
+                    const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
 
-                const N = columnItems.length;
-                let cellFontSize = '0.75rem';
-                let headerHeight = '120px';
+                    const N = columnItems.length;
+                    let cellFontSize = '0.75rem';
+                    let headerHeight = '120px';
 
-                if (N > 25) {
-                    cellFontSize = '0.42rem';
-                    headerHeight = '180px';
-                } else if (N > 18) {
-                    cellFontSize = '0.48rem';
-                    headerHeight = '160px';
-                } else if (N > 12) {
-                    cellFontSize = '0.55rem';
-                    headerHeight = '140px';
-                } else if (N > 8) {
-                    cellFontSize = '0.65rem';
-                    headerHeight = '130px';
-                }
+                    if (N > 25) {
+                        cellFontSize = '0.42rem';
+                        headerHeight = '180px';
+                    } else if (N > 18) {
+                        cellFontSize = '0.48rem';
+                        headerHeight = '160px';
+                    } else if (N > 12) {
+                        cellFontSize = '0.55rem';
+                        headerHeight = '140px';
+                    } else if (N > 8) {
+                        cellFontSize = '0.65rem';
+                        headerHeight = '130px';
+                    }
 
-                htmlContent += `
+                    htmlContent += `
                     <div class="${pageDivClass}" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid;">
                         <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.4rem; margin-bottom: 0.5rem; width: 100%;">
                             <div>
@@ -4728,16 +4745,16 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     <th style="width:60px; min-width:60px; max-width:60px; text-align:center; padding:0.35rem 0.2rem; line-height: 1.2; border: 1px solid #000;">CHEST<br>NO.</th>
                                     <th style="width:180px; min-width:180px; max-width:180px; padding:0.35rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
                                     ${columnItems.map(item => {
-                    if (item.type === 'separator') {
-                        return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
-                    }
-                    const p = item.program;
-                    return `
+                        if (item.type === 'separator') {
+                            return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
+                        }
+                        const p = item.program;
+                        return `
                                             <th class="rotated-th program-col" style="height:${headerHeight};">
                                                 <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
                                             </th>
                                         `;
-                }).join('')}
+                    }).join('')}
                                     <th style="border-left: none; border-right: none; background: #fff !important;"></th>
                                 </tr>
                             </thead>
@@ -4748,11 +4765,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                         <td style="width:60px; min-width:60px; max-width:60px; text-align:center; font-weight:bold; color:#000; padding:0.35rem 0.2rem; border: 1px solid #000;"></td>
                                         <td style="width:180px; min-width:180px; max-width:180px; border: 1px solid #000;"></td>
                                         ${columnItems.map(item => {
-                    if (item.type === 'separator') {
-                        return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
-                    }
-                    return `<td class="program-col" style="border:1px solid #000;"></td>`;
-                }).join('')}
+                        if (item.type === 'separator') {
+                            return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
+                        }
+                        return `<td class="program-col" style="border:1px solid #000;"></td>`;
+                    }).join('')}
                                         <td style="border-left: none; border-right: none;"></td>
                                     </tr>
                                 `).join('')}
@@ -4765,14 +4782,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         </div>
                     </div>
                 `;
-            }
+                }
 
-            // Render PDF through iframe
-            const printIframe = getPrintIframe();
-            const doc = printIframe.contentDocument || printIframe.contentWindow.document;
-            const pageMargin = '10mm';
+                // Render PDF through iframe
+                const printIframe = getPrintIframe();
+                const doc = printIframe.contentDocument || printIframe.contentWindow.document;
+                const pageMargin = '10mm';
 
-            const styleBlock = `
+                const styleBlock = `
                 <style>
                     @page {
                         size: A4 ${orientation};
@@ -4877,8 +4894,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 </style>
             `;
 
-            doc.open();
-            doc.write(`
+                doc.open();
+                doc.write(`
                 <!DOCTYPE html>
                 <html>
                 <head>
@@ -4893,198 +4910,198 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 </body>
                 </html>
             `);
-            doc.close();
+                doc.close();
 
-            if (isDownload) {
-                setTimeout(async () => {
-                    try {
-                        window.showToast("Preparing PDF download...", "info");
+                if (isDownload) {
+                    setTimeout(async () => {
+                        try {
+                            window.showToast("Preparing PDF download...", "info");
 
-                        const prevWidth = printIframe.style.width;
-                        const prevHeight = printIframe.style.height;
+                            const prevWidth = printIframe.style.width;
+                            const prevHeight = printIframe.style.height;
 
-                        if (orientation === 'landscape') {
-                            printIframe.style.width = '1123px';
-                        } else {
-                            printIframe.style.width = '794px';
+                            if (orientation === 'landscape') {
+                                printIframe.style.width = '1123px';
+                            } else {
+                                printIframe.style.width = '794px';
+                            }
+                            printIframe.style.height = 'auto';
+                            await new Promise(resolve => setTimeout(resolve, 150));
+
+                            const scrollHeight = Math.max(
+                                doc.body.scrollHeight,
+                                doc.documentElement.scrollHeight,
+                                doc.body.offsetHeight,
+                                doc.documentElement.offsetHeight
+                            );
+                            printIframe.style.height = (scrollHeight + 100) + 'px';
+                            await new Promise(resolve => setTimeout(resolve, 50));
+
+                            const html2pdf = await loadHtml2Pdf();
+                            const opt = {
+                                margin: 10,
+                                filename: exp.fileName || 'export.pdf',
+                                image: { type: 'jpeg', quality: 0.98 },
+                                html2canvas: { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+                                jsPDF: { unit: 'mm', format: 'a4', orientation: orientation },
+                                pagebreak: { mode: ['css', 'legacy'] }
+                            };
+                            const element = doc.body;
+                            await html2pdf().set(opt).from(element).save();
+
+                            printIframe.style.width = prevWidth;
+                            printIframe.style.height = prevHeight;
+                        } catch (err) {
+                            console.error("PDF generation failed, falling back to print dialog:", err);
+                            printIframe.contentWindow.focus();
+                            printIframe.contentWindow.print();
                         }
-                        printIframe.style.height = 'auto';
-                        await new Promise(resolve => setTimeout(resolve, 150));
-
-                        const scrollHeight = Math.max(
-                            doc.body.scrollHeight,
-                            doc.documentElement.scrollHeight,
-                            doc.body.offsetHeight,
-                            doc.documentElement.offsetHeight
-                        );
-                        printIframe.style.height = (scrollHeight + 100) + 'px';
-                        await new Promise(resolve => setTimeout(resolve, 50));
-
-                        const html2pdf = await loadHtml2Pdf();
-                        const opt = {
-                            margin: 10,
-                            filename: exp.fileName || 'export.pdf',
-                            image: { type: 'jpeg', quality: 0.98 },
-                            html2canvas: { scale: 1.5, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
-                            jsPDF: { unit: 'mm', format: 'a4', orientation: orientation },
-                            pagebreak: { mode: ['css', 'legacy'] }
-                        };
-                        const element = doc.body;
-                        await html2pdf().set(opt).from(element).save();
-
-                        printIframe.style.width = prevWidth;
-                        printIframe.style.height = prevHeight;
-                    } catch (err) {
-                        console.error("PDF generation failed, falling back to print dialog:", err);
+                    }, 500);
+                } else {
+                    setTimeout(() => {
                         printIframe.contentWindow.focus();
                         printIframe.contentWindow.print();
-                    }
-                }, 500);
-            } else {
-                setTimeout(() => {
-                    printIframe.contentWindow.focus();
-                    printIframe.contentWindow.print();
-                }, 300);
+                    }, 300);
+                }
+                return;
             }
-            return;
-        }
 
-        const chunkArray = (array, size) => {
-            const chunks = [];
-            for (let i = 0; i < array.length; i += size) {
-                chunks.push(array.slice(i, i + size));
-            }
-            return chunks;
-        };
+            const chunkArray = (array, size) => {
+                const chunks = [];
+                for (let i = 0; i < array.length; i += size) {
+                    chunks.push(array.slice(i, i + size));
+                }
+                return chunks;
+            };
 
-        // 1. Filter students
-        let studentsList = Object.values(studentMap);
+            // 1. Filter students
+            let studentsList = Object.values(studentMap);
 
-        if (f.categoryId === 'general_programs' || f.participationType === 'general') {
-            const registeredStudentIds = new Set();
-            matchingPrograms.forEach(p => {
-                const parts = participantsMap[p.id] || [];
-                parts.forEach(part => {
-                    if (part.isGroup) {
-                        (part.members || []).forEach(m => {
-                            if (m.studentId) registeredStudentIds.add(m.studentId);
-                        });
-                    } else {
-                        if (part.studentId) registeredStudentIds.add(part.studentId);
-                    }
+            if (f.categoryId === 'general_programs' || f.participationType === 'general') {
+                const registeredStudentIds = new Set();
+                matchingPrograms.forEach(p => {
+                    const parts = participantsMap[p.id] || [];
+                    parts.forEach(part => {
+                        if (part.isGroup) {
+                            (part.members || []).forEach(m => {
+                                if (m.studentId) registeredStudentIds.add(m.studentId);
+                            });
+                        } else {
+                            if (part.studentId) registeredStudentIds.add(part.studentId);
+                        }
+                    });
                 });
-            });
-            studentsList = studentsList.filter(s => registeredStudentIds.has(s.id));
-            if (f.categoryId && f.categoryId !== 'general_programs') {
+                studentsList = studentsList.filter(s => registeredStudentIds.has(s.id));
+                if (f.categoryId && f.categoryId !== 'general_programs') {
+                    studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
+                }
+            } else if (f.categoryId) {
                 studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
             }
-        } else if (f.categoryId) {
-            studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
-        }
 
-        if (f.registerMode !== 'category-wise' && f.classId) {
-            studentsList = studentsList.filter(s => s.classId === f.classId);
-        }
-        if (f.teamId) {
-            studentsList = studentsList.filter(s => s.teamId === f.teamId);
-        }
-        if (f.gender === 'Boys') {
-            studentsList = studentsList.filter(s => s.gender === 'Male');
-        } else if (f.gender === 'Girls') {
-            studentsList = studentsList.filter(s => s.gender === 'Female');
-        }
+            if (f.registerMode !== 'category-wise' && f.classId) {
+                studentsList = studentsList.filter(s => s.classId === f.classId);
+            }
+            if (f.teamId) {
+                studentsList = studentsList.filter(s => s.teamId === f.teamId);
+            }
+            if (f.gender === 'Boys') {
+                studentsList = studentsList.filter(s => s.gender === 'Male');
+            } else if (f.gender === 'Girls') {
+                studentsList = studentsList.filter(s => s.gender === 'Female');
+            }
 
-        if (studentsList.length === 0) {
-            htmlContent = `
+            if (studentsList.length === 0) {
+                htmlContent = `
                 <div style="text-align:center; padding:4rem; color:#dc2626; border:1px solid #fecaca; border-radius:12px; background:#fef2f2;">
                     <h3 style="margin:0;">⚠️ No matching students found.</h3>
                     <p style="color:#64748b; margin-top:0.25rem; font-weight:600;">Check your filter criteria and try again.</p>
                 </div>
             `;
-        } else if (matchingPrograms.length === 0) {
-            htmlContent = `
+            } else if (matchingPrograms.length === 0) {
+                htmlContent = `
                 <div style="text-align:center; padding:4rem; color:#dc2626; border:1px solid #fecaca; border-radius:12px; background:#fef2f2;">
                     <h3 style="margin:0;">⚠️ No matching programs found.</h3>
                     <p style="color:#64748b; margin-top:0.25rem; font-weight:600;">Check your filter criteria and try again.</p>
                 </div>
             `;
-        } else {
-            // Map team names
-            const teamNamesMap = {};
-            allTeams.forEach(t => {
-                teamNamesMap[t.id] = t.name;
-            });
-
-            // 2. Sort students according to chestSort parameter
-            const sortRule = f.chestSort || 'chest';
-            if (sortRule === 'chest') {
-                studentsList.sort((a, b) => {
-                    const numA = parseInt(a.chestNumber, 10);
-                    const numB = parseInt(b.chestNumber, 10);
-                    const hasA = !isNaN(numA);
-                    const hasB = !isNaN(numB);
-                    if (hasA && hasB) return numA - numB;
-                    if (hasA) return -1;
-                    if (hasB) return 1;
-                    return (a.chestNumber || '').localeCompare(b.chestNumber || '');
-                });
-            } else if (sortRule === 'name') {
-                studentsList.sort((a, b) => {
-                    const nameA = a.name || '';
-                    const nameB = b.name || '';
-                    return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
-                });
-            } else if (sortRule === 'team') {
-                studentsList.sort((a, b) => {
-                    const teamA = teamNamesMap[a.teamId] || a.teamName || '';
-                    const teamB = teamNamesMap[b.teamId] || b.teamName || '';
-                    return teamA.localeCompare(teamB, undefined, { sensitivity: 'base' });
-                });
-            }
-
-            // 3. Group students hierarchically
-            if (f.registerMode === 'category-wise') {
-                const groups = {};
-                studentsList.forEach(stu => {
-                    const catId = stu.categoryId || 'general';
-                    const catName = stu.categoryName || 'General';
-                    const teamId = stu.teamId || 'no-team';
-                    const teamName = teamNamesMap[stu.teamId] || stu.teamName || 'Independent';
-
-                    if (!groups[catId]) {
-                        groups[catId] = {
-                            name: catName,
-                            teams: {}
-                        };
-                    }
-                    if (!groups[catId].teams[teamId]) {
-                        groups[catId].teams[teamId] = {
-                            name: teamName,
-                            students: []
-                        };
-                    }
-                    groups[catId].teams[teamId].students.push(stu);
+            } else {
+                // Map team names
+                const teamNamesMap = {};
+                allTeams.forEach(t => {
+                    teamNamesMap[t.id] = t.name;
                 });
 
-                const sortedCatIds = Object.keys(groups).sort((a, b) => {
-                    const idxA = allCategories.findIndex(c => c.id === a);
-                    const idxB = allCategories.findIndex(c => c.id === b);
-                    return idxA - idxB;
-                });
-                const instName = getEventName();
-                const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
+                // 2. Sort students according to chestSort parameter
+                const sortRule = f.chestSort || 'chest';
+                if (sortRule === 'chest') {
+                    studentsList.sort((a, b) => {
+                        const numA = parseInt(a.chestNumber, 10);
+                        const numB = parseInt(b.chestNumber, 10);
+                        const hasA = !isNaN(numA);
+                        const hasB = !isNaN(numB);
+                        if (hasA && hasB) return numA - numB;
+                        if (hasA) return -1;
+                        if (hasB) return 1;
+                        return (a.chestNumber || '').localeCompare(b.chestNumber || '');
+                    });
+                } else if (sortRule === 'name') {
+                    studentsList.sort((a, b) => {
+                        const nameA = a.name || '';
+                        const nameB = b.name || '';
+                        return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+                    });
+                } else if (sortRule === 'team') {
+                    studentsList.sort((a, b) => {
+                        const teamA = teamNamesMap[a.teamId] || a.teamName || '';
+                        const teamB = teamNamesMap[b.teamId] || b.teamName || '';
+                        return teamA.localeCompare(teamB, undefined, { sensitivity: 'base' });
+                    });
+                }
 
-                sortedCatIds.forEach(catId => {
-                    const cat = groups[catId];
-                    const sortedTeamIds = Object.keys(cat.teams).sort((a, b) => cat.teams[a].name.localeCompare(cat.teams[b].name));
+                // 3. Group students hierarchically
+                if (f.registerMode === 'category-wise') {
+                    const groups = {};
+                    studentsList.forEach(stu => {
+                        const catId = stu.categoryId || 'general';
+                        const catName = stu.categoryName || 'General';
+                        const teamId = stu.teamId || 'no-team';
+                        const teamName = teamNamesMap[stu.teamId] || stu.teamName || 'Independent';
 
-                    // Filter matching programs for this specific Category
-                    const progs = f.categoryId === 'general_programs' || f.participationType === 'general'
-                        ? matchingPrograms
-                        : matchingPrograms.filter(p => p.categoryId === catId);
+                        if (!groups[catId]) {
+                            groups[catId] = {
+                                name: catName,
+                                teams: {}
+                            };
+                        }
+                        if (!groups[catId].teams[teamId]) {
+                            groups[catId].teams[teamId] = {
+                                name: teamName,
+                                students: []
+                            };
+                        }
+                        groups[catId].teams[teamId].students.push(stu);
+                    });
 
-                    if (progs.length === 0) {
-                        htmlContent += `
+                    const sortedCatIds = Object.keys(groups).sort((a, b) => {
+                        const idxA = allCategories.findIndex(c => c.id === a);
+                        const idxB = allCategories.findIndex(c => c.id === b);
+                        return idxA - idxB;
+                    });
+                    const instName = getEventName();
+                    const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
+
+                    sortedCatIds.forEach(catId => {
+                        const cat = groups[catId];
+                        const sortedTeamIds = Object.keys(cat.teams).sort((a, b) => cat.teams[a].name.localeCompare(cat.teams[b].name));
+
+                        // Filter matching programs for this specific Category
+                        const progs = f.categoryId === 'general_programs' || f.participationType === 'general'
+                            ? matchingPrograms
+                            : matchingPrograms.filter(p => p.categoryId === catId);
+
+                        if (progs.length === 0) {
+                            htmlContent += `
                             <div class="${pageDivClass}" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid;">
                                 <div style="padding: 2rem; text-align: center; border: 1px dashed #cbd5e1; border-radius: 8px;">
                                     <h3>Category: ${window.escapeHTML(cat.name)}</h3>
@@ -5092,230 +5109,6 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 </div>
                             </div>
                         `;
-                        return;
-                    }
-
-                    const columnItems = buildColumnItems(progs);
-                    const N = columnItems.length;
-                    let cellFontSize = '0.75rem';
-                    let headerHeight = '120px';
-                    let rowHeightVal = '26px';
-                    let cellPaddingVal = '2px 0.2rem';
-                    let nameCellPaddingVal = '2px 0.5rem';
-                    let pageSize = orientation === 'landscape' ? 16 : 20;
-
-                    if (N > 25) {
-                        cellFontSize = '0.42rem';
-                        headerHeight = '180px';
-                        rowHeightVal = '22px';
-                        cellPaddingVal = '1px 0.1rem';
-                        nameCellPaddingVal = '1px 0.3rem';
-                        pageSize = orientation === 'landscape' ? 15 : 28;
-                    } else if (N > 18) {
-                        cellFontSize = '0.48rem';
-                        headerHeight = '160px';
-                        rowHeightVal = '23px';
-                        cellPaddingVal = '1px 0.15rem';
-                        nameCellPaddingVal = '1px 0.4rem';
-                        pageSize = orientation === 'landscape' ? 16 : 26;
-                    } else if (N > 12) {
-                        cellFontSize = '0.55rem';
-                        headerHeight = '140px';
-                        rowHeightVal = '24px';
-                        cellPaddingVal = '1px 0.2rem';
-                        nameCellPaddingVal = '1px 0.4rem';
-                        pageSize = orientation === 'landscape' ? 16 : 24;
-                    } else if (N > 8) {
-                        cellFontSize = '0.65rem';
-                        headerHeight = '130px';
-                        rowHeightVal = '25px';
-                        cellPaddingVal = '1.5px 0.2rem';
-                        nameCellPaddingVal = '1.5px 0.4rem';
-                        pageSize = orientation === 'landscape' ? 16 : 22;
-                    }
-
-                    sortedTeamIds.forEach(teamId => {
-                        const team = cat.teams[teamId];
-                        const students = team.students;
-
-                        // Determine gender label from filters or actual students
-                        let genderLabel = '';
-                        if (f.gender === 'Boys') {
-                            genderLabel = ' • BOYS';
-                        } else if (f.gender === 'Girls') {
-                            genderLabel = ' • GIRLS';
-                        } else if (f.gender === 'Mixed') {
-                            genderLabel = ' • MIXED';
-                        } else {
-                            // Detect from students on this team
-                            const genders = [...new Set(students.map(s => s.gender).filter(Boolean))];
-                            if (genders.length === 1) {
-                                if (genders[0] === 'Male') genderLabel = ' • BOYS';
-                                else if (genders[0] === 'Female') genderLabel = ' • GIRLS';
-                            } else if (genders.length > 1) {
-                                genderLabel = ' • MIXED';
-                            }
-                        }
-
-                        const studentChunks = chunkArray(students, pageSize);
-
-                        studentChunks.forEach((chunk, chunkIdx) => {
-                            const pageNum = chunkIdx + 1;
-                            const totalPages = studentChunks.length;
-                            const pageIndicator = totalPages > 1 ? ` • PAGE ${pageNum}/${totalPages}` : '';
-
-                            htmlContent += `
-                                <div class="${pageDivClass}" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid;">
-                                    <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.2rem; margin-bottom: 0.3rem; width: 100%;">
-                                        <div>
-                                            <div style="font-size: 0.7rem; font-weight: 800; color: #000; letter-spacing: 0.05em; text-transform: uppercase;">
-                                                PROGRAM PARTICIPATION REGISTER${pageIndicator}
-                                            </div>
-                                            <h2 style="margin: 0.1rem 0 0 0; color: #000; font-size: 1.15rem; font-weight: 800; text-transform: uppercase;">
-                                                ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}${genderLabel}
-                                            </h2>
-                                            <div style="font-size: 0.7rem; font-weight: 700; color: #000; margin-top: 0.05rem; text-transform: uppercase;">
-                                                ${window.escapeHTML(instName).toUpperCase()}
-                                            </div>
-                                        </div>
-                                        <div style="text-align: right; font-weight: 800; color: #000; line-height: 1.2;">
-                                            <div style="font-size: 0.8rem; text-transform: uppercase;">
-                                                ${(f.participationType === 'individual' ? 'INDIVIDUAL PROGRAM' : (f.participationType === 'group' ? 'GROUP PROGRAM' : (f.participationType === 'general' ? 'GENERAL PROGRAM' : 'ALL PROGRAM TYPES')))}
-                                            </div>
-                                            <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase;">
-                                                STAGE / OFF STAGE
-                                            </div>
-                                            <div style="font-size: 0.62rem; font-weight: 700; color: #475569; margin-top: 0.05rem;">
-                                                TOTAL: ${students.length} STUDENTS
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <table class="report-table" style="margin-top: 0.4rem; font-size:${cellFontSize};">
-                                        <thead>
-                                            <tr>
-                                                <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
-                                                <th style="width:60px; min-width:60px; max-width:60px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">CHEST<br>NO.</th>
-                                                <th style="width:180px; min-width:180px; max-width:180px; padding:0.25rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
-                                                <th style="width:60px; min-width:60px; max-width:60px; padding:0.25rem 0.5rem; text-align:center; border: 1px solid #000;">CLASS</th>
-                                                ${columnItems.map(item => {
-                                if (item.type === 'separator') {
-                                    return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
-                                }
-                                const p = item.program;
-                                return `
-                                                        <th class="rotated-th program-col" style="height:${headerHeight};">
-                                                            <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
-                                                        </th>
-                                                    `;
-                            }).join('')}
-                                                <th style="border-left: none; border-right: none; background: #fff !important;"></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${chunk.map((item, idx) => {
-                                const globalIdx = chunkIdx * pageSize + idx;
-                                return `
-                                                    <tr style="height:${rowHeightVal}; page-break-inside:avoid;">
-                                                        <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; border: 1px solid #000;">${globalIdx + 1}</td>
-                                                        <td style="width:60px; min-width:60px; max-width:60px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.chestNumber || '-')}">
-                                                            ${window.escapeHTML(item.chestNumber || '-')}
-                                                        </td>
-                                                        <td style="width:180px; min-width:180px; max-width:180px; font-weight:bold; color:#000; padding:${nameCellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.name)}">
-                                                            ${window.escapeHTML(item.name).toUpperCase()}
-                                                        </td>
-                                                        <td style="width:60px; min-width:60px; max-width:60px; font-weight:bold; color:#000; padding:${cellPaddingVal}; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.className || '')}">
-                                                            ${window.escapeHTML(item.className || item.classId || '').toUpperCase()}
-                                                        </td>
-                                                        ${columnItems.map(col => {
-                                    if (col.type === 'separator') {
-                                        return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
-                                    }
-                                    const p = col.program;
-                                    return `
-                                                                <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
-                                                                    ${isRegistered(item.id, p.id) ? '✔' : ''}
-                                                                </td>
-                                                            `;
-                                }).join('')}
-                                                        <td style="border-left: none; border-right: none;"></td>
-                                                    </tr>
-                                                `;
-                            }).join('')}
-                                        </tbody>
-                                    </table>
-
-                                    <div class="register-footer" style="margin-top: 0.6rem; padding-top: 0.2rem; font-size: 0.72rem;">
-                                        <div>COORDINATOR SIGNATURE : ________________________</div>
-                                        <div>DATE : ________________________</div>
-                                    </div>
-                                </div>
-                            `;
-                        });
-                    });
-                });
-            } else {
-                // 3. Group students hierarchically by Category -> Class -> Team
-                const groups = {};
-                studentsList.forEach(stu => {
-                    const catId = stu.categoryId || 'general';
-                    const catName = stu.categoryName || 'General';
-                    const classId = stu.classId || 'standard';
-                    const className = stu.className || 'Standard';
-                    const teamId = stu.teamId || 'no-team';
-                    const teamName = teamNamesMap[stu.teamId] || stu.teamName || 'Independent';
-
-                    if (!groups[catId]) {
-                        groups[catId] = {
-                            name: catName,
-                            classes: {}
-                        };
-                    }
-                    if (!groups[catId].classes[classId]) {
-                        groups[catId].classes[classId] = {
-                            name: className,
-                            teams: {}
-                        };
-                    }
-                    if (!groups[catId].classes[classId].teams[teamId]) {
-                        groups[catId].classes[classId].teams[teamId] = {
-                            name: teamName,
-                            students: []
-                        };
-                    }
-                    groups[catId].classes[classId].teams[teamId].students.push(stu);
-                });
-
-                const sortedCatIds = Object.keys(groups).sort((a, b) => {
-                    const idxA = allCategories.findIndex(c => c.id === a);
-                    const idxB = allCategories.findIndex(c => c.id === b);
-                    return idxA - idxB;
-                });
-                const instName = getEventName();
-                const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
-
-                sortedCatIds.forEach(catId => {
-                    const cat = groups[catId];
-                    const sortedClassIds = Object.keys(cat.classes).sort((a, b) => cat.classes[a].name.localeCompare(cat.classes[b].name, undefined, { numeric: true }));
-
-                    sortedClassIds.forEach(classId => {
-                        const cls = cat.classes[classId];
-                        const sortedTeamIds = Object.keys(cls.teams).sort((a, b) => cls.teams[a].name.localeCompare(cls.teams[b].name));
-
-                        // Filter matching programs for this specific Category + Class
-                        const progs = f.categoryId === 'general_programs' || f.participationType === 'general'
-                            ? matchingPrograms.filter(p => !p.classId || p.classId === classId)
-                            : matchingPrograms.filter(p => p.categoryId === catId && (!p.classId || p.classId === classId));
-
-                        if (progs.length === 0) {
-                            htmlContent += `
-                                <div class="${pageDivClass}" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid;">
-                                    <div style="padding: 2rem; text-align: center; border: 1px dashed #cbd5e1; border-radius: 8px;">
-                                        <h3>Category: ${window.escapeHTML(cat.name)} · Class: ${window.escapeHTML(cls.name)}</h3>
-                                        <p style="color:#64748b;">No registered programs for this Category + Class combination.</p>
-                                    </div>
-                                </div>
-                            `;
                             return;
                         }
 
@@ -5359,7 +5152,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         }
 
                         sortedTeamIds.forEach(teamId => {
-                            const team = cls.teams[teamId];
+                            const team = cat.teams[teamId];
                             const students = team.students;
 
                             // Determine gender label from filters or actual students
@@ -5389,6 +5182,230 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 const pageIndicator = totalPages > 1 ? ` • PAGE ${pageNum}/${totalPages}` : '';
 
                                 htmlContent += `
+                                <div class="${pageDivClass}" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid;">
+                                    <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.2rem; margin-bottom: 0.3rem; width: 100%;">
+                                        <div>
+                                            <div style="font-size: 0.7rem; font-weight: 800; color: #000; letter-spacing: 0.05em; text-transform: uppercase;">
+                                                PROGRAM PARTICIPATION REGISTER${pageIndicator}
+                                            </div>
+                                            <h2 style="margin: 0.1rem 0 0 0; color: #000; font-size: 1.15rem; font-weight: 800; text-transform: uppercase;">
+                                                ${window.escapeHTML(cat.name).toUpperCase()} • ${window.escapeHTML(team.name).toUpperCase()}${genderLabel}
+                                            </h2>
+                                            <div style="font-size: 0.7rem; font-weight: 700; color: #000; margin-top: 0.05rem; text-transform: uppercase;">
+                                                ${window.escapeHTML(instName).toUpperCase()}
+                                            </div>
+                                        </div>
+                                        <div style="text-align: right; font-weight: 800; color: #000; line-height: 1.2;">
+                                            <div style="font-size: 0.8rem; text-transform: uppercase;">
+                                                ${(f.participationType === 'individual' ? 'INDIVIDUAL PROGRAM' : (f.participationType === 'group' ? 'GROUP PROGRAM' : (f.participationType === 'general' ? 'GENERAL PROGRAM' : 'ALL PROGRAM TYPES')))}
+                                            </div>
+                                            <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase;">
+                                                STAGE / OFF STAGE
+                                            </div>
+                                            <div style="font-size: 0.62rem; font-weight: 700; color: #475569; margin-top: 0.05rem;">
+                                                TOTAL: ${students.length} STUDENTS
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <table class="report-table" style="margin-top: 0.4rem; font-size:${cellFontSize};">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:40px; min-width:40px; max-width:40px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">SL<br>NO.</th>
+                                                <th style="width:60px; min-width:60px; max-width:60px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">CHEST<br>NO.</th>
+                                                <th style="width:180px; min-width:180px; max-width:180px; padding:0.25rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
+                                                <th style="width:60px; min-width:60px; max-width:60px; padding:0.25rem 0.5rem; text-align:center; border: 1px solid #000;">CLASS</th>
+                                                ${columnItems.map(item => {
+                                    if (item.type === 'separator') {
+                                        return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
+                                    }
+                                    const p = item.program;
+                                    return `
+                                                        <th class="rotated-th program-col" style="height:${headerHeight};">
+                                                            <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
+                                                        </th>
+                                                    `;
+                                }).join('')}
+                                                <th style="border-left: none; border-right: none; background: #fff !important;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${chunk.map((item, idx) => {
+                                    const globalIdx = chunkIdx * pageSize + idx;
+                                    return `
+                                                    <tr style="height:${rowHeightVal}; page-break-inside:avoid;">
+                                                        <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; border: 1px solid #000;">${globalIdx + 1}</td>
+                                                        <td style="width:60px; min-width:60px; max-width:60px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.chestNumber || '-')}">
+                                                            ${window.escapeHTML(item.chestNumber || '-')}
+                                                        </td>
+                                                        <td style="width:180px; min-width:180px; max-width:180px; font-weight:bold; color:#000; padding:${nameCellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.name)}">
+                                                            ${window.escapeHTML(item.name).toUpperCase()}
+                                                        </td>
+                                                        <td style="width:60px; min-width:60px; max-width:60px; font-weight:bold; color:#000; padding:${cellPaddingVal}; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.className || '')}">
+                                                            ${window.escapeHTML(item.className || item.classId || '').toUpperCase()}
+                                                        </td>
+                                                        ${columnItems.map(col => {
+                                        if (col.type === 'separator') {
+                                            return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
+                                        }
+                                        const p = col.program;
+                                        return `
+                                                                <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
+                                                                    ${isRegistered(item.id, p.id) ? '✔' : ''}
+                                                                </td>
+                                                            `;
+                                    }).join('')}
+                                                        <td style="border-left: none; border-right: none;"></td>
+                                                    </tr>
+                                                `;
+                                }).join('')}
+                                        </tbody>
+                                    </table>
+
+                                    <div class="register-footer" style="margin-top: 0.6rem; padding-top: 0.2rem; font-size: 0.72rem;">
+                                        <div>COORDINATOR SIGNATURE : ________________________</div>
+                                        <div>DATE : ________________________</div>
+                                    </div>
+                                </div>
+                            `;
+                            });
+                        });
+                    });
+                } else {
+                    // 3. Group students hierarchically by Category -> Class -> Team
+                    const groups = {};
+                    studentsList.forEach(stu => {
+                        const catId = stu.categoryId || 'general';
+                        const catName = stu.categoryName || 'General';
+                        const classId = stu.classId || 'standard';
+                        const className = stu.className || 'Standard';
+                        const teamId = stu.teamId || 'no-team';
+                        const teamName = teamNamesMap[stu.teamId] || stu.teamName || 'Independent';
+
+                        if (!groups[catId]) {
+                            groups[catId] = {
+                                name: catName,
+                                classes: {}
+                            };
+                        }
+                        if (!groups[catId].classes[classId]) {
+                            groups[catId].classes[classId] = {
+                                name: className,
+                                teams: {}
+                            };
+                        }
+                        if (!groups[catId].classes[classId].teams[teamId]) {
+                            groups[catId].classes[classId].teams[teamId] = {
+                                name: teamName,
+                                students: []
+                            };
+                        }
+                        groups[catId].classes[classId].teams[teamId].students.push(stu);
+                    });
+
+                    const sortedCatIds = Object.keys(groups).sort((a, b) => {
+                        const idxA = allCategories.findIndex(c => c.id === a);
+                        const idxB = allCategories.findIndex(c => c.id === b);
+                        return idxA - idxB;
+                    });
+                    const instName = getEventName();
+                    const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
+
+                    sortedCatIds.forEach(catId => {
+                        const cat = groups[catId];
+                        const sortedClassIds = Object.keys(cat.classes).sort((a, b) => cat.classes[a].name.localeCompare(cat.classes[b].name, undefined, { numeric: true }));
+
+                        sortedClassIds.forEach(classId => {
+                            const cls = cat.classes[classId];
+                            const sortedTeamIds = Object.keys(cls.teams).sort((a, b) => cls.teams[a].name.localeCompare(cls.teams[b].name));
+
+                            // Filter matching programs for this specific Category + Class
+                            const progs = f.categoryId === 'general_programs' || f.participationType === 'general'
+                                ? matchingPrograms.filter(p => !p.classId || p.classId === classId)
+                                : matchingPrograms.filter(p => p.categoryId === catId && (!p.classId || p.classId === classId));
+
+                            if (progs.length === 0) {
+                                htmlContent += `
+                                <div class="${pageDivClass}" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid;">
+                                    <div style="padding: 2rem; text-align: center; border: 1px dashed #cbd5e1; border-radius: 8px;">
+                                        <h3>Category: ${window.escapeHTML(cat.name)} · Class: ${window.escapeHTML(cls.name)}</h3>
+                                        <p style="color:#64748b;">No registered programs for this Category + Class combination.</p>
+                                    </div>
+                                </div>
+                            `;
+                                return;
+                            }
+
+                            const columnItems = buildColumnItems(progs);
+                            const N = columnItems.length;
+                            let cellFontSize = '0.75rem';
+                            let headerHeight = '120px';
+                            let rowHeightVal = '26px';
+                            let cellPaddingVal = '2px 0.2rem';
+                            let nameCellPaddingVal = '2px 0.5rem';
+                            let pageSize = orientation === 'landscape' ? 16 : 20;
+
+                            if (N > 25) {
+                                cellFontSize = '0.42rem';
+                                headerHeight = '180px';
+                                rowHeightVal = '22px';
+                                cellPaddingVal = '1px 0.1rem';
+                                nameCellPaddingVal = '1px 0.3rem';
+                                pageSize = orientation === 'landscape' ? 15 : 28;
+                            } else if (N > 18) {
+                                cellFontSize = '0.48rem';
+                                headerHeight = '160px';
+                                rowHeightVal = '23px';
+                                cellPaddingVal = '1px 0.15rem';
+                                nameCellPaddingVal = '1px 0.4rem';
+                                pageSize = orientation === 'landscape' ? 16 : 26;
+                            } else if (N > 12) {
+                                cellFontSize = '0.55rem';
+                                headerHeight = '140px';
+                                rowHeightVal = '24px';
+                                cellPaddingVal = '1px 0.2rem';
+                                nameCellPaddingVal = '1px 0.4rem';
+                                pageSize = orientation === 'landscape' ? 16 : 24;
+                            } else if (N > 8) {
+                                cellFontSize = '0.65rem';
+                                headerHeight = '130px';
+                                rowHeightVal = '25px';
+                                cellPaddingVal = '1.5px 0.2rem';
+                                nameCellPaddingVal = '1.5px 0.4rem';
+                                pageSize = orientation === 'landscape' ? 16 : 22;
+                            }
+
+                            sortedTeamIds.forEach(teamId => {
+                                const team = cls.teams[teamId];
+                                const students = team.students;
+
+                                // Determine gender label from filters or actual students
+                                let genderLabel = '';
+                                if (f.gender === 'Boys') {
+                                    genderLabel = ' • BOYS';
+                                } else if (f.gender === 'Girls') {
+                                    genderLabel = ' • GIRLS';
+                                } else if (f.gender === 'Mixed') {
+                                    genderLabel = ' • MIXED';
+                                } else {
+                                    // Detect from students on this team
+                                    const genders = [...new Set(students.map(s => s.gender).filter(Boolean))];
+                                    if (genders.length === 1) {
+                                        if (genders[0] === 'Male') genderLabel = ' • BOYS';
+                                        else if (genders[0] === 'Female') genderLabel = ' • GIRLS';
+                                    } else if (genders.length > 1) {
+                                        genderLabel = ' • MIXED';
+                                    }
+                                }
+
+                                const studentChunks = chunkArray(students, pageSize);
+
+                                studentChunks.forEach((chunk, chunkIdx) => {
+                                    const pageNum = chunkIdx + 1;
+                                    const totalPages = studentChunks.length;
+                                    const pageIndicator = totalPages > 1 ? ` • PAGE ${pageNum}/${totalPages}` : '';
+
+                                    htmlContent += `
                                     <div class="${pageDivClass}" style="margin-bottom: 2rem; page-break-inside: avoid; break-inside: avoid;">
                                         <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.2rem; margin-bottom: 0.3rem; width: 100%;">
                                             <div>
@@ -5422,23 +5439,23 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                     <th style="width:60px; min-width:60px; max-width:60px; text-align:center; padding:0.25rem 0.2rem; line-height: 1.2; border: 1px solid #000;">CHEST<br>NO.</th>
                                                     <th style="width:180px; min-width:180px; max-width:180px; padding:0.25rem 0.5rem; text-align:left; border: 1px solid #000;">PARTICIPANT NAME</th>
                                                     ${columnItems.map(item => {
-                                    if (item.type === 'separator') {
-                                        return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
-                                    }
-                                    const p = item.program;
-                                    return `
+                                        if (item.type === 'separator') {
+                                            return `<th class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></th>`;
+                                        }
+                                        const p = item.program;
+                                        return `
                                                             <th class="rotated-th program-col" style="height:${headerHeight};">
                                                                 <div>${window.escapeHTML(p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName).toUpperCase()}</div>
                                                             </th>
                                                         `;
-                                }).join('')}
+                                    }).join('')}
                                                     <th style="border-left: none; border-right: none; background: #fff !important;"></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 ${chunk.map((item, idx) => {
-                                    const globalIdx = chunkIdx * pageSize + idx;
-                                    return `
+                                        const globalIdx = chunkIdx * pageSize + idx;
+                                        return `
                                                         <tr style="height:${rowHeightVal}; page-break-inside:avoid;">
                                                             <td style="width:40px; min-width:40px; max-width:40px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; border: 1px solid #000;">${globalIdx + 1}</td>
                                                             <td style="width:60px; min-width:60px; max-width:60px; text-align:center; font-weight:bold; color:#000; padding:${cellPaddingVal}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border: 1px solid #000;" title="${window.escapeHTML(item.chestNumber || '-')}">
@@ -5448,20 +5465,20 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                                 ${window.escapeHTML(item.name).toUpperCase()}
                                                             </td>
                                                             ${columnItems.map(col => {
-                                        if (col.type === 'separator') {
-                                            return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
-                                        }
-                                        const p = col.program;
-                                        return `
+                                            if (col.type === 'separator') {
+                                                return `<td class="program-col-separator" style="width: 12px; min-width: 12px; max-width: 12px; border: 1px solid #000; background: #f1f5f9 !important;"></td>`;
+                                            }
+                                            const p = col.program;
+                                            return `
                                                                     <td class="program-col" style="text-align:center; font-weight:bold; font-size:1rem; border:1px solid #000;">
                                                                         ${isRegistered(item.id, p.id) ? '✔' : ''}
                                                                     </td>
                                                                 `;
-                                    }).join('')}
+                                        }).join('')}
                                                             <td style="border-left: none; border-right: none;"></td>
                                                         </tr>
                                                     `;
-                                }).join('')}
+                                    }).join('')}
                                             </tbody>
                                         </table>
 
@@ -5471,15 +5488,15 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                         </div>
                                     </div>
                                 `;
+                                });
                             });
                         });
                     });
-                });
+                }
             }
         }
-    }
 
-    // Render PDF through iframe
+        // Render PDF through iframe
         const printIframe = getPrintIframe();
         const doc = printIframe.contentDocument || printIframe.contentWindow.document;
         const pageMargin = '8mm';
@@ -6244,18 +6261,18 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             const match = f.awardTypeFilter.some(filterVal => {
                                 const fVal = filterVal.toLowerCase();
                                 return (awTypeId && awTypeId.toLowerCase() === fVal) ||
-                                       (awType && awType.toLowerCase() === fVal) ||
-                                       (awTypeId === filterVal) ||
-                                       (awType === filterVal);
+                                    (awType && awType.toLowerCase() === fVal) ||
+                                    (awTypeId === filterVal) ||
+                                    (awType === filterVal);
                             });
                             if (!match) return false;
                         }
                     } else if (f.awardTypeFilter !== 'All') {
                         const filterVal = f.awardTypeFilter.toLowerCase();
                         const match = (awTypeId && awTypeId.toLowerCase() === filterVal) ||
-                                      (awType && awType.toLowerCase() === filterVal) ||
-                                      (awTypeId === f.awardTypeFilter) ||
-                                      (awType === f.awardTypeFilter);
+                            (awType && awType.toLowerCase() === filterVal) ||
+                            (awTypeId === f.awardTypeFilter) ||
+                            (awType === f.awardTypeFilter);
                         if (!match) return false;
                     }
                 }
@@ -6333,18 +6350,18 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 const match = f.awardTypeFilter.some(filterVal => {
                                     const fVal = filterVal.toLowerCase();
                                     return (t.id && t.id.toLowerCase() === fVal) ||
-                                           (t.name && t.name.toLowerCase() === fVal) ||
-                                           (t.id === filterVal) ||
-                                           (t.name === filterVal);
+                                        (t.name && t.name.toLowerCase() === fVal) ||
+                                        (t.id === filterVal) ||
+                                        (t.name === filterVal);
                                 });
                                 if (!match) return false;
                             }
                         } else if (f.awardTypeFilter !== 'All') {
                             const filterVal = f.awardTypeFilter.toLowerCase();
                             const match = (t.id && t.id.toLowerCase() === filterVal) ||
-                                          (t.name && t.name.toLowerCase() === filterVal) ||
-                                          (t.id === filterVal) ||
-                                          (t.name === filterVal);
+                                (t.name && t.name.toLowerCase() === filterVal) ||
+                                (t.id === filterVal) ||
+                                (t.name === filterVal);
                             if (!match) return false;
                         }
                     }
@@ -7726,43 +7743,81 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             return;
         } else {
             const isRegistered = (studentId, progId) => {
-            const parts = participantsMap[progId] || [];
-            return parts.some(part => {
-                if (part.isGroup) {
-                    return (part.members || []).some(m => m.studentId === studentId);
-                } else {
-                    return part.studentId === studentId;
+                const parts = participantsMap[progId] || [];
+                return parts.some(part => {
+                    if (part.isGroup) {
+                        return (part.members || []).some(m => m.studentId === studentId);
+                    } else {
+                        return part.studentId === studentId;
+                    }
+                });
+            };
+
+            // Get matching programs first (Combine Stage & Off Stage columns)
+            let matchingPrograms = [...programs];
+            if (f.participationType) {
+                if (f.participationType === 'general') {
+                    matchingPrograms = matchingPrograms.filter(p => p.categoryId === 'general_programs' || p.programType === 'general');
+                } else if (f.participationType === 'group') {
+                    matchingPrograms = matchingPrograms.filter(p => p.programType === 'group');
+                } else if (f.participationType === 'individual') {
+                    matchingPrograms = matchingPrograms.filter(p => p.programType === 'individual');
                 }
-            });
-        };
-
-        // Get matching programs first (Combine Stage & Off Stage columns)
-        let matchingPrograms = [...programs];
-        if (f.participationType) {
-            if (f.participationType === 'general') {
-                matchingPrograms = matchingPrograms.filter(p => p.categoryId === 'general_programs' || p.programType === 'general');
-            } else if (f.participationType === 'group') {
-                matchingPrograms = matchingPrograms.filter(p => p.programType === 'group');
-            } else if (f.participationType === 'individual') {
-                matchingPrograms = matchingPrograms.filter(p => p.programType === 'individual');
             }
-        }
 
-        const stageProgs = matchingPrograms.filter(p => (p.programLocation || p.location || 'Off Stage') === 'Stage');
-        const offStageProgs = matchingPrograms.filter(p => (p.programLocation || p.location || 'Off Stage') !== 'Stage');
+            const stageProgs = matchingPrograms.filter(p => (p.programLocation || p.location || 'Off Stage') === 'Stage');
+            const offStageProgs = matchingPrograms.filter(p => (p.programLocation || p.location || 'Off Stage') !== 'Stage');
 
-        stageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
-        offStageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+            stageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
+            offStageProgs.sort((a, b) => (a.programName || '').localeCompare(b.programName || ''));
 
-        const columnItems = [];
-        stageProgs.forEach(p => columnItems.push({ type: 'program', program: p }));
+            const columnItems = [];
+            stageProgs.forEach(p => columnItems.push({ type: 'program', program: p }));
 
-        if (stageProgs.length > 0 && offStageProgs.length > 0) {
-            columnItems.push({ type: 'separator' });
-        }
-        offStageProgs.forEach(p => columnItems.push({ type: 'program', program: p }));
+            if (stageProgs.length > 0 && offStageProgs.length > 0) {
+                columnItems.push({ type: 'separator' });
+            }
+            offStageProgs.forEach(p => columnItems.push({ type: 'program', program: p }));
 
-        if (f.categoryId === 'general_programs') {
+            if (f.categoryId === 'general_programs') {
+                csvContent += "INSTITUTION,CATEGORY,CLASS,TEAM,GENDER,SL NO,CHEST NUMBER,PARTICIPANT NAME";
+
+                // Append program names to CSV header
+                columnItems.forEach(item => {
+                    if (item.type === 'separator') {
+                        csvContent += `,""`;
+                    } else {
+                        const p = item.program;
+                        const cleanLabel = p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName;
+                        csvContent += `,"${cleanLabel.replace(/"/g, '""')}"`;
+                    }
+                });
+                csvContent += "\n";
+
+                const instName = getEventName();
+                const teamName = f.teamId ? (allTeams.find(t => t.id === f.teamId)?.name || '') : '';
+
+                for (let idx = 0; idx < 25; idx++) {
+                    csvContent += `"${instName.replace(/"/g, '""')}","GENERAL PROGRAMS (NON-CATEGORY)","","${teamName.replace(/"/g, '""')}","",${idx + 1},"",""`;
+                    columnItems.forEach(() => {
+                        csvContent += `,""`;
+                    });
+                    csvContent += "\n";
+                }
+
+                // Trigger standard File Download Blob
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", exp.fileName);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                return;
+            }
+
             csvContent += "INSTITUTION,CATEGORY,CLASS,TEAM,GENDER,SL NO,CHEST NUMBER,PARTICIPANT NAME";
 
             // Append program names to CSV header
@@ -7777,16 +7832,103 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             });
             csvContent += "\n";
 
-            const instName = getEventName();
-            const teamName = f.teamId ? (allTeams.find(t => t.id === f.teamId)?.name || '') : '';
+            let studentsList = Object.values(studentMap);
 
-            for (let idx = 0; idx < 25; idx++) {
-                csvContent += `"${instName.replace(/"/g, '""')}","GENERAL PROGRAMS (NON-CATEGORY)","","${teamName.replace(/"/g, '""')}","",${idx + 1},"",""`;
-                columnItems.forEach(() => {
-                    csvContent += `,""`;
+            if (f.categoryId === 'general_programs' || f.participationType === 'general') {
+                const registeredStudentIds = new Set();
+                matchingPrograms.forEach(p => {
+                    const parts = participantsMap[p.id] || [];
+                    parts.forEach(part => {
+                        if (part.isGroup) {
+                            (part.members || []).forEach(m => {
+                                if (m.studentId) registeredStudentIds.add(m.studentId);
+                            });
+                        } else {
+                            if (part.studentId) registeredStudentIds.add(part.studentId);
+                        }
+                    });
+                });
+                studentsList = studentsList.filter(s => registeredStudentIds.has(s.id));
+                if (f.categoryId && f.categoryId !== 'general_programs') {
+                    studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
+                }
+            } else if (f.categoryId) {
+                studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
+            }
+
+            if (f.classId) {
+                studentsList = studentsList.filter(s => s.classId === f.classId);
+            }
+            if (f.teamId) {
+                studentsList = studentsList.filter(s => s.teamId === f.teamId);
+            }
+            if (f.gender === 'Boys') {
+                studentsList = studentsList.filter(s => s.gender === 'Male');
+            } else if (f.gender === 'Girls') {
+                studentsList = studentsList.filter(s => s.gender === 'Female');
+            }
+
+            const teamNamesMap = {};
+            allTeams.forEach(t => {
+                teamNamesMap[t.id] = t.name;
+            });
+
+            // Sort systematically: Category ➔ Class ➔ Team ➔ Sort Rule
+            studentsList.sort((a, b) => {
+                const idxA = allCategories.findIndex(c => c.id === a.categoryId || c.name === a.categoryId || c.name === a.categoryName);
+                const idxB = allCategories.findIndex(c => c.id === b.categoryId || c.name === b.categoryId || c.name === b.categoryName);
+                if (idxA !== idxB) {
+                    return idxA - idxB;
+                }
+
+                const classA = a.className || '';
+                const classB = b.className || '';
+                const classComp = classA.localeCompare(classB, undefined, { numeric: true });
+                if (classComp !== 0) return classComp;
+
+                const teamNameA = teamNamesMap[a.teamId] || a.teamName || '';
+                const teamNameB = teamNamesMap[b.teamId] || b.teamName || '';
+                const teamComp = teamNameA.localeCompare(teamNameB);
+                if (teamComp !== 0) return teamComp;
+
+                const sortRule = f.chestSort || 'chest';
+                if (sortRule === 'chest') {
+                    const numA = parseInt(a.chestNumber, 10);
+                    const numB = parseInt(b.chestNumber, 10);
+                    const hasA = !isNaN(numA);
+                    const hasB = !isNaN(numB);
+                    if (hasA && hasB) return numA - numB;
+                    if (hasA) return -1;
+                    if (hasB) return 1;
+                    return (a.chestNumber || '').localeCompare(b.chestNumber || '');
+                } else if (sortRule === 'name') {
+                    return (a.name || '').localeCompare(b.name || '');
+                }
+                return 0;
+            });
+
+            const instName = getEventName();
+
+            studentsList.forEach((stu, idx) => {
+                const catName = stu.categoryName || 'General';
+                const className = stu.className || 'Standard';
+                const teamName = teamNamesMap[stu.teamId] || stu.teamName || 'Independent';
+
+                // Build base row
+                csvContent += `"${instName.replace(/"/g, '""')}","${catName.replace(/"/g, '""')}","${className.replace(/"/g, '""')}","${teamName.replace(/"/g, '""')}","${(stu.gender || '').replace(/"/g, '""')}",${idx + 1},"${(stu.chestNumber || '').replace(/"/g, '""')}","${(stu.name || '').replace(/"/g, '""')}"`;
+
+                // Append program checkmarks
+                columnItems.forEach(item => {
+                    if (item.type === 'separator') {
+                        csvContent += `,""`;
+                    } else {
+                        const p = item.program;
+                        const registered = isRegistered(stu.id, p.id);
+                        csvContent += registered ? ',"✔"' : ',""';
+                    }
                 });
                 csvContent += "\n";
-            }
+            });
 
             // Trigger standard File Download Blob
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -7800,132 +7942,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             document.body.removeChild(link);
             return;
         }
-
-        csvContent += "INSTITUTION,CATEGORY,CLASS,TEAM,GENDER,SL NO,CHEST NUMBER,PARTICIPANT NAME";
-
-        // Append program names to CSV header
-        columnItems.forEach(item => {
-            if (item.type === 'separator') {
-                csvContent += `,""`;
-            } else {
-                const p = item.program;
-                const cleanLabel = p.programNumber ? `${p.programNumber} – ${p.programName}` : p.programName;
-                csvContent += `,"${cleanLabel.replace(/"/g, '""')}"`;
-            }
-        });
-        csvContent += "\n";
-
-        let studentsList = Object.values(studentMap);
-
-        if (f.categoryId === 'general_programs' || f.participationType === 'general') {
-            const registeredStudentIds = new Set();
-            matchingPrograms.forEach(p => {
-                const parts = participantsMap[p.id] || [];
-                parts.forEach(part => {
-                    if (part.isGroup) {
-                        (part.members || []).forEach(m => {
-                            if (m.studentId) registeredStudentIds.add(m.studentId);
-                        });
-                    } else {
-                        if (part.studentId) registeredStudentIds.add(part.studentId);
-                    }
-                });
-            });
-            studentsList = studentsList.filter(s => registeredStudentIds.has(s.id));
-            if (f.categoryId && f.categoryId !== 'general_programs') {
-                studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
-            }
-        } else if (f.categoryId) {
-            studentsList = studentsList.filter(s => s.categoryId === f.categoryId);
-        }
-
-        if (f.classId) {
-            studentsList = studentsList.filter(s => s.classId === f.classId);
-        }
-        if (f.teamId) {
-            studentsList = studentsList.filter(s => s.teamId === f.teamId);
-        }
-        if (f.gender === 'Boys') {
-            studentsList = studentsList.filter(s => s.gender === 'Male');
-        } else if (f.gender === 'Girls') {
-            studentsList = studentsList.filter(s => s.gender === 'Female');
-        }
-
-        const teamNamesMap = {};
-        allTeams.forEach(t => {
-            teamNamesMap[t.id] = t.name;
-        });
-
-        // Sort systematically: Category ➔ Class ➔ Team ➔ Sort Rule
-        studentsList.sort((a, b) => {
-            const idxA = allCategories.findIndex(c => c.id === a.categoryId || c.name === a.categoryId || c.name === a.categoryName);
-            const idxB = allCategories.findIndex(c => c.id === b.categoryId || c.name === b.categoryId || c.name === b.categoryName);
-            if (idxA !== idxB) {
-                return idxA - idxB;
-            }
-
-            const classA = a.className || '';
-            const classB = b.className || '';
-            const classComp = classA.localeCompare(classB, undefined, { numeric: true });
-            if (classComp !== 0) return classComp;
-
-            const teamNameA = teamNamesMap[a.teamId] || a.teamName || '';
-            const teamNameB = teamNamesMap[b.teamId] || b.teamName || '';
-            const teamComp = teamNameA.localeCompare(teamNameB);
-            if (teamComp !== 0) return teamComp;
-
-            const sortRule = f.chestSort || 'chest';
-            if (sortRule === 'chest') {
-                const numA = parseInt(a.chestNumber, 10);
-                const numB = parseInt(b.chestNumber, 10);
-                const hasA = !isNaN(numA);
-                const hasB = !isNaN(numB);
-                if (hasA && hasB) return numA - numB;
-                if (hasA) return -1;
-                if (hasB) return 1;
-                return (a.chestNumber || '').localeCompare(b.chestNumber || '');
-            } else if (sortRule === 'name') {
-                return (a.name || '').localeCompare(b.name || '');
-            }
-            return 0;
-        });
-
-        const instName = getEventName();
-
-        studentsList.forEach((stu, idx) => {
-            const catName = stu.categoryName || 'General';
-            const className = stu.className || 'Standard';
-            const teamName = teamNamesMap[stu.teamId] || stu.teamName || 'Independent';
-
-            // Build base row
-            csvContent += `"${instName.replace(/"/g, '""')}","${catName.replace(/"/g, '""')}","${className.replace(/"/g, '""')}","${teamName.replace(/"/g, '""')}","${(stu.gender || '').replace(/"/g, '""')}",${idx + 1},"${(stu.chestNumber || '').replace(/"/g, '""')}","${(stu.name || '').replace(/"/g, '""')}"`;
-
-            // Append program checkmarks
-            columnItems.forEach(item => {
-                if (item.type === 'separator') {
-                    csvContent += `,""`;
-                } else {
-                    const p = item.program;
-                    const registered = isRegistered(stu.id, p.id);
-                    csvContent += registered ? ',"✔"' : ',""';
-                }
-            });
-            csvContent += "\n";
-        });
-
-        // Trigger standard File Download Blob
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", exp.fileName);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        return;
     }
-}
 
     if (f.type === 'Green Room Sign') {
         csvContent += "PROGRAM,CATEGORY,TYPE,SL NO,CHEST NUMBER,PARTICIPANT NAME,CODE LETTER,SIGNATURE\n";
@@ -8351,18 +8368,18 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                         const match = f.awardTypeFilter.some(filterVal => {
                             const fVal = filterVal.toLowerCase();
                             return (awTypeId && awTypeId.toLowerCase() === fVal) ||
-                                   (awType && awType.toLowerCase() === fVal) ||
-                                   (awTypeId === filterVal) ||
-                                   (awType === filterVal);
+                                (awType && awType.toLowerCase() === fVal) ||
+                                (awTypeId === filterVal) ||
+                                (awType === filterVal);
                         });
                         if (!match) return false;
                     }
                 } else if (f.awardTypeFilter !== 'All') {
                     const filterVal = f.awardTypeFilter.toLowerCase();
                     const match = (awTypeId && awTypeId.toLowerCase() === filterVal) ||
-                                  (awType && awType.toLowerCase() === filterVal) ||
-                                  (awTypeId === f.awardTypeFilter) ||
-                                  (awType === f.awardTypeFilter);
+                        (awType && awType.toLowerCase() === filterVal) ||
+                        (awTypeId === f.awardTypeFilter) ||
+                        (awType === f.awardTypeFilter);
                     if (!match) return false;
                 }
             }
@@ -8418,18 +8435,18 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                             const match = f.awardTypeFilter.some(filterVal => {
                                 const fVal = filterVal.toLowerCase();
                                 return (t.id && t.id.toLowerCase() === fVal) ||
-                                       (t.name && t.name.toLowerCase() === fVal) ||
-                                       (t.id === filterVal) ||
-                                       (t.name === filterVal);
+                                    (t.name && t.name.toLowerCase() === fVal) ||
+                                    (t.id === filterVal) ||
+                                    (t.name === filterVal);
                             });
                             if (!match) return false;
                         }
                     } else if (f.awardTypeFilter !== 'All') {
                         const filterVal = f.awardTypeFilter.toLowerCase();
                         const match = (t.id && t.id.toLowerCase() === filterVal) ||
-                                      (t.name && t.name.toLowerCase() === filterVal) ||
-                                      (t.id === filterVal) ||
-                                      (t.name === filterVal);
+                            (t.name && t.name.toLowerCase() === filterVal) ||
+                            (t.id === filterVal) ||
+                            (t.name === filterVal);
                         if (!match) return false;
                     }
                 }

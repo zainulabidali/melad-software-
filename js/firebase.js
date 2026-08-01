@@ -148,7 +148,9 @@ export async function migrateToNewSchema(instituteId, onProgress = () => { }) {
 export async function updateDashboardMetadata(instituteId) {
     if (!instituteId) return;
     try {
+        await cleanupOrphanedTeamData(instituteId);
         // Fetch collections in parallel using one-shot getDocs
+
         const [studentsSnap, teamsSnap, programsSnap, categoriesSnap, judgesSnap, resultsSnap, countSnap] = await Promise.all([
             getDocs(collection(db, "institutes", instituteId, "students")),
             getDocs(collection(db, "institutes", instituteId, "teams")),
@@ -267,13 +269,13 @@ export async function updateDashboardMetadata(instituteId) {
                 const sCatName = s.categoryName ? s.categoryName.toString().toLowerCase().trim() : '';
                 const cId = c.id ? c.id.toString().toLowerCase().trim() : '';
                 const cName = c.name ? c.name.toString().toLowerCase().trim() : '';
-                
+
                 return (sCatId && (cId === sCatId || cName === sCatId)) ||
-                       (sCatName && (cId === sCatName || cName === sCatName));
+                    (sCatName && (cId === sCatName || cName === sCatName));
             });
-            
+
             const resolvedCatName = cat?.name || s.categoryName || 'General';
-            
+
             // Match the resolved name case-insensitively to the initialized keys in catCounts to avoid duplicates
             let matchedKey = null;
             const targetLower = resolvedCatName.toLowerCase().trim();
@@ -283,7 +285,7 @@ export async function updateDashboardMetadata(instituteId) {
                     break;
                 }
             }
-            
+
             const finalKey = matchedKey || resolvedCatName.trim();
             if (finalKey) {
                 const current = catCounts.get(finalKey) || 0;
@@ -440,16 +442,11 @@ export async function updateDashboardMetadata(instituteId) {
 export async function migrateParticipantCounts(instituteId) {
     if (!instituteId) return;
     try {
-        // Fetch active teams and students to build valid lookup sets
         const teamsSnap = await getDocs(collection(db, "institutes", instituteId, "teams"));
         const activeTeamIds = new Set(teamsSnap.docs.map(d => d.id));
 
-        const studentsSnap = await getDocs(collection(db, "institutes", instituteId, "students"));
-        const activeStudentIds = new Set(studentsSnap.docs.map(d => d.id));
-
         const progSnap = await getDocs(collection(db, "institutes", instituteId, "programs"));
         const batch = writeBatch(db);
-        let batchOpsCount = 0;
 
         for (const progDoc of progSnap.docs) {
             const progId = progDoc.id;
@@ -461,47 +458,144 @@ export async function migrateParticipantCounts(instituteId) {
             const partSnap = await getDocs(collection(db, "institutes", instituteId, "programs", progId, "participants"));
             let count = 0;
 
-            partSnap.forEach(d => {
-                const data = d.data();
-                if (isGroup) {
-                    if (data.type === 'group') {
-                        // Check if teamId belongs to an active team
-                        if (data.teamId && !activeTeamIds.has(data.teamId)) {
-                            // Orphaned group participant doc for a deleted team: delete it!
-                            batch.delete(d.ref);
-                            batchOpsCount++;
-                        } else if (Array.isArray(data.groups)) {
-                            count += data.groups.length;
-                        } else {
-                            count += 1;
-                        }
+            if (isGroup) {
+                const uniqueTeams = new Set();
+                partSnap.forEach(d => {
+                    const data = d.data();
+                    if (data.teamId && activeTeamIds.has(data.teamId)) {
+                        uniqueTeams.add(data.teamId);
                     }
-                } else {
-                    if (data.type === 'individual') {
-                        // Check if studentId belongs to an active student
-                        if (data.studentId && !activeStudentIds.has(data.studentId)) {
-                            // Orphaned individual participant doc for a deleted student: delete it!
-                            batch.delete(d.ref);
-                            batchOpsCount++;
-                        } else {
-                            count++;
-                        }
+                    if (Array.isArray(data.groups)) {
+                        data.groups.forEach(g => {
+                            if (g.teamId && activeTeamIds.has(g.teamId)) {
+                                uniqueTeams.add(g.teamId);
+                            }
+                        });
                     }
-                }
-            });
+                });
+                count = uniqueTeams.size;
+            } else {
+                partSnap.forEach(d => {
+                    const data = d.data();
+                    if (data.teamId && !activeTeamIds.has(data.teamId)) return;
+                    if (data.type === 'individual') count++;
+                });
+            }
 
             batch.update(progDoc.ref, { participantCount: count });
-            batchOpsCount++;
         }
 
-        if (batchOpsCount > 0) {
-            await batch.commit();
-        }
+        await batch.commit();
         console.log("Migration complete: All participantCount fields successfully updated!");
     } catch (e) {
         console.error("Migration failed:", e);
     }
 }
+
+
+export async function cleanupOrphanedTeamData(instituteId) {
+    if (!instituteId) return;
+    try {
+        console.log("Starting deep orphan data cleanup for institute:", instituteId);
+
+        const teamsSnap = await getDocs(collection(db, "institutes", instituteId, "teams"));
+        const activeTeamIds = new Set(teamsSnap.docs.map(d => d.id));
+
+        const studentsSnap = await getDocs(collection(db, "institutes", instituteId, "students"));
+        const activeStudentIds = new Set(studentsSnap.docs.map(d => d.id));
+
+        const batch = writeBatch(db);
+        let operationsCount = 0;
+
+        const progsSnap = await getDocs(collection(db, "institutes", instituteId, "programs"));
+
+        for (const progDoc of progsSnap.docs) {
+            const progId = progDoc.id;
+            const partSnap = await getDocs(collection(db, "institutes", instituteId, "programs", progId, "participants"));
+
+            partSnap.forEach(partDoc => {
+                const data = partDoc.data();
+                let shouldDelete = false;
+
+                if (data.type === 'individual') {
+                    if ((data.studentId && !activeStudentIds.has(data.studentId)) || (data.teamId && !activeTeamIds.has(data.teamId))) {
+                        shouldDelete = true;
+                    }
+                } else if (data.type === 'group' || Array.isArray(data.groups)) {
+                    if (data.teamId && !activeTeamIds.has(data.teamId)) {
+                        shouldDelete = true;
+                    } else if (Array.isArray(data.groups)) {
+                        const filteredGroups = data.groups.map(g => ({
+                            ...g,
+                            members: (g.members || []).filter(m => !m.studentId || activeStudentIds.has(m.studentId))
+                        })).filter(g => g.members && g.members.length > 0);
+
+                        // De-duplicate identical group objects inside groups array
+                        const seenGroupKeys = new Set();
+                        const uniqueGroups = [];
+                        filteredGroups.forEach(g => {
+                            const memberKey = (g.members || []).map(m => m.studentId).sort().join('-');
+                            const groupKey = `${(g.name || '').trim().toLowerCase()}_${memberKey}`;
+                            if (!seenGroupKeys.has(groupKey)) {
+                                seenGroupKeys.add(groupKey);
+                                uniqueGroups.push(g);
+                            }
+                        });
+
+                        if (uniqueGroups.length === 0) {
+                            shouldDelete = true;
+                        } else if (uniqueGroups.length !== data.groups.length || JSON.stringify(uniqueGroups) !== JSON.stringify(data.groups)) {
+                            batch.update(partDoc.ref, { groups: uniqueGroups, updatedAt: serverTimestamp() });
+                            operationsCount++;
+                        }
+                    }
+                }
+
+                if (shouldDelete) {
+                    batch.delete(partDoc.ref);
+                    operationsCount++;
+                }
+
+            });
+        }
+
+        const resultsSnap = await getDocs(collection(db, "institutes", instituteId, "results"));
+        for (const resDoc of resultsSnap.docs) {
+            const resData = resDoc.data();
+            if (Array.isArray(resData.marksData) && resData.marksData.length > 0) {
+                const cleanMarksData = resData.marksData.filter(m => {
+                    if (m.teamId && !activeTeamIds.has(m.teamId)) return false;
+                    if (m.studentId && !activeStudentIds.has(m.studentId)) return false;
+                    return true;
+                });
+
+                if (cleanMarksData.length === 0) {
+                    batch.delete(resDoc.ref);
+                    operationsCount++;
+                } else if (cleanMarksData.length !== resData.marksData.length) {
+                    batch.update(resDoc.ref, {
+                        marksData: cleanMarksData,
+                        participantCount: cleanMarksData.length,
+                        updatedAt: serverTimestamp()
+                    });
+                    operationsCount++;
+                }
+            }
+        }
+
+        if (operationsCount > 0) {
+            await batch.commit();
+            console.log(`Deep orphan cleanup completed: ${operationsCount} orphan items purged.`);
+        }
+
+        await migrateParticipantCounts(instituteId);
+        await migrateTeamMemberCounts(instituteId);
+
+    } catch (err) {
+        console.error("Deep orphan data cleanup failed:", err);
+    }
+}
+
 
 export async function migrateTeamMemberCounts(instituteId) {
     if (!instituteId) return;
@@ -1175,10 +1269,10 @@ export function sortCategories(categories) {
 // ─────────────────────────────────────────────
 export const DEFAULT_GRADES = [
     { name: 'A+', minMark: 90, maxMark: 100, gradePoint: 5 },
-    { name: 'A',  minMark: 80, maxMark: 89,  gradePoint: 4 },
-    { name: 'B+', minMark: 70, maxMark: 79,  gradePoint: 3 },
-    { name: 'B',  minMark: 60, maxMark: 69,  gradePoint: 2 },
-    { name: 'C',  minMark: 50, maxMark: 59,  gradePoint: 1 }
+    { name: 'A', minMark: 80, maxMark: 89, gradePoint: 4 },
+    { name: 'B+', minMark: 70, maxMark: 79, gradePoint: 3 },
+    { name: 'B', minMark: 60, maxMark: 69, gradePoint: 2 },
+    { name: 'C', minMark: 50, maxMark: 59, gradePoint: 1 }
 ];
 
 export const DEFAULT_POINTS = {
@@ -1549,17 +1643,17 @@ export async function recalculateAllResultsPoints(instituteId) {
 export function classifyProgram(program) {
     if (!program) return null;
     const type = (program.programType || program.type || 'individual').toLowerCase();
-    
+
     // 1. General Program (highest priority)
     if (type === 'general') {
         return 'general';
     }
-    
+
     // 2. Group Program
     if (type === 'group') {
         return 'group';
     }
-    
+
     // 3 & 4. Individual Programs
     if (type === 'individual') {
         const location = (program.programLocation || program.location || '').trim().toLowerCase();
@@ -1587,8 +1681,8 @@ export function resolveEffectiveParticipationLimits(participationLimits, student
 
     const resolveField = (fieldName) => {
         // 1. CATEGORY + GENDER RULE
-        const catGenderRule = rules.find(r => 
-            r.categoryId && r.categoryId === student.categoryId && 
+        const catGenderRule = rules.find(r =>
+            r.categoryId && r.categoryId === student.categoryId &&
             r.gender && r.gender === student.gender
         );
         if (catGenderRule && catGenderRule[fieldName] !== undefined && catGenderRule[fieldName] !== null && catGenderRule[fieldName] !== '') {
@@ -1596,8 +1690,8 @@ export function resolveEffectiveParticipationLimits(participationLimits, student
         }
 
         // 2. CATEGORY-ONLY RULE
-        const catOnlyRule = rules.find(r => 
-            r.categoryId && r.categoryId === student.categoryId && 
+        const catOnlyRule = rules.find(r =>
+            r.categoryId && r.categoryId === student.categoryId &&
             (!r.gender || r.gender === '')
         );
         if (catOnlyRule && catOnlyRule[fieldName] !== undefined && catOnlyRule[fieldName] !== null && catOnlyRule[fieldName] !== '') {
@@ -1605,8 +1699,8 @@ export function resolveEffectiveParticipationLimits(participationLimits, student
         }
 
         // 3. GENDER-ONLY RULE
-        const genderOnlyRule = rules.find(r => 
-            (!r.categoryId || r.categoryId === '') && 
+        const genderOnlyRule = rules.find(r =>
+            (!r.categoryId || r.categoryId === '') &&
             r.gender && r.gender === student.gender
         );
         if (genderOnlyRule && genderOnlyRule[fieldName] !== undefined && genderOnlyRule[fieldName] !== null && genderOnlyRule[fieldName] !== '') {
@@ -1790,6 +1884,7 @@ export function aggregateManualGrades(grades, pointsConfig = null) {
     }
     return closest ? closest.name : '';
 }
+
 
 
 

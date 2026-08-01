@@ -1,5 +1,6 @@
-// Teams Module
-import { db, updateDashboardMetadata, migrateTeamMemberCounts, invalidateTeamsCache, getCachedPrograms, getCachedProgramOverview, setCachedProgramOverview, invalidateProgramOverviewCache } from './firebase.js';
+import { db, updateDashboardMetadata, migrateParticipantCounts, migrateTeamMemberCounts, invalidateTeamsCache, invalidateProgramsCache, cleanupOrphanedTeamData, getCachedPrograms, getCachedProgramOverview, setCachedProgramOverview, invalidateProgramOverviewCache } from './firebase.js';
+
+
 import {
     collection,
     addDoc,
@@ -166,7 +167,7 @@ function renderTeamsUI() {
 
     localTeams.forEach((team) => {
         const teamId = team.id;
-        
+
         let membersLabel = "";
         if (team.memberCount !== undefined) {
             const count = team.memberCount;
@@ -625,87 +626,134 @@ async function deleteTeam(teamId) {
     try {
         const instId = window.currentInstituteId;
         const batch = writeBatch(db);
-        const programCountDeltas = new Map(); // programId -> cumulative delta
+        const programCountDeltas = new Map();
 
-        // 1. Delete all group participant docs registered for this team across all programs
-        const groupSnap = await getDocs(query(
-            collectionGroup(db, "participants"),
-            where("type", "==", "group"),
-            where("teamId", "==", teamId)
-        ));
-
-        groupSnap.forEach(d => {
-            if (d.ref.path.startsWith(`institutes/${instId}/`)) {
-                const data = d.data();
-                const groups = Array.isArray(data.groups) ? data.groups : [];
-                const numGroups = Math.max(1, groups.length);
-                const progId = data.programId || d.ref.parent.parent?.id;
-
-                batch.delete(d.ref);
-
-                if (progId) {
-                    programCountDeltas.set(
-                        progId,
-                        (programCountDeltas.get(progId) || 0) - numGroups
-                    );
-                }
-            }
-        });
-
-        // 2. Find all students belonging to this team and cascade-remove their individual participant records
+        // 1. Fetch all students belonging to this team
         const studentsSnap = await getDocs(query(
             collection(db, "institutes", instId, "students"),
             where("teamId", "==", teamId)
         ));
+        const studentIdsSet = new Set(studentsSnap.docs.map(d => d.id));
 
-        if (!studentsSnap.empty) {
-            for (const stuDoc of studentsSnap.docs) {
-                const stuId = stuDoc.id;
+        // Delete all student docs
+        studentsSnap.forEach(sDoc => {
+            batch.delete(sDoc.ref);
+        });
 
-                // Individual participant docs (all programs)
-                const indivSnap = await getDocs(query(
-                    collectionGroup(db, "participants"),
-                    where("studentId", "==", stuId),
-                    where("type", "==", "individual")
-                ));
-                indivSnap.forEach(d => {
-                    if (d.ref.path.startsWith(`institutes/${instId}/`)) {
-                        const data = d.data();
-                        batch.delete(d.ref);
-                        const progId = data.programId || d.ref.parent.parent?.id;
-                        if (progId) {
-                            programCountDeltas.set(
-                                progId,
-                                (programCountDeltas.get(progId) || 0) - 1
-                            );
-                        }
+        // 2. Fetch ALL participant documents matching teamId or studentId in deleted students
+        const allProgsSnap = await getDocs(collection(db, "institutes", instId, "programs"));
+
+        for (const progDoc of allProgsSnap.docs) {
+            const progId = progDoc.id;
+            const partSnap = await getDocs(collection(db, "institutes", instId, "programs", progId, "participants"));
+
+            let deletedForProg = 0;
+
+            partSnap.forEach(pDoc => {
+                const data = pDoc.data();
+
+                // Case A: Participant doc belongs directly to this teamId (individual or group)
+                if (data.teamId === teamId) {
+                    batch.delete(pDoc.ref);
+                    if (data.type === 'group' && Array.isArray(data.groups)) {
+                        deletedForProg += data.groups.length;
+                    } else {
+                        deletedForProg += 1;
                     }
-                });
+                    return;
+                }
 
-                // Delete the student doc
-                batch.delete(stuDoc.ref);
+                // Case B: Individual participant doc matching one of team's deleted students
+                if (data.type === 'individual' && data.studentId && studentIdsSet.has(data.studentId)) {
+                    batch.delete(pDoc.ref);
+                    deletedForProg += 1;
+                    return;
+                }
+
+                // Case C: Group participant doc where team's students might be members in another team's group
+                if (data.type === 'group' && Array.isArray(data.groups)) {
+                    let groupsChanged = false;
+                    let groupsRemoved = 0;
+                    const updatedGroups = [];
+
+                    data.groups.forEach(g => {
+                        const originalMembers = g.members || [];
+                        const remainingMembers = originalMembers.filter(m => !studentIdsSet.has(m.studentId));
+
+                        if (remainingMembers.length > 0) {
+                            if (remainingMembers.length !== originalMembers.length) groupsChanged = true;
+                            updatedGroups.push({ ...g, members: remainingMembers });
+                        } else {
+                            groupsChanged = true;
+                            groupsRemoved++;
+                        }
+                    });
+
+                    if (updatedGroups.length === 0) {
+                        batch.delete(pDoc.ref);
+                        deletedForProg += data.groups.length;
+                    } else if (groupsChanged) {
+                        batch.update(pDoc.ref, { groups: updatedGroups, updatedAt: serverTimestamp() });
+                        if (groupsRemoved > 0) deletedForProg += groupsRemoved;
+                    }
+                }
+            });
+
+            if (deletedForProg > 0) {
+                programCountDeltas.set(progId, (programCountDeltas.get(progId) || 0) - deletedForProg);
             }
         }
 
-        // 3. Apply participantCount decrements to affected programs
-        for (const [programId, delta] of programCountDeltas.entries()) {
+        // 3. Update program participantCount fields
+        for (const [pId, delta] of programCountDeltas.entries()) {
             if (delta !== 0) {
-                const progRef = doc(db, "institutes", instId, "programs", programId);
+                const progRef = doc(db, "institutes", instId, "programs", pId);
                 batch.update(progRef, { participantCount: increment(delta) });
             }
         }
 
-        // 4. Delete the team document itself
+        // 4. Clean up results collection (institutes/{instId}/results)
+        const resultsSnap = await getDocs(collection(db, "institutes", instId, "results"));
+        resultsSnap.forEach(resDoc => {
+            const resData = resDoc.data();
+            if (Array.isArray(resData.marksData) && resData.marksData.length > 0) {
+                const cleanMarksData = resData.marksData.filter(m => {
+                    if (m.teamId && m.teamId === teamId) return false;
+                    if (m.studentId && studentIdsSet.has(m.studentId)) return false;
+                    return true;
+                });
+
+                if (cleanMarksData.length === 0) {
+                    batch.delete(resDoc.ref);
+                } else if (cleanMarksData.length !== resData.marksData.length) {
+                    batch.update(resDoc.ref, {
+                        marksData: cleanMarksData,
+                        participantCount: cleanMarksData.length,
+                        updatedAt: serverTimestamp()
+                    });
+                }
+            }
+        });
+
+        // 5. Delete the team document itself
         batch.delete(doc(db, "institutes", instId, "teams", teamId));
 
         await batch.commit();
+
+        // 6. Self-healing check, integrity validation & Cache invalidation
+        await cleanupOrphanedTeamData(instId);
+        await migrateParticipantCounts(instId);
         await updateDashboardMetadata(instId);
         invalidateTeamsCache(instId);
+        if (typeof invalidateProgramsCache === 'function') invalidateProgramsCache(instId);
+
         window.showToast("Team deleted successfully.");
+
     } catch (err) {
         window.handleError(err, "deleting team");
     }
 }
+
 
 function openTeamDropdown(btn) {
     // 1. Remove any existing dynamic body-appended dropdown
@@ -715,7 +763,7 @@ function openTeamDropdown(btn) {
     // 2. Create the dropdown element
     const dropdown = document.createElement('div');
     dropdown.className = 'actions-dropdown-menu active-body-dropdown';
-    
+
     // Get datasets
     const id = btn.dataset.id;
     const name = btn.dataset.name;
@@ -810,11 +858,11 @@ function openLeaderAccessModal(teamId, teamName) {
     const memberCount = team ? (team.memberCount || 0) : 0;
     const isAccessEnabled = team ? (team.leaderAccessEnabled || false) : false;
     let token = team ? (team.leaderAccessToken || '') : '';
-    
+
     if (!token && isAccessEnabled) {
         token = generateSecureToken();
     }
-    
+
     const instName = window.currentInstituteDetails?.name || window.currentInstituteDetails?.instituteName || "Institute";
     const origin = window.location.origin;
     const path = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
@@ -915,7 +963,7 @@ function openLeaderAccessModal(teamId, teamName) {
             badge.className = "pw-badge-compact pw-badge-eligible";
             labelText.textContent = "Access Link is Enabled";
             linkSection.classList.remove("hidden");
-            
+
             if (!modalToken) {
                 modalToken = generateSecureToken();
                 const newUrl = `${origin}${path}/leader-portal.html?instId=${window.currentInstituteId}&token=${modalToken}`;
@@ -989,7 +1037,7 @@ function openLeaderAccessModal(teamId, teamName) {
             }
 
             await batch.commit();
-            
+
             // Local update of localTeams cache so UI displays updated state next time modal is opened
             if (team) {
                 team.leaderAccessEnabled = enabled;
