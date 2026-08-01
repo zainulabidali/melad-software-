@@ -563,23 +563,7 @@ function openProgramModal(progId = null, data = {}) {
         modalOverlay.classList.add('hidden');
     };
 
-    function timeToMinutes(timeStr) {
-        if (!timeStr) return -1;
-        const ampmMatch = String(timeStr).trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
-        if (ampmMatch) {
-            let h = parseInt(ampmMatch[1], 10);
-            const m = parseInt(ampmMatch[2], 10) || 0;
-            const period = ampmMatch[3].toUpperCase();
-            if (period === 'PM' && h < 12) h += 12;
-            if (period === 'AM' && h === 12) h = 0;
-            return h * 60 + m;
-        }
-        const parts = String(timeStr).split(':');
-        let h = parseInt(parts[0], 10);
-        let m = parseInt(parts[1], 10);
-        if (isNaN(h) || isNaN(m)) return -1;
-        return h * 60 + m;
-    }
+
 
     if (progId) {
         // --- SINGLE EDIT MODE (Compatibility) ---
@@ -627,26 +611,7 @@ function openProgramModal(progId = null, data = {}) {
                     </select>
                 </div>
 
-                <div class="form-group" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed #cbd5e1;">
-                    <label class="form-label" style="font-weight: 700; color: #334155;">📅 Schedule Details *</label>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Schedule Date *</label>
-                    <input type="date" id="pScheduleDate" class="form-input" required
-                        value="${data.scheduleDate || new Date().toISOString().split('T')[0]}">
-                </div>
-                <div class="form-row" style="display:grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                    <div class="form-group">
-                        <label class="form-label">Start Time *</label>
-                        <input type="time" id="pStartTime" class="form-input" required
-                            value="${data.startTime || '09:00'}">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">End Time *</label>
-                        <input type="time" id="pEndTime" class="form-input" required
-                            value="${data.endTime || '09:30'}">
-                    </div>
-                </div>
+
 
                 <div class="modal-actions" style="margin-top:1.25rem;">
                     <button type="submit" class="btn btn-primary w-full" id="saveProgBtn">
@@ -687,33 +652,6 @@ function openProgramModal(progId = null, data = {}) {
                 }
             }
 
-            const schedDate = document.getElementById('pScheduleDate').value.trim();
-            const startTime = document.getElementById('pStartTime').value.trim();
-            const endTime = document.getElementById('pEndTime').value.trim();
-
-            if (!schedDate) {
-                window.showToast("Schedule Date is required.", "error");
-                return;
-            }
-            if (!startTime) {
-                window.showToast("Start Time is required.", "error");
-                return;
-            }
-            if (!endTime) {
-                window.showToast("End Time is required.", "error");
-                return;
-            }
-            const startMins = timeToMinutes(startTime);
-            const endMins = timeToMinutes(endTime);
-            if (startMins < 0 || endMins < 0) {
-                window.showToast("Please enter valid Start Time and End Time.", "error");
-                return;
-            }
-            if (endMins <= startMins) {
-                window.showToast("End Time cannot be earlier than or equal to Start Time.", "error");
-                return;
-            }
-
             const btn = document.getElementById('saveProgBtn');
             const text = btn.querySelector('.btn-text');
             const spinner = btn.querySelector('.btn-spinner');
@@ -729,10 +667,7 @@ function openProgramModal(progId = null, data = {}) {
                     maxParticipants: type === 'individual' ? null : parseInt(gsRaw, 10),
                     programLocation: document.getElementById('pLocation').value,
                     genderCategory: document.getElementById('pGender').value,
-                    categoryId: data.categoryId || currentCategoryId,
-                    scheduleDate: schedDate,
-                    startTime: startTime,
-                    endTime: endTime
+                    categoryId: data.categoryId || currentCategoryId
                 };
 
                 const progCollection = collection(db, "institutes", window.currentInstituteId, "programs");
@@ -744,9 +679,6 @@ function openProgramModal(progId = null, data = {}) {
                     await setDoc(schedDocRef, {
                         programId: progId,
                         programName: payload.programName,
-                        scheduleDate: schedDate,
-                        startTime: startTime,
-                        endTime: endTime,
                         stage: payload.programLocation,
                         updatedAt: serverTimestamp()
                     }, { merge: true });
@@ -814,13 +746,10 @@ function openProgramModal(progId = null, data = {}) {
                             <tr>
                                 <th style="padding:0.6rem 0.75rem; width:40px; border-bottom:1.5px solid #e2e8f0;"><input type="checkbox" id="bulkSelectAll" checked style="cursor:pointer;" /></th>
                                 <th style="padding:0.6rem 0.75rem; border-bottom:1.5px solid #e2e8f0;">Program Name *</th>
-                                <th style="padding:0.6rem 0.75rem; width:110px; border-bottom:1.5px solid #e2e8f0;">Location *</th>
-                                <th style="padding:0.6rem 0.75rem; width:100px; border-bottom:1.5px solid #e2e8f0;">Type *</th>
-                                <th style="padding:0.6rem 0.75rem; width:80px; border-bottom:1.5px solid #e2e8f0;">Group Size</th>
-                                <th style="padding:0.6rem 0.75rem; width:110px; border-bottom:1.5px solid #e2e8f0;">Date *</th>
-                                <th style="padding:0.6rem 0.75rem; width:95px; border-bottom:1.5px solid #e2e8f0;">Start Time *</th>
-                                <th style="padding:0.6rem 0.75rem; width:95px; border-bottom:1.5px solid #e2e8f0;">End Time *</th>
-                                <th style="padding:0.6rem 0.75rem; width:60px; border-bottom:1.5px solid #e2e8f0; text-align:center;">Action</th>
+                                <th style="padding:0.6rem 0.75rem; width:140px; border-bottom:1.5px solid #e2e8f0;">Location *</th>
+                                <th style="padding:0.6rem 0.75rem; width:130px; border-bottom:1.5px solid #e2e8f0;">Type *</th>
+                                <th style="padding:0.6rem 0.75rem; width:100px; border-bottom:1.5px solid #e2e8f0;">Group Size</th>
+                                <th style="padding:0.6rem 0.75rem; width:70px; border-bottom:1.5px solid #e2e8f0; text-align:center;">Action</th>
                             </tr>
                         </thead>
                         <tbody id="bulkTableBody">
@@ -886,7 +815,7 @@ function openProgramModal(progId = null, data = {}) {
             const tbody = document.getElementById('bulkTableBody');
             tbody.innerHTML = `
                 <tr id="bulkEmptyState">
-                    <td colspan="9" style="text-align:center; padding:2.5rem 0; color:#94a3b8; font-style:italic;">
+                    <td colspan="6" style="text-align:center; padding:2.5rem 0; color:#94a3b8; font-style:italic;">
                         No custom programs added yet. Complete selections above and click "+ Add Custom Program".
                     </td>
                 </tr>
@@ -928,7 +857,6 @@ function openProgramModal(progId = null, data = {}) {
                 tbody.removeChild(emptyState);
             }
 
-            const todayStr = new Date().toISOString().split('T')[0];
             const tr = document.createElement('tr');
             tr.className = 'bulk-row';
             tr.innerHTML = `
@@ -947,9 +875,6 @@ function openProgramModal(progId = null, data = {}) {
                     </select>
                 </td>
                 <td style="padding:0.45rem 0.75rem; border-bottom:1px solid #e2e8f0; vertical-align: middle;"><input type="number" class="bulk-row-size form-input" min="2" placeholder="Size" style="font-size:0.75rem; width:100%; border:1px solid #cbd5e1; border-radius:4px; padding:0.25rem 0.4rem; display:none; height:auto; min-height:initial;" /></td>
-                <td style="padding:0.45rem 0.75rem; border-bottom:1px solid #e2e8f0; vertical-align: middle;"><input type="date" class="bulk-row-date form-input" value="${todayStr}" style="font-size:0.75rem; width:100%; border:1px solid #cbd5e1; border-radius:4px; padding:0.25rem 0.4rem; height:auto; min-height:initial;" /></td>
-                <td style="padding:0.45rem 0.75rem; border-bottom:1px solid #e2e8f0; vertical-align: middle;"><input type="time" class="bulk-row-start form-input" value="09:00" style="font-size:0.75rem; width:100%; border:1px solid #cbd5e1; border-radius:4px; padding:0.25rem 0.4rem; height:auto; min-height:initial;" /></td>
-                <td style="padding:0.45rem 0.75rem; border-bottom:1px solid #e2e8f0; vertical-align: middle;"><input type="time" class="bulk-row-end form-input" value="09:30" style="font-size:0.75rem; width:100%; border:1px solid #cbd5e1; border-radius:4px; padding:0.25rem 0.4rem; height:auto; min-height:initial;" /></td>
                 <td style="padding:0.45rem 0.75rem; border-bottom:1px solid #e2e8f0; text-align:center; vertical-align: middle;">
                     <button type="button" class="bulk-row-delete" style="background:none; border:none; color:#ef4444; font-size:1.3rem; cursor:pointer; padding:0 0.25rem; line-height:1; font-weight:700;" title="Delete Row">&times;</button>
                 </td>
@@ -1023,24 +948,6 @@ function openProgramModal(progId = null, data = {}) {
                 const location = row.querySelector('.bulk-row-loc').value;
                 const pType = row.querySelector('.bulk-row-type').value;
                 const sizeVal = row.querySelector('.bulk-row-size').value.trim();
-                const bDate = row.querySelector('.bulk-row-date').value.trim();
-                const bStart = row.querySelector('.bulk-row-start').value.trim();
-                const bEnd = row.querySelector('.bulk-row-end').value.trim();
-
-                if (!bDate) {
-                    window.showToast(`Schedule date is required for "${name}".`, "error");
-                    return;
-                }
-                if (!bStart || !bEnd) {
-                    window.showToast(`Start and End times are required for "${name}".`, "error");
-                    return;
-                }
-                const bStartMins = timeToMinutes(bStart);
-                const bEndMins = timeToMinutes(bEnd);
-                if (bStartMins < 0 || bEndMins < 0 || bEndMins <= bStartMins) {
-                    window.showToast(`Invalid time range for "${name}": End Time must be after Start Time.`, "error");
-                    return;
-                }
 
                 let maxParticipants = null;
                 if (typeScope === 'competition') {
@@ -1060,10 +967,7 @@ function openProgramModal(progId = null, data = {}) {
                         maxParticipants: maxParticipants,
                         programLocation: location,
                         genderCategory: gender,
-                        categoryId: catId,
-                        scheduleDate: bDate,
-                        startTime: bStart,
-                        endTime: bEnd
+                        categoryId: catId
                     });
                 } else {
                     if (pType === 'group') {
@@ -1085,10 +989,7 @@ function openProgramModal(progId = null, data = {}) {
                         maxParticipants: maxParticipants,
                         leaderboardEnabled: true,
                         programType: "general",
-                        categoryId: "general_programs",
-                        scheduleDate: bDate,
-                        startTime: bStart,
-                        endTime: bEnd
+                        categoryId: "general_programs"
                     });
                 }
             }
@@ -1219,26 +1120,7 @@ function openGeneralProgramModal(progId = null, data = {}) {
                 <label for="pLeaderboard" class="form-label" style="margin-bottom:0; cursor:pointer; font-weight:600;">Count In Team Leaderboard</label>
             </div>
 
-            <div class="form-group" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed #cbd5e1;">
-                <label class="form-label" style="font-weight: 700; color: #334155;">📅 Schedule Details *</label>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Schedule Date *</label>
-                <input type="date" id="pScheduleDate" class="form-input" required
-                    value="${data.scheduleDate || new Date().toISOString().split('T')[0]}">
-            </div>
-            <div class="form-row" style="display:grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                <div class="form-group">
-                    <label class="form-label">Start Time *</label>
-                    <input type="time" id="pStartTime" class="form-input" required
-                        value="${data.startTime || '09:00'}">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">End Time *</label>
-                    <input type="time" id="pEndTime" class="form-input" required
-                        value="${data.endTime || '09:30'}">
-                </div>
-            </div>
+
 
             <div class="modal-actions" style="margin-top:1.25rem;">
                 <button type="submit" class="btn btn-general w-full" id="saveProgBtn">
@@ -1254,33 +1136,6 @@ function openGeneralProgramModal(progId = null, data = {}) {
 
     document.getElementById('generalProgramForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-
-        const schedDate = document.getElementById('pScheduleDate').value.trim();
-        const startTime = document.getElementById('pStartTime').value.trim();
-        const endTime = document.getElementById('pEndTime').value.trim();
-
-        if (!schedDate) {
-            window.showToast("Schedule Date is required.", "error");
-            return;
-        }
-        if (!startTime) {
-            window.showToast("Start Time is required.", "error");
-            return;
-        }
-        if (!endTime) {
-            window.showToast("End Time is required.", "error");
-            return;
-        }
-        const startMins = timeToMinutes(startTime);
-        const endMins = timeToMinutes(endTime);
-        if (startMins < 0 || endMins < 0) {
-            window.showToast("Please enter valid Start Time and End Time.", "error");
-            return;
-        }
-        if (endMins <= startMins) {
-            window.showToast("End Time cannot be earlier than or equal to Start Time.", "error");
-            return;
-        }
 
         const btn = document.getElementById('saveProgBtn');
         const text = btn.querySelector('.btn-text');
@@ -1302,10 +1157,7 @@ function openGeneralProgramModal(progId = null, data = {}) {
                 maxParticipants: maxPartVal ? parseInt(maxPartVal, 10) : null,
                 leaderboardEnabled: document.getElementById('pLeaderboard').checked,
                 programType: "general",
-                categoryId: "general_programs", // standard category placeholder for listing
-                scheduleDate: schedDate,
-                startTime: startTime,
-                endTime: endTime
+                categoryId: "general_programs" // standard category placeholder for listing
             };
 
             const progCollection = collection(db, "institutes", window.currentInstituteId, "programs");
