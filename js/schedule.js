@@ -709,17 +709,16 @@ export async function initScheduleView(container, topActions) {
                                 <th style="width:36px; text-align:center; padding:0.65rem 0.5rem;"><input type="checkbox" id="chkHeaderAll" style="cursor:pointer; width:15px; height:15px;"></th>
                                 <th style="width:55px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">ORDER</th>
                                 <th style="text-align:left; padding:0.65rem 0.75rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">PROGRAM NAME</th>
-                                <th style="width:130px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">CATEGORY</th>
-                                <th style="width:130px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">SAME TIME / GROUP</th>
-                                <th style="width:90px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">DURATION</th>
-                                <th style="width:90px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">START</th>
-                                <th style="width:90px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">END</th>
-                                <th style="width:120px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">STATUS</th>
+                                <th style="width:110px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">CATEGORY</th>
+                                <th style="width:125px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">DATE</th>
+                                <th style="width:100px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">START TIME</th>
+                                <th style="width:100px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">END TIME</th>
+                                <th style="width:110px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">STATUS</th>
                                 <th style="width:80px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">ACTIONS</th>
                             </tr>
                         </thead>
                         <tbody id="schedTableBody">
-                            <tr><td colspan="10" style="text-align:center; padding:2rem; color:#64748b;">Loading Stage Schedule...</td></tr>
+                            <tr><td colspan="9" style="text-align:center; padding:2rem; color:#64748b;">Loading Stage Schedule...</td></tr>
                         </tbody>
                     </table>
                     <div id="schedTableFooter" style="display:flex; justify-content:space-between; align-items:center; padding:0.75rem 1rem; border-top:1px solid #e2e8f0; font-size:0.8rem; font-weight:600; color:#64748b; background:#ffffff; border-radius:0 0 12px 12px; margin-top: -1px;">
@@ -862,15 +861,15 @@ function mergeAndRender() {
             id: sched.id,
             isBreak: isBreak,
             breakTitle: sched.breakTitle || sched.programName || 'Break',
-            programId: sched.programId || '',
+            programId: sched.programId || prog.id || '',
             programName: isBreak ? (sched.breakTitle || sched.programName || 'Break') : (sched.programName || prog.programName || 'Unnamed Program'),
             programNumber: isBreak ? '' : (prog.programNumber || sched.programNumber || ''),
             programType: isBreak ? 'Break' : (prog.programType || sched.programType || ''),
             categoryName: catName,
-            stage: sched.stage || '',
-            scheduleDate: sched.scheduleDate || '',
-            startTime: sched.startTime || '',
-            endTime: sched.endTime || '',
+            stage: sched.stage || prog.programLocation || prog.location || '',
+            scheduleDate: sched.scheduleDate || prog.scheduleDate || stageConfigs[sched.stage]?.date || '',
+            startTime: sched.startTime || prog.startTime || '',
+            endTime: sched.endTime || prog.endTime || '',
             duration: parseInt(sched.duration, 10) || 20,
             runningOrder: parseInt(sched.runningOrder, 10) || 1,
             status: sched.status || 'Pending',
@@ -879,6 +878,35 @@ function mergeAndRender() {
             isParallel: !!sched.isParallel,
             parallelGroupId: sched.parallelGroupId || null
         };
+    });
+
+    // Merge programs from localPrograms assigned to a stage/location but not yet in localSchedules
+    localPrograms.forEach(prog => {
+        const alreadyMerged = mergedSchedules.some(s => s.id === prog.id || s.programId === prog.id);
+        if (!alreadyMerged && (prog.programLocation || prog.location || prog.scheduleDate)) {
+            const catName = resolveCategoryName(prog);
+            mergedSchedules.push({
+                id: prog.id,
+                isBreak: false,
+                breakTitle: '',
+                programId: prog.id,
+                programName: prog.programName || 'Unnamed Program',
+                programNumber: prog.programNumber || '',
+                programType: prog.programType || '',
+                categoryName: catName,
+                stage: prog.programLocation || prog.location || 'Stage',
+                scheduleDate: prog.scheduleDate || '',
+                startTime: prog.startTime || '',
+                endTime: prog.endTime || '',
+                duration: 20,
+                runningOrder: 99,
+                status: 'Pending',
+                isLocked: false,
+                isOffStage: (prog.programLocation || prog.location) === 'Off Stage',
+                isParallel: false,
+                parallelGroupId: null
+            });
+        }
     });
 
     // Populate stageConfigs dynamically from localStages doc data to persist stage config
@@ -950,141 +978,10 @@ function formatTimeTo12Hour(timeStr) {
     return `${h}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-// Automatically recalculates Start and End times down the active stage table (respecting Parallel Groups)
-async function triggerTimeCascade(stageItems, saveToDb = true) {
-    if (!stageItems || stageItems.length === 0) return;
-
-    const cfg = stageConfigs[activeStage] || { startTime: '09:00', defaultDuration: 20 };
-    let currentMins = timeToMinutes(cfg.startTime);
-
-    const batch = writeBatch(db);
-    let changed = false;
-
-    stageItems.sort((a, b) => a.runningOrder - b.runningOrder);
-
-    let activeGroupStartMins = currentMins;
-    let activeGroupMaxEndMins = currentMins;
-    let groupCounter = 1;
-
-    stageItems.forEach((item, idx) => {
-        const dur = Math.max(1, parseInt(item.duration, 10) || cfg.defaultDuration || 20);
-
-        if (idx === 0) {
-            // First item in stage is always a sequential anchor
-            item.isParallel = false;
-            item.parallelGroupId = null;
-
-            let startMins = currentMins;
-            if (item.isLocked && item.startTime) {
-                startMins = timeToMinutes(item.startTime);
-            } else {
-                startMins = currentMins;
-            }
-
-            const endMins = startMins + dur;
-            activeGroupStartMins = startMins;
-            activeGroupMaxEndMins = endMins;
-            currentMins = activeGroupMaxEndMins;
-
-            const startStr = minutesToTime(startMins);
-            const endStr = minutesToTime(endMins);
-
-            if (item.startTime !== startStr || item.endTime !== endStr || item.runningOrder !== idx + 1) {
-                changed = true;
-                item.startTime = startStr;
-                item.endTime = endStr;
-                item.runningOrder = idx + 1;
-
-                if (saveToDb) {
-                    const ref = doc(db, "institutes", window.currentInstituteId, "schedules", item.id);
-                    batch.update(ref, {
-                        startTime: startStr,
-                        endTime: endStr,
-                        runningOrder: idx + 1,
-                        isParallel: false,
-                        parallelGroupId: null,
-                        updatedAt: serverTimestamp()
-                    });
-                }
-            }
-        } else {
-            if (item.isParallel) {
-                // Runs in parallel with the active parallel group (inherits activeGroupStartMins)
-                let startMins = activeGroupStartMins;
-                if (item.isLocked && item.startTime) {
-                    startMins = timeToMinutes(item.startTime);
-                }
-
-                const endMins = startMins + dur;
-                activeGroupMaxEndMins = Math.max(activeGroupMaxEndMins, endMins);
-
-                // Assign or maintain parallel group label (Group A, Group B...)
-                const currentGrpLabel = `Group ${String.fromCharCode(64 + Math.max(1, groupCounter))}`;
-                item.parallelGroupId = item.parallelGroupId || currentGrpLabel;
-
-                const startStr = minutesToTime(startMins);
-                const endStr = minutesToTime(endMins);
-
-                if (item.startTime !== startStr || item.endTime !== endStr || item.runningOrder !== idx + 1) {
-                    changed = true;
-                    item.startTime = startStr;
-                    item.endTime = endStr;
-                    item.runningOrder = idx + 1;
-
-                    if (saveToDb) {
-                        const ref = doc(db, "institutes", window.currentInstituteId, "schedules", item.id);
-                        batch.update(ref, {
-                            startTime: startStr,
-                            endTime: endStr,
-                            runningOrder: idx + 1,
-                            isParallel: true,
-                            parallelGroupId: item.parallelGroupId,
-                            updatedAt: serverTimestamp()
-                        });
-                    }
-                }
-            } else {
-                // Sequential item: starts after preceding group completes (at activeGroupMaxEndMins)
-                groupCounter++;
-                let startMins = activeGroupMaxEndMins;
-                if (item.isLocked && item.startTime) {
-                    startMins = timeToMinutes(item.startTime);
-                }
-
-                const endMins = startMins + dur;
-                activeGroupStartMins = startMins;
-                activeGroupMaxEndMins = endMins;
-                currentMins = activeGroupMaxEndMins;
-                item.parallelGroupId = null;
-
-                const startStr = minutesToTime(startMins);
-                const endStr = minutesToTime(endMins);
-
-                if (item.startTime !== startStr || item.endTime !== endStr || item.runningOrder !== idx + 1) {
-                    changed = true;
-                    item.startTime = startStr;
-                    item.endTime = endStr;
-                    item.runningOrder = idx + 1;
-
-                    if (saveToDb) {
-                        const ref = doc(db, "institutes", window.currentInstituteId, "schedules", item.id);
-                        batch.update(ref, {
-                            startTime: startStr,
-                            endTime: endStr,
-                            runningOrder: idx + 1,
-                            isParallel: false,
-                            parallelGroupId: null,
-                            updatedAt: serverTimestamp()
-                        });
-                    }
-                }
-            }
-        }
-    });
-
-    if (changed && saveToDb) {
-        await batch.commit().catch(e => console.error("Time cascade sync error", e));
-    }
+// Automatically recalculates Start and End times down the active stage table (Disabled for manual scheduling)
+async function triggerTimeCascade(stageItems, saveToDb = false) {
+    // Automatic time cascade disabled. Every program uses its own manually assigned schedule.
+    return;
 }
 
 // ─────────────────────────────────────────────
@@ -1593,25 +1490,16 @@ function renderConfigBar() {
         <div class="sched-config-inputs">
             <span style="font-weight:800; font-size:1rem; color:#0f172a;">🎪 ${window.escapeHTML(activeStage)} Setup:</span>
             <div class="sched-config-group">
-                <label>📅 Date:</label>
+                <label>📅 Default Stage Date:</label>
                 <input type="date" id="cfgStageDate" class="sched-tbl-input" style="width:140px;" value="${cfg.date}">
-            </div>
-            <div class="sched-config-group">
-                <label>⏱️ Start Time:</label>
-                <input type="time" id="cfgStageStart" class="sched-tbl-input" style="width:110px;" value="${cfg.startTime}">
-            </div>
-            <div class="sched-config-group">
-                <label>⏳ Gap/Duration:</label>
-                <input type="number" id="cfgStageGap" class="sched-tbl-input" style="width:80px;" value="${cfg.defaultDuration}" min="1">
-                <span>mins</span>
             </div>
         </div>
         <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
             <button class="btn btn-primary" id="btnAddProgramRow" style="font-weight:700;">
-                + Add Program
+                + Add Program Slot
             </button>
             <button class="btn btn-secondary" id="btnAddBreakRow" style="font-weight:700; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">
-                ☕ + Add Break
+                ☕ + Add Break Slot
             </button>
         </div>
     `;
@@ -1619,18 +1507,6 @@ function renderConfigBar() {
     document.getElementById('cfgStageDate').onchange = (e) => {
         cfg.date = e.target.value;
         updateStageSchedulesDate(cfg.date);
-    };
-
-    document.getElementById('cfgStageStart').onchange = (e) => {
-        cfg.startTime = e.target.value;
-        const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
-        triggerTimeCascade(activeItems, true);
-    };
-
-    document.getElementById('cfgStageGap').onchange = (e) => {
-        cfg.defaultDuration = parseInt(e.target.value, 10) || 20;
-        const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
-        triggerTimeCascade(activeItems, true);
     };
 
     document.getElementById('btnAddProgramRow').onclick = openAddProgramRowModal;
@@ -1643,11 +1519,23 @@ async function updateStageSchedulesDate(newDate) {
 
     const batch = writeBatch(db);
     activeItems.forEach(item => {
+        item.scheduleDate = newDate;
         batch.update(doc(db, "institutes", window.currentInstituteId, "schedules", item.id), {
             scheduleDate: newDate, updatedAt: serverTimestamp()
         });
+        if (item.programId) {
+            batch.update(doc(db, "institutes", window.currentInstituteId, "programs", item.programId), {
+                scheduleDate: newDate, updatedAt: serverTimestamp()
+            });
+        }
     });
-    await batch.commit();
+    try {
+        await batch.commit();
+        window.showToast(`Updated date for all programs in ${activeStage}`);
+        refreshScheduleTable();
+    } catch (e) {
+        console.error("Error updating stage dates:", e);
+    }
 }
 
 // ─────────────────────────────────────────────
@@ -1660,16 +1548,13 @@ function refreshScheduleTable() {
     const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
     activeItems.sort((a, b) => a.runningOrder - b.runningOrder);
 
-    // Run cascade in-memory to guarantee seamless times on display, but do not write to db on load/render!
-    triggerTimeCascade(activeItems, false);
-
     if (activeItems.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" style="text-align:center; padding:3rem 1.5rem;">
+                <td colspan="9" style="text-align:center; padding:3rem 1.5rem;">
                     <div style="font-size:2rem; margin-bottom:0.5rem;">📝</div>
                     <h4 style="margin:0; font-weight:800; color:#1e293b;">No Programs Scheduled in ${window.escapeHTML(activeStage)}</h4>
-                    <p style="margin:0.25rem 0 1rem 0; color:#64748b; font-size:0.85rem;">Add a competition program slot or inserting a break slot below.</p>
+                    <p style="margin:0.25rem 0 1rem 0; color:#64748b; font-size:0.85rem;">Add a competition program slot or insert a break slot below.</p>
                     <div style="display:flex; gap:0.5rem; justify-content:center; margin-top:0.75rem;">
                         <button class="btn btn-primary" id="btnAddProgramRowEmpty">+ Add Program Slot</button>
                         <button class="btn btn-secondary" id="btnAddBreakRowEmpty" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; font-weight:700;">☕ + Add Break Slot</button>
@@ -1699,10 +1584,14 @@ function refreshScheduleTable() {
             'Cancelled': 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;'
         };
 
+        const defaultDate = item.scheduleDate || stageConfigs[activeStage]?.date || new Date().toISOString().split('T')[0];
+        const defaultStart = item.startTime || '09:00';
+        const defaultEnd = item.endTime || '09:30';
+
         if (item.isBreak) {
             const icon = getBreakIcon(item.programName);
             return `
-                <tr class="sched-table-row is-break-row ${item.isLocked ? 'is-locked' : ''} ${item.isParallel ? 'is-parallel-row' : ''}" 
+                <tr class="sched-table-row is-break-row ${item.isLocked ? 'is-locked' : ''}" 
                     draggable="${item.isLocked ? 'false' : 'true'}" 
                     data-id="${item.id}" 
                     data-idx="${idx}" 
@@ -1724,26 +1613,14 @@ function refreshScheduleTable() {
                     <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle;">
                         <span style="background:#ffedd5; color:#c2410c; padding:3px 10px; border-radius:6px; font-weight:800; font-size:0.75rem; text-transform:uppercase; display:inline-block;">BREAK</span>
                     </td>
-                    <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap;">
-                        <label style="display:inline-flex; flex-direction:column; align-items:center; cursor:pointer; margin:0;">
-                            <input type="checkbox" class="row-parallel-chk" data-id="${item.id}" ${item.isParallel ? 'checked' : ''} ${idx === 0 ? 'disabled title="First item cannot be set to Same Time"' : ''} style="display:none;">
-                            ${item.isParallel ? `
-                                <span style="background:#e0e7ff; color:#4338ca; padding:2px 8px; border-radius:6px; font-size:0.75rem; font-weight:800;">Same Time</span>
-                                <span style="font-size:0.75rem; font-weight:700; color:#475569; margin-top:2px;">${item.parallelGroupId || 'Group A'}</span>
-                            ` : `
-                                <span style="color:#64748b; font-weight:700; font-size:0.85rem;">—</span>
-                                <span style="font-size:0.75rem; color:#64748b; font-weight:600;">(Break)</span>
-                            `}
-                        </label>
+                    <td style="text-align:center; padding:0.5rem 0.4rem; vertical-align:middle; white-space:nowrap;">
+                        <input type="date" class="sched-tbl-input row-date-in" data-id="${item.id}" value="${defaultDate}" style="width:115px; font-size:0.78rem; font-weight:700; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.35rem; text-align:center;">
                     </td>
-                    <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap; font-weight:800; color:#0f172a; font-size:0.875rem;">
-                        <input type="number" class="sched-tbl-input row-duration-in" data-id="${item.id}" value="${item.duration}" style="width:45px; border:none; background:transparent; padding:0; font-weight:800; text-align:center; font-size:0.875rem;" min="1"> min
+                    <td style="text-align:center; padding:0.5rem 0.4rem; vertical-align:middle; white-space:nowrap;">
+                        <input type="time" class="sched-tbl-input row-start-in" data-id="${item.id}" value="${defaultStart}" style="width:85px; font-size:0.78rem; font-weight:700; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.35rem; text-align:center;">
                     </td>
-                    <td style="text-align:center; font-weight:800; color:#0f172a; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap; font-size:0.875rem;">
-                        ${formatTimeTo12Hour(item.startTime || '09:00')}
-                    </td>
-                    <td style="text-align:center; font-weight:800; color:#0f172a; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap; font-size:0.875rem;">
-                        ${formatTimeTo12Hour(item.endTime || '09:20')}
+                    <td style="text-align:center; padding:0.5rem 0.4rem; vertical-align:middle; white-space:nowrap;">
+                        <input type="time" class="sched-tbl-input row-end-in" data-id="${item.id}" value="${defaultEnd}" style="width:85px; font-size:0.78rem; font-weight:700; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.35rem; text-align:center;">
                     </td>
                     <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle;">
                         <select class="sched-tbl-select row-status-sel" data-id="${item.id}" style="${statusColors[item.status] || ''} border-radius:20px; padding:4px 10px; font-size:0.775rem; font-weight:800; cursor:pointer; outline:none;">
@@ -1769,7 +1646,7 @@ function refreshScheduleTable() {
         const catBadgeBg = catNameUpper.includes('SUB') ? 'background:#dbeafe; color:#1d4ed8;' : (catNameUpper === 'GENERAL' ? 'background:#dcfce7; color:#15803d;' : 'background:#e0e7ff; color:#3730a3;');
 
         return `
-            <tr class="sched-table-row ${item.isLocked ? 'is-locked' : ''} ${item.isParallel ? 'is-parallel-row' : ''}" 
+            <tr class="sched-table-row ${item.isLocked ? 'is-locked' : ''}" 
                 draggable="${item.isLocked ? 'false' : 'true'}" 
                 data-id="${item.id}" 
                 data-idx="${idx}" 
@@ -1788,26 +1665,14 @@ function refreshScheduleTable() {
                 <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle;">
                     <span class="sched-cat-badge" style="${catBadgeBg} padding:3px 10px; border-radius:6px; font-weight:800; font-size:0.75rem; text-transform:uppercase; display:inline-block;">${window.escapeHTML(catNameUpper)}</span>
                 </td>
-                <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap;">
-                    <label style="display:inline-flex; flex-direction:column; align-items:center; cursor:pointer; margin:0;">
-                        <input type="checkbox" class="row-parallel-chk" data-id="${item.id}" ${item.isParallel ? 'checked' : ''} ${idx === 0 ? 'disabled title="First item cannot be set to Same Time"' : ''} style="display:none;">
-                        ${item.isParallel ? `
-                            <span style="background:#e0e7ff; color:#4338ca; padding:2px 8px; border-radius:6px; font-size:0.75rem; font-weight:800;">Same Time</span>
-                            <span style="font-size:0.75rem; font-weight:700; color:#475569; margin-top:2px;">${item.parallelGroupId || 'Group A'}</span>
-                        ` : `
-                            <span style="color:#64748b; font-weight:700; font-size:0.85rem;">—</span>
-                            <span style="font-size:0.75rem; color:#64748b; font-weight:600;">(Solo)</span>
-                        `}
-                    </label>
+                <td style="text-align:center; padding:0.5rem 0.4rem; vertical-align:middle; white-space:nowrap;">
+                    <input type="date" class="sched-tbl-input row-date-in" data-id="${item.id}" value="${defaultDate}" style="width:115px; font-size:0.78rem; font-weight:700; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.35rem; text-align:center;">
                 </td>
-                <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap; font-weight:800; color:#0f172a; font-size:0.875rem;">
-                    <input type="number" class="sched-tbl-input row-duration-in" data-id="${item.id}" value="${item.duration}" style="width:45px; border:none; background:transparent; padding:0; font-weight:800; text-align:center; font-size:0.875rem;" min="1"> min
+                <td style="text-align:center; padding:0.5rem 0.4rem; vertical-align:middle; white-space:nowrap;">
+                    <input type="time" class="sched-tbl-input row-start-in" data-id="${item.id}" value="${defaultStart}" style="width:85px; font-size:0.78rem; font-weight:700; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.35rem; text-align:center;">
                 </td>
-                <td style="text-align:center; font-weight:800; color:#0f172a; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap; font-size:0.875rem;">
-                    ${formatTimeTo12Hour(item.startTime || '09:00')}
-                </td>
-                <td style="text-align:center; font-weight:800; color:#0f172a; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap; font-size:0.875rem;">
-                    ${formatTimeTo12Hour(item.endTime || '09:20')}
+                <td style="text-align:center; padding:0.5rem 0.4rem; vertical-align:middle; white-space:nowrap;">
+                    <input type="time" class="sched-tbl-input row-end-in" data-id="${item.id}" value="${defaultEnd}" style="width:85px; font-size:0.78rem; font-weight:700; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.35rem; text-align:center;">
                 </td>
                 <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle;">
                     <select class="sched-tbl-select row-status-sel" data-id="${item.id}" style="${statusColors[item.status] || ''} border-radius:20px; padding:4px 10px; font-size:0.775rem; font-weight:800; cursor:pointer; outline:none;">
@@ -1842,6 +1707,84 @@ function attachTableEvents(tbody, activeItems) {
             if (e.target.checked) selectedScheduleIds.add(id);
             else selectedScheduleIds.delete(id);
             updateBulkBar();
+        };
+    });
+
+    tbody.querySelectorAll('.row-date-in').forEach(input => {
+        input.onchange = async (e) => {
+            const id = e.target.dataset.id;
+            const newDate = e.target.value.trim();
+            if (!newDate) {
+                window.showToast("Schedule Date is required", "error");
+                return;
+            }
+            const item = activeItems.find(x => x.id === id);
+            if (item) item.scheduleDate = newDate;
+
+            const instId = window.currentInstituteId;
+            try {
+                await updateDoc(doc(db, "institutes", instId, "schedules", id), {
+                    scheduleDate: newDate, updatedAt: serverTimestamp()
+                });
+            } catch (err) { console.warn("schedules update:", err); }
+
+            if (item && item.programId) {
+                try {
+                    await updateDoc(doc(db, "institutes", instId, "programs", item.programId), {
+                        scheduleDate: newDate, updatedAt: serverTimestamp()
+                    });
+                } catch (err) { console.warn("programs update:", err); }
+            }
+            window.showToast("Schedule Date updated");
+        };
+    });
+
+    tbody.querySelectorAll('.row-start-in, .row-end-in').forEach(input => {
+        input.onchange = async (e) => {
+            const id = e.target.dataset.id;
+            const row = e.target.closest('tr');
+            const startVal = row.querySelector('.row-start-in').value.trim();
+            const endVal = row.querySelector('.row-end-in').value.trim();
+
+            if (!startVal || !endVal) {
+                window.showToast("Both Start Time and End Time are required", "error");
+                return;
+            }
+
+            const startMins = timeToMinutes(startVal);
+            const endMins = timeToMinutes(endVal);
+
+            if (startMins < 0 || endMins < 0) {
+                window.showToast("Please enter valid Start and End times", "error");
+                return;
+            }
+
+            if (endMins <= startMins) {
+                window.showToast("End Time cannot be earlier than or equal to Start Time", "error");
+                return;
+            }
+
+            const item = activeItems.find(x => x.id === id);
+            if (item) {
+                item.startTime = startVal;
+                item.endTime = endVal;
+            }
+
+            const instId = window.currentInstituteId;
+            try {
+                await updateDoc(doc(db, "institutes", instId, "schedules", id), {
+                    startTime: startVal, endTime: endVal, updatedAt: serverTimestamp()
+                });
+            } catch (err) { console.warn("schedules update:", err); }
+
+            if (item && item.programId) {
+                try {
+                    await updateDoc(doc(db, "institutes", instId, "programs", item.programId), {
+                        startTime: startVal, endTime: endVal, updatedAt: serverTimestamp()
+                    });
+                } catch (err) { console.warn("programs update:", err); }
+            }
+            window.showToast("Schedule times updated");
         };
     });
 
@@ -1992,6 +1935,8 @@ function openAddBreakModal() {
 
     modalTitle.textContent = `☕ Add Break Slot to ${activeStage}`;
 
+    const defaultDate = stageConfigs[activeStage]?.date || new Date().toISOString().split('T')[0];
+
     modalBody.innerHTML = `
         <form id="addBreakSlotForm">
             <div class="form-group">
@@ -2011,12 +1956,18 @@ function openAddBreakModal() {
                 <input type="text" id="txtCustomBreakTitle" class="form-input" placeholder="e.g. Refreshment Break, Announcement">
             </div>
             <div class="form-group">
-                <label class="form-label">Duration (Minutes) *</label>
-                <input type="number" id="selBreakDur" class="form-input" value="${stageConfigs[activeStage]?.defaultDuration || 20}" min="1" required>
+                <label class="form-label">Schedule Date *</label>
+                <input type="date" id="txtBreakDate" class="form-input" value="${defaultDate}" required>
             </div>
-            <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-top:8px;">
-                <input type="checkbox" id="chkBreakIsParallel" style="width:18px; height:18px; cursor:pointer;">
-                <label for="chkBreakIsParallel" style="font-weight:700; font-size:0.875rem; color:#334155; cursor:pointer;">⚡ Run at Same Time (starts together with previous program)</label>
+            <div class="form-row" style="display:grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div class="form-group">
+                    <label class="form-label">Start Time *</label>
+                    <input type="time" id="txtBreakStart" class="form-input" value="09:00" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">End Time *</label>
+                    <input type="time" id="txtBreakEnd" class="form-input" value="09:20" required>
+                </div>
             </div>
             <div class="modal-actions" style="margin-top:1.25rem;">
                 <button type="submit" class="btn btn-primary w-full" id="btnSaveBreakSlot">Save Break Slot</button>
@@ -2049,8 +2000,21 @@ function openAddBreakModal() {
         const selectVal = breakSelect.value;
         const customVal = customInput.value.trim();
         const breakTitle = (selectVal === 'Other') ? (customVal || 'Break') : selectVal;
-        const duration = parseInt(document.getElementById('selBreakDur').value, 10) || 20;
-        const isParallel = !!document.getElementById('chkBreakIsParallel')?.checked;
+
+        const bDate = document.getElementById('txtBreakDate').value.trim();
+        const bStart = document.getElementById('txtBreakStart').value.trim();
+        const bEnd = document.getElementById('txtBreakEnd').value.trim();
+
+        if (!bDate || !bStart || !bEnd) {
+            window.showToast("Date, Start Time, and End Time are required.", "error");
+            return;
+        }
+        const sMins = timeToMinutes(bStart);
+        const eMins = timeToMinutes(bEnd);
+        if (sMins < 0 || eMins < 0 || eMins <= sMins) {
+            window.showToast("End Time cannot be earlier than or equal to Start Time.", "error");
+            return;
+        }
 
         const btn = document.getElementById('btnSaveBreakSlot');
         btn.disabled = true;
@@ -2066,9 +2030,9 @@ function openAddBreakModal() {
                 programName: breakTitle,
                 breakTitle: breakTitle,
                 stage: activeStage,
-                scheduleDate: stageConfigs[activeStage]?.date || new Date().toISOString().split('T')[0],
-                duration: duration,
-                isParallel: isParallel,
+                scheduleDate: bDate,
+                startTime: bStart,
+                endTime: bEnd,
                 runningOrder: activeItems.length + 1,
                 status: 'Scheduled',
                 isOffStage: isOff,
@@ -2415,20 +2379,38 @@ async function openAddProgramRowModal() {
             const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
             const isOff = activeStage.toLowerCase().includes('off stage');
 
+            const sDate = prog.scheduleDate || stageConfigs[activeStage]?.date || new Date().toISOString().split('T')[0];
+            const sStart = prog.startTime || '09:00';
+            const sEnd = prog.endTime || '09:30';
+
             const newDocRef = doc(collection(db, "institutes", window.currentInstituteId, "schedules"));
             await setDoc(newDocRef, {
                 programId: progId,
                 programName: prog.programName || 'Unnamed Program',
                 stage: activeStage,
-                scheduleDate: stageConfigs[activeStage]?.date || new Date().toISOString().split('T')[0],
-                duration: dur,
-                isParallel: isParallel,
+                scheduleDate: sDate,
+                startTime: sStart,
+                endTime: sEnd,
                 runningOrder: activeItems.length + 1,
                 status: 'Pending',
                 isOffStage: isOff,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             });
+
+            // Sync location and schedule fields to program document
+            try {
+                await updateDoc(doc(db, "institutes", window.currentInstituteId, "programs", progId), {
+                    programLocation: activeStage,
+                    location: activeStage,
+                    scheduleDate: sDate,
+                    startTime: sStart,
+                    endTime: sEnd,
+                    updatedAt: serverTimestamp()
+                });
+            } catch (pErr) {
+                console.warn("Error updating program location:", pErr);
+            }
 
             window.showToast(`✓ Program "${prog.programName}" added to ${activeStage}`);
 
