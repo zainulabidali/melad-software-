@@ -2439,13 +2439,29 @@ async function triggerDelete(exp) {
 // Sub-Collection Helper: Loads students dynamically
 // ─────────────────────────────────────────────
 async function loadParticipants(prog, limitTeamId, studentMap = {}) {
-    const snap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs", prog.id, "participants"));
+    const instId = window.currentInstituteId;
+    const snap = await getDocs(collection(db, "institutes", instId, "programs", prog.id, "participants"));
     const pType = (prog.programType || '').toLowerCase();
     const list = [];
+
+    let activeTeamIds = null;
+    try {
+        const teams = await getCachedTeams(instId) || [];
+        if (teams.length > 0) {
+            activeTeamIds = new Set(teams.map(t => t.id));
+        }
+    } catch (err) {
+        console.warn("Could not load active teams set in loadParticipants:", err);
+    }
 
     snap.docs.forEach(d => {
         const p = d.data();
         if (limitTeamId && p.teamId !== limitTeamId) return;
+
+        // Skip orphaned records for deleted teams
+        if (p.teamId && activeTeamIds && !activeTeamIds.has(p.teamId)) {
+            return;
+        }
 
         const isGroupData = p.type === 'group' || Array.isArray(p.groups) || pType === 'group' || pType === 'team' || pType === 'team-based' || pType === 'special';
 
@@ -2469,15 +2485,6 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
                         teamId: p.teamId || '',
                         members: members
                     });
-                });
-            } else {
-                list.push({
-                    id: p.teamId || d.id,
-                    isGroup: true,
-                    name: p.teamName || 'Team',
-                    teamName: p.teamName || '',
-                    teamId: p.teamId || '',
-                    members: []
                 });
             }
         } else {

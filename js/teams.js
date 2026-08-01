@@ -625,17 +625,40 @@ async function deleteTeam(teamId) {
     try {
         const instId = window.currentInstituteId;
         const batch = writeBatch(db);
+        const programCountDeltas = new Map(); // programId -> cumulative delta
 
-        // 1. Find all students belonging to this team
+        // 1. Delete all group participant docs registered for this team across all programs
+        const groupSnap = await getDocs(query(
+            collectionGroup(db, "participants"),
+            where("type", "==", "group"),
+            where("teamId", "==", teamId)
+        ));
+
+        groupSnap.forEach(d => {
+            if (d.ref.path.startsWith(`institutes/${instId}/`)) {
+                const data = d.data();
+                const groups = Array.isArray(data.groups) ? data.groups : [];
+                const numGroups = Math.max(1, groups.length);
+                const progId = data.programId || d.ref.parent.parent?.id;
+
+                batch.delete(d.ref);
+
+                if (progId) {
+                    programCountDeltas.set(
+                        progId,
+                        (programCountDeltas.get(progId) || 0) - numGroups
+                    );
+                }
+            }
+        });
+
+        // 2. Find all students belonging to this team and cascade-remove their individual participant records
         const studentsSnap = await getDocs(query(
             collection(db, "institutes", instId, "students"),
             where("teamId", "==", teamId)
         ));
 
         if (!studentsSnap.empty) {
-            // 2. For each student, cascade-remove their individual participant records
-            const programCountDeltas = new Map(); // programId -> cumulative delta
-
             for (const stuDoc of studentsSnap.docs) {
                 const stuId = stuDoc.id;
 
@@ -649,34 +672,12 @@ async function deleteTeam(teamId) {
                     if (d.ref.path.startsWith(`institutes/${instId}/`)) {
                         const data = d.data();
                         batch.delete(d.ref);
-                        if (data.programId) {
+                        const progId = data.programId || d.ref.parent.parent?.id;
+                        if (progId) {
                             programCountDeltas.set(
-                                data.programId,
-                                (programCountDeltas.get(data.programId) || 0) - 1
+                                progId,
+                                (programCountDeltas.get(progId) || 0) - 1
                             );
-                        }
-                    }
-                });
-
-                // Group participant docs for this team
-                const groupSnap = await getDocs(query(
-                    collectionGroup(db, "participants"),
-                    where("type", "==", "group"),
-                    where("teamId", "==", teamId)
-                ));
-                groupSnap.forEach(d => {
-                    if (d.ref.path.startsWith(`institutes/${instId}/`)) {
-                        const data = d.data();
-                        const groups = Array.isArray(data.groups) ? data.groups : [];
-                        const studentInGroup = groups.some(g =>
-                            Array.isArray(g.members) && g.members.some(m => m.studentId === stuId)
-                        );
-                        if (studentInGroup) {
-                            const updatedGroups = groups.map(g => ({
-                                ...g,
-                                members: (g.members || []).filter(m => m.studentId !== stuId)
-                            }));
-                            batch.update(d.ref, { groups: updatedGroups });
                         }
                     }
                 });
@@ -684,9 +685,11 @@ async function deleteTeam(teamId) {
                 // Delete the student doc
                 batch.delete(stuDoc.ref);
             }
+        }
 
-            // 3. Apply participantCount decrements to affected programs
-            for (const [programId, delta] of programCountDeltas) {
+        // 3. Apply participantCount decrements to affected programs
+        for (const [programId, delta] of programCountDeltas.entries()) {
+            if (delta !== 0) {
                 const progRef = doc(db, "institutes", instId, "programs", programId);
                 batch.update(progRef, { participantCount: increment(delta) });
             }

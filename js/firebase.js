@@ -440,8 +440,16 @@ export async function updateDashboardMetadata(instituteId) {
 export async function migrateParticipantCounts(instituteId) {
     if (!instituteId) return;
     try {
+        // Fetch active teams and students to build valid lookup sets
+        const teamsSnap = await getDocs(collection(db, "institutes", instituteId, "teams"));
+        const activeTeamIds = new Set(teamsSnap.docs.map(d => d.id));
+
+        const studentsSnap = await getDocs(collection(db, "institutes", instituteId, "students"));
+        const activeStudentIds = new Set(studentsSnap.docs.map(d => d.id));
+
         const progSnap = await getDocs(collection(db, "institutes", instituteId, "programs"));
         const batch = writeBatch(db);
+        let batchOpsCount = 0;
 
         for (const progDoc of progSnap.docs) {
             const progId = progDoc.id;
@@ -453,23 +461,42 @@ export async function migrateParticipantCounts(instituteId) {
             const partSnap = await getDocs(collection(db, "institutes", instituteId, "programs", progId, "participants"));
             let count = 0;
 
-            if (isGroup) {
-                partSnap.forEach(d => {
-                    const data = d.data();
-                    if (data.type === 'group' && Array.isArray(data.groups)) {
-                        count += data.groups.length;
+            partSnap.forEach(d => {
+                const data = d.data();
+                if (isGroup) {
+                    if (data.type === 'group') {
+                        // Check if teamId belongs to an active team
+                        if (data.teamId && !activeTeamIds.has(data.teamId)) {
+                            // Orphaned group participant doc for a deleted team: delete it!
+                            batch.delete(d.ref);
+                            batchOpsCount++;
+                        } else if (Array.isArray(data.groups)) {
+                            count += data.groups.length;
+                        } else {
+                            count += 1;
+                        }
                     }
-                });
-            } else {
-                partSnap.forEach(d => {
-                    if (d.data().type === 'individual') count++;
-                });
-            }
+                } else {
+                    if (data.type === 'individual') {
+                        // Check if studentId belongs to an active student
+                        if (data.studentId && !activeStudentIds.has(data.studentId)) {
+                            // Orphaned individual participant doc for a deleted student: delete it!
+                            batch.delete(d.ref);
+                            batchOpsCount++;
+                        } else {
+                            count++;
+                        }
+                    }
+                }
+            });
 
             batch.update(progDoc.ref, { participantCount: count });
+            batchOpsCount++;
         }
 
-        await batch.commit();
+        if (batchOpsCount > 0) {
+            await batch.commit();
+        }
         console.log("Migration complete: All participantCount fields successfully updated!");
     } catch (e) {
         console.error("Migration failed:", e);
