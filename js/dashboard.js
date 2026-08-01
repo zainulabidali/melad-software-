@@ -1307,29 +1307,68 @@ async function initDashboardOverview(container, topActions) {
     };
     document.getElementById('dashOpenLiveDisplay').onclick = () => window.open(liveDisplayUrl, '_blank');
 
-    // Attach a single optimized Snapshot Listener to the dashboard metadata aggregates document
+    // 1. Real-time Live Listener on Students Collection (Authoritative Live Count & Real-time Auto-Sync)
+    try {
+        const studentsRef = collection(db, "institutes", instId, "students");
+        const studentsUnsub = onSnapshot(studentsRef, async (stuSnap) => {
+            const liveTotal = stuSnap.docs.length;
+            const maleCount = stuSnap.docs.filter(d => (d.data().gender || '').toString().trim().toLowerCase() === 'male').length;
+            const femaleCount = stuSnap.docs.filter(d => (d.data().gender || '').toString().trim().toLowerCase() === 'female').length;
+
+            if (!metadataCache) metadataCache = {};
+
+            const countChanged = metadataCache.studentsCount !== liveTotal ||
+                                metadataCache.maleStudentsCount !== maleCount ||
+                                metadataCache.femaleStudentsCount !== femaleCount;
+
+            metadataCache.studentsCount = liveTotal;
+            metadataCache.maleStudentsCount = maleCount;
+            metadataCache.femaleStudentsCount = femaleCount;
+
+            // Immediately update summary cards in the UI without requiring page refresh
+            const elStudents = document.getElementById('statStudents');
+            if (elStudents) elStudents.textContent = liveTotal;
+
+            const elStudentsDesc = document.getElementById('statStudentsDesc');
+            if (elStudentsDesc) {
+                elStudentsDesc.textContent = `Male: ${maleCount} | Female: ${femaleCount}`;
+            }
+
+            // If metadata document was stale compared to live total, trigger background self-healing update
+            if (countChanged) {
+                console.log(`Live student count sync: ${liveTotal}. Synchronizing dashboard metadata...`);
+                await updateDashboardMetadata(instId).catch(e => console.error("Auto-sync update failed:", e));
+            }
+        }, (err) => {
+            console.error("Error listening to live students collection:", err);
+        });
+        dbUnsubscribes.push(studentsUnsub);
+    } catch (err) {
+        console.error("Error launching live students listener:", err);
+    }
+
+    // 2. Attach Snapshot Listener to the dashboard metadata aggregates document
     try {
         const metaRef = doc(db, "institutes", instId, "metadata", "dashboard");
         const metaUnsub = onSnapshot(metaRef, async (snap) => {
             if (snap.exists()) {
                 const data = snap.data();
+                const preservedLiveCount = metadataCache?.studentsCount;
+                const preservedMaleCount = metadataCache?.maleStudentsCount;
+                const preservedFemaleCount = metadataCache?.femaleStudentsCount;
+
                 metadataCache = data;
 
-                // Authoritative student count check with server fallback to avoid redundant reads
-                if (data.studentsCount !== undefined) {
-                    metadataCache.studentsCount = data.studentsCount;
-                } else {
-                    try {
-                        const countSnap = await getCountFromServer(collection(db, "institutes", instId, "students"));
-                        metadataCache.studentsCount = countSnap.data().count;
-                    } catch (e) {
-                        console.error("Error fetching authoritative student count from server:", e);
-                    }
+                if (preservedLiveCount !== undefined && preservedLiveCount !== data.studentsCount) {
+                    // Live collection listener already established the authoritative live student count
+                    metadataCache.studentsCount = preservedLiveCount;
+                    if (preservedMaleCount !== undefined) metadataCache.maleStudentsCount = preservedMaleCount;
+                    if (preservedFemaleCount !== undefined) metadataCache.femaleStudentsCount = preservedFemaleCount;
                 }
 
                 recalculateDashboard();
                 
-                // Self-healing: if the sum of category chart counts doesn't match total students, trigger update
+                // Self-healing: if the sum of category chart counts doesn't match total students or missing stats, repair metadata
                 const catTotal = data.barChartData?.data?.reduce((sum, v) => sum + v, 0) || 0;
                 const needsSelfHealing = 
                     data.maleStudentsCount === undefined || 
@@ -1339,14 +1378,12 @@ async function initDashboardOverview(container, topActions) {
                     data.individualProgramCount === undefined || 
                     data.groupProgramCount === undefined || 
                     data.generalProgramCount === undefined || 
+                    data.studentsCount !== metadataCache.studentsCount ||
                     catTotal !== metadataCache.studentsCount;
 
                 if (needsSelfHealing) {
                     console.log("Self-healing dashboard metadata triggered due to legacy data or mismatch...");
-                    if (!window.__selfHealingTriggered) {
-                        window.__selfHealingTriggered = true;
-                        await updateDashboardMetadata(instId).catch(e => console.error("Self-healing failed:", e));
-                    }
+                    await updateDashboardMetadata(instId).catch(e => console.error("Self-healing failed:", e));
                 }
             } else {
                 console.warn("Dashboard metadata aggregates document is missing. Triggering self-healing generation...");

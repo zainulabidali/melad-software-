@@ -2031,6 +2031,11 @@ async function triggerRestore(binId) {
         batch.delete(doc(db, "institutes", instId, "recoveryBin", binId));
 
         await batch.commit();
+        try {
+            await updateDashboardMetadata(instId);
+        } catch (metaErr) {
+            console.warn("Failed to update dashboard metadata after restore:", metaErr);
+        }
         showToast("✓ Document restored successfully!");
 
         // Refresh List

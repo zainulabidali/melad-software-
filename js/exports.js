@@ -4597,9 +4597,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     ? (f.categoryId === 'general_programs' ? 'GENERAL PROGRAMS' : (allCategories.find(c => c.id === f.categoryId)?.name || 'SELECTED CATEGORY').toUpperCase())
                     : 'ALL CATEGORIES';
 
-                htmlContent += `
-                    <div class="program-page-standard" style="margin-bottom: 2rem;">
-                        <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.4rem; margin-bottom: 1rem; width: 100%;">
+                htmlContent += sortedCatNames.map(catName => `
+                    <div class="program-category-list-page" style="margin-bottom: 2rem;">
+                        <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.4rem; margin-bottom: 0.75rem; width: 100%;">
                             <div>
                                 <div style="font-size: 0.8rem; font-weight: 800; color: #000; letter-spacing: 0.05em; text-transform: uppercase;">
                                     PROGRAM LIST
@@ -4613,46 +4613,43 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             </div>
                             <div style="text-align: right; font-weight: 800; color: #000; line-height: 1.3;">
                                 <div style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; color: #1e1b4b;">
-                                    ${window.escapeHTML(catDisplay)}
+                                    ${window.escapeHTML(catDisplay !== 'ALL CATEGORIES' ? catDisplay : catName.toUpperCase())}
                                 </div>
                                 ${f.programLocation ? `<div style="font-size: 0.72rem; font-weight: 700; color: #334155; text-transform: uppercase;">LOCATION: ${window.escapeHTML(f.programLocation).toUpperCase()}</div>` : ''}
                                 ${f.gender ? `<div style="font-size: 0.68rem; font-weight: 700; color: #475569; text-transform: uppercase;">GENDER: ${window.escapeHTML(f.gender).toUpperCase()}</div>` : ''}
                             </div>
                         </div>
 
-                        ${sortedCatNames.map(catName => `
-                            <div style="margin-top: 1.25rem; margin-bottom: 1.5rem; page-break-inside: avoid; break-inside: avoid;">
-                                <div style="background: #1e1b4b; color: #ffffff; padding: 0.4rem 0.75rem; font-size: 0.85rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; border-radius: 4px; margin-bottom: 0.5rem;">
-                                    ${window.escapeHTML(catName)}
-                                </div>
-                                <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
-                                    <thead>
-                                        <tr style="background: #f1f5f9;">
-                                            <th style="width: 45px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">#</th>
-                                            <th style="width: 130px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">PROGRAM NO</th>
-                                            <th style="padding: 0.45rem 0.75rem; text-align: left; border: 1px solid #000; font-weight: 800;">PROGRAM NAME</th>
-                                            <th style="width: 100px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">GENDER</th>
-                                            <th style="width: 140px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">STAGE / OFF STAGE</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${categoryGroups[catName].map((p, idx) => `
-                                            <tr style="border-bottom: 1px solid #000; page-break-inside: avoid;">
-                                                <td style="text-align: center; font-weight: 700; padding: 0.4rem 0.5rem; border: 1px solid #000;">${idx + 1}</td>
-                                                <td style="text-align: center; font-weight: 800; padding: 0.4rem 0.5rem; border: 1px solid #000; color: #1e1b4b;">${window.escapeHTML(p.programNumber || '—')}</td>
-                                                <td style="padding: 0.4rem 0.75rem; font-weight: 700; border: 1px solid #000;">${window.escapeHTML(p.programName)}</td>
-                                                <td style="text-align: center; font-weight: 700; padding: 0.4rem 0.5rem; border: 1px solid #000;">${window.escapeHTML(getProgramGenderDisplay(p))}</td>
-                                                <td style="text-align: center; font-weight: 700; padding: 0.4rem 0.5rem; border: 1px solid #000;">
-                                                    ${window.escapeHTML(p.programLocation || 'Stage')}
-                                                </td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        `).join('')}
+                        <div style="background: #1e1b4b; color: #ffffff; padding: 0.4rem 0.75rem; font-size: 0.85rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; border-radius: 4px; margin-bottom: 0.6rem;">
+                            ${window.escapeHTML(catName)}
+                        </div>
+
+                        <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 0;">
+                            <thead>
+                                <tr style="background: #f1f5f9;">
+                                    <th style="width: 45px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">#</th>
+                                    <th style="width: 130px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">PROGRAM NO</th>
+                                    <th style="padding: 0.45rem 0.75rem; text-align: left; border: 1px solid #000; font-weight: 800;">PROGRAM NAME</th>
+                                    <th style="width: 100px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">GENDER</th>
+                                    <th style="width: 140px; text-align: center; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">STAGE / OFF STAGE</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${categoryGroups[catName].map((p, idx) => `
+                                    <tr style="border-bottom: 1px solid #000; page-break-inside: avoid;">
+                                        <td style="text-align: center; font-weight: 700; padding: 0.4rem 0.5rem; border: 1px solid #000;">${idx + 1}</td>
+                                        <td style="text-align: center; font-weight: 800; padding: 0.4rem 0.5rem; border: 1px solid #000; color: #1e1b4b;">${window.escapeHTML(p.programNumber || '—')}</td>
+                                        <td style="padding: 0.4rem 0.75rem; font-weight: 700; border: 1px solid #000;">${window.escapeHTML(p.programName)}</td>
+                                        <td style="text-align: center; font-weight: 700; padding: 0.4rem 0.5rem; border: 1px solid #000;">${window.escapeHTML(getProgramGenderDisplay(p))}</td>
+                                        <td style="text-align: center; font-weight: 700; padding: 0.4rem 0.5rem; border: 1px solid #000;">
+                                            ${window.escapeHTML(p.programLocation || 'Stage')}
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
                     </div>
-                `;
+                `).join('');
             }
         } else {
             const isCompact = f.compactPacking !== false;
@@ -5575,6 +5572,19 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 .program-page-standard:last-child {
                     page-break-after: avoid;
                     break-after: page-inside;
+                }
+                .program-category-list-page {
+                    padding: 0;
+                    width: 100%;
+                    box-sizing: border-box;
+                    background: #fff;
+                    display: block;
+                    page-break-after: always;
+                    break-after: page;
+                }
+                .program-category-list-page:last-child {
+                    page-break-after: avoid;
+                    break-after: avoid;
                 }
                 .rotated-th {
                     vertical-align: middle;

@@ -168,7 +168,7 @@ export async function updateDashboardMetadata(instituteId) {
         const judges = judgesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         const results = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        const totalStudents = countSnap.data().count;
+        const totalStudents = Math.max(countSnap.data()?.count || 0, students.length);
         const maleCount = students.filter(s => s.gender && s.gender.toString().trim().toLowerCase() === 'male').length;
         const femaleCount = students.filter(s => s.gender && s.gender.toString().trim().toLowerCase() === 'female').length;
         const totalCompetitions = programs.length;
