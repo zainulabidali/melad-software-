@@ -841,26 +841,43 @@ async function initClassAwardsUI(container) {
                     flex-direction: column;
                     gap: 1.5rem;
                     font-family: 'Inter', sans-serif;
+                    width: 100%;
+                    box-sizing: border-box;
                 }
                 .ca-config-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
                     gap: 1.25rem;
                 }
+                .ca-search-row {
+                    display: flex;
+                    gap: 0.5rem;
+                    align-items: center;
+                    position: relative;
+                    width: 100%;
+                }
+                .ca-search-input-wrapper {
+                    position: relative;
+                    flex: 1;
+                    min-width: 0;
+                }
                 .search-student-dropdown {
                     position: absolute;
+                    top: 100%;
+                    left: 0;
                     width: 100%;
-                    max-height: 350px;
+                    max-height: 320px;
                     overflow-y: auto;
                     -webkit-overflow-scrolling: touch;
                     overscroll-behavior: contain;
                     background: #ffffff;
                     border: 1px solid #cbd5e1;
                     border-radius: 8px;
-                    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-                    z-index: 1000;
+                    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
+                    z-index: 1050;
                     margin-top: 4px;
                     display: none;
+                    box-sizing: border-box;
                 }
                 .selected-student-card {
                     display: flex;
@@ -871,6 +888,107 @@ async function initClassAwardsUI(container) {
                     border-radius: 10px;
                     padding: 0.6rem 1rem;
                     box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+                    box-sizing: border-box;
+                    width: 100%;
+                }
+                .ca-dropdown-item {
+                    padding: 0.5rem 0.75rem;
+                    cursor: pointer;
+                    border-bottom: 1px solid #f1f5f9;
+                    color: #334155;
+                    transition: background-color 0.15s ease;
+                    box-sizing: border-box;
+                    width: 100%;
+                    min-height: 44px;
+                    display: flex;
+                    align-items: center;
+                }
+                .ca-dropdown-item:last-child {
+                    border-bottom: none;
+                }
+                .ca-dropdown-item:hover,
+                .ca-dropdown-item:active {
+                    background-color: #f8fafc;
+                }
+                .ca-item-desktop {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    width: 100%;
+                    gap: 0.5rem;
+                }
+                .ca-item-mobile {
+                    display: none;
+                    flex-direction: column;
+                    justify-content: center;
+                    gap: 0.25rem;
+                    width: 100%;
+                }
+                .ca-item-name-mobile {
+                    font-weight: 700;
+                    color: #0f172a;
+                    font-size: 0.88rem;
+                    line-height: 1.3;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                    width: 100%;
+                }
+                .ca-item-sub-mobile {
+                    font-size: 0.76rem;
+                    color: #64748b;
+                    font-weight: 500;
+                    line-height: 1.2;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                    width: 100%;
+                }
+
+                /* Mobile Responsive Adjustments (<= 640px) */
+                @media (max-width: 640px) {
+                    .class-awards-container {
+                        gap: 1rem;
+                        padding: 0;
+                    }
+                    .class-awards-container .card {
+                        padding: 1rem !important;
+                        border-radius: 10px !important;
+                    }
+                    .ca-search-input-wrapper {
+                        position: static !important;
+                    }
+                    .search-student-dropdown {
+                        left: 0;
+                        right: 0;
+                        width: 100%;
+                        max-height: 280px;
+                        z-index: 9999;
+                        border-radius: 8px;
+                    }
+                    .ca-item-desktop {
+                        display: none !important;
+                    }
+                    .ca-item-mobile {
+                        display: flex !important;
+                    }
+                    .ca-dropdown-item {
+                        padding: 0.65rem 0.85rem;
+                    }
+                }
+
+                /* Extra Small Devices (<= 480px) */
+                @media (max-width: 480px) {
+                    .class-awards-container .card {
+                        padding: 0.85rem !important;
+                    }
+                    .ca-config-grid {
+                        grid-template-columns: 1fr;
+                        gap: 0.85rem;
+                    }
+                    .selected-student-card {
+                        padding: 0.55rem 0.75rem;
+                    }
                 }
             </style>
 
@@ -1012,6 +1130,7 @@ async function initClassAwardsUI(container) {
             dialog.className = 'custom-modal-dialog';
             dialog.style.transform = 'scale(1)';
             dialog.style.maxWidth = '480px';
+            dialog.style.width = '90%';
 
             const renderModalContent = () => {
                 dialog.innerHTML = `
@@ -1317,9 +1436,9 @@ async function initClassAwardsUI(container) {
 
             area.innerHTML = `
                 ${cardsHTML}
-                <div style="display:flex; gap:0.5rem; align-items:center; position:relative; width:100%;">
-                    <div style="position:relative; flex:1;">
-                        <input type="text" id="${inputId}" class="form-input" placeholder="Search student by name or chest number..." style="height:38px; font-size:0.85rem;" autocomplete="off">
+                <div class="ca-search-row">
+                    <div class="ca-search-input-wrapper">
+                        <input type="text" id="${inputId}" class="form-input" placeholder="Search student by name or chest number..." style="height:38px; font-size:0.85rem; width:100%; box-sizing:border-box;" autocomplete="off">
                         <div id="${dropdownId}" class="search-student-dropdown"></div>
                     </div>
                     <button type="button" class="btn btn-secondary btn-sm" id="${manualId}" style="font-weight:700; height:38px; flex-shrink:0;">
@@ -1401,24 +1520,26 @@ async function initClassAwardsUI(container) {
 
                 matched.forEach(s => {
                     const item = document.createElement('div');
-                    item.style.padding = '0.4rem 0.75rem';
-                    item.style.cursor = 'pointer';
-                    item.style.borderBottom = '1px solid #f1f5f9';
-                    item.style.fontSize = '0.83rem';
-                    item.style.color = '#334155';
-                    item.style.lineHeight = '1.25';
-                    item.onmouseenter = () => { item.style.background = '#f8fafc'; };
-                    item.onmouseleave = () => { item.style.background = '#ffffff'; };
+                    item.className = 'ca-dropdown-item';
                     
                     const chestNum = s.chestNumber ? `#${s.chestNumber}` : '—';
                     const sClass = s.className || s.classId || 'No Class';
+
+                    const formattedClass = sClass.toString().toLowerCase().startsWith('class') ? sClass : `Class ${sClass}`;
+                    const formattedChest = s.chestNumber ? `Chest #${s.chestNumber}` : 'Chest —';
+                    const metaText = `${window.escapeHTML(formattedClass)} • ${window.escapeHTML(formattedChest)}`;
+
                     item.innerHTML = `
-                        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:0.5rem;">
+                        <div class="ca-item-desktop">
                             <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                                 <span style="font-weight:700; color:#1e293b;">${window.escapeHTML(s.name)}</span>
                                 <span style="font-size:0.72rem; color:#64748b; margin-left:6px;">(${window.escapeHTML(sClass)})</span>
                             </div>
                             <span style="background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.72rem; font-weight:700; flex-shrink:0;">${window.escapeHTML(chestNum)}</span>
+                        </div>
+                        <div class="ca-item-mobile">
+                            <div class="ca-item-name-mobile">${window.escapeHTML(s.name)}</div>
+                            <div class="ca-item-sub-mobile">${metaText}</div>
                         </div>
                     `;
                     item.onclick = () => {
