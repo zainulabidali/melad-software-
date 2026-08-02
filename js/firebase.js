@@ -147,6 +147,18 @@ export async function migrateToNewSchema(instituteId, onProgress = () => { }) {
 
 const metadataUpdateDebounceTimers = new Map();
 
+async function runMetadataUpdate(id) {
+    const item = metadataUpdateDebounceTimers.get(id);
+    if (!item) return;
+    metadataUpdateDebounceTimers.delete(id);
+    try {
+        const res = await _performUpdateDashboardMetadata(id);
+        item.pendingResolves.forEach(r => r(res));
+    } catch (err) {
+        item.pendingRejects.forEach(rj => rj(err));
+    }
+}
+
 export async function updateDashboardMetadata(instituteId) {
     if (!instituteId) return;
 
@@ -162,17 +174,6 @@ export async function updateDashboardMetadata(instituteId) {
 
         const pendingResolves = [resolve];
         const pendingRejects = [reject];
-
-        const runMetadataUpdate = async (id) => {
-            const item = metadataUpdateDebounceTimers.get(id);
-            metadataUpdateDebounceTimers.delete(id);
-            try {
-                const res = await _performUpdateDashboardMetadata(id);
-                item?.pendingResolves.forEach(r => r(res));
-            } catch (err) {
-                item?.pendingRejects.forEach(rj => rj(err));
-            }
-        };
 
         const timer = setTimeout(() => runMetadataUpdate(instituteId), 350);
         metadataUpdateDebounceTimers.set(instituteId, { timer, pendingResolves, pendingRejects });

@@ -2505,7 +2505,7 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
 
     list.forEach(item => {
         const memberChests = (item.members || []).map(m => m.chestNumber || m.studentId).sort().join('-');
-        const key = item.isGroup 
+        const key = item.isGroup
             ? `${item.teamId}_${(item.name || '').trim().toLowerCase()}_${memberChests}`
             : `${item.teamId}_${item.studentId}`;
         if (!seenKeys.has(key)) {

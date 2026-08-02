@@ -1216,9 +1216,11 @@ function setupFilters() {
 // Dynamic Poster HTML Layout Engines
 // ─────────────────────────────────────────────
 function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
-    const activeWinners = [...(r.marksData || [])].filter(w => w.finalMark && w.finalMark > 0);
+    const activeWinners = [...(r.marksData || [])]
+        .filter(w => w.finalMark && w.finalMark > 0)
+        .sort((a, b) => (b.finalMark || 0) - (a.finalMark || 0));
     computeDenseRanking(activeWinners, w => w.finalMark, 'rank');
-    const sortedWinners = activeWinners.slice(0, 3);
+    const sortedWinners = activeWinners.filter(w => w.rank <= 3);
 
     const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
 
@@ -1479,9 +1481,11 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
 }
 
 function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
-    const activeWinners = [...(r.marksData || [])].filter(w => w.finalMark && w.finalMark > 0);
+    const activeWinners = [...(r.marksData || [])]
+        .filter(w => w.finalMark && w.finalMark > 0)
+        .sort((a, b) => (b.finalMark || 0) - (a.finalMark || 0));
     computeDenseRanking(activeWinners, w => w.finalMark, 'rank');
-    const sortedWinners = activeWinners.slice(0, 3);
+    const sortedWinners = activeWinners.filter(w => w.rank <= 3);
 
     const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
 
@@ -2618,9 +2622,11 @@ async function sharePosterContent(cardId) {
     const madrasaName = getEffectiveEventName();
 
     // Fetch top 3 winners using dense ranking
-    const activeWinners = [...(r.marksData || [])].filter(w => w.finalMark && w.finalMark > 0);
+    const activeWinners = [...(r.marksData || [])]
+        .filter(w => w.finalMark && w.finalMark > 0)
+        .sort((a, b) => (b.finalMark || 0) - (a.finalMark || 0));
     computeDenseRanking(activeWinners, w => w.finalMark, 'rank');
-    const sorted = activeWinners.slice(0, 3);
+    const sorted = activeWinners.filter(w => w.rank <= 3);
 
     const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
 

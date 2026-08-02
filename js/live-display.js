@@ -11,13 +11,13 @@ function resolveInstituteId() {
         try {
             localStorage.setItem('currentInstituteId', id);
             localStorage.setItem('melad_institute_id', id);
-        } catch (e) {}
+        } catch (e) { }
         return id;
     }
     return localStorage.getItem('currentInstituteId') ||
-           localStorage.getItem('melad_institute_id') ||
-           sessionStorage.getItem('currentInstituteId') ||
-           sessionStorage.getItem('melad_institute_id');
+        localStorage.getItem('melad_institute_id') ||
+        sessionStorage.getItem('currentInstituteId') ||
+        sessionStorage.getItem('melad_institute_id');
 }
 
 const instId = resolveInstituteId();
@@ -114,10 +114,10 @@ function animateValue(element, start, end, duration = 500, suffix = "") {
     function update(currentTime) {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / duration, 1);
-        const easeProgress = progress < 0.5 
-            ? 2 * progress * progress 
+        const easeProgress = progress < 0.5
+            ? 2 * progress * progress
             : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-            
+
         const currentVal = Math.round(start + (end - start) * easeProgress);
         element.textContent = `${currentVal}${suffix}`;
 
@@ -157,11 +157,11 @@ function updateHeader() {
     // 2. Metrics calculation from precalculated dashboard document
     const totalProgCount = dashboardData?.programsCount || 0;
     const completedCount = dashboardData?.publishedResultsCount || 0;
-    const pendingCount = dashboardData?.pendingProgramsCount !== undefined 
-        ? dashboardData.pendingProgramsCount 
+    const pendingCount = dashboardData?.pendingProgramsCount !== undefined
+        ? dashboardData.pendingProgramsCount
         : Math.max(0, totalProgCount - completedCount);
-    const progressPct = dashboardData?.overallProgressPct !== undefined 
-        ? dashboardData.overallProgressPct 
+    const progressPct = dashboardData?.overallProgressPct !== undefined
+        ? dashboardData.overallProgressPct
         : (totalProgCount > 0 ? Math.round((completedCount / totalProgCount) * 100) : 0);
 
     const statCompleted = document.getElementById('statCompletedProg');
@@ -181,8 +181,8 @@ function updateHeader() {
         animateValue(statPending, oldPending, pendingCount, 500, '');
     }
     if (statLastUpdated) {
-        const lastUpdatedDate = dashboardData?.lastUpdated?.seconds 
-            ? new Date(dashboardData.lastUpdated.seconds * 1000) 
+        const lastUpdatedDate = dashboardData?.lastUpdated?.seconds
+            ? new Date(dashboardData.lastUpdated.seconds * 1000)
             : new Date();
         statLastUpdated.textContent = formatTimeAMPM(lastUpdatedDate);
     }
