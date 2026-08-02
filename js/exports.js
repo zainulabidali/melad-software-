@@ -1047,6 +1047,8 @@ function renderHistoryLogs() {
             displayType = 'Chest Number & Program Card';
         } else if (displayType === 'Program Participation Register' && f.progRegSubmode === 'list') {
             displayType = 'Program List';
+        } else if (displayType === 'Program Participation Register' && f.progRegSubmode === 'student_summary') {
+            displayType = 'Student-wise Participation Summary';
         }
 
         const rawGeneratedBy = (exp.generatedBy || 'Admin').trim();
@@ -1099,6 +1101,8 @@ function renderHistoryLogs() {
             displayType = 'Chest Number & Program Card';
         } else if (displayType === 'Program Participation Register' && f.progRegSubmode === 'list') {
             displayType = 'Program List';
+        } else if (displayType === 'Program Participation Register' && f.progRegSubmode === 'student_summary') {
+            displayType = 'Student-wise Participation Summary';
         }
 
         const rawGeneratedBy = (exp.generatedBy || 'Admin').trim();
@@ -1417,10 +1421,11 @@ function renderDrawerContent() {
                         <button type="button" class="exp-submode-btn" data-submode="card" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Chest Number & Program Card</button>
                     </div>
 
-                    <!-- Program Participation Register Submode Selector (Two-Tab Layout) -->
+                    <!-- Program Participation Register Submode Selector (Three-Tab Layout) -->
                     <div id="progRegExportModeSelector" style="display:none; margin-top:0.75rem; margin-bottom:0.75rem; border:1px solid #cbd5e1; padding:2px; border-radius:10px; background:#f1f5f9; display:flex;">
                         <button type="button" class="prog-reg-submode-btn active" data-submode="register" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:#fff; color:#1e1b4b; box-shadow:0 1px 3px rgba(0,0,0,0.05); transition:all 0.2s;">Program Participation Register</button>
                         <button type="button" class="prog-reg-submode-btn" data-submode="list" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Program List</button>
+                        <button type="button" class="prog-reg-submode-btn" data-submode="student_summary" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Student-wise Participation Summary</button>
                     </div>
 
                     <!-- Sub Options (Only visible for Results) -->
@@ -1806,6 +1811,11 @@ function renderDrawerContent() {
                 if (partCont) partCont.style.display = 'none';
                 if (regModeCont) regModeCont.style.display = 'none';
                 if (expOrientation) expOrientation.value = 'portrait';
+            } else if (activeSubmode === 'student_summary') {
+                if (locCont) locCont.style.display = 'flex';
+                if (partCont) partCont.style.display = 'none';
+                if (regModeCont) regModeCont.style.display = 'none';
+                if (expOrientation) expOrientation.value = 'landscape';
             } else {
                 if (locCont) locCont.style.display = 'flex';
                 if (partCont) partCont.style.display = 'flex';
@@ -1939,6 +1949,11 @@ function renderDrawerContent() {
                     if (partCont) partCont.style.display = 'none';
                     if (regModeCont) regModeCont.style.display = 'none';
                     document.getElementById('expOrientation').value = 'portrait';
+                } else if (activeSubmode === 'student_summary') {
+                    if (locCont) locCont.style.display = 'flex';
+                    if (partCont) partCont.style.display = 'none';
+                    if (regModeCont) regModeCont.style.display = 'none';
+                    document.getElementById('expOrientation').value = 'landscape';
                 } else {
                     if (locCont) locCont.style.display = 'flex';
                     if (partCont) partCont.style.display = 'flex';
@@ -1977,6 +1992,8 @@ function renderDrawerContent() {
             const activeSubmode = document.getElementById('progRegExportModeSelector')?.querySelector('.prog-reg-submode-btn.active')?.getAttribute('data-submode') || 'register';
             if (activeSubmode === 'list') {
                 isCategoryWise = true;
+            } else if (activeSubmode === 'student_summary') {
+                isCategoryWise = false;
             } else {
                 isCategoryWise = (document.getElementById('expRegisterMode')?.value === 'category-wise');
             }
@@ -2277,6 +2294,8 @@ function renderDrawerContent() {
         } else if (selectedType === 'Program Participation Register') {
             if (progRegSubmode === 'list') {
                 fileTypePrefix = 'PROGRAM_LIST';
+            } else if (progRegSubmode === 'student_summary') {
+                fileTypePrefix = 'STUDENT_WISE_PARTICIPATION_SUMMARY';
             } else {
                 fileTypePrefix = `${cleanName(selectedType)}_${cleanName(registerMode)}`;
             }
@@ -2317,7 +2336,9 @@ function renderDrawerContent() {
                     : (selectedType === 'Program Participation Register'
                         ? (progRegSubmode === 'list'
                             ? `Scope: ${categoryName} | Mode: Program List [${format.toUpperCase()}]`
-                            : `Scope: ${categoryName} | Mode: ${registerMode === 'category-wise' ? 'Category-wise' : 'Class-wise'} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`)
+                            : (progRegSubmode === 'student_summary'
+                                ? `Scope: ${categoryName}${className ? ` (${className})` : ''} | Mode: Student-wise Summary [${format.toUpperCase()}]`
+                                : `Scope: ${categoryName} | Mode: ${registerMode === 'category-wise' ? 'Category-wise' : 'Class-wise'} | Program: ${programName} | Team: ${teamName} [${format.toUpperCase()}]`))
                         : (selectedType === 'Chest Number List'
                             ? (activeSubmode === 'card'
                                 ? `Scope: ${categoryName}${className ? ` (${className})` : ''} | Mode: Chest Number & Program Card | Team: ${teamName} [${format.toUpperCase()}]`
@@ -2749,14 +2770,16 @@ async function triggerDownload(exp, isDownload = false) {
             programs = allPrograms.filter(p => p.id === f.programId);
         } else {
             programs = allPrograms.filter(p => {
-                if (f.participationType === 'general') {
+                if (f.progRegSubmode === 'student_summary') {
+                    if (f.categoryId && p.categoryId !== f.categoryId && p.categoryId !== 'general_programs' && p.programType !== 'general') return false;
+                } else if (f.participationType === 'general') {
                     if (p.categoryId !== 'general_programs' && p.programType !== 'general') return false;
                 } else {
                     if (f.categoryId && p.categoryId !== f.categoryId) return false;
                 }
                 if (f.classId && p.classId && p.classId !== f.classId) return false;
-                if (f.gender && p.genderCategory !== f.gender) return false;
-                if (f.programLocation && p.programLocation !== f.programLocation) return false;
+                if (f.gender && p.genderCategory && p.genderCategory !== f.gender && p.genderCategory !== 'General' && p.genderCategory !== 'Mixed') return false;
+                if (f.programLocation && (p.programLocation || p.location) !== f.programLocation) return false;
                 if (f.participationType) {
                     if (f.participationType === 'general') {
                         if (p.categoryId !== 'general_programs' && p.programType !== 'general') return false;
@@ -2795,7 +2818,7 @@ async function triggerDownload(exp, isDownload = false) {
         try {
             const studentsSnap = await getDocs(collection(db, "institutes", instId, "students"));
             studentsSnap.forEach(d => {
-                studentMap[d.id] = d.data();
+                studentMap[d.id] = { id: d.id, ...d.data() };
             });
         } catch (err) {
             console.error("Failed to load students collection:", err);
@@ -4650,6 +4673,204 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         </table>
                     </div>
                 `).join('');
+            }
+        } else if (f.progRegSubmode === 'student_summary') {
+            const instName = getEventName();
+
+            const teamNamesMap = {};
+            allTeams.forEach(t => {
+                teamNamesMap[t.id] = t.name;
+            });
+
+            let studentsList = Object.values(studentMap);
+
+            if (f.categoryId) {
+                const targetCat = allCategories.find(c => c.id === f.categoryId);
+                const targetCatName = (targetCat ? targetCat.name : f.categoryId).trim().toLowerCase();
+                studentsList = studentsList.filter(s =>
+                    s.categoryId === f.categoryId || s.category === f.categoryId || (s.category || '').trim().toLowerCase() === targetCatName
+                );
+            }
+
+            if (f.classId) {
+                studentsList = studentsList.filter(s => s.classId === f.classId || s.class === f.classId);
+            }
+
+            if (f.teamId) {
+                studentsList = studentsList.filter(s => s.teamId === f.teamId);
+            }
+
+            if (f.gender === 'Boys') {
+                studentsList = studentsList.filter(s => s.gender === 'Male' || s.gender === 'Boys');
+            } else if (f.gender === 'Girls') {
+                studentsList = studentsList.filter(s => s.gender === 'Female' || s.gender === 'Girls');
+            }
+
+            const studentByDocId = new Map();
+            const studentByChest = new Map();
+
+            studentsList.forEach(s => {
+                if (s.id) studentByDocId.set(String(s.id), s);
+                if (s.chestNumber) studentByChest.set(String(s.chestNumber).trim().toLowerCase(), s);
+            });
+
+            const studentProgramsMap = new Map();
+            studentsList.forEach(s => {
+                if (s.id) studentProgramsMap.set(String(s.id), []);
+            });
+
+            const validProgramIds = new Set(programs.map(p => p.id));
+
+            for (const progId in participantsMap) {
+                if (!validProgramIds.has(progId)) continue;
+                const prog = allPrograms.find(pr => pr.id === progId);
+                if (!prog) continue;
+
+                const pList = participantsMap[progId] || [];
+                pList.forEach(p => {
+                    if (!p.isGroup) {
+                        const matchedStudent = (p.studentId && studentByDocId.get(String(p.studentId)))
+                            || (p.id && studentByDocId.get(String(p.id)))
+                            || (p.chestNumber && studentByChest.get(String(p.chestNumber).trim().toLowerCase()));
+
+                        if (matchedStudent && studentProgramsMap.has(String(matchedStudent.id))) {
+                            studentProgramsMap.get(String(matchedStudent.id)).push(prog);
+                        }
+                    } else {
+                        if (Array.isArray(p.members)) {
+                            p.members.forEach(m => {
+                                const matchedStudent = (m.studentId && studentByDocId.get(String(m.studentId)))
+                                    || (m.id && studentByDocId.get(String(m.id)))
+                                    || (m.chestNumber && studentByChest.get(String(m.chestNumber).trim().toLowerCase()));
+
+                                if (matchedStudent && studentProgramsMap.has(String(matchedStudent.id))) {
+                                    studentProgramsMap.get(String(matchedStudent.id)).push(prog);
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+
+            studentsList.forEach(s => {
+                if (!s.id) return;
+                const rawProgs = studentProgramsMap.get(String(s.id)) || [];
+                const uniqueMap = new Map();
+                rawProgs.forEach(p => {
+                    if (!uniqueMap.has(p.id)) {
+                        uniqueMap.set(p.id, p);
+                    }
+                });
+                const arr = Array.from(uniqueMap.values());
+                arr.sort((a, b) => {
+                    const numA = String(a.programNumber ?? '').trim();
+                    const numB = String(b.programNumber ?? '').trim();
+                    if (numA && numB) {
+                        const cmp = numA.localeCompare(numB, undefined, { numeric: true, sensitivity: 'base' });
+                        if (cmp !== 0) return cmp;
+                    }
+                    return (a.programName || '').localeCompare(b.programName || '');
+                });
+                studentProgramsMap.set(String(s.id), arr);
+            });
+
+            studentsList.sort((a, b) => {
+                const classA = String(a.className || a.class || a.classId || '').trim();
+                const classB = String(b.className || b.class || b.classId || '').trim();
+                const classCmp = classA.localeCompare(classB, undefined, { numeric: true, sensitivity: 'base' });
+                if (classCmp !== 0) return classCmp;
+
+                const chestA = String(a.chestNumber || '').trim();
+                const chestB = String(b.chestNumber || '').trim();
+                return chestA.localeCompare(chestB, undefined, { numeric: true, sensitivity: 'base' });
+            });
+
+            if (studentsList.length === 0) {
+                htmlContent = `
+                    <div style="text-align:center; padding:4rem; color:#dc2626; border:1px solid #fecaca; border-radius:12px; background:#fef2f2;">
+                        <h3 style="margin:0;">⚠️ No matching students found.</h3>
+                        <p style="color:#64748b; margin-top:0.25rem; font-weight:600;">Check your filter criteria and try again.</p>
+                    </div>
+                `;
+            } else {
+                const catText = f.categoryId
+                    ? (allCategories.find(c => c.id === f.categoryId)?.name || f.categoryId).toUpperCase()
+                    : 'ALL CATEGORIES';
+                const classText = f.classId
+                    ? String(f.classId).toUpperCase()
+                    : 'ALL CLASSES';
+                const genderText = f.gender ? String(f.gender).toUpperCase() : 'ALL GENDERS';
+                const locText = f.programLocation ? String(f.programLocation).toUpperCase() : 'ALL LOCATIONS';
+                const teamText = f.teamId ? (teamNamesMap[f.teamId] || f.teamId).toUpperCase() : 'ALL TEAMS';
+
+                const filterSummary = `CAT: ${catText} | CLASS: ${classText} | GENDER: ${genderText} | LOCATION: ${locText}${f.teamId ? ` | TEAM: ${teamText}` : ''}`;
+                const genDateStr = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).toUpperCase();
+
+                htmlContent = `
+                    <div class="program-page-standard" style="margin-bottom: 2rem;">
+                        <div class="report-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #000; padding-bottom: 0.4rem; margin-bottom: 0.75rem; width: 100%;">
+                            <div>
+                                <div style="font-size: 0.8rem; font-weight: 800; color: #000; letter-spacing: 0.05em; text-transform: uppercase;">
+                                    PARTICIPATION REPORT
+                                </div>
+                                <h2 style="margin: 0.15rem 0 0 0; color: #000; font-size: 1.25rem; font-weight: 800; text-transform: uppercase;">
+                                    STUDENT-WISE PARTICIPATION SUMMARY
+                                </h2>
+                                <div style="font-size: 0.72rem; font-weight: 700; color: #000; margin-top: 0.1rem; text-transform: uppercase;">
+                                    ${window.escapeHTML(instName).toUpperCase()}
+                                </div>
+                            </div>
+                            <div style="text-align: right; font-weight: 800; color: #000; line-height: 1.3;">
+                                <div style="font-size: 0.72rem; font-weight: 700; color: #334155;">
+                                    GENERATED: ${genDateStr}
+                                </div>
+                                <div style="font-size: 0.68rem; font-weight: 700; color: #475569; margin-top: 0.1rem;">
+                                    ${window.escapeHTML(filterSummary)}
+                                </div>
+                                <div style="font-size: 0.68rem; font-weight: 800; color: #1e1b4b; margin-top: 0.1rem;">
+                                    TOTAL: ${studentsList.length} STUDENTS
+                                </div>
+                            </div>
+                        </div>
+
+                        <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 0;">
+                            <thead>
+                                <tr style="background: #f1f5f9;">
+                                    <th style="width: 40px; text-align: center; padding: 0.45rem 0.3rem; border: 1px solid #000; font-weight: 800;">SL.NO</th>
+                                    <th style="width: 75px; text-align: center; padding: 0.45rem 0.3rem; border: 1px solid #000; font-weight: 800;">CHEST NO</th>
+                                    <th style="width: 210px; text-align: left; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">STUDENT NAME</th>
+                                    <th style="width: 130px; text-align: left; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">TEAM</th>
+                                    <th style="text-align: left; padding: 0.45rem 0.5rem; border: 1px solid #000; font-weight: 800;">PROGRAM LIST</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${studentsList.map((s, idx) => {
+                                    const progs = studentProgramsMap.get(String(s.id)) || [];
+                                    const totalProgs = progs.length;
+                                    const progNames = totalProgs > 0
+                                        ? progs.map(p => window.escapeHTML(p.programName)).join(', ')
+                                        : '—';
+                                    const teamName = teamNamesMap[s.teamId] || s.teamName || '—';
+                                    const className = s.className || s.class || s.classId || '—';
+                                    const genderDisplay = s.gender === 'Male' ? 'Boys' : (s.gender === 'Female' ? 'Girls' : (s.gender || '—'));
+
+                                    return `
+                                        <tr style="border-bottom: 1px solid #000; page-break-inside: avoid;">
+                                            <td style="text-align: center; font-weight: 700; padding: 0.4rem 0.3rem; border: 1px solid #000;">${idx + 1}</td>
+                                            <td style="text-align: center; font-weight: 800; padding: 0.4rem 0.3rem; border: 1px solid #000; color: #1e1b4b;">${window.escapeHTML(s.chestNumber || '—')}</td>
+                                            <td style="padding: 0.4rem 0.5rem; border: 1px solid #000;">
+                                                <div style="font-weight: 800; color: #000; text-transform: uppercase;">${window.escapeHTML(s.name || '—')}</div>
+                                                <div style="font-size: 0.68rem; font-weight: 700; color: #475569; margin-top: 0.15rem;">Class : ${window.escapeHTML(className).toUpperCase()} &nbsp;|&nbsp; Gender : ${window.escapeHTML(genderDisplay)}</div>
+                                            </td>
+                                            <td style="padding: 0.4rem 0.5rem; font-weight: 600; border: 1px solid #000;">${window.escapeHTML(teamName)}</td>
+                                            <td style="padding: 0.4rem 0.5rem; font-weight: 600; border: 1px solid #000; word-break: break-word; white-space: normal; line-height: 1.35;">${progNames}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
             }
         } else {
             const isCompact = f.compactPacking !== false;
@@ -7739,6 +7960,149 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     const locEsc = `"${(p.programLocation || 'Stage').replace(/"/g, '""')}"`;
                     csvContent += `${catEsc},${numEsc},${nameEsc},${genEsc},${locEsc}\n`;
                 });
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", exp.fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            return;
+        } else if (f.progRegSubmode === 'student_summary') {
+            let csvContent = "\uFEFF";
+            csvContent += "SL.NO,CHEST NUMBER,STUDENT NAME,CLASS / STANDARD,GENDER,TEAM,PROGRAM LIST\n";
+
+            const teamNamesMap = {};
+            allTeams.forEach(t => {
+                teamNamesMap[t.id] = t.name;
+            });
+
+            let studentsList = Object.values(studentMap);
+
+            if (f.categoryId) {
+                const targetCat = allCategories.find(c => c.id === f.categoryId);
+                const targetCatName = (targetCat ? targetCat.name : f.categoryId).trim().toLowerCase();
+                studentsList = studentsList.filter(s =>
+                    s.categoryId === f.categoryId || s.category === f.categoryId || (s.category || '').trim().toLowerCase() === targetCatName
+                );
+            }
+
+            if (f.classId) {
+                studentsList = studentsList.filter(s => s.classId === f.classId || s.class === f.classId);
+            }
+
+            if (f.teamId) {
+                studentsList = studentsList.filter(s => s.teamId === f.teamId);
+            }
+
+            if (f.gender === 'Boys') {
+                studentsList = studentsList.filter(s => s.gender === 'Male' || s.gender === 'Boys');
+            } else if (f.gender === 'Girls') {
+                studentsList = studentsList.filter(s => s.gender === 'Female' || s.gender === 'Girls');
+            }
+
+            const studentByDocId = new Map();
+            const studentByChest = new Map();
+
+            studentsList.forEach(s => {
+                if (s.id) studentByDocId.set(String(s.id), s);
+                if (s.chestNumber) studentByChest.set(String(s.chestNumber).trim().toLowerCase(), s);
+            });
+
+            const studentProgramsMap = new Map();
+            studentsList.forEach(s => {
+                if (s.id) studentProgramsMap.set(String(s.id), []);
+            });
+
+            const validProgramIds = new Set(programs.map(p => p.id));
+
+            for (const progId in participantsMap) {
+                if (!validProgramIds.has(progId)) continue;
+                const prog = allPrograms.find(pr => pr.id === progId);
+                if (!prog) continue;
+
+                const pList = participantsMap[progId] || [];
+                pList.forEach(p => {
+                    if (!p.isGroup) {
+                        const matchedStudent = (p.studentId && studentByDocId.get(String(p.studentId)))
+                            || (p.id && studentByDocId.get(String(p.id)))
+                            || (p.chestNumber && studentByChest.get(String(p.chestNumber).trim().toLowerCase()));
+
+                        if (matchedStudent && studentProgramsMap.has(String(matchedStudent.id))) {
+                            studentProgramsMap.get(String(matchedStudent.id)).push(prog);
+                        }
+                    } else {
+                        if (Array.isArray(p.members)) {
+                            p.members.forEach(m => {
+                                const matchedStudent = (m.studentId && studentByDocId.get(String(m.studentId)))
+                                    || (m.id && studentByDocId.get(String(m.id)))
+                                    || (m.chestNumber && studentByChest.get(String(m.chestNumber).trim().toLowerCase()));
+
+                                if (matchedStudent && studentProgramsMap.has(String(matchedStudent.id))) {
+                                    studentProgramsMap.get(String(matchedStudent.id)).push(prog);
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+
+            studentsList.forEach(s => {
+                if (!s.id) return;
+                const rawProgs = studentProgramsMap.get(String(s.id)) || [];
+                const uniqueMap = new Map();
+                rawProgs.forEach(p => {
+                    if (!uniqueMap.has(p.id)) {
+                        uniqueMap.set(p.id, p);
+                    }
+                });
+                const arr = Array.from(uniqueMap.values());
+                arr.sort((a, b) => {
+                    const numA = String(a.programNumber ?? '').trim();
+                    const numB = String(b.programNumber ?? '').trim();
+                    if (numA && numB) {
+                        const cmp = numA.localeCompare(numB, undefined, { numeric: true, sensitivity: 'base' });
+                        if (cmp !== 0) return cmp;
+                    }
+                    return (a.programName || '').localeCompare(b.programName || '');
+                });
+                studentProgramsMap.set(String(s.id), arr);
+            });
+
+            studentsList.sort((a, b) => {
+                const classA = String(a.className || a.class || a.classId || '').trim();
+                const classB = String(b.className || b.class || b.classId || '').trim();
+                const classCmp = classA.localeCompare(classB, undefined, { numeric: true, sensitivity: 'base' });
+                if (classCmp !== 0) return classCmp;
+
+                const chestA = String(a.chestNumber || '').trim();
+                const chestB = String(b.chestNumber || '').trim();
+                return chestA.localeCompare(chestB, undefined, { numeric: true, sensitivity: 'base' });
+            });
+
+            studentsList.forEach((s, idx) => {
+                const progs = studentProgramsMap.get(String(s.id)) || [];
+                const totalProgs = progs.length;
+                const progNames = totalProgs > 0
+                    ? progs.map(p => p.programName).join(', ')
+                    : '—';
+                const teamName = teamNamesMap[s.teamId] || s.teamName || '—';
+                const className = s.className || s.class || s.classId || '—';
+                const genderDisplay = s.gender === 'Male' ? 'Boys' : (s.gender === 'Female' ? 'Girls' : (s.gender || '—'));
+
+                const slEsc = `"${idx + 1}"`;
+                const chestEsc = `"${String(s.chestNumber || '—').replace(/"/g, '""')}"`;
+                const nameEsc = `"${String(s.name || '—').replace(/"/g, '""')}"`;
+                const teamEsc = `"${String(teamName).replace(/"/g, '""')}"`;
+                const classEsc = `"${String(className).replace(/"/g, '""')}"`;
+                const genEsc = `"${String(genderDisplay).replace(/"/g, '""')}"`;
+                const progsEsc = `"${String(progNames).replace(/"/g, '""')}"`;
+
+                csvContent += `${slEsc},${chestEsc},${nameEsc},${classEsc},${genEsc},${teamEsc},${progsEsc}\n`;
             });
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
