@@ -686,10 +686,12 @@ function openProgramModal(progId = null, data = {}) {
                     console.warn("Could not sync schedule doc:", sErr);
                 }
 
-                window.showToast("Program updated.");
-                await updateDashboardMetadata(window.currentInstituteId);
                 invalidateProgramsCache(window.currentInstituteId);
+                window.showToast("Program updated.");
                 handleClose();
+                updateDashboardMetadata(window.currentInstituteId).catch(err => {
+                    console.error("Background dashboard metadata update error:", err);
+                });
             } catch (err) {
                 console.error(err);
                 window.showToast("Error saving program.", "error");
@@ -1172,9 +1174,11 @@ function openGeneralProgramModal(progId = null, data = {}) {
                 await addDoc(progCollection, payload);
                 window.showToast("General Program added.");
             }
-            await updateDashboardMetadata(window.currentInstituteId);
             invalidateProgramsCache(window.currentInstituteId);
             modalOverlay.classList.add('hidden');
+            updateDashboardMetadata(window.currentInstituteId).catch(err => {
+                console.error("Background dashboard metadata update error:", err);
+            });
         } catch (err) {
             console.error(err);
             window.showToast("Error saving general program.", "error");

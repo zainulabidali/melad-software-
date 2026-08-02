@@ -1,4 +1,4 @@
-import { auth, db, updateDashboardMetadata, getCachedCategories, getCachedTeams, getCachedPrograms } from './firebase.js';
+import { auth, db, updateDashboardMetadata, invalidateStudentsCache, getCachedCategories, getCachedTeams, getCachedPrograms } from './firebase.js';
 import {
     collection,
     addDoc,
@@ -1480,12 +1480,21 @@ function openEditModal(stuId, data) {
                 updatedAt: serverTimestamp()
             });
 
-            // 2. Query individual participant registrations
-            const indivSnap = await getDocs(query(
+            // 2 & 3. Query individual & group participant registrations in parallel
+            const indivPromise = getDocs(query(
                 collectionGroup(db, "participants"),
                 where("studentId", "==", stuId),
                 where("type", "==", "individual")
             ));
+
+            const groupPromise = oldTeamId ? getDocs(query(
+                collectionGroup(db, "participants"),
+                where("type", "==", "group"),
+                where("teamId", "==", oldTeamId)
+            )) : Promise.resolve({ docs: [] });
+
+            const [indivSnap, groupSnap] = await Promise.all([indivPromise, groupPromise]);
+
             indivSnap.forEach(d => {
                 if (d.ref.path.startsWith(`institutes/${instId}/`)) {
                     batch.update(d.ref, {
@@ -1498,13 +1507,7 @@ function openEditModal(stuId, data) {
                 }
             });
 
-            // 3. Query group participant docs and update member name inside members array
-            if (oldTeamId) {
-                const groupSnap = await getDocs(query(
-                    collectionGroup(db, "participants"),
-                    where("type", "==", "group"),
-                    where("teamId", "==", oldTeamId)
-                ));
+            if (oldTeamId && groupSnap.docs.length > 0) {
                 groupSnap.forEach(d => {
                     if (d.ref.path.startsWith(`institutes/${instId}/`)) {
                         const data = d.data();
@@ -1541,9 +1544,16 @@ function openEditModal(stuId, data) {
             }
 
             await batch.commit();
-            await updateDashboardMetadata(instId);
-            window.showToast("Student updated successfully.");
+            invalidateStudentsCache(instId);
+
+            // Immediate UI completion (< 500ms)
             closeModal();
+            window.showToast("Student updated successfully.");
+
+            // Run background metadata recalculation asynchronously without blocking UI
+            updateDashboardMetadata(instId).catch(err => {
+                console.error("Background dashboard metadata update error:", err);
+            });
         } catch (err) {
             window.handleError(err, "updating student");
             btn.disabled = false;

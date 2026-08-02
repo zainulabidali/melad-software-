@@ -181,7 +181,6 @@ export async function updateDashboardMetadata(instituteId) {
 
 async function _performUpdateDashboardMetadata(instituteId) {
     try {
-        await cleanupOrphanedTeamData(instituteId);
         // Fetch collections in parallel using one-shot getDocs
 
         const [studentsSnap, teamsSnap, programsSnap, categoriesSnap, judgesSnap, resultsSnap, countSnap] = await Promise.all([
