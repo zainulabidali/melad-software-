@@ -487,7 +487,7 @@ async function openViewProgramsModal(stu) {
     const teamName = teamMap.get(stu.teamId) || '—';
 
     modalTitle.textContent = '👁 View Student & Programs';
-    
+
     // Render initial loading spinner inside modal
     modalBody.innerHTML = `
         <div style="text-align:center; padding:3rem; color:#4f46e5;">
@@ -972,7 +972,7 @@ export async function initAddStudentView(container, topActions) {
             seqTeam.disabled = true;
             seqTeam.style.display = 'block';
             seqTeam.innerHTML = '<option value="">Select Team (Disabled)...</option>';
-            
+
             seqGender.value = "";
             seqGender.disabled = true;
             seqGender.innerHTML = `
@@ -981,11 +981,11 @@ export async function initAddStudentView(container, topActions) {
                 <option value="Female">Female</option>
                 <option value="Other">Other</option>
             `;
-            
+
             seqClass.value = "";
             seqClass.disabled = true;
             seqClass.innerHTML = '<option value="">Select Class (Disabled)...</option>';
-            
+
             bulkNamesTextarea.value = "";
             bulkNamesTextarea.disabled = true;
             chestPreviewPanel.style.display = 'none';
@@ -999,7 +999,7 @@ export async function initAddStudentView(container, topActions) {
             seqTeam.style.display = 'block';
             seqTeam.disabled = false;
             if (seqTeam.innerHTML.includes('(Disabled)')) {
-                seqTeam.innerHTML = '<option value="">Select Team...</option>' + 
+                seqTeam.innerHTML = '<option value="">Select Team...</option>' +
                     Array.from(teamMap.entries()).map(([id, name]) => `<option value="${id}">${window.escapeHTML(name)}</option>`).join('');
             }
         } else {
@@ -1017,11 +1017,11 @@ export async function initAddStudentView(container, topActions) {
                 <option value="Female">Female</option>
                 <option value="Other">Other</option>
             `;
-            
+
             seqClass.value = "";
             seqClass.disabled = true;
             seqClass.innerHTML = '<option value="">Select Class (Disabled)...</option>';
-            
+
             bulkNamesTextarea.value = "";
             bulkNamesTextarea.disabled = true;
             chestPreviewPanel.style.display = 'none';
@@ -1046,7 +1046,7 @@ export async function initAddStudentView(container, topActions) {
             seqClass.value = "";
             seqClass.disabled = true;
             seqClass.innerHTML = '<option value="">Select Class (Disabled)...</option>';
-            
+
             bulkNamesTextarea.value = "";
             bulkNamesTextarea.disabled = true;
             chestPreviewPanel.style.display = 'none';
@@ -1102,10 +1102,10 @@ export async function initAddStudentView(container, topActions) {
         const catStudents = localStudentsAll.filter(s => s.categoryId === catId);
         const chestNums = catStudents.map(s => parseInt(s.chestNumber, 10)).filter(num => !isNaN(num));
         const highestChest = chestNums.length > 0 ? Math.max(...chestNums) : 0;
-        
+
         const chestStart = parseInt(cat.chestStart, 10) || 1;
         const chestEnd = parseInt(cat.chestEnd, 10) || Infinity;
-        
+
         const lblHighestChest = document.getElementById('lblHighestChest');
         lblHighestChest.textContent = highestChest > 0 ? `#${highestChest}` : 'None';
 
@@ -1134,10 +1134,10 @@ export async function initAddStudentView(container, topActions) {
             }
             seenInBatch.add(nameLower);
 
-            const isDbDup = localStudentsAll.some(s => 
-                s.name.trim().toLowerCase() === nameLower && 
-                s.categoryId === catId && 
-                s.teamId === teamId && 
+            const isDbDup = localStudentsAll.some(s =>
+                s.name.trim().toLowerCase() === nameLower &&
+                s.categoryId === catId &&
+                s.teamId === teamId &&
                 s.classId === classId
             );
 
@@ -1248,16 +1248,16 @@ export async function initAddStudentView(container, topActions) {
 
     btnSave.onclick = async (e) => {
         e.preventDefault();
-        
+
         const catId = seqCategory.value;
         const classId = seqClass.value;
         const isCompetitive = document.getElementById('seqIsCompetitive')?.checked !== false;
         const teamId = isCompetitive ? seqTeam.value : '';
-        
+
         const lines = bulkNamesTextarea.value.split('\n');
         const validNames = [];
         const seen = new Set();
-        
+
         lines.forEach(line => {
             const name = line.trim();
             if (name && name.length >= 2 && !seen.has(name.toLowerCase())) {
@@ -1288,7 +1288,7 @@ export async function initAddStudentView(container, topActions) {
         try {
             const instId = window.currentInstituteId;
             const catRef = doc(db, "institutes", instId, "categories", catId);
-            
+
             await runTransaction(db, async (transaction) => {
                 const catSnap = await transaction.get(catRef);
                 if (!catSnap.exists()) {
@@ -1645,9 +1645,9 @@ async function executeStudentDeletion(studentIds) {
         // 2. Fetch Student details to get data and teamId
         const studentsDataMap = new Map(); // studentId -> studentData
         const teamMemberCountDeltas = new Map(); // teamId -> count decrement
-        
+
         lastQueryLabel = `Fetch student documents (bulk count: ${studentIds.length})`;
-        
+
         const fetchPromises = studentIds.map(async (stuId) => {
             const studentRef = doc(db, "institutes", instId, "students", stuId);
             const snap = await getDoc(studentRef);
@@ -1894,7 +1894,7 @@ async function openBulkImportModal() {
     document.getElementById('btnDownloadTemplate').onclick = () => {
         try {
             const headers = ["Chest No", "Student Name", "Gender", "Category", "Class", "Team"];
-            
+
             const firstCategory = allCategories[0];
             const firstClass = firstCategory?.classes[0]?.name || "10";
             const firstTeam = Array.from(teamMap.values())[0] || "Team A";
@@ -1910,7 +1910,7 @@ async function openBulkImportModal() {
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.aoa_to_sheet(ws_data);
             XLSX.utils.book_append_sheet(wb, ws, "Students");
-            
+
             XLSX.writeFile(wb, "Student_Import_Template.xlsx");
         } catch (err) {
             console.error("Template generation failed:", err);
@@ -1948,10 +1948,10 @@ async function openBulkImportModal() {
             try {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
-                
+
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
-                
+
                 const jsonRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
                 if (jsonRows.length === 0) {
                     window.showToast("The selected Excel file is empty.", "error");
@@ -1963,7 +1963,7 @@ async function openBulkImportModal() {
                 const headers = jsonRows[0].map(h => (h || '').toString().trim());
                 const requiredHeaders = ["Student Name", "Gender", "Category", "Class"];
                 const headerIndices = {};
-                
+
                 requiredHeaders.forEach(req => {
                     headerIndices[req] = headers.findIndex(h => h.toLowerCase() === req.toLowerCase());
                 });
@@ -1985,8 +1985,8 @@ async function openBulkImportModal() {
                 const sheetChestNumbers = new Set();
 
                 rows.forEach((row, idx) => {
-                    const rowNum = idx + 2; 
-                    
+                    const rowNum = idx + 2;
+
                     const isEmpty = row.every(val => (val === undefined || val === null || val.toString().trim() === ''));
                     if (isEmpty) return;
 
@@ -2194,8 +2194,8 @@ function showPreviewScreen(validList, invalidList, duplicateList) {
             <div>
                 <div style="font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:0.4rem;">Students to Enroll (${validList.length})</div>
                 <div style="max-height:160px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:8px; padding:0.25rem; background:#fff; font-size:0.8rem;">
-                    ${validList.length > 0 
-                        ? `<table style="width:100%; border-collapse:collapse;">
+                    ${validList.length > 0
+            ? `<table style="width:100%; border-collapse:collapse;">
                             <thead style="position:sticky; top:0; background:#f1f5f9; font-weight:700; z-index:10;">
                                 <tr style="border-bottom:1px solid #e2e8f0; text-align:left;">
                                     <th style="padding:0.4rem;">Chest</th>
@@ -2215,8 +2215,8 @@ function showPreviewScreen(validList, invalidList, duplicateList) {
                                 `).join('')}
                             </tbody>
                            </table>`
-                        : '<div style="font-size:0.8rem; color:#94a3b8; text-align:center; padding:1.5rem 0;">No clean rows to import</div>'
-                    }
+            : '<div style="font-size:0.8rem; color:#94a3b8; text-align:center; padding:1.5rem 0;">No clean rows to import</div>'
+        }
                 </div>
             </div>
 
@@ -2368,7 +2368,7 @@ async function executeImportProcess(validList, duplicateList, duplicateAction) {
 
                 chestNumber = allocated.toString();
                 allocatedInThisBatch.add(chestNumber);
-                
+
                 // Update nextChestNumber in our local map object so it stays consistent
                 const finalNextAvailable = findNextAvailableChestNumber(chestStart, chestEnd, allocatedInThisBatch) || (chestEnd + 1);
                 catInfo.nextChestNumber = finalNextAvailable;
@@ -2376,7 +2376,7 @@ async function executeImportProcess(validList, duplicateList, duplicateAction) {
 
             const isOverwrite = stu.isDuplicateInDb;
             const existingStu = isOverwrite ? localStudentsAll.find(s => s.chestNumber === chestNumber) : null;
-            
+
             const payload = {
                 chestNumber: chestNumber,
                 name: stu.name,
@@ -2497,21 +2497,21 @@ async function executeImportProcess(validList, duplicateList, duplicateAction) {
             modal.classList.add('hidden');
             loadStudentsData();
         };
-        
+
         document.getElementById('btnImportRollback').onclick = async () => {
             const btn = document.getElementById('btnImportRollback');
             btn.disabled = true;
             btn.textContent = "Rolling back...";
-            
+
             try {
                 const snap = await getDocs(query(
                     collection(db, "institutes", window.currentInstituteId, "students"),
                     where("importBatchId", "==", importBatchId)
                 ));
-                
+
                 const rollbackBatch = writeBatch(db);
                 const teamCounts = new Map();
-                
+
                 snap.forEach(d => {
                     const data = d.data();
                     rollbackBatch.delete(d.ref);
@@ -2548,7 +2548,7 @@ function openStudentDropdown(btn) {
     // 2. Create the dropdown element
     const dropdown = document.createElement('div');
     dropdown.className = 'actions-dropdown-menu active-body-dropdown';
-    
+
     // Get datasets
     const id = btn.dataset.id;
 
@@ -2635,10 +2635,10 @@ function sortStudents(students, categories) {
     return [...students].sort((a, b) => {
         // 1. Category index in class-based sorted order via O(1) Map lookup
         const idxA = catIndexMap.has(a.categoryId) ? catIndexMap.get(a.categoryId) :
-                     (catIndexMap.has(a.categoryName) ? catIndexMap.get(a.categoryName) : 999);
+            (catIndexMap.has(a.categoryName) ? catIndexMap.get(a.categoryName) : 999);
         const idxB = catIndexMap.has(b.categoryId) ? catIndexMap.get(b.categoryId) :
-                     (catIndexMap.has(b.categoryName) ? catIndexMap.get(b.categoryName) : 999);
-        
+            (catIndexMap.has(b.categoryName) ? catIndexMap.get(b.categoryName) : 999);
+
         if (idxA !== idxB) {
             return idxA - idxB;
         }

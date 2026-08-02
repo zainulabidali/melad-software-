@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, invalidateCategoriesCache, sortCategories } from './firebase.js';
+import { db, updateDashboardMetadata, invalidateCategoriesCache, invalidateStudentsCache, sortCategories } from './firebase.js';
 import { collection, getDocs, doc, updateDoc, onSnapshot, serverTimestamp, writeBatch, query, where, setDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 let unsubscribeCategories = null;
@@ -542,7 +542,12 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
                 }
 
                 await Promise.all(batchPromises);
-                window.showToast('Category updated and student chest numbers synchronized successfully.');
+                
+                // Perform multi-collection cascade sync across participants, results, and metadata collections
+                await syncAllParticipantAndResultChestNumbers(instId);
+                invalidateStudentsCache(instId);
+
+                window.showToast('Category updated and student chest numbers synchronized successfully across all modules.');
             } else {
                 if (catId) {
                     await updateDoc(catDocRef, payload);
@@ -562,6 +567,7 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
             }
             await updateDashboardMetadata(window.currentInstituteId);
             invalidateCategoriesCache(window.currentInstituteId);
+            invalidateStudentsCache(window.currentInstituteId);
             modalOverlay.classList.add('hidden');
         } catch (error) {
             console.error('Error saving category:', error);
@@ -721,3 +727,196 @@ function openCategoryDropdown(btn) {
         deleteCategory(id);
     });
 }
+
+/**
+ * Multi-collection cascade migration utility function:
+ * Synchronizes Chest Numbers from live Student documents to:
+ * 1. all program participants (individual & group members)
+ * 2. all results (marksData & winners)
+ * 3. all metadata class awards
+ */
+export async function syncAllParticipantAndResultChestNumbers(instituteId) {
+    const instId = instituteId || window.currentInstituteId;
+    if (!instId || !db) return { success: false, updatedCount: 0 };
+
+    try {
+        const studentsSnap = await getDocs(collection(db, "institutes", instId, "students"));
+        const studentChestMap = new Map();
+        studentsSnap.forEach(d => {
+            const s = d.data();
+            if (s.chestNumber) {
+                studentChestMap.set(d.id, s.chestNumber.toString());
+            }
+        });
+
+        if (studentChestMap.size === 0) return { success: true, updatedCount: 0 };
+
+        let currentBatch = writeBatch(db);
+        let opsInBatch = 0;
+        let totalDocUpdates = 0;
+        const batchPromises = [];
+
+        const commitBatchIfNeeded = () => {
+            opsInBatch++;
+            if (opsInBatch >= 450) {
+                batchPromises.push(currentBatch.commit());
+                currentBatch = writeBatch(db);
+                opsInBatch = 0;
+            }
+        };
+
+        // 1. Cascade update to all Program Participants subcollections
+        const progsSnap = await getDocs(collection(db, "institutes", instId, "programs"));
+        for (const progDoc of progsSnap.docs) {
+            const partSnap = await getDocs(collection(db, "institutes", instId, "programs", progDoc.id, "participants"));
+            for (const partDoc of partSnap.docs) {
+                const pData = partDoc.data();
+                let needsUpdate = false;
+                const updatePayload = {};
+
+                if (pData.type === 'individual' || pData.studentId) {
+                    const latestChest = studentChestMap.get(pData.studentId);
+                    if (latestChest && pData.chestNumber !== latestChest) {
+                        updatePayload.chestNumber = latestChest;
+                        needsUpdate = true;
+                    }
+                }
+
+                if (Array.isArray(pData.groups) && pData.groups.length > 0) {
+                    let groupsModified = false;
+                    const updatedGroups = pData.groups.map(g => {
+                        if (Array.isArray(g.members)) {
+                            let membersModified = false;
+                            const updatedMembers = g.members.map(m => {
+                                const latestChest = studentChestMap.get(m.studentId);
+                                if (latestChest && m.chestNumber !== latestChest) {
+                                    membersModified = true;
+                                    return { ...m, chestNumber: latestChest };
+                                }
+                                return m;
+                            });
+                            if (membersModified) {
+                                groupsModified = true;
+                                return { ...g, members: updatedMembers };
+                            }
+                        }
+                        return g;
+                    });
+                    if (groupsModified) {
+                        updatePayload.groups = updatedGroups;
+                        needsUpdate = true;
+                    }
+                }
+
+                if (needsUpdate) {
+                    updatePayload.updatedAt = serverTimestamp();
+                    currentBatch.update(partDoc.ref, updatePayload);
+                    totalDocUpdates++;
+                    commitBatchIfNeeded();
+                }
+            }
+        }
+
+        // 2. Cascade update to Results collection (marksData & winners)
+        const resultsSnap = await getDocs(collection(db, "institutes", instId, "results"));
+        for (const resDoc of resultsSnap.docs) {
+            const rData = resDoc.data();
+            let needsUpdate = false;
+            const updatePayload = {};
+
+            if (Array.isArray(rData.marksData)) {
+                let marksModified = false;
+                const updatedMarks = rData.marksData.map(m => {
+                    if (m.studentId) {
+                        const latestChest = studentChestMap.get(m.studentId);
+                        if (latestChest && m.chestNumber !== latestChest) {
+                            marksModified = true;
+                            return { ...m, chestNumber: latestChest };
+                        }
+                    }
+                    return m;
+                });
+                if (marksModified) {
+                    updatePayload.marksData = updatedMarks;
+                    needsUpdate = true;
+                }
+            }
+
+            if (Array.isArray(rData.winners)) {
+                let winnersModified = false;
+                const updatedWinners = rData.winners.map(w => {
+                    if (w.studentId) {
+                        const latestChest = studentChestMap.get(w.studentId);
+                        if (latestChest && w.chestNumber !== latestChest) {
+                            winnersModified = true;
+                            return { ...w, chestNumber: latestChest };
+                        }
+                    }
+                    return w;
+                });
+                if (winnersModified) {
+                    updatePayload.winners = updatedWinners;
+                    needsUpdate = true;
+                }
+            }
+
+            if (needsUpdate) {
+                updatePayload.updatedAt = serverTimestamp();
+                currentBatch.update(resDoc.ref, updatePayload);
+                totalDocUpdates++;
+                commitBatchIfNeeded();
+            }
+        }
+
+        // 3. Cascade update to metadata (class awards)
+        const metaSnap = await getDocs(collection(db, "institutes", instId, "metadata"));
+        for (const metaDoc of metaSnap.docs) {
+            if (metaDoc.id.startsWith("class_award_")) {
+                const mData = metaDoc.data();
+                let needsUpdate = false;
+                const updatePayload = {};
+
+                ['firstPlaceWinners', 'secondPlaceWinners', 'thirdPlaceWinners'].forEach(arrKey => {
+                    if (Array.isArray(mData[arrKey])) {
+                        let arrModified = false;
+                        const updatedArr = mData[arrKey].map(w => {
+                            if (w.studentId) {
+                                const latestChest = studentChestMap.get(w.studentId);
+                                if (latestChest && w.chestNumber !== latestChest) {
+                                    arrModified = true;
+                                    return { ...w, chestNumber: latestChest };
+                                }
+                            }
+                            return w;
+                        });
+                        if (arrModified) {
+                            updatePayload[arrKey] = updatedArr;
+                            needsUpdate = true;
+                        }
+                    }
+                });
+
+                if (needsUpdate) {
+                    updatePayload.updatedAt = serverTimestamp();
+                    currentBatch.update(metaDoc.ref, updatePayload);
+                    totalDocUpdates++;
+                    commitBatchIfNeeded();
+                }
+            }
+        }
+
+        if (opsInBatch > 0) {
+            batchPromises.push(currentBatch.commit());
+        }
+
+        await Promise.all(batchPromises);
+        invalidateStudentsCache(instId);
+        invalidateCategoriesCache(instId);
+
+        return { success: true, updatedCount: totalDocUpdates };
+    } catch (err) {
+        console.error("Error in syncAllParticipantAndResultChestNumbers:", err);
+        return { success: false, error: err };
+    }
+}
+

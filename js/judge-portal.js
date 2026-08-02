@@ -1,4 +1,4 @@
-import { db, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades } from './firebase.js';
+import { db, computeDenseRanking, getCachedStudentsMap, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades } from './firebase.js';
 import {
     collection, doc, getDoc, getDocs, setDoc, onSnapshot, serverTimestamp, writeBatch
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -359,7 +359,10 @@ async function openScoringView(prog) {
 }
 
 async function loadParticipants(prog) {
-    const snap = await getDocs(collection(db, "institutes", currentInstituteId, "programs", prog.id, "participants"));
+    const [snap, studentMap] = await Promise.all([
+        getDocs(collection(db, "institutes", currentInstituteId, "programs", prog.id, "participants")),
+        getCachedStudentsMap(currentInstituteId)
+    ]);
     const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
     const list = [];
 
@@ -387,10 +390,13 @@ async function loadParticipants(prog) {
                 });
             }
         } else {
+            const studentId = p.studentId || d.id;
+            const liveStudent = studentMap ? studentMap.get(studentId) : null;
+            const chestNumber = liveStudent ? liveStudent.chestNumber : (p.chestNumber || '—');
             list.push({
-                id: p.studentId || d.id,
-                name: p.studentName || '—',
-                chestNumber: p.chestNumber || '—',
+                id: studentId,
+                name: liveStudent ? liveStudent.name : (p.studentName || '—'),
+                chestNumber: chestNumber || '—',
                 teamId: p.teamId || '',
                 teamName: p.teamName || ''
             });

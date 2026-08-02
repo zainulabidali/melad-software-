@@ -292,16 +292,13 @@ function recalculateScorers(publishedResults) {
                 }
             }
 
-            // Resolve chestNumber with absolute fallback (PART 4 & PART 5)
-            let chestNumber = stu.chestNumber || item.chestNumber || '—';
-            if (chestNumber === '—' || !chestNumber || chestNumber === 'undefined' || chestNumber === 'null') {
-                const mappedStudent = studentLookupMap.get(stuId);
-                if (mappedStudent && mappedStudent.chestNumber && mappedStudent.chestNumber !== '—') {
-                    chestNumber = mappedStudent.chestNumber;
-                } else {
-                    chestNumber = '—';
-                }
-            }
+            // Resolve chestNumber with live student document as Single Source of Truth
+            const mappedStudent = studentLookupMap.get(stuId);
+            let chestNumber = (mappedStudent && mappedStudent.chestNumber && mappedStudent.chestNumber !== '—') 
+                ? mappedStudent.chestNumber 
+                : (stu.chestNumber || item.chestNumber || '—');
+            
+            if (chestNumber === 'undefined' || chestNumber === 'null') chestNumber = '—';
             stu.chestNumber = chestNumber;
 
             if (!scorersMap.has(stuId)) {

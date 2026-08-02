@@ -149,7 +149,7 @@ const metadataUpdateDebounceTimers = new Map();
 
 export async function updateDashboardMetadata(instituteId) {
     if (!instituteId) return;
-    
+
     return new Promise((resolve, reject) => {
         if (metadataUpdateDebounceTimers.has(instituteId)) {
             const existing = metadataUpdateDebounceTimers.get(instituteId);
@@ -772,6 +772,64 @@ export function invalidateProgramsCache(instituteId) {
         localStorage.removeItem(`melad_cached_programs_${instituteId}`);
     } catch (e) { }
     invalidateProgramOverviewCache(instituteId);
+}
+
+export function invalidateStudentsCache(instituteId) {
+    window.cachedStudents = null;
+    window.cachedStudentsMap = null;
+    try {
+        const instId = instituteId || window.currentInstituteId;
+        if (instId) localStorage.removeItem(`melad_cached_students_${instId}`);
+    } catch (e) { }
+}
+
+export function setCachedStudents(instituteId, studentsData) {
+    const cacheObj = {
+        data: studentsData,
+        lastFetched: Date.now()
+    };
+    window.cachedStudents = cacheObj;
+    try {
+        localStorage.setItem(`melad_cached_students_${instituteId}`, JSON.stringify(cacheObj));
+    } catch (e) { }
+}
+
+export async function getCachedStudents(instituteId, forceRefresh = false) {
+    const instId = instituteId || window.currentInstituteId;
+    if (!instId) return [];
+    const key = `melad_cached_students_${instId}`;
+    if (!forceRefresh) {
+        if (isCacheValid(window.cachedStudents)) {
+            return window.cachedStudents.data;
+        }
+        try {
+            const local = localStorage.getItem(key);
+            if (local) {
+                const parsed = JSON.parse(local);
+                if (isCacheValid(parsed)) {
+                    window.cachedStudents = parsed;
+                    return parsed.data;
+                }
+            }
+        } catch (e) {
+            console.error("Error loading students cache from localStorage:", e);
+        }
+    }
+    const snap = await getDocs(collection(db, "institutes", instId, "students"));
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    setCachedStudents(instId, data);
+    return data;
+}
+
+export async function getCachedStudentsMap(instituteId, forceRefresh = false) {
+    const instId = instituteId || window.currentInstituteId;
+    const students = await getCachedStudents(instId, forceRefresh);
+    const map = new Map();
+    (students || []).forEach(s => {
+        if (s.id) map.set(s.id, s);
+    });
+    window.cachedStudentsMap = map;
+    return map;
 }
 
 export async function getCachedTeams(instituteId, forceRefresh = false) {

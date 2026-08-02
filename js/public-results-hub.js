@@ -13,13 +13,13 @@ function resolveInstituteId() {
         try {
             localStorage.setItem('currentInstituteId', id);
             localStorage.setItem('melad_institute_id', id);
-        } catch (e) {}
+        } catch (e) { }
         return id;
     }
     return localStorage.getItem('currentInstituteId') ||
-           localStorage.getItem('melad_institute_id') ||
-           sessionStorage.getItem('currentInstituteId') ||
-           sessionStorage.getItem('melad_institute_id');
+        localStorage.getItem('melad_institute_id') ||
+        sessionStorage.getItem('currentInstituteId') ||
+        sessionStorage.getItem('melad_institute_id');
 }
 
 const instId = resolveInstituteId();
@@ -164,11 +164,11 @@ function updateHeader() {
 function updateSummaryStats() {
     const totalProgCount = dashboardData?.programsCount || publishedResultsList.length || 0;
     const completedCount = dashboardData?.publishedResultsCount || publishedResultsList.length || 0;
-    const pendingCount = dashboardData?.pendingProgramsCount !== undefined 
-        ? dashboardData.pendingProgramsCount 
+    const pendingCount = dashboardData?.pendingProgramsCount !== undefined
+        ? dashboardData.pendingProgramsCount
         : Math.max(0, totalProgCount - completedCount);
-    const progressPct = dashboardData?.overallProgressPct !== undefined 
-        ? dashboardData.overallProgressPct 
+    const progressPct = dashboardData?.overallProgressPct !== undefined
+        ? dashboardData.overallProgressPct
         : (totalProgCount > 0 ? Math.round((completedCount / totalProgCount) * 100) : 0);
 
     const elPublished = document.getElementById('statPublishedVal');
@@ -259,13 +259,13 @@ function renderProgramResultCard() {
         else if (locLower === 'off stage' || locLower === 'offstage' || locLower === 'off_stage') stageDisplay = 'Off Stage';
     }
 
-    const pubTime = result.publishedAt?.seconds 
+    const pubTime = result.publishedAt?.seconds
         ? new Date(result.publishedAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         : '';
 
     // Position holders / Winners
     let winnersList = result.winners || result.positions || [];
-    
+
     // Fallback if structured positions map exists (1st, 2nd, 3rd)
     if ((!winnersList || winnersList.length === 0) && (result.first || result['1st'] || result.second || result['2nd'] || result.third || result['3rd'])) {
         winnersList = [];
@@ -570,7 +570,7 @@ async function initPublicResultsHub() {
             dashboardData = data;
             leaderboardData = data.leaderboard || [];
             categoryPerformanceData = data.categoryPerformance || [];
-            
+
             updateSummaryStats();
             renderTeamChampionship();
             renderCategoryStandings();
@@ -582,7 +582,7 @@ async function initPublicResultsHub() {
     try {
         const resultsRef = collection(db, "institutes", instId, "results");
         const pubQuery = query(resultsRef, where("status", "==", "published"));
-        
+
         onSnapshot(pubQuery, (querySnap) => {
             publishedResultsList = querySnap.docs.map(d => ({ id: d.id, ...d.data() }))
                 .filter(r => r.publicDisabled !== true);

@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades } from './firebase.js';
+import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, getCachedStudentsMap, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades } from './firebase.js';
 import {
     collection, getDocs, doc, getDoc, setDoc, onSnapshot, serverTimestamp, writeBatch, runTransaction
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -631,7 +631,10 @@ function getStatusBadgeHTML(status) {
 // Loading Subcollection Data
 // ─────────────────────────────────────────────
 async function loadStudentsForProgram(prog) {
-    const snap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs", prog.id, "participants"));
+    const [snap, studentMap] = await Promise.all([
+        getDocs(collection(db, "institutes", window.currentInstituteId, "programs", prog.id, "participants")),
+        getCachedStudentsMap(window.currentInstituteId)
+    ]);
     const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
     const list = [];
 
@@ -659,10 +662,13 @@ async function loadStudentsForProgram(prog) {
                 });
             }
         } else {
+            const studentId = p.studentId || d.id;
+            const liveStudent = studentMap ? studentMap.get(studentId) : null;
+            const chestNumber = liveStudent ? liveStudent.chestNumber : (p.chestNumber || '—');
             list.push({
-                id: p.studentId || d.id,
-                name: p.studentName || '—',
-                chestNumber: p.chestNumber || '—',
+                id: studentId,
+                name: liveStudent ? liveStudent.name : (p.studentName || '—'),
+                chestNumber: chestNumber || '—',
                 teamId: p.teamId || '',
                 teamName: p.teamName || ''
             });

@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, computeDenseRanking, getCachedCategories, getCachedPrograms } from './firebase.js';
+import { db, updateDashboardMetadata, computeDenseRanking, getCachedCategories, getCachedPrograms, getCachedStudentsMap } from './firebase.js';
 import {
     collection, doc, getDocs, onSnapshot, serverTimestamp, updateDoc, deleteDoc, writeBatch, setDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -243,8 +243,11 @@ export async function initResultsView(container, topActions) {
 // ─────────────────────────────────────────────
 async function loadResultsViewData() {
     try {
-        // Load Programs from Cache
-        const cachedProgs = await getCachedPrograms(window.currentInstituteId);
+        // Load Programs and Students Map from Cache
+        const [cachedProgs, studentMap] = await Promise.all([
+            getCachedPrograms(window.currentInstituteId),
+            getCachedStudentsMap(window.currentInstituteId)
+        ]);
         allPrograms = cachedProgs.map(p => {
             const pType = (p.programType || p.type || 'individual').toLowerCase();
             return {

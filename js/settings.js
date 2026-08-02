@@ -30,7 +30,7 @@ export async function initSettingsView(container, topActions) {
     // Fetch Categories
     try {
         localCategories = await getCachedCategories(window.currentInstituteId) || [];
-    } catch(e) {
+    } catch (e) {
         console.error("Error loading categories in settings init:", e);
     }
 
@@ -106,7 +106,7 @@ async function saveEventConfig() {
         selectedLogoBase64 = null;
         isLogoRemoved = false;
         window.currentEventDetails = configData;
-        
+
         // Update UI state buttons
         const btnRemoveLogo = document.getElementById('btnRemoveLogo');
         const btnUploadLogo = document.getElementById('btnUploadLogo');
@@ -125,7 +125,7 @@ async function saveEventConfig() {
                 ${madName ? `<div style="font-size:0.75rem; font-weight:600; color:rgba(255,255,255,0.7); margin-top:2px;">${window.escapeHTML(madName)}</div>` : ''}
             `;
         }
-        
+
         showToast("✓ Event configuration saved successfully!");
     } catch (e) {
         console.error("Error saving event config:", e);
@@ -147,7 +147,7 @@ async function loadAndPurgeRecoveryBin() {
         binSnap.forEach(d => {
             const data = d.data();
             const expiry = data.expiryTime ? new Date(data.expiryTime) : null;
-            
+
             // Auto Purge Check: If expired or is a student recovery document, flag for Firestore deletion
             if ((expiry && now.getTime() > expiry.getTime()) || data.type === 'student') {
                 expiredIds.push(d.id);
@@ -877,7 +877,7 @@ function openLimitsManageModal() {
     if (modalEl) modalEl.classList.add('modal-large');
 
     modalTitle.textContent = "🎯 Student Participation Limits";
-    
+
     const limits = localConfig.participationLimits || { enabled: false, defaults: {}, rules: [] };
     const isEnabled = limits.enabled === true;
 
@@ -994,7 +994,7 @@ function bindLimitsModalEvents() {
         frmDefault.onsubmit = async (e) => {
             e.preventDefault();
             const limits = localConfig.participationLimits || { enabled: false, defaults: {}, rules: [] };
-            
+
             const stageVal = document.getElementById('defStageLimit').value.trim();
             const offStageVal = document.getElementById('defOffStageLimit').value.trim();
             const generalVal = document.getElementById('defGeneralLimit').value.trim();
@@ -1106,7 +1106,7 @@ async function saveParticipationLimits(limitsData) {
             participationLimits: limitsData,
             updatedAt: serverTimestamp()
         }, { merge: true });
-        
+
         localConfig.participationLimits = limitsData;
         window.currentEventDetails = localConfig;
         showToast("✓ Participation limits updated successfully!");
@@ -1444,39 +1444,39 @@ function renderRecoveryBinList() {
                 </thead>
                 <tbody>
                     ${sorted.map(item => {
-                        const expiry = item.expiryTime ? new Date(item.expiryTime) : null;
-                        let remainingStr = "Expired";
-                        if (expiry) {
-                            const diff = expiry.getTime() - now.getTime();
-                            if (diff > 0) {
-                                const hours = Math.floor(diff / (1000 * 60 * 60));
-                                const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                                remainingStr = `${hours}h ${mins}m left`;
-                            }
-                        }
+        const expiry = item.expiryTime ? new Date(item.expiryTime) : null;
+        let remainingStr = "Expired";
+        if (expiry) {
+            const diff = expiry.getTime() - now.getTime();
+            if (diff > 0) {
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                remainingStr = `${hours}h ${mins}m left`;
+            }
+        }
 
-                        // Determine label name
-                        let detailName = "Doc ID: " + item.originalId;
-                        if (item.type === 'student') detailName = `🎓 ${item.data?.name || 'Unnamed'} (#${item.data?.chestNumber || '—'})`;
-                        else if (item.type === 'team') detailName = `👥 ${item.data?.name || 'Unnamed Team'}`;
-                        else if (item.type === 'category') detailName = `🏷️ ${item.data?.name || 'Unnamed Category'}`;
-                        else if (item.type === 'program') detailName = `📝 ${item.data?.programName || 'Unnamed Program'}`;
-                        else if (item.type === 'result') detailName = `🏆 Result for program ID: ${item.data?.programId || '—'}`;
-                        else if (item.type === 'registration') detailName = `👤 Registered student: ${item.data?.studentName || '—'}`;
+        // Determine label name
+        let detailName = "Doc ID: " + item.originalId;
+        if (item.type === 'student') detailName = `🎓 ${item.data?.name || 'Unnamed'} (#${item.data?.chestNumber || '—'})`;
+        else if (item.type === 'team') detailName = `👥 ${item.data?.name || 'Unnamed Team'}`;
+        else if (item.type === 'category') detailName = `🏷️ ${item.data?.name || 'Unnamed Category'}`;
+        else if (item.type === 'program') detailName = `📝 ${item.data?.programName || 'Unnamed Program'}`;
+        else if (item.type === 'result') detailName = `🏆 Result for program ID: ${item.data?.programId || '—'}`;
+        else if (item.type === 'registration') detailName = `👤 Registered student: ${item.data?.studentName || '—'}`;
 
-                        let badgeColor = '#64748b';
-                        if (item.type === 'student') badgeColor = '#6366f1';
-                        else if (item.type === 'team') badgeColor = '#10b981';
-                        else if (item.type === 'program') badgeColor = '#f59e0b';
-                        else if (item.type === 'result') badgeColor = '#c2410c';
+        let badgeColor = '#64748b';
+        if (item.type === 'student') badgeColor = '#6366f1';
+        else if (item.type === 'team') badgeColor = '#10b981';
+        else if (item.type === 'program') badgeColor = '#f59e0b';
+        else if (item.type === 'result') badgeColor = '#c2410c';
 
-                        return `
+        return `
                             <tr style="border-bottom:1px solid #f1f5f9; hover:background:#f8fafc;">
                                 <td style="padding:0.5rem; font-weight:700;">
                                     <span style="color:white; background:${badgeColor}; padding:0.15rem 0.45rem; border-radius:4px; font-size:0.68rem; text-transform:uppercase;">${item.type}</span>
                                 </td>
                                 <td style="padding:0.5rem; font-weight:600; color:#334155;">${window.escapeHTML(detailName)}</td>
-                                <td style="padding:0.5rem; color:#64748b;">${new Date(item.deletedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} (${new Date(item.deletedAt).toLocaleDateString()})</td>
+                                <td style="padding:0.5rem; color:#64748b;">${new Date(item.deletedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${new Date(item.deletedAt).toLocaleDateString()})</td>
                                 <td style="padding:0.5rem; font-weight:700; color:#ea580c;">${remainingStr}</td>
                                 <td style="padding:0.5rem; text-align:center;">
                                     <button class="btn btn-secondary btn-sm btn-restore-bin" data-bin-id="${item.id}" style="padding:0.25rem 0.5rem; font-size:0.75rem; min-height:28px;">Restore</button>
@@ -1484,7 +1484,7 @@ function renderRecoveryBinList() {
                                 </td>
                             </tr>
                         `;
-                    }).join('')}
+    }).join('')}
                 </tbody>
             </table>
         </div>
@@ -1641,7 +1641,7 @@ function bindDangerZoneEvents(container) {
         btnClearLocalCache.onclick = async () => {
             const confirmed = await window.customConfirm("Are you sure you want to clear the local storage cache? This will clear all saved session data and force a fresh page reload.");
             if (!confirmed) return;
-            
+
             try {
                 localStorage.clear();
                 sessionStorage.clear();
@@ -1814,7 +1814,7 @@ async function executeBackup() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        
+
         const dateStr = new Date().toISOString().slice(0, 10);
         a.download = `backup_${localConfig.eventName || instId}_${dateStr}.json`;
         document.body.appendChild(a);
@@ -1847,7 +1847,7 @@ async function runStructuredReset() {
             // Fetch and move Results
             const resSnap = await getDocs(collection(db, "institutes", instId, "results"));
             const batch = writeBatch(db);
-            
+
             for (const docSnap of resSnap.docs) {
                 const docId = docSnap.id;
                 const docData = docSnap.data();
@@ -1873,7 +1873,7 @@ async function runStructuredReset() {
         if (activeResetType === 'registrations' || activeResetType === 'event' || activeResetType === 'factory') {
             // Fetch and move registrations
             const progSnap = await getDocs(collection(db, "institutes", instId, "programs"));
-            
+
             for (const progDoc of progSnap.docs) {
                 const partSnap = await getDocs(collection(db, "institutes", instId, "programs", progDoc.id, "participants"));
                 const batch = writeBatch(db);
@@ -1987,7 +1987,7 @@ async function runStructuredReset() {
         await updateDashboardMetadata(instId);
 
         showToast("✓ Reset completed successfully! Files moved to Recovery Bin.");
-        
+
         // Reload Settings View and Bin list
         await loadAndPurgeRecoveryBin();
         renderRecoveryBinList();
@@ -2019,7 +2019,7 @@ async function triggerRestore(binId) {
             const originalPathTokens = item.originalPath.split('/');
             const progId = originalPathTokens[3]; // institutes/{instId}/programs/{progId}/participants/{partId}
             const progRef = doc(db, "institutes", instId, "programs", progId);
-            
+
             const progSnap = await getDoc(progRef);
             if (progSnap.exists()) {
                 const currentCount = progSnap.data().participantCount || 0;
@@ -2060,7 +2060,7 @@ async function triggerPurge(binId) {
     try {
         await deleteDoc(doc(db, "institutes", instId, "recoveryBin", binId));
         showToast("✓ Record permanently deleted.");
-        
+
         // Refresh List
         await loadAndPurgeRecoveryBin();
         renderRecoveryBinList();
@@ -2082,7 +2082,7 @@ function showToast(msg) {
     t.style.position = 'relative';
     t.style.bottom = 'auto';
     t.style.right = 'auto';
-    
+
     // Auto strip tick indicators for text string
     t.innerHTML = `
         <div style="display:flex; align-items:center; gap:0.5rem; justify-content:space-between; width:100%;">
