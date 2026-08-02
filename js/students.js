@@ -1372,6 +1372,25 @@ function openEditModal(stuId, data) {
     const modalTitle = document.getElementById('dynamicModalTitle');
     const modalBody = document.getElementById('dynamicModalBody');
     const modalOverlay = document.getElementById('dynamicModal');
+    const closeHeaderBtn = document.getElementById('closeDynamicModalBtn');
+
+    const closeModal = () => {
+        modalOverlay.classList.add('hidden');
+        document.removeEventListener('keydown', handleEsc);
+        modalOverlay.removeEventListener('click', handleOverlayClick);
+    };
+
+    const handleEsc = (e) => {
+        if (e.key === 'Escape') closeModal();
+    };
+
+    const handleOverlayClick = (e) => {
+        if (e.target === modalOverlay) closeModal();
+    };
+
+    if (closeHeaderBtn) closeHeaderBtn.onclick = closeModal;
+    document.addEventListener('keydown', handleEsc);
+    modalOverlay.addEventListener('click', handleOverlayClick);
 
     const isCompetitive = data.teamId && data.isTeamParticipant !== false;
 
@@ -1407,11 +1426,15 @@ function openEditModal(stuId, data) {
                     ${Array.from(teamMap.entries()).map(([id, name]) => `<option value="${id}" ${data.teamId === id ? 'selected' : ''}>${window.escapeHTML(name)}</option>`).join('')}
                 </select>
             </div>
-            <div class="modal-actions">
-                <button type="submit" class="btn btn-primary w-full" id="saveEditStuBtn">Save Changes</button>
+            <div class="modal-actions" style="display:flex; gap:0.5rem; margin-top:1.5rem;">
+                <button type="button" class="btn btn-secondary" id="cancelEditStuBtn" style="min-height:38px; font-weight:700;">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="saveEditStuBtn" style="min-height:38px; font-weight:700; flex:1;">Save Changes</button>
             </div>
         </form>
     `;
+
+    const cancelBtn = document.getElementById('cancelEditStuBtn');
+    if (cancelBtn) cancelBtn.onclick = closeModal;
 
     const checkbox = document.getElementById('eIsCompetitive');
     const teamGroup = document.getElementById('eTeamGroup');
@@ -1520,7 +1543,7 @@ function openEditModal(stuId, data) {
             await batch.commit();
             await updateDashboardMetadata(instId);
             window.showToast("Student updated successfully.");
-            modalOverlay.classList.add('hidden');
+            closeModal();
         } catch (err) {
             window.handleError(err, "updating student");
             btn.disabled = false;

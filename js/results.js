@@ -481,10 +481,10 @@ function renderResultsView() {
         };
 
         // Wire Open Result
-        tr.querySelector('.btn-open-result').onclick = (e) => {
+        tr.querySelector('.btn-open-result').onclick = async (e) => {
             e.stopPropagation();
             menu.style.display = 'none';
-            openResultDetailPopup(r);
+            await openResultDetailPopup(r);
         };
 
         // Wire Publish
@@ -548,7 +548,7 @@ function renderResultsView() {
 // ─────────────────────────────────────────────
 // Open Result Detailed View Drawer/Popup
 // ─────────────────────────────────────────────
-function openResultDetailPopup(r) {
+async function openResultDetailPopup(r) {
     const modal = document.getElementById('dynamicModal');
     const modalTitle = document.getElementById('dynamicModalTitle');
     const modalBody = document.getElementById('dynamicModalBody');
@@ -557,6 +557,8 @@ function openResultDetailPopup(r) {
 
     const modalEl = modal.querySelector('.modal');
     modalEl.classList.add('modal-result-detail');
+
+    const studentMap = await getCachedStudentsMap(window.currentInstituteId);
 
     const handleClose = () => {
         modalEl.classList.remove('modal-result-detail');
@@ -608,6 +610,18 @@ function openResultDetailPopup(r) {
             }
 
             const displayName = item.studentName || item.groupName || item.name || '—';
+
+            // Resolve latest Chest Number strictly from live Students collection
+            const studentId = item.studentId || item.id || '';
+            const liveStudent = (studentMap && studentId) ? studentMap.get(studentId) : null;
+            let latestChestNumber = '—';
+            if (liveStudent && liveStudent.chestNumber && liveStudent.chestNumber !== '—' && liveStudent.chestNumber !== 'undefined' && liveStudent.chestNumber !== 'null') {
+                latestChestNumber = String(liveStudent.chestNumber).trim();
+            }
+
+            const chestTagHTML = latestChestNumber !== '—'
+                ? `<span class="badge res-detail-chest-badge" style="background:#e0e7ff; color:#3730a3; border:1px solid #c7d2fe; font-size:0.75rem; font-weight:800; padding:0.1rem 0.45rem; border-radius:4px; margin-right:0.4rem; font-family:monospace; display:inline-block;">#${window.escapeHTML(latestChestNumber)}</span>`
+                : `<span class="badge res-detail-chest-badge" style="background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; font-size:0.75rem; font-weight:700; padding:0.1rem 0.45rem; border-radius:4px; margin-right:0.4rem; font-family:monospace; display:inline-block;">—</span>`;
             
             // Extract and clean Code Letter
             const rawCodeLetter = item.codeLetter;
@@ -633,15 +647,15 @@ function openResultDetailPopup(r) {
             return `
                 <tr class="res-detail-table-row">
                     <td class="res-detail-td-rank">${positionHTML}</td>
-                    <td class="res-detail-td-name">${window.escapeHTML(displayName)}</td>
+                    <td class="res-detail-td-name" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${chestTagHTML}<span>${window.escapeHTML(displayName)}</span></td>
                     <td class="res-detail-td-code">${window.escapeHTML(codeLetterDisplay)}</td>
                     <td class="res-detail-td-team">${window.escapeHTML(teamDisplay)}</td>
                     <td class="res-detail-td-mark">${finalMark}</td>
                     <td class="res-detail-td-grade">
-                        ${(showGrade && grade && grade !== '—') ? `<span class="badge" style="background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe; font-size:0.75rem; font-weight:700; padding:0.15rem 0.5rem;">${grade}</span>` : ''}
+                        ${(showGrade && grade && grade !== '—') ? `<span class="badge" style="background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe; font-size:0.75rem; font-weight:700; padding:0.1rem 0.5rem;">${grade}</span>` : ''}
                     </td>
                     <td class="res-detail-td-points">
-                        ${points !== '—' ? `<span class="badge" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; font-size:0.75rem; font-weight:700; padding:0.15rem 0.5rem;">${points}</span>` : '—'}
+                        ${points !== '—' ? `<span class="badge" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; font-size:0.75rem; font-weight:700; padding:0.1rem 0.5rem;">${points}</span>` : '—'}
                     </td>
                 </tr>
             `;
