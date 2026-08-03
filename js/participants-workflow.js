@@ -1117,30 +1117,38 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         renderStudentList();
     }
 
+    function isCategoryMatching(docCategoryId, selectedCatId, inheritedCatId, programType) {
+        if (programType === 'general' || selectedCatId === 'general_programs' || inheritedCatId === 'general_programs') {
+            return true;
+        }
+        const docCat = (docCategoryId || '').trim();
+        if (!docCat) return true;
+
+        const selCat = (selectedCatId || '').trim();
+        const inhCat = (inheritedCatId || '').trim();
+
+        if (docCat === selCat || docCat === inhCat) return true;
+        if (normalizeText(docCat) === normalizeText(selCat) || normalizeText(docCat) === normalizeText(inhCat)) return true;
+
+        return false;
+    }
+
     // 5. Group Persistence & Management Methods
     async function getOrCreateTeamParticipantContainer() {
         const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
         const targetTeamId = window.normalizeTeamId(selectedTeamId);
-        let q;
-        if (pType === 'general' || selectedCategoryId === 'general_programs') {
-            q = query(
-                partRef,
-                where('type', '==', 'group'),
-                where('teamId', '==', targetTeamId)
-            );
-        } else {
-            q = query(
-                partRef,
-                where('type', '==', 'group'),
-                where('teamId', '==', targetTeamId),
-                where('categoryId', '==', selectedCategoryId)
-            );
-        }
+        const q = query(
+            partRef,
+            where('type', '==', 'group'),
+            where('teamId', '==', targetTeamId)
+        );
         const snap = await getDocs(q);
         if (!snap.empty) {
-            const d = snap.docs[0];
-            groupContainerRef = d.ref;
-            return { ref: d.ref, data: d.data() };
+            const matched = snap.docs.find(d => isCategoryMatching(d.data().categoryId, selectedCategoryId, inheritedCategoryId, pType));
+            if (matched) {
+                groupContainerRef = matched.ref;
+                return { ref: matched.ref, data: matched.data() };
+            }
         }
 
         const newRef = doc(partRef);
@@ -1167,14 +1175,57 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         if (listEl) listEl.innerHTML = `<div class="pw-empty">Loading groups...</div>`;
 
         const progDocs = await getProgramParticipantsDocs();
-        const matchedDoc = progDocs.find(d => {
+        console.log(`================ AUDIT TRACE FOR PROGRAM: ${progId} ================`);
+        console.log(`Total documents found in participants collection: ${progDocs.length}`);
+        
+        let matchedDoc = null;
+        for (const d of progDocs) {
             const data = d.data();
-            const matchesType = data.type === 'group';
-            const matchesTeam = window.normalizeTeamId(data.teamId) === targetTeamId;
-            const matchesCategory = (pType === 'general' || selectedCategoryId === 'general_programs') ||
-                ((data.categoryId || '') === selectedCategoryId);
-            return matchesType && matchesTeam && matchesCategory;
-        });
+            const rawTeamId = data.teamId;
+            const normDocTeamId = window.normalizeTeamId(rawTeamId);
+            const matchesType = data.type === 'group' || Array.isArray(data.groups);
+            const matchesTeam = normDocTeamId === targetTeamId;
+            const matchesCategory = isCategoryMatching(data.categoryId, selectedCategoryId, inheritedCategoryId, pType);
+
+            const isAccepted = matchesType && matchesTeam && matchesCategory;
+
+            console.log(`--- Participant Document [${d.id}] ---`);
+            console.log(`Document ID: ${d.id}`);
+            console.log(`programId: ${data.programId || progId}`);
+            console.log(`type: ${data.type}`);
+            console.log(`teamId (raw): ${JSON.stringify(rawTeamId)}`);
+            console.log(`teamId (normalized): ${JSON.stringify(normDocTeamId)}`);
+            console.log(`teamName: ${JSON.stringify(data.teamName)}`);
+            console.log(`categoryId (raw): ${JSON.stringify(data.categoryId)}`);
+            console.log(`groups count: ${Array.isArray(data.groups) ? data.groups.length : 0}`);
+            if (Array.isArray(data.groups)) {
+                data.groups.forEach((g, idx) => {
+                    const mIds = (g.members || []).map(m => m.studentId);
+                    console.log(`  Group #${idx + 1}: Name="${g.name}", Members=${g.members?.length || 0}, StudentIDs=[${mIds.join(', ')}]`);
+                });
+            }
+            console.log(`EVALUATION COMPARISONS:`);
+            console.log(`  targetTeamId: ${JSON.stringify(targetTeamId)}`);
+            console.log(`  data.teamId: ${JSON.stringify(rawTeamId)} => matchesTeam: ${matchesTeam}`);
+            console.log(`  selectedCategoryId: ${JSON.stringify(selectedCategoryId)}`);
+            console.log(`  inheritedCategoryId: ${JSON.stringify(inheritedCategoryId)}`);
+            console.log(`  data.categoryId: ${JSON.stringify(data.categoryId)} => matchesCategory: ${matchesCategory}`);
+            console.log(`  matchesType: ${matchesType}`);
+            console.log(`VERDICT: ${isAccepted ? '✅ LOADED' : '❌ REJECTED'}`);
+            if (!isAccepted) {
+                const reasons = [];
+                if (!matchesType) reasons.push('type is not group');
+                if (!matchesTeam) reasons.push(`teamId mismatch ("${rawTeamId}" vs "${targetTeamId}")`);
+                if (!matchesCategory) reasons.push(`categoryId mismatch ("${data.categoryId}" vs "${selectedCategoryId}"/"${inheritedCategoryId}")`);
+                console.log(`REJECTION REASON: ${reasons.join(' AND ')}`);
+            }
+            console.log(`--------------------------------------------------`);
+
+            if (isAccepted && !matchedDoc) {
+                matchedDoc = d;
+            }
+        }
+        console.log(`====================================================================`);
 
         if (!matchedDoc) {
             groups = [];
