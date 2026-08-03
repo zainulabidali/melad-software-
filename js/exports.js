@@ -2466,9 +2466,12 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
     const list = [];
 
     console.log(`====================================================================`);
-    console.log(`[EXPORT AUDIT INSTRUMENTATION] loadParticipants() for Program "${prog.id}" ("${prog.programName}")`);
+    console.log(`[EXPORT ARCHITECTURE] loadParticipants() for Program "${prog.id}" ("${prog.programName}")`);
     console.log(`Total documents read in participants subcollection: ${snap.docs.length}`);
     console.log(`Filter limitTeamId: "${limitTeamId}"`);
+
+    // Group documents by normalized teamId to aggregate multi-container group data
+    const docsByTeam = new Map();
 
     snap.docs.forEach((d, idx) => {
         const p = d.data();
@@ -2492,9 +2495,23 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
 
         if (status === 'SKIPPED') return;
 
-        if (isGroupData) {
-            const groups = Array.isArray(p.groups) ? p.groups : [];
-            if (groups.length > 0) {
+        if (!docsByTeam.has(normalizedId)) {
+            docsByTeam.set(normalizedId, []);
+        }
+        docsByTeam.get(normalizedId).push({ docId: d.id, data: p, isGroupData });
+    });
+
+    docsByTeam.forEach((teamEntries, normalizedId) => {
+        const hasGroupData = teamEntries.some(e => e.isGroupData);
+
+        if (hasGroupData) {
+            const aggregatedGroups = [];
+            let teamName = '';
+
+            teamEntries.forEach(e => {
+                const p = e.data;
+                if (!teamName && p.teamName) teamName = p.teamName;
+                const groups = Array.isArray(p.groups) ? p.groups : [];
                 groups.forEach(g => {
                     const members = (g.members || []).map(m => {
                         const resolvedStudent = studentMap[m.studentId];
@@ -2504,43 +2521,48 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
                             chestNumber: resolvedStudent ? resolvedStudent.chestNumber : '—'
                         };
                     });
-                    list.push({
-                        id: g.id || `${normalizedId || d.id}_${g.name || 'group'}`,
+                    aggregatedGroups.push({
+                        id: g.id || `${normalizedId}_${g.name || 'group'}`,
                         isGroup: true,
                         name: g.name || p.teamName || 'Group',
-                        teamName: p.teamName || '',
+                        teamName: p.teamName || teamName || '',
                         teamId: normalizedId,
                         members: members
                     });
                 });
+            });
+
+            if (aggregatedGroups.length > 0) {
+                aggregatedGroups.forEach(g => list.push(g));
             } else {
                 list.push({
-                    id: normalizedId || d.id,
+                    id: normalizedId || `team_${Date.now()}`,
                     isGroup: true,
-                    name: p.teamName || 'Team',
-                    teamName: p.teamName || '',
+                    name: teamName || 'Team',
+                    teamName: teamName || '',
                     teamId: normalizedId,
                     members: []
                 });
             }
         } else {
-            const resolvedStudent = studentMap[p.studentId];
-            list.push({
-                studentId: p.studentId || '',
-                name: resolvedStudent ? resolvedStudent.name : (p.studentName || '—'),
-                chestNumber: resolvedStudent ? resolvedStudent.chestNumber : (p.chestNumber || '—'),
-                teamName: p.teamName || '',
-                teamId: normalizedId
+            teamEntries.forEach(e => {
+                const p = e.data;
+                const resolvedStudent = studentMap[p.studentId];
+                list.push({
+                    studentId: p.studentId || '',
+                    name: resolvedStudent ? resolvedStudent.name : (p.studentName || '—'),
+                    chestNumber: resolvedStudent ? resolvedStudent.chestNumber : (p.chestNumber || '—'),
+                    teamName: p.teamName || '',
+                    teamId: normalizedId
+                });
             });
         }
     });
 
-    console.log(`[EXPORT AUDIT INSTRUMENTATION] Total items exported for Program "${prog.id}": ${list.length}`);
+    console.log(`[EXPORT ARCHITECTURE] Total aggregated items exported for Program "${prog.id}": ${list.length}`);
     console.log(`====================================================================`);
 
-
     // De-duplicate list items by unique key (teamId + group name + member chests)
-
     const uniqueList = [];
     const seenKeys = new Set();
 

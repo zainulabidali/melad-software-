@@ -770,6 +770,11 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         }
         const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
         const programSnap = await getDocs(partRef);
+        if (programSnap.metadata && programSnap.metadata.fromCache) {
+            console.warn(`[FIRESTORE CACHE NOTICE] Snapshot read from local IndexedDB cache (Offline Mode / Cached Snapshot). fromCache: true, hasPendingWrites: ${programSnap.metadata.hasPendingWrites}`);
+        } else if (programSnap.metadata) {
+            console.log(`[FIRESTORE SERVER SNAPSHOT] Snapshot fetched live from Cloud Firestore backend. fromCache: false, hasPendingWrites: ${programSnap.metadata.hasPendingWrites}`);
+        }
         programParticipantsCache = programSnap.docs;
         return programParticipantsCache;
     }
@@ -1135,34 +1140,34 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
     // 5. Group Persistence & Management Methods
     async function getOrCreateTeamParticipantContainer() {
-        console.log(`[AUDIT INSTRUMENTATION] getOrCreateTeamParticipantContainer() invoked for programId: "${progId}", teamId: "${selectedTeamId}"`);
+        console.log(`[PERMANENT ARCHITECTURE] getOrCreateTeamParticipantContainer() invoked for programId: "${progId}", teamId: "${selectedTeamId}"`);
         const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
         const targetTeamId = window.normalizeTeamId(selectedTeamId);
+        
+        // Search ALL existing participant containers for programId + teamId
         const q = query(
             partRef,
-            where('type', '==', 'group'),
             where('teamId', '==', targetTeamId)
         );
         const snap = await getDocs(q);
-        console.log(`[AUDIT INSTRUMENTATION] getOrCreate query result count: ${snap.docs.length}`);
-        snap.docs.forEach((d, i) => {
+        
+        // Filter container documents matching group type OR having group arrays
+        const groupDocs = snap.docs.filter(d => {
             const data = d.data();
-            console.log(`  Query Doc #${i+1} ID: "${d.id}", categoryId: "${data.categoryId}", groups.length: ${Array.isArray(data.groups) ? data.groups.length : 0}`);
+            return data.type === 'group' || Array.isArray(data.groups);
         });
 
-        if (!snap.empty) {
-            const matched = snap.docs.find(d => isCategoryMatching(d.data().categoryId, selectedCategoryId, inheritedCategoryId, pType));
-            if (matched) {
-                console.log(`[AUDIT INSTRUMENTATION] Matched existing container doc ID: "${matched.id}" via isCategoryMatching()`);
-                groupContainerRef = matched.ref;
-                return { ref: matched.ref, data: matched.data() };
-            } else {
-                console.warn(`[AUDIT INSTRUMENTATION] Found ${snap.docs.length} container doc(s) for teamId "${targetTeamId}", but NONE matched categoryId ("${selectedCategoryId}" / "${inheritedCategoryId}")!`);
-            }
+        if (groupDocs.length > 0) {
+            // Prefer container matching selected category or choose first existing container
+            const matched = groupDocs.find(d => isCategoryMatching(d.data().categoryId, selectedCategoryId, inheritedCategoryId, pType)) || groupDocs[0];
+            console.log(`[CONTAINER REUSE] Found ${groupDocs.length} existing container(s) for teamId "${targetTeamId}". Reusing canonical container doc ID: "${matched.id}"`);
+            groupContainerRef = matched.ref;
+            return { ref: matched.ref, data: matched.data() };
         }
 
+        // Create ONLY if ZERO containers exist for this (programId + teamId)
         const newRef = doc(partRef);
-        console.warn(`[AUDIT INSTRUMENTATION] ⚠ CREATING NEW CONTAINER DOC! ID: "${newRef.id}" for teamId: "${targetTeamId}"`);
+        console.warn(`[CONTAINER CREATION] ⚠ Creating NEW canonical container doc ID: "${newRef.id}" for teamId: "${targetTeamId}"`);
         await setDoc(newRef, {
             teamId: targetTeamId,
             teamName: selectedTeamId === 'teamless' ? 'No Team' : (teamById.get(selectedTeamId)?.name || ''),
@@ -1175,6 +1180,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             updatedAt: serverTimestamp()
         });
 
+        programParticipantsCache = null;
         groupContainerRef = newRef;
         return { ref: newRef, data: { groups: [] } };
     }
@@ -1187,93 +1193,28 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
         const progDocs = await getProgramParticipantsDocs();
         console.log(`====================================================================`);
-        console.log(`[AUDIT INSTRUMENTATION] LOAD GROUPS FOR TEAM`);
-        console.log(`Program ID: ${progId}`);
-        console.log(`Selected Team: ${selectedTeamId} (normalized: "${targetTeamId}")`);
-        console.log(`Selected Category ID: "${selectedCategoryId}" (inherited: "${inheritedCategoryId}")`);
-        console.log(`Total documents in participants collection: ${progDocs.length}`);
+        console.log(`[PERMANENT ARCHITECTURE] LOAD GROUPS FOR TEAM`);
+        console.log(`Program ID: ${progId} | Selected Team: ${selectedTeamId} (normalized: "${targetTeamId}")`);
         console.log(`====================================================================`);
-        
-        // Fragmentation & Duplicate Container Detection
-        const containersByTeam = new Map();
+
+        // STEP 1: Read-side compatibility - Find ALL container docs for (programId + teamId)
+        const matchingContainerDocs = [];
         progDocs.forEach(d => {
             const data = d.data();
-            if (data.type === 'group' || Array.isArray(data.groups)) {
-                const tId = window.normalizeTeamId(data.teamId);
-                if (!containersByTeam.has(tId)) containersByTeam.set(tId, []);
-                containersByTeam.get(tId).push({ id: d.id, categoryId: data.categoryId, groupsCount: Array.isArray(data.groups) ? data.groups.length : 0 });
-            }
-        });
-
-        containersByTeam.forEach((docsList, tId) => {
-            if (docsList.length > 1) {
-                console.warn(`⚠ DUPLICATE CONTAINER DETECTED for teamId "${tId}" (${docsList.length} documents):`);
-                docsList.forEach(item => {
-                    console.warn(`   - Doc ID: "${item.id}", categoryId: "${item.categoryId}", groups.length: ${item.groupsCount}`);
-                });
-            }
-        });
-
-        const acceptedDocs = [];
-        const rejectedDocs = [];
-        let matchedDoc = null;
-
-        for (const d of progDocs) {
-            const data = d.data();
-            const rawTeamId = data.teamId;
-            const normDocTeamId = window.normalizeTeamId(rawTeamId);
+            const normDocTeamId = window.normalizeTeamId(data.teamId);
             const matchesType = data.type === 'group' || Array.isArray(data.groups);
             const matchesTeam = normDocTeamId === targetTeamId;
-            const matchesCategory = isCategoryMatching(data.categoryId, selectedCategoryId, inheritedCategoryId, pType);
 
-            const isAccepted = matchesType && matchesTeam && matchesCategory;
-
-            const groupArray = Array.isArray(data.groups) ? data.groups : [];
-            const totalMembersCount = groupArray.reduce((acc, g) => acc + (g.members?.length || 0), 0);
-            const groupNamesList = groupArray.map(g => g.name || 'Unnamed Group').join(', ');
-
-            console.log(`--- Participant Document [${d.id}] ---`);
-            console.log(`Document ID: ${d.id}`);
-            console.log(`teamId: ${JSON.stringify(rawTeamId)} (normalized: ${JSON.stringify(normDocTeamId)})`);
-            console.log(`teamName: ${JSON.stringify(data.teamName)}`);
-            console.log(`categoryId: ${JSON.stringify(data.categoryId)}`);
-            console.log(`type: ${JSON.stringify(data.type)}`);
-            console.log(`groups.length: ${groupArray.length}`);
-            console.log(`group names: ${groupNamesList || '(none)'}`);
-            console.log(`member count: ${totalMembersCount}`);
-            console.log(`createdAt: ${data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : JSON.stringify(data.createdAt)}`);
-            console.log(`updatedAt: ${data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : JSON.stringify(data.updatedAt)}`);
-
-            if (isAccepted) {
-                acceptedDocs.push({ id: d.id, groupsCount: groupArray.length, membersCount: totalMembersCount });
-                console.log(`VERDICT: ✅ ACCEPTED`);
-                if (!matchedDoc) {
-                    matchedDoc = d;
-                    console.log(`SELECTED FOR UI: Yes (First matched document)`);
-                } else {
-                    console.warn(`SELECTED FOR UI: No (IGNORED because another matched doc "${matchedDoc.id}" was already selected!)`);
-                }
-            } else {
-                const reasons = [];
-                if (!matchesType) reasons.push('type is not group');
-                if (!matchesTeam) reasons.push(`teamId mismatch ("${rawTeamId}" vs "${targetTeamId}")`);
-                if (!matchesCategory) reasons.push(`categoryId mismatch ("${data.categoryId}" vs "${selectedCategoryId}"/"${inheritedCategoryId}")`);
-                const reasonStr = reasons.join(' AND ');
-                rejectedDocs.push({ id: d.id, reason: reasonStr });
-                console.log(`VERDICT: ❌ REJECTED`);
-                console.log(`REJECTION REASON: ${reasonStr}`);
+            if (matchesType && matchesTeam) {
+                matchingContainerDocs.push(d);
             }
-            console.log(`--------------------------------------------------`);
-        }
+        });
 
-        console.log(`SUMMARY FOR PROGRAM "${progId}" TEAM "${targetTeamId}":`);
-        console.log(`Total Accepted Docs: ${acceptedDocs.length}`, acceptedDocs);
-        console.log(`Total Rejected Docs: ${rejectedDocs.length}`, rejectedDocs);
-        console.log(`Selected Container Doc ID: ${matchedDoc ? matchedDoc.id : 'NONE'}`);
-        console.log(`====================================================================`);
+        console.log(`[CONTAINER AUDIT] Found ${matchingContainerDocs.length} participant container document(s) for team "${targetTeamId}".`);
 
-        if (!matchedDoc) {
+        if (matchingContainerDocs.length === 0) {
             groups = [];
+            groupContainerRef = null;
             if (listEl) {
                 listEl.innerHTML = `
                     <div style="text-align:center; padding:2rem; color:var(--pw-slate-500); border: 1.5px dashed var(--pw-border); border-radius:var(--pw-radius-md); font-size:0.8rem;">
@@ -1285,13 +1226,84 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             return;
         }
 
-        const data = matchedDoc.data();
-        groupContainerRef = matchedDoc.ref;
-        groups = (data.groups || []).map(g => ({
-            id: g.id,
-            name: g.name,
-            members: g.members || []
-        }));
+        // Select Canonical Container
+        const canonicalDoc = matchingContainerDocs.find(d => isCategoryMatching(d.data().categoryId, selectedCategoryId, inheritedCategoryId, pType)) || matchingContainerDocs[0];
+        groupContainerRef = canonicalDoc.ref;
+
+        // STEP 1 & 4: Merge ALL groups[] arrays across all matching containers, deduplicating by group.id / unique signature
+        const mergedGroupsMap = new Map();
+        const groupSeenSignatures = new Set();
+
+        matchingContainerDocs.forEach(docSnap => {
+            const docData = docSnap.data();
+            const docGroupList = Array.isArray(docData.groups) ? docData.groups : [];
+
+            docGroupList.forEach(g => {
+                const groupMembers = (g.members || []).map(m => ({
+                    studentId: m.studentId || '',
+                    studentName: m.studentName || ''
+                }));
+                const memberSig = groupMembers.map(m => m.studentId).sort().join('_');
+                const sigKey = `${(g.name || '').trim().toLowerCase()}::${memberSig}`;
+
+                const gId = g.id || `grp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+                if (!mergedGroupsMap.has(gId) && !groupSeenSignatures.has(sigKey)) {
+                    groupSeenSignatures.add(sigKey);
+                    mergedGroupsMap.set(gId, {
+                        id: gId,
+                        name: g.name || 'Unnamed Group',
+                        members: groupMembers
+                    });
+                } else if (mergedGroupsMap.has(gId)) {
+                    // Merge members if group ID already tracked
+                    const existingGroup = mergedGroupsMap.get(gId);
+                    const existingMemberIds = new Set(existingGroup.members.map(m => m.studentId));
+                    groupMembers.forEach(m => {
+                        if (m.studentId && !existingMemberIds.has(m.studentId)) {
+                            existingMemberIds.add(m.studentId);
+                            existingGroup.members.push(m);
+                        }
+                    });
+                }
+            });
+        });
+
+        groups = Array.from(mergedGroupsMap.values());
+        console.log(`[MERGED RESULT] Successfully aggregated ${groups.length} unique group(s) across ${matchingContainerDocs.length} container doc(s).`);
+
+        // STEP 4: Self Healing - Consolidate duplicate containers if multiple exist
+        if (matchingContainerDocs.length > 1) {
+            console.warn(`[SELF HEALING] Multiple containers detected (${matchingContainerDocs.length}). Consolidating all groups into canonical doc ID: "${canonicalDoc.id}"...`);
+            try {
+                // Update canonical document with complete merged groups array
+                await setDoc(canonicalDoc.ref, {
+                    teamId: targetTeamId,
+                    teamName: selectedTeamId === 'teamless' ? 'No Team' : (teamById.get(selectedTeamId)?.name || ''),
+                    categoryId: selectedCategoryId || inheritedCategoryId || 'general_programs',
+                    classId: selectedClassId || '',
+                    programId: progId || '',
+                    type: 'group',
+                    groups: groups.map(g => ({
+                        id: g.id,
+                        name: g.name,
+                        members: g.members
+                    })),
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+
+                // Delete ONLY redundant secondary containers after successful merge write
+                const redundantDocs = matchingContainerDocs.filter(d => d.id !== canonicalDoc.id);
+                for (const dupDoc of redundantDocs) {
+                    console.log(`[SELF HEALING] Purging redundant container doc ID: "${dupDoc.id}"`);
+                    await deleteDoc(dupDoc.ref);
+                }
+                programParticipantsCache = null;
+                console.log(`[SELF HEALING COMPLETE] Consolidated ${matchingContainerDocs.length} containers into 1 canonical container.`);
+            } catch (err) {
+                console.error("[SELF HEALING ERROR] Failed to consolidate containers:", err);
+            }
+        }
 
         if (!groups.some(g => g.id === selectedGroupId)) {
             selectedGroupId = '';
@@ -1303,7 +1315,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     }
 
     async function persistGroups() {
-        console.log(`[AUDIT INSTRUMENTATION] persistGroups() invoked. Selected container ref: "${groupContainerRef ? groupContainerRef.id : 'NULL'}"`);
+        console.log(`[PERSIST GROUPS] Persisting ${groups.length} group(s). Selected container ref: "${groupContainerRef ? groupContainerRef.id : 'NULL'}"`);
         if (!groupContainerRef) {
             await getOrCreateTeamParticipantContainer();
         }
@@ -1319,7 +1331,6 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         }));
 
         const targetTeamId = window.normalizeTeamId(selectedTeamId);
-        console.log(`[AUDIT INSTRUMENTATION] Persisting ${normalizedGroups.length} group(s) into doc ID: "${groupContainerRef.id}" for teamId: "${targetTeamId}"`);
         await setDoc(groupContainerRef, {
             teamId: targetTeamId,
             teamName: targetTeamId === '' ? 'No Team' : (teamById.get(selectedTeamId)?.name || ''),
@@ -1330,9 +1341,11 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             groups: normalizedGroups,
             updatedAt: serverTimestamp()
         }, { merge: true });
-        await updateDashboardMetadata(window.currentInstituteId);
+
+        // STEP 6: Cache Safety - Invalidate memory cache to force fresh reads
         programParticipantsCache = null;
         registrationsByTeamCache.clear();
+        await updateDashboardMetadata(window.currentInstituteId);
     }
 
     async function updateGroup(groupId, updateFn) {
