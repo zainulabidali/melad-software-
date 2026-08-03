@@ -528,6 +528,47 @@ export async function migrateParticipantCounts(instituteId) {
     }
 }
 
+window.normalizeTeamId = function(teamId) {
+    return teamId === "teamless" ? "" : (teamId || "");
+};
+
+window.runTeamIdMigration = async function() {
+    try {
+        if (!window.currentInstituteId) {
+            console.error("Migration failed: window.currentInstituteId is not set. Are you logged in?");
+            return;
+        }
+        console.log("Starting teamId normalization migration...");
+        const programsSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs"));
+        let migratedCount = 0;
+        const batch = writeBatch(db);
+
+        for (const progDoc of programsSnap.docs) {
+            const progId = progDoc.id;
+            const partSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants"));
+
+            partSnap.forEach(partDoc => {
+                const data = partDoc.data();
+                if (data.teamId === "teamless") {
+                    batch.update(partDoc.ref, {
+                        teamId: "",
+                        teamName: "No Team"
+                    });
+                    migratedCount++;
+                }
+            });
+        }
+
+        if (migratedCount > 0) {
+            await batch.commit();
+            console.log(`Migration complete! Successfully updated ${migratedCount} participant documents.`);
+        } else {
+            console.log("Migration complete: No corrupted 'teamless' documents were found.");
+        }
+    } catch (e) {
+        console.error("Migration failed due to an error:", e);
+    }
+};
 
 export async function cleanupOrphanedTeamData(instituteId) {
     if (!instituteId) return;

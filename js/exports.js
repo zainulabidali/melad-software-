@@ -2469,8 +2469,9 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
 
     snap.docs.forEach(d => {
         const p = d.data();
-        if (p.teamId && activeTeamIds.size > 0 && !activeTeamIds.has(p.teamId)) return;
-        if (limitTeamId && p.teamId !== limitTeamId) return;
+        const normalizedId = window.normalizeTeamId ? window.normalizeTeamId(p.teamId) : (p.teamId === 'teamless' ? '' : (p.teamId || ''));
+        if (normalizedId && activeTeamIds.size > 0 && !activeTeamIds.has(normalizedId)) return;
+        if (limitTeamId && limitTeamId !== 'all' && limitTeamId !== 'All' && normalizedId !== limitTeamId) return;
 
 
         const isGroupData = p.type === 'group' || Array.isArray(p.groups) || pType === 'group' || pType === 'team' || pType === 'team-based' || pType === 'special';
@@ -2488,21 +2489,21 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
                         };
                     });
                     list.push({
-                        id: g.id || `${p.teamId || d.id}_${g.name || 'group'}`,
+                        id: g.id || `${normalizedId || d.id}_${g.name || 'group'}`,
                         isGroup: true,
                         name: g.name || p.teamName || 'Group',
                         teamName: p.teamName || '',
-                        teamId: p.teamId || '',
+                        teamId: normalizedId,
                         members: members
                     });
                 });
             } else {
                 list.push({
-                    id: p.teamId || d.id,
+                    id: normalizedId || d.id,
                     isGroup: true,
                     name: p.teamName || 'Team',
                     teamName: p.teamName || '',
-                    teamId: p.teamId || '',
+                    teamId: normalizedId,
                     members: []
                 });
             }
@@ -2513,7 +2514,7 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
                 name: resolvedStudent ? resolvedStudent.name : (p.studentName || '—'),
                 chestNumber: resolvedStudent ? resolvedStudent.chestNumber : (p.chestNumber || '—'),
                 teamName: p.teamName || '',
-                teamId: p.teamId || ''
+                teamId: normalizedId
             });
         }
     });

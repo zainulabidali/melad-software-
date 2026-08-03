@@ -957,7 +957,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             await loadResultsStatus();
             await loadAllTeamRegistrations();
 
-            const targetTeamId = selectedTeamId === 'teamless' ? '' : selectedTeamId;
+            const targetTeamId = window.normalizeTeamId(selectedTeamId);
             const studentsCacheKey = targetTeamId;
 
             if (!isGroupEvent) {
@@ -965,7 +965,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 progDocs.forEach(d => {
                     const data = d.data();
                     const matchesCategory = (pType === 'general') || ((data.categoryId || '') === inheritedCategoryId);
-                    if (data.type === 'individual' && (data.teamId || '') === targetTeamId && matchesCategory && data.studentId) {
+                    if (data.type === 'individual' && window.normalizeTeamId(data.teamId) === targetTeamId && matchesCategory && data.studentId) {
                         savedIndividualStudentIds.add(data.studentId);
                         participantDocIds.set(data.studentId, d.id);
                         assignedParticipantsAll.push({
@@ -1037,7 +1037,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 });
 
                 // Post-filtering safeties
-                studentsAll = studentsAll.filter(s => (s.teamId || '') === targetTeamId);
+                studentsAll = studentsAll.filter(s => window.normalizeTeamId(s.teamId) === targetTeamId);
                 if (genderFilter === 'Boys') {
                     studentsAll = studentsAll.filter(s => s.gender === 'Male');
                 } else if (genderFilter === 'Girls') {
@@ -1120,7 +1120,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     // 5. Group Persistence & Management Methods
     async function getOrCreateTeamParticipantContainer() {
         const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
-        const targetTeamId = selectedTeamId === 'teamless' ? '' : selectedTeamId;
+        const targetTeamId = window.normalizeTeamId(selectedTeamId);
         let q;
         if (pType === 'general' || selectedCategoryId === 'general_programs') {
             q = query(
@@ -1161,7 +1161,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     }
 
     async function loadGroupsForTeam() {
-        const targetTeamId = selectedTeamId === 'teamless' ? '' : selectedTeamId;
+        const targetTeamId = window.normalizeTeamId(selectedTeamId);
 
         const listEl = document.getElementById('pwGroupsList');
         if (listEl) listEl.innerHTML = `<div class="pw-empty">Loading groups...</div>`;
@@ -1170,7 +1170,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         const matchedDoc = progDocs.find(d => {
             const data = d.data();
             const matchesType = data.type === 'group';
-            const matchesTeam = (data.teamId || '') === targetTeamId;
+            const matchesTeam = window.normalizeTeamId(data.teamId) === targetTeamId;
             const matchesCategory = (pType === 'general' || selectedCategoryId === 'general_programs') ||
                 ((data.categoryId || '') === selectedCategoryId);
             return matchesType && matchesTeam && matchesCategory;
@@ -1221,10 +1221,10 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             }))
         }));
 
-        const targetTeamId = selectedTeamId === 'teamless' ? '' : selectedTeamId;
+        const targetTeamId = window.normalizeTeamId(selectedTeamId);
         await setDoc(groupContainerRef, {
             teamId: targetTeamId,
-            teamName: selectedTeamId === 'teamless' ? 'No Team' : (teamById.get(selectedTeamId)?.name || ''),
+            teamName: targetTeamId === '' ? 'No Team' : (teamById.get(selectedTeamId)?.name || ''),
             categoryId: selectedCategoryId || inheritedCategoryId || '',
             classId: selectedClassId || '',
             programId: progId || '',
@@ -2027,7 +2027,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             btn.textContent = 'Saving...';
             if (statusEl) statusEl.textContent = 'Saving participant registrations...';
 
-            const targetTeamId = selectedTeamId === 'teamless' ? '' : selectedTeamId;
+            const targetTeamId = window.normalizeTeamId(selectedTeamId);
 
             try {
                 const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
@@ -2045,7 +2045,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 existingSnap.forEach(d => {
                     const data = d.data();
                     const matchesCategory = (pType === 'general') || ((data.categoryId || '') === inheritedCategoryId);
-                    if (data.type === 'individual' && (data.teamId || '') === targetTeamId && matchesCategory && data.studentId) {
+                    if (data.type === 'individual' && window.normalizeTeamId(data.teamId) === targetTeamId && matchesCategory && data.studentId) {
                         existingStudentIds.add(data.studentId);
                     }
                 });
@@ -2195,8 +2195,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                 const updatedGroups = [...existingGroups, newGroup];
 
                 await setDoc(docRef, {
-                    teamId: selectedTeamId || '',
-                    teamName: teamById.get(selectedTeamId)?.name || '',
+                    teamId: window.normalizeTeamId(selectedTeamId),
+                    teamName: window.normalizeTeamId(selectedTeamId) === '' ? 'No Team' : (teamById.get(selectedTeamId)?.name || ''),
                     categoryId: inheritedCategoryId || '',
                     classId: selectedClassId || '',
                     programId: progId || '',
