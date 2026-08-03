@@ -1,7 +1,10 @@
-import { db, updateDashboardMetadata, invalidateTeamsCache, invalidateCategoriesCache, invalidateProgramsCache, getCachedCategories, getCachedPointsConfig, recalculateAllResultsPoints, invalidatePointsConfigCache, DEFAULT_GRADES, validateGradesConfig } from './firebase.js';
+import { db, storage, updateDashboardMetadata, invalidateTeamsCache, invalidateCategoriesCache, invalidateProgramsCache, getCachedCategories, getCachedPointsConfig, recalculateAllResultsPoints, invalidatePointsConfigCache, DEFAULT_GRADES, validateGradesConfig } from './firebase.js';
 import {
     collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+import {
+    ref, uploadBytes, getDownloadURL, deleteObject
+} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js";
 
 // ─────────────────────────────────────────────
 // View State & Cache
@@ -9,6 +12,7 @@ import {
 let localConfig = {};
 let recoveryBinItems = [];
 let activeResetType = null; // 'results' | 'registrations' | 'event' | 'factory'
+let selectedLogoFile = null;
 let selectedLogoBase64 = null;
 let isLogoRemoved = false;
 let localCategories = [];
@@ -49,6 +53,7 @@ export async function initSettingsView(container, topActions) {
 // ─────────────────────────────────────────────
 async function loadEventConfig() {
     const instId = window.currentInstituteId;
+    selectedLogoFile = null;
     selectedLogoBase64 = null;
     isLogoRemoved = false;
     try {
@@ -77,12 +82,33 @@ async function loadEventConfig() {
 
 async function saveEventConfig() {
     const instId = window.currentInstituteId;
+    if (!instId) return;
 
     let logoValue = localConfig.eventLogo || null;
+
     if (isLogoRemoved) {
+        if (localConfig.eventLogo && localConfig.eventLogo.startsWith('http')) {
+            try {
+                const storageRef = ref(storage, `institutes/${instId}/logo.png`);
+                await deleteObject(storageRef).catch(e => {
+                    console.warn("Storage logo deletion notice (safe fallback):", e);
+                });
+            } catch (e) {
+                console.warn("Storage deletion error:", e);
+            }
+        }
         logoValue = null;
-    } else if (selectedLogoBase64) {
-        logoValue = selectedLogoBase64;
+    } else if (selectedLogoFile) {
+        try {
+            showToast("⏳ Uploading logo to Firebase Storage...");
+            const storageRef = ref(storage, `institutes/${instId}/logo.png`);
+            await uploadBytes(storageRef, selectedLogoFile);
+            logoValue = await getDownloadURL(storageRef);
+        } catch (uploadErr) {
+            console.error("Firebase Storage Upload Error:", uploadErr);
+            showToast("❌ Failed to upload logo to Firebase Storage. Save cancelled.", "error");
+            return;
+        }
     }
 
     const configData = {
@@ -101,11 +127,12 @@ async function saveEventConfig() {
     };
 
     try {
-        await setDoc(doc(db, "institutes", instId, "metadata", "eventConfig"), configData);
-        localConfig = configData;
+        await setDoc(doc(db, "institutes", instId, "metadata", "eventConfig"), configData, { merge: true });
+        localConfig = { ...localConfig, ...configData };
+        selectedLogoFile = null;
         selectedLogoBase64 = null;
         isLogoRemoved = false;
-        window.currentEventDetails = configData;
+        window.currentEventDetails = localConfig;
 
         // Update UI state buttons
         const btnRemoveLogo = document.getElementById('btnRemoveLogo');
@@ -1534,10 +1561,12 @@ function bindFormEvents() {
                 return;
             }
 
+            selectedLogoFile = file;
+            isLogoRemoved = false;
+
             const reader = new FileReader();
             reader.onload = (evt) => {
                 selectedLogoBase64 = evt.target.result;
-                isLogoRemoved = false;
                 if (previewContainer) {
                     previewContainer.innerHTML = `<img id="eventLogoPreviewImg" src="${selectedLogoBase64}" style="max-width:100%; max-height:100%; object-fit:contain;" />`;
                 }
@@ -1551,6 +1580,7 @@ function bindFormEvents() {
 
     if (removeBtn) {
         removeBtn.onclick = () => {
+            selectedLogoFile = null;
             selectedLogoBase64 = null;
             isLogoRemoved = true;
             if (logoInput) logoInput.value = '';
@@ -1572,6 +1602,9 @@ function bindFormEvents() {
 
     if (resetBtn) {
         resetBtn.onclick = async () => {
+            selectedLogoFile = null;
+            selectedLogoBase64 = null;
+            isLogoRemoved = false;
             await loadEventConfig();
             document.getElementById('setEventName').value = localConfig.eventName || '';
             document.getElementById('setEventTagline').value = localConfig.eventTagline || '';

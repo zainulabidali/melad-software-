@@ -2716,7 +2716,7 @@ async function sharePosterContent(cardId) {
 // Start Portal Load
 init();
 
-window.addEventListener('unload', () => {
+window.addEventListener('pagehide', () => {
     if (activeResultUnsubscribe) {
         activeResultUnsubscribe();
     }
