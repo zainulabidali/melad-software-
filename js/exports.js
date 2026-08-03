@@ -2465,16 +2465,32 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
     const activeTeamIds = new Set((allTeams || []).map(t => t.id));
     const list = [];
 
+    console.log(`====================================================================`);
+    console.log(`[EXPORT AUDIT INSTRUMENTATION] loadParticipants() for Program "${prog.id}" ("${prog.programName}")`);
+    console.log(`Total documents read in participants subcollection: ${snap.docs.length}`);
+    console.log(`Filter limitTeamId: "${limitTeamId}"`);
 
-
-    snap.docs.forEach(d => {
+    snap.docs.forEach((d, idx) => {
         const p = d.data();
         const normalizedId = window.normalizeTeamId ? window.normalizeTeamId(p.teamId) : (p.teamId === 'teamless' ? '' : (p.teamId || ''));
-        if (normalizedId && activeTeamIds.size > 0 && !activeTeamIds.has(normalizedId)) return;
-        if (limitTeamId && limitTeamId !== 'all' && limitTeamId !== 'All' && normalizedId !== limitTeamId) return;
+        
+        let status = 'LOADED';
+        let skipReason = '';
 
+        if (normalizedId && activeTeamIds.size > 0 && !activeTeamIds.has(normalizedId)) {
+            status = 'SKIPPED';
+            skipReason = `teamId "${normalizedId}" not in activeTeamIds`;
+        } else if (limitTeamId && limitTeamId !== 'all' && limitTeamId !== 'All' && normalizedId !== limitTeamId) {
+            status = 'SKIPPED';
+            skipReason = `normalizedId "${normalizedId}" !== limitTeamId "${limitTeamId}"`;
+        }
 
         const isGroupData = p.type === 'group' || Array.isArray(p.groups) || pType === 'group' || pType === 'team' || pType === 'team-based' || pType === 'special';
+        const groupsCount = Array.isArray(p.groups) ? p.groups.length : 0;
+
+        console.log(`  Export Doc #${idx + 1} ID: "${d.id}" | Status: ${status} ${skipReason ? `(Reason: ${skipReason})` : ''} | type: "${p.type}" | teamId: "${normalizedId}" | categoryId: "${p.categoryId}" | groups.length: ${groupsCount}`);
+
+        if (status === 'SKIPPED') return;
 
         if (isGroupData) {
             const groups = Array.isArray(p.groups) ? p.groups : [];
@@ -2518,6 +2534,9 @@ async function loadParticipants(prog, limitTeamId, studentMap = {}) {
             });
         }
     });
+
+    console.log(`[EXPORT AUDIT INSTRUMENTATION] Total items exported for Program "${prog.id}": ${list.length}`);
+    console.log(`====================================================================`);
 
 
     // De-duplicate list items by unique key (teamId + group name + member chests)

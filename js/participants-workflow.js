@@ -1135,6 +1135,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
     // 5. Group Persistence & Management Methods
     async function getOrCreateTeamParticipantContainer() {
+        console.log(`[AUDIT INSTRUMENTATION] getOrCreateTeamParticipantContainer() invoked for programId: "${progId}", teamId: "${selectedTeamId}"`);
         const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
         const targetTeamId = window.normalizeTeamId(selectedTeamId);
         const q = query(
@@ -1143,15 +1144,25 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             where('teamId', '==', targetTeamId)
         );
         const snap = await getDocs(q);
+        console.log(`[AUDIT INSTRUMENTATION] getOrCreate query result count: ${snap.docs.length}`);
+        snap.docs.forEach((d, i) => {
+            const data = d.data();
+            console.log(`  Query Doc #${i+1} ID: "${d.id}", categoryId: "${data.categoryId}", groups.length: ${Array.isArray(data.groups) ? data.groups.length : 0}`);
+        });
+
         if (!snap.empty) {
             const matched = snap.docs.find(d => isCategoryMatching(d.data().categoryId, selectedCategoryId, inheritedCategoryId, pType));
             if (matched) {
+                console.log(`[AUDIT INSTRUMENTATION] Matched existing container doc ID: "${matched.id}" via isCategoryMatching()`);
                 groupContainerRef = matched.ref;
                 return { ref: matched.ref, data: matched.data() };
+            } else {
+                console.warn(`[AUDIT INSTRUMENTATION] Found ${snap.docs.length} container doc(s) for teamId "${targetTeamId}", but NONE matched categoryId ("${selectedCategoryId}" / "${inheritedCategoryId}")!`);
             }
         }
 
         const newRef = doc(partRef);
+        console.warn(`[AUDIT INSTRUMENTATION] ⚠ CREATING NEW CONTAINER DOC! ID: "${newRef.id}" for teamId: "${targetTeamId}"`);
         await setDoc(newRef, {
             teamId: targetTeamId,
             teamName: selectedTeamId === 'teamless' ? 'No Team' : (teamById.get(selectedTeamId)?.name || ''),
@@ -1175,10 +1186,38 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         if (listEl) listEl.innerHTML = `<div class="pw-empty">Loading groups...</div>`;
 
         const progDocs = await getProgramParticipantsDocs();
-        console.log(`================ AUDIT TRACE FOR PROGRAM: ${progId} ================`);
-        console.log(`Total documents found in participants collection: ${progDocs.length}`);
+        console.log(`====================================================================`);
+        console.log(`[AUDIT INSTRUMENTATION] LOAD GROUPS FOR TEAM`);
+        console.log(`Program ID: ${progId}`);
+        console.log(`Selected Team: ${selectedTeamId} (normalized: "${targetTeamId}")`);
+        console.log(`Selected Category ID: "${selectedCategoryId}" (inherited: "${inheritedCategoryId}")`);
+        console.log(`Total documents in participants collection: ${progDocs.length}`);
+        console.log(`====================================================================`);
         
+        // Fragmentation & Duplicate Container Detection
+        const containersByTeam = new Map();
+        progDocs.forEach(d => {
+            const data = d.data();
+            if (data.type === 'group' || Array.isArray(data.groups)) {
+                const tId = window.normalizeTeamId(data.teamId);
+                if (!containersByTeam.has(tId)) containersByTeam.set(tId, []);
+                containersByTeam.get(tId).push({ id: d.id, categoryId: data.categoryId, groupsCount: Array.isArray(data.groups) ? data.groups.length : 0 });
+            }
+        });
+
+        containersByTeam.forEach((docsList, tId) => {
+            if (docsList.length > 1) {
+                console.warn(`⚠ DUPLICATE CONTAINER DETECTED for teamId "${tId}" (${docsList.length} documents):`);
+                docsList.forEach(item => {
+                    console.warn(`   - Doc ID: "${item.id}", categoryId: "${item.categoryId}", groups.length: ${item.groupsCount}`);
+                });
+            }
+        });
+
+        const acceptedDocs = [];
+        const rejectedDocs = [];
         let matchedDoc = null;
+
         for (const d of progDocs) {
             const data = d.data();
             const rawTeamId = data.teamId;
@@ -1189,42 +1228,48 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
             const isAccepted = matchesType && matchesTeam && matchesCategory;
 
+            const groupArray = Array.isArray(data.groups) ? data.groups : [];
+            const totalMembersCount = groupArray.reduce((acc, g) => acc + (g.members?.length || 0), 0);
+            const groupNamesList = groupArray.map(g => g.name || 'Unnamed Group').join(', ');
+
             console.log(`--- Participant Document [${d.id}] ---`);
             console.log(`Document ID: ${d.id}`);
-            console.log(`programId: ${data.programId || progId}`);
-            console.log(`type: ${data.type}`);
-            console.log(`teamId (raw): ${JSON.stringify(rawTeamId)}`);
-            console.log(`teamId (normalized): ${JSON.stringify(normDocTeamId)}`);
+            console.log(`teamId: ${JSON.stringify(rawTeamId)} (normalized: ${JSON.stringify(normDocTeamId)})`);
             console.log(`teamName: ${JSON.stringify(data.teamName)}`);
-            console.log(`categoryId (raw): ${JSON.stringify(data.categoryId)}`);
-            console.log(`groups count: ${Array.isArray(data.groups) ? data.groups.length : 0}`);
-            if (Array.isArray(data.groups)) {
-                data.groups.forEach((g, idx) => {
-                    const mIds = (g.members || []).map(m => m.studentId);
-                    console.log(`  Group #${idx + 1}: Name="${g.name}", Members=${g.members?.length || 0}, StudentIDs=[${mIds.join(', ')}]`);
-                });
-            }
-            console.log(`EVALUATION COMPARISONS:`);
-            console.log(`  targetTeamId: ${JSON.stringify(targetTeamId)}`);
-            console.log(`  data.teamId: ${JSON.stringify(rawTeamId)} => matchesTeam: ${matchesTeam}`);
-            console.log(`  selectedCategoryId: ${JSON.stringify(selectedCategoryId)}`);
-            console.log(`  inheritedCategoryId: ${JSON.stringify(inheritedCategoryId)}`);
-            console.log(`  data.categoryId: ${JSON.stringify(data.categoryId)} => matchesCategory: ${matchesCategory}`);
-            console.log(`  matchesType: ${matchesType}`);
-            console.log(`VERDICT: ${isAccepted ? '✅ LOADED' : '❌ REJECTED'}`);
-            if (!isAccepted) {
+            console.log(`categoryId: ${JSON.stringify(data.categoryId)}`);
+            console.log(`type: ${JSON.stringify(data.type)}`);
+            console.log(`groups.length: ${groupArray.length}`);
+            console.log(`group names: ${groupNamesList || '(none)'}`);
+            console.log(`member count: ${totalMembersCount}`);
+            console.log(`createdAt: ${data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : JSON.stringify(data.createdAt)}`);
+            console.log(`updatedAt: ${data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : JSON.stringify(data.updatedAt)}`);
+
+            if (isAccepted) {
+                acceptedDocs.push({ id: d.id, groupsCount: groupArray.length, membersCount: totalMembersCount });
+                console.log(`VERDICT: ✅ ACCEPTED`);
+                if (!matchedDoc) {
+                    matchedDoc = d;
+                    console.log(`SELECTED FOR UI: Yes (First matched document)`);
+                } else {
+                    console.warn(`SELECTED FOR UI: No (IGNORED because another matched doc "${matchedDoc.id}" was already selected!)`);
+                }
+            } else {
                 const reasons = [];
                 if (!matchesType) reasons.push('type is not group');
                 if (!matchesTeam) reasons.push(`teamId mismatch ("${rawTeamId}" vs "${targetTeamId}")`);
                 if (!matchesCategory) reasons.push(`categoryId mismatch ("${data.categoryId}" vs "${selectedCategoryId}"/"${inheritedCategoryId}")`);
-                console.log(`REJECTION REASON: ${reasons.join(' AND ')}`);
+                const reasonStr = reasons.join(' AND ');
+                rejectedDocs.push({ id: d.id, reason: reasonStr });
+                console.log(`VERDICT: ❌ REJECTED`);
+                console.log(`REJECTION REASON: ${reasonStr}`);
             }
             console.log(`--------------------------------------------------`);
-
-            if (isAccepted && !matchedDoc) {
-                matchedDoc = d;
-            }
         }
+
+        console.log(`SUMMARY FOR PROGRAM "${progId}" TEAM "${targetTeamId}":`);
+        console.log(`Total Accepted Docs: ${acceptedDocs.length}`, acceptedDocs);
+        console.log(`Total Rejected Docs: ${rejectedDocs.length}`, rejectedDocs);
+        console.log(`Selected Container Doc ID: ${matchedDoc ? matchedDoc.id : 'NONE'}`);
         console.log(`====================================================================`);
 
         if (!matchedDoc) {
@@ -1258,6 +1303,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     }
 
     async function persistGroups() {
+        console.log(`[AUDIT INSTRUMENTATION] persistGroups() invoked. Selected container ref: "${groupContainerRef ? groupContainerRef.id : 'NULL'}"`);
         if (!groupContainerRef) {
             await getOrCreateTeamParticipantContainer();
         }
@@ -1273,6 +1319,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         }));
 
         const targetTeamId = window.normalizeTeamId(selectedTeamId);
+        console.log(`[AUDIT INSTRUMENTATION] Persisting ${normalizedGroups.length} group(s) into doc ID: "${groupContainerRef.id}" for teamId: "${targetTeamId}"`);
         await setDoc(groupContainerRef, {
             teamId: targetTeamId,
             teamName: targetTeamId === '' ? 'No Team' : (teamById.get(selectedTeamId)?.name || ''),
