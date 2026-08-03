@@ -739,8 +739,8 @@ export async function initScheduleView(container, topActions) {
 // ─────────────────────────────────────────────
 function bindHeaderEvents() {
     document.getElementById('btnCreateStageTop')?.addEventListener('click', openCreateStageModal);
-    document.getElementById('btnPrintStage')?.addEventListener('click', printActiveStage);
-    document.getElementById('btnPDFStage')?.addEventListener('click', printActiveStage);
+    document.getElementById('btnPrintStage')?.addEventListener('click', openPrintSelectionModal);
+    document.getElementById('btnPDFStage')?.addEventListener('click', openPrintSelectionModal);
     document.getElementById('btnShareStage')?.addEventListener('click', shareActiveStageWhatsApp);
 
     // Bulk header trigger
@@ -870,7 +870,7 @@ function mergeAndRender() {
             scheduleDate: sched.scheduleDate || prog.scheduleDate || stageConfigs[sched.stage]?.date || '',
             startTime: sched.startTime || prog.startTime || '',
             endTime: sched.endTime || prog.endTime || '',
-            duration: parseInt(sched.duration, 10) || 20,
+            duration: parseInt(sched.duration, 10) || (sched.startTime && sched.endTime ? Math.max(0, timeToMinutes(sched.endTime) - timeToMinutes(sched.startTime)) : 0) || 20,
             runningOrder: parseInt(sched.runningOrder, 10) || 1,
             status: sched.status || 'Pending',
             isLocked: !!sched.isLocked,
@@ -976,6 +976,16 @@ function formatTimeTo12Hour(timeStr) {
     h = h % 12;
     if (h === 0) h = 12;
     return `${h}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+function formatDateForDisplay(dateStr) {
+    if (!dateStr) return '—';
+    const str = String(dateStr).trim();
+    const parts = str.split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return str;
 }
 
 // Automatically recalculates Start and End times down the active stage table (Disabled for manual scheduling)
@@ -1764,16 +1774,19 @@ function attachTableEvents(tbody, activeItems) {
                 return;
             }
 
+            const calcDur = endMins - startMins;
+
             const item = activeItems.find(x => x.id === id);
             if (item) {
                 item.startTime = startVal;
                 item.endTime = endVal;
+                item.duration = calcDur;
             }
 
             const instId = window.currentInstituteId;
             try {
                 await updateDoc(doc(db, "institutes", instId, "schedules", id), {
-                    startTime: startVal, endTime: endVal, updatedAt: serverTimestamp()
+                    startTime: startVal, endTime: endVal, duration: calcDur, updatedAt: serverTimestamp()
                 });
             } catch (err) { console.warn("schedules update:", err); }
 
@@ -2023,6 +2036,8 @@ function openAddBreakModal() {
             const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
             const isOff = activeStage.toLowerCase().includes('off stage');
 
+            const calcDur = (eMins > sMins) ? (eMins - sMins) : 20;
+
             const newDocRef = doc(collection(db, "institutes", window.currentInstituteId, "schedules"));
             await setDoc(newDocRef, {
                 isBreak: true,
@@ -2033,6 +2048,7 @@ function openAddBreakModal() {
                 scheduleDate: bDate,
                 startTime: bStart,
                 endTime: bEnd,
+                duration: calcDur,
                 runningOrder: activeItems.length + 1,
                 status: 'Scheduled',
                 isOffStage: isOff,
@@ -2391,6 +2407,12 @@ async function openAddProgramRowModal() {
             const sStart = prog.startTime || '09:00';
             const sEnd = prog.endTime || '09:30';
 
+            const durInputVal = parseInt(document.getElementById('selProgDur')?.value, 10);
+            const sMins = timeToMinutes(sStart);
+            const eMins = timeToMinutes(sEnd);
+            const calcDur = (eMins > sMins) ? (eMins - sMins) : 20;
+            const durVal = !isNaN(durInputVal) && durInputVal > 0 ? durInputVal : calcDur;
+
             const newDocRef = doc(collection(db, "institutes", window.currentInstituteId, "schedules"));
             await setDoc(newDocRef, {
                 programId: progId,
@@ -2399,6 +2421,7 @@ async function openAddProgramRowModal() {
                 scheduleDate: sDate,
                 startTime: sStart,
                 endTime: sEnd,
+                duration: durVal,
                 runningOrder: activeItems.length + 1,
                 status: 'Pending',
                 isOffStage: isOff,
@@ -2618,59 +2641,158 @@ function shareActiveStageWhatsApp() {
 // ─────────────────────────────────────────────
 // Stage-Specific Dedicated Print & PDF Generator
 // ─────────────────────────────────────────────
-function printActiveStage() {
-    const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
-    activeItems.sort((a, b) => a.runningOrder - b.runningOrder);
+function openPrintSelectionModal() {
+    const modalTitle = document.getElementById('dynamicModalTitle');
+    const modalBody = document.getElementById('dynamicModalBody');
+    const modalOverlay = document.getElementById('dynamicModal');
 
+    if (!modalTitle || !modalBody || !modalOverlay) return;
+
+    modalTitle.textContent = `🖨️ Print Competition Schedule`;
+
+    const totalStagesCount = localStages.length || 1;
+
+    modalBody.innerHTML = `
+        <form id="printScheduleOptionsForm">
+            <div style="margin-bottom: 1.25rem;">
+                <label style="font-weight: 700; font-size: 0.9rem; color: #1e293b; display: block; margin-bottom: 0.75rem;">
+                    Select Print Mode
+                </label>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem; background: #f8fafc; padding: 1rem; border-radius: 12px; border: 1px solid #cbd5e1;">
+                    <label style="display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; color: #334155; font-size: 0.9rem;">
+                        <input type="radio" name="printMode" value="current" checked style="width: 18px; height: 18px; accent-color: #4338ca; cursor: pointer;">
+                        <span>Current Stage Only (${window.escapeHTML(activeStage || 'Current Stage')})</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; color: #334155; font-size: 0.9rem;">
+                        <input type="radio" name="printMode" value="all" style="width: 18px; height: 18px; accent-color: #4338ca; cursor: pointer;">
+                        <span>All Stages (${totalStagesCount} ${totalStagesCount === 1 ? 'Stage' : 'Stages'})</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-actions" style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 1.25rem;">
+                <button type="button" class="btn btn-secondary" id="btnCancelPrintModal" style="font-weight: 700;">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="font-weight: 700; background: #4338ca; border-color: #4338ca; padding: 0.5rem 1.25rem;">Generate PDF</button>
+            </div>
+        </form>
+    `;
+
+    modalOverlay.classList.remove('hidden');
+
+    const closeModal = () => modalOverlay.classList.add('hidden');
+    document.getElementById('closeDynamicModalBtn').onclick = closeModal;
+    document.getElementById('btnCancelPrintModal').onclick = closeModal;
+
+    document.getElementById('printScheduleOptionsForm').onsubmit = (e) => {
+        e.preventDefault();
+        const selectedMode = document.querySelector('input[name="printMode"]:checked')?.value || 'current';
+        closeModal();
+        executeSchedulePrint(selectedMode);
+    };
+}
+
+function executeSchedulePrint(mode = 'current') {
     const instName = window.currentEventDetails?.eventName || window.currentInstituteDetails?.name || 'Admin Portal';
-    const stageDate = stageConfigs[activeStage]?.date || 'N/A';
-
-    let rowsHTML = '';
-    if (activeItems.length === 0) {
-        rowsHTML = `<tr><td colspan="5" style="text-align:center; padding:15px; color:#64748b;">No programs scheduled for this stage.</td></tr>`;
+    
+    let targetStages = [];
+    if (mode === 'all') {
+        if (localStages && localStages.length > 0) {
+            targetStages = localStages.map(s => s.name || s.stageName).filter(Boolean);
+        }
+        if (targetStages.length === 0) {
+            const uniqueSet = new Set(mergedSchedules.map(s => s.stage).filter(Boolean));
+            targetStages = Array.from(uniqueSet);
+        }
+        if (targetStages.length === 0 && activeStage) {
+            targetStages = [activeStage];
+        }
     } else {
-        rowsHTML = activeItems.map((item, idx) => {
-            if (item.isBreak) {
-                const icon = getBreakIcon(item.programName);
+        targetStages = [activeStage || 'Stage'];
+    }
+
+    let stagesHTML = '';
+
+    targetStages.forEach((stName) => {
+        const activeItems = mergedSchedules.filter(s => s.stage === stName);
+        activeItems.sort((a, b) => a.runningOrder - b.runningOrder);
+
+        let rowsHTML = '';
+        if (activeItems.length === 0) {
+            rowsHTML = `<tr><td colspan="5" style="text-align:center; padding:15px; color:#64748b;">No programs scheduled for this stage.</td></tr>`;
+        } else {
+            rowsHTML = activeItems.map((item, idx) => {
+                const itemDate = formatDateForDisplay(item.scheduleDate || stageConfigs[stName]?.date);
+                if (item.isBreak) {
+                    const icon = getBreakIcon(item.programName);
+                    return `
+                        <tr style="background-color: #fffbeb;">
+                            <td style="text-align:center; font-weight:700; color:#b45309; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${idx + 1}</td>
+                            <td style="padding:6px 10px; border:1px solid #cbd5e1; color:#78350f; word-wrap:break-word;">
+                                <div style="font-weight:800; font-size:13px; line-height:1.25; color:#78350f;">
+                                    ${icon} ${window.escapeHTML(item.programName)} <span style="font-size:10px; background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:4px; margin-left:6px; border:1px solid #fde68a; font-weight:800;">BREAK</span>
+                                </div>
+                            </td>
+                            <td style="text-align:center; color:#78350f; font-weight:600; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${itemDate}</td>
+                            <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#b45309; font-size:12px;">${formatTimeTo12Hour(item.startTime) || '—'}</td>
+                            <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#b45309; font-size:12px;">${formatTimeTo12Hour(item.endTime) || '—'}</td>
+                        </tr>
+                    `;
+                }
+
                 return `
-                    <tr style="background-color: #fffbeb;">
-                        <td style="text-align:center; font-weight:700; color:#b45309; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${idx + 1}</td>
-                        <td style="padding:6px 10px; border:1px solid #cbd5e1; color:#78350f; word-wrap:break-word;">
-                            <div style="font-weight:800; font-size:13px; line-height:1.25; color:#78350f;">
-                                ${icon} ${window.escapeHTML(item.programName)} <span style="font-size:10px; background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:4px; margin-left:6px; border:1px solid #fde68a; font-weight:800;">BREAK</span>
+                    <tr>
+                        <td style="text-align:center; font-weight:700; color:#334155; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${idx + 1}</td>
+                        <td style="padding:6px 10px; border:1px solid #cbd5e1; color:#0f172a; word-wrap:break-word;">
+                            <div style="font-weight:700; font-size:13px; line-height:1.25; color:#0f172a;">
+                                ${item.programNumber ? `<span style="color:#3730a3; font-weight:800; margin-right:4px;">[#${item.programNumber}]</span>` : ''}${window.escapeHTML(item.programName)}
+                            </div>
+                            <div style="font-size:10.5px; color:#64748b; font-weight:500; margin-top:2px; line-height:1.2;">
+                                ${window.escapeHTML(item.categoryName || 'Uncategorized')}
                             </div>
                         </td>
-                        <td style="text-align:center; color:#b45309; font-weight:600; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${item.duration} mins</td>
-                        <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#b45309; font-size:12px;">${formatTimeTo12Hour(item.startTime) || '—'}</td>
-                        <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#b45309; font-size:12px;">${formatTimeTo12Hour(item.endTime) || '—'}</td>
+                        <td style="text-align:center; color:#334155; font-weight:600; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${itemDate}</td>
+                        <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${formatTimeTo12Hour(item.startTime) || '—'}</td>
+                        <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${formatTimeTo12Hour(item.endTime) || '—'}</td>
                     </tr>
                 `;
-            }
+            }).join('');
+        }
 
-            return `
-                <tr>
-                    <td style="text-align:center; font-weight:700; color:#334155; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${idx + 1}</td>
-                    <td style="padding:6px 10px; border:1px solid #cbd5e1; color:#0f172a; word-wrap:break-word;">
-                        <div style="font-weight:700; font-size:13px; line-height:1.25; color:#0f172a;">
-                            ${item.programNumber ? `<span style="color:#3730a3; font-weight:800; margin-right:4px;">[#${item.programNumber}]</span>` : ''}${window.escapeHTML(item.programName)}
-                        </div>
-                        <div style="font-size:10.5px; color:#64748b; font-weight:500; margin-top:2px; line-height:1.2;">
-                            ${window.escapeHTML(item.categoryName || 'Uncategorized')}
-                        </div>
-                    </td>
-                    <td style="text-align:center; color:#334155; font-weight:600; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${item.duration} mins</td>
-                    <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${formatTimeTo12Hour(item.startTime) || '—'}</td>
-                    <td style="text-align:center; font-weight:700; padding:6px 10px; border:1px solid #cbd5e1; color:#1e40af; font-size:12px;">${formatTimeTo12Hour(item.endTime) || '—'}</td>
-                </tr>
-            `;
-        }).join('');
-    }
+        stagesHTML += `
+            <div class="stage-print-block">
+                <div class="print-header">
+                    <h1>${window.escapeHTML(instName)}</h1>
+                    <h2>COMPETITION SCHEDULE - ${window.escapeHTML(stName.toUpperCase())}</h2>
+                    <p>Total Programs: ${activeItems.length}</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:50px; text-align:center;">SL NO</th>
+                            <th style="text-align:left;">PROGRAM NAME</th>
+                            <th style="width:110px; text-align:center;">DATE</th>
+                            <th style="width:105px; text-align:center;">START TIME</th>
+                            <th style="width:105px; text-align:center;">END TIME</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHTML}
+                    </tbody>
+                </table>
+                <div class="footer">
+                    <span>Generated on: ${new Date().toLocaleString()}</span>
+                    <span>Meelad Software Schedule Management</span>
+                </div>
+            </div>
+        `;
+    });
+
+    const docTitle = (mode === 'all') ? `${instName} - All Stages Schedule` : `${instName} - ${activeStage} Schedule`;
 
     const printHTML = `
         <!DOCTYPE html>
         <html>
         <head>
-            <title>${window.escapeHTML(instName)} - ${window.escapeHTML(activeStage)} Schedule</title>
+            <title>${window.escapeHTML(docTitle)}</title>
             <style>
                 @page {
                     size: A4 portrait;
@@ -2691,6 +2813,15 @@ function printActiveStage() {
                 .print-container {
                     width: 100%;
                     margin: 0 auto;
+                }
+                .stage-print-block {
+                    page-break-after: always;
+                    break-after: page;
+                    width: 100%;
+                }
+                .stage-print-block:last-child {
+                    page-break-after: auto;
+                    break-after: auto;
                 }
                 .print-header {
                     text-align: center;
@@ -2754,29 +2885,7 @@ function printActiveStage() {
         </head>
         <body>
             <div class="print-container">
-                <div class="print-header">
-                    <h1>${window.escapeHTML(instName)}</h1>
-                    <h2>COMPETITION SCHEDULE - ${window.escapeHTML(activeStage.toUpperCase())}</h2>
-                    <p>Date: ${window.escapeHTML(stageDate)} &nbsp;|&nbsp; Total Programs: ${activeItems.length}</p>
-                </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th style="width:50px; text-align:center;">SL#</th>
-                            <th style="text-align:left;">PROGRAM NAME</th>
-                            <th style="width:95px; text-align:center;">DURATION</th>
-                            <th style="width:105px; text-align:center;">START TIME</th>
-                            <th style="width:105px; text-align:center;">END TIME</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rowsHTML}
-                    </tbody>
-                </table>
-                <div class="footer">
-                    <span>Generated on: ${new Date().toLocaleString()}</span>
-                    <span>Meelad Software Schedule Management</span>
-                </div>
+                ${stagesHTML}
             </div>
         </body>
         </html>
