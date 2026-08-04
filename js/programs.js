@@ -17,6 +17,12 @@ let localParticipants = [];
 let localResults = [];
 let participantUnsubs = [];
 
+// Protection & Mutex Guards against Duplicate Save / Delete Execution
+let isProgramSaveInProgress = false;
+let activeDeleteProgramIds = new Set();
+let isBackfillingProgramNumbers = false;
+let containerClickHandlerRef = null;
+
 // ─────────────────────────────────────────────
 // Init View
 // ─────────────────────────────────────────────
@@ -182,16 +188,24 @@ export async function initProgramsView(container, topActions) {
         participantUnsubs.forEach(unsub => unsub());
         participantUnsubs = [];
         window.removeEventListener('scroll', handleScroll, true);
+        if (containerClickHandlerRef && container) {
+            container.removeEventListener('click', containerClickHandlerRef);
+            containerClickHandlerRef = null;
+        }
     };
 
-    // Single delegated click listener on container for prog-dots-btn
-    container.addEventListener('click', (e) => {
+    // Single delegated click listener on container for prog-dots-btn with teardown tracking
+    if (containerClickHandlerRef && container) {
+        container.removeEventListener('click', containerClickHandlerRef);
+    }
+    containerClickHandlerRef = (e) => {
         const dotsBtn = e.target.closest('.prog-dots-btn');
         if (dotsBtn) {
             e.stopPropagation();
             openProgramsDropdown(dotsBtn);
         }
-    });
+    };
+    container.addEventListener('click', containerClickHandlerRef);
 
     // Start live sync of all programs immediately
     loadProgramsAllData();
@@ -641,6 +655,18 @@ function openProgramModal(progId = null, data = {}) {
 
         document.getElementById('programForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+
+            if (isProgramSaveInProgress) return;
+            isProgramSaveInProgress = true;
+
+            const btn = document.getElementById('saveProgBtn');
+            const text = btn?.querySelector('.btn-text');
+            const spinner = btn?.querySelector('.btn-spinner');
+
+            if (btn) btn.disabled = true;
+            if (text) text.classList.add('hidden');
+            if (spinner) spinner.classList.remove('hidden');
+
             const type = document.getElementById('pType').value;
             const gsRaw = document.getElementById('pGroupSize').value.trim();
 
@@ -648,16 +674,13 @@ function openProgramModal(progId = null, data = {}) {
                 const gsNum = parseInt(gsRaw, 10);
                 if (!gsRaw || isNaN(gsNum) || gsNum < 2) {
                     window.showToast("Group size must be 2 or more.", "error");
+                    isProgramSaveInProgress = false;
+                    if (btn) btn.disabled = false;
+                    if (text) text.classList.remove('hidden');
+                    if (spinner) spinner.classList.add('hidden');
                     return;
                 }
             }
-
-            const btn = document.getElementById('saveProgBtn');
-            const text = btn.querySelector('.btn-text');
-            const spinner = btn.querySelector('.btn-spinner');
-            btn.disabled = true;
-            text.classList.add('hidden');
-            spinner.classList.remove('hidden');
 
             try {
                 const payload = {
@@ -696,9 +719,10 @@ function openProgramModal(progId = null, data = {}) {
                 console.error(err);
                 window.showToast("Error saving program.", "error");
             } finally {
-                btn.disabled = false;
-                text.classList.remove('hidden');
-                spinner.classList.add('hidden');
+                isProgramSaveInProgress = false;
+                if (btn) btn.disabled = false;
+                if (text) text.classList.remove('hidden');
+                if (spinner) spinner.classList.add('hidden');
             }
         });
     } else {
@@ -930,6 +954,17 @@ function openProgramModal(progId = null, data = {}) {
 
         // Save selected batch programs
         document.getElementById('bulkSaveBtn').onclick = async () => {
+            if (isProgramSaveInProgress) return;
+            isProgramSaveInProgress = true;
+
+            const btn = document.getElementById('bulkSaveBtn');
+            const text = document.getElementById('bulkSaveText');
+            const spinner = document.getElementById('bulkSaveSpinner');
+
+            if (btn) btn.disabled = true;
+            if (text) text.classList.add('hidden');
+            if (spinner) spinner.classList.remove('hidden');
+
             const catId = document.getElementById('bulkCat').value;
             const typeScope = document.getElementById('bulkTypeScope').value;
             const gender = document.getElementById('bulkGender').value;
@@ -944,6 +979,10 @@ function openProgramModal(progId = null, data = {}) {
                 const name = row.querySelector('.bulk-row-name').value.trim();
                 if (!name) {
                     window.showToast("Program name cannot be blank.", "error");
+                    isProgramSaveInProgress = false;
+                    if (btn) btn.disabled = false;
+                    if (text) text.classList.remove('hidden');
+                    if (spinner) spinner.classList.add('hidden');
                     return;
                 }
 
@@ -957,6 +996,10 @@ function openProgramModal(progId = null, data = {}) {
                         const sizeNum = parseInt(sizeVal, 10);
                         if (!sizeVal || isNaN(sizeNum) || sizeNum < 2) {
                             window.showToast(`Group size for program "${name}" must be 2 or more.`, "error");
+                            isProgramSaveInProgress = false;
+                            if (btn) btn.disabled = false;
+                            if (text) text.classList.remove('hidden');
+                            if (spinner) spinner.classList.add('hidden');
                             return;
                         }
                         maxParticipants = sizeNum;
@@ -976,6 +1019,10 @@ function openProgramModal(progId = null, data = {}) {
                         const sizeNum = parseInt(sizeVal, 10);
                         if (sizeVal && (isNaN(sizeNum) || sizeNum < 2)) {
                             window.showToast(`Group size for program "${name}" must be 2 or more.`, "error");
+                            isProgramSaveInProgress = false;
+                            if (btn) btn.disabled = false;
+                            if (text) text.classList.remove('hidden');
+                            if (spinner) spinner.classList.add('hidden');
                             return;
                         }
                         maxParticipants = sizeNum || null;
@@ -998,6 +1045,10 @@ function openProgramModal(progId = null, data = {}) {
 
             if (selectedPayloads.length === 0) {
                 window.showToast("No programs selected for creation.", "error");
+                isProgramSaveInProgress = false;
+                if (btn) btn.disabled = false;
+                if (text) text.classList.remove('hidden');
+                if (spinner) spinner.classList.add('hidden');
                 return;
             }
 
@@ -1017,16 +1068,14 @@ function openProgramModal(progId = null, data = {}) {
             }
             if (hasDuplicate) {
                 const proceed = await window.customConfirm("Warning: One or more of the programs already exists in this category/gender/location combination. Do you still want to proceed and create duplicates?");
-                if (!proceed) return;
+                if (!proceed) {
+                    isProgramSaveInProgress = false;
+                    if (btn) btn.disabled = false;
+                    if (text) text.classList.remove('hidden');
+                    if (spinner) spinner.classList.add('hidden');
+                    return;
+                }
             }
-
-            const btn = document.getElementById('bulkSaveBtn');
-            const text = document.getElementById('bulkSaveText');
-            const spinner = document.getElementById('bulkSaveSpinner');
-
-            btn.disabled = true;
-            text.classList.add('hidden');
-            spinner.classList.remove('hidden');
 
             try {
                 const progCollection = collection(db, "institutes", window.currentInstituteId, "programs");
@@ -1052,9 +1101,10 @@ function openProgramModal(progId = null, data = {}) {
                 console.error("Bulk save error:", err);
                 window.showToast("Error saving programs.", "error");
             } finally {
-                btn.disabled = false;
-                text.classList.remove('hidden');
-                spinner.classList.add('hidden');
+                isProgramSaveInProgress = false;
+                if (btn) btn.disabled = false;
+                if (text) text.classList.remove('hidden');
+                if (spinner) spinner.classList.add('hidden');
             }
         };
 
@@ -1139,12 +1189,16 @@ function openGeneralProgramModal(progId = null, data = {}) {
     document.getElementById('generalProgramForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
+        if (isProgramSaveInProgress) return;
+        isProgramSaveInProgress = true;
+
         const btn = document.getElementById('saveProgBtn');
-        const text = btn.querySelector('.btn-text');
-        const spinner = btn.querySelector('.btn-spinner');
-        btn.disabled = true;
-        text.classList.add('hidden');
-        spinner.classList.remove('hidden');
+        const text = btn?.querySelector('.btn-text');
+        const spinner = btn?.querySelector('.btn-spinner');
+
+        if (btn) btn.disabled = true;
+        if (text) text.classList.add('hidden');
+        if (spinner) spinner.classList.remove('hidden');
 
         try {
             const locVal = document.getElementById('pLocation').value;
@@ -1183,9 +1237,10 @@ function openGeneralProgramModal(progId = null, data = {}) {
             console.error(err);
             window.showToast("Error saving general program.", "error");
         } finally {
-            btn.disabled = false;
-            text.classList.remove('hidden');
-            spinner.classList.add('hidden');
+            isProgramSaveInProgress = false;
+            if (btn) btn.disabled = false;
+            if (text) text.classList.remove('hidden');
+            if (spinner) spinner.classList.add('hidden');
         }
     });
 }
@@ -1199,18 +1254,23 @@ function openGeneralProgramModal(progId = null, data = {}) {
 
 
 // ─────────────────────────────────────────────
-// Delete Program (Full Cascade)
+// Delete Program (Full Cascade with Chunked Batch & Double-Click Lock)
 // ─────────────────────────────────────────────
 async function deleteProgram(id) {
-    const confirmed = await window.customConfirm("Delete this program? All participants, results, and judge assignments will also be removed.");
-    if (!confirmed) return;
+    if (!id || activeDeleteProgramIds.has(id)) return;
+    activeDeleteProgramIds.add(id);
+
     try {
+        const confirmed = await window.customConfirm("Delete this program? All participants, results, and judge assignments will also be removed.");
+        if (!confirmed) return;
+
         const instId = window.currentInstituteId;
-        const batch = writeBatch(db);
+        const pendingDeletes = [];
+        const pendingUpdates = [];
 
         // 1. Delete all participants subcollection docs
         const pSnap = await getDocs(collection(db, "institutes", instId, "programs", id, "participants"));
-        pSnap.forEach(d => batch.delete(d.ref));
+        pSnap.forEach(d => pendingDeletes.push(d.ref));
 
         // 2. Find and delete linked results + clean judge assignments
         const resultsSnap = await getDocs(query(
@@ -1233,29 +1293,61 @@ async function deleteProgram(id) {
                     if (wasAssigned && comps.includes(progName)) {
                         const newComps = comps.filter(c => c !== progName);
                         const newCompIds = compIds.filter(cid => cid !== r.programId);
-                        batch.update(jDoc.ref, {
-                            competitions: newComps,
-                            competitionIds: newCompIds,
-                            updatedAt: serverTimestamp()
+                        pendingUpdates.push({
+                            ref: jDoc.ref,
+                            data: {
+                                competitions: newComps,
+                                competitionIds: newCompIds,
+                                updatedAt: serverTimestamp()
+                            }
                         });
                     }
                 });
 
                 // Delete the result doc
-                batch.delete(resDoc.ref);
+                pendingDeletes.push(resDoc.ref);
             }
         }
 
         // 3. Delete the program document itself
-        batch.delete(doc(db, "institutes", instId, "programs", id));
+        pendingDeletes.push(doc(db, "institutes", instId, "programs", id));
 
-        await batch.commit();
+        // Safely commit in chunks of max 400 operations to prevent Firestore 500-batch ceiling errors
+        let currentBatch = writeBatch(db);
+        let opCount = 0;
+
+        for (const item of pendingUpdates) {
+            currentBatch.update(item.ref, item.data);
+            opCount++;
+            if (opCount >= 400) {
+                await currentBatch.commit();
+                currentBatch = writeBatch(db);
+                opCount = 0;
+            }
+        }
+
+        for (const ref of pendingDeletes) {
+            currentBatch.delete(ref);
+            opCount++;
+            if (opCount >= 400) {
+                await currentBatch.commit();
+                currentBatch = writeBatch(db);
+                opCount = 0;
+            }
+        }
+
+        if (opCount > 0) {
+            await currentBatch.commit();
+        }
+
         await updateDashboardMetadata(instId);
         invalidateProgramsCache(instId);
         window.showToast("Program and all related data deleted.");
     } catch (e) {
         console.error(e);
         window.showToast("Error deleting program.", "error");
+    } finally {
+        activeDeleteProgramIds.delete(id);
     }
 }
 
@@ -1349,31 +1441,34 @@ function openProgramsDropdown(btn) {
 
 // Self-healing backfill function to assign sequential program numbers starting at 101
 async function backfillProgramNumbers(instId, programs) {
-    if (!instId || !Array.isArray(programs) || programs.length === 0) return;
-    const sorted = [...programs].sort((a, b) => {
-        const timeA = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
-        const timeB = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
-        if (timeA !== timeB) return timeA - timeB;
-        return (a.programName || '').localeCompare(b.programName || '');
-    });
-    const batch = writeBatch(db);
-    let updatedCount = 0;
-    sorted.forEach((p, index) => {
-        const newNumber = 101 + index;
-        if (p.programNumber !== newNumber) {
-            const progDocRef = doc(db, "institutes", instId, "programs", p.id);
-            batch.update(progDocRef, { programNumber: newNumber });
-            p.programNumber = newNumber;
-            updatedCount++;
-        }
-    });
-    if (updatedCount > 0) {
-        try {
+    if (!instId || !Array.isArray(programs) || programs.length === 0 || isBackfillingProgramNumbers) return;
+    isBackfillingProgramNumbers = true;
+    try {
+        const sorted = [...programs].sort((a, b) => {
+            const timeA = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
+            const timeB = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
+            if (timeA !== timeB) return timeA - timeB;
+            return (a.programName || '').localeCompare(b.programName || '');
+        });
+        const batch = writeBatch(db);
+        let updatedCount = 0;
+        sorted.forEach((p, index) => {
+            const newNumber = 101 + index;
+            if (p.programNumber !== newNumber) {
+                const progDocRef = doc(db, "institutes", instId, "programs", p.id);
+                batch.update(progDocRef, { programNumber: newNumber });
+                p.programNumber = newNumber;
+                updatedCount++;
+            }
+        });
+        if (updatedCount > 0) {
             await batch.commit();
             console.log(`Backfilled ${updatedCount} programs with sequential numbers.`);
-        } catch (e) {
-            console.error("Failed to backfill program numbers:", e);
         }
+    } catch (e) {
+        console.error("Failed to backfill program numbers:", e);
+    } finally {
+        isBackfillingProgramNumbers = false;
     }
 }
 
