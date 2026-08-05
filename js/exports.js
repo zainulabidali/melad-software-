@@ -6356,11 +6356,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             if (pType === 'general' || pType === 'group') {
                 const tableHeaderHtml = `
                     <tr>
-                        <th style="width:40px; text-align:center;">SL</th>
-                        <th style="width:170px;">Chest Numbers</th>
+                        <th style="width:35px; text-align:center;">SL</th>
+                        <th style="width:115px;">Chest Numbers</th>
                         <th>Student Names</th>
-                        <th style="width:180px;">Group Name</th>
-                        <th style="width:140px;">Team</th>
+                        <th style="width:130px;">Group Name</th>
+                        <th style="width:90px;">Team</th>
                     </tr>
                 `;
 
@@ -6381,7 +6381,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                     tableBodyHtml = teamNames.length === 0 ? `
                         <tr>
-                            <td colspan="5" style="text-align:center; padding:0.6rem; color:#64748b;">No registered entries.</td>
+                            <td colspan="5" style="text-align:center; padding:0.5rem; color:#64748b;">No registered entries.</td>
                         </tr>
                     ` : teamNames.map((tName, idx) => {
                         const teamParts = teamsMap[tName];
@@ -6392,20 +6392,27 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                         const studentNamesList = teamParts.map(item => item.name).filter(Boolean);
                         const studentNamesHtml = studentNamesList.length > 0
-                            ? studentNamesList.map(n => window.escapeHTML(n)).join('<br>')
+                            ? `<div class="call-student-list" style="display:flex; flex-direction:column; gap:0.05rem;">` +
+                              studentNamesList.map((n, sIdx) => `
+                                <div class="call-student-item" style="display:flex; align-items:flex-start; padding:0.1rem 0; ${sIdx < studentNamesList.length - 1 ? 'border-bottom:1px solid #f1f5f9;' : ''}">
+                                    <span class="call-student-num" style="display:inline-block; min-width:18px; font-size:0.72rem; font-weight:700; color:#475569; background:none; border:none; border-radius:0; margin-right:0.35rem; flex-shrink:0; line-height:1.25;">${sIdx + 1}.</span>
+                                    <span class="call-student-name" style="flex:1; font-size:0.72rem; font-weight:700; color:#1e1b4b; word-break:break-word; white-space:normal; line-height:1.25;">${window.escapeHTML(n)}</span>
+                                </div>
+                              `).join('') +
+                              `</div>`
                             : '—';
 
                         return `
-                            <tr style="height:28px; page-break-inside:avoid; vertical-align:middle;">
-                                <td style="text-align:center; font-weight:800; color:#64748b; padding:0.35rem 0.4rem;">${idx + 1}</td>
-                                <td style="font-weight:800; color:#1e1b4b; word-break:break-word; white-space:normal; padding:0.35rem 0.4rem; letter-spacing:0.02em;">
+                            <tr style="page-break-inside:avoid; vertical-align:middle;">
+                                <td style="text-align:center; font-weight:800; color:#64748b; padding:0.25rem 0.35rem;">${idx + 1}</td>
+                                <td style="font-weight:800; color:#1e1b4b; word-break:break-word; white-space:normal; padding:0.25rem 0.35rem; letter-spacing:0.02em;">
                                     ${window.escapeHTML(chestNumbers || '—')}
                                 </td>
-                                <td style="font-size:0.72rem; font-weight:600; color:#334155; word-break:break-word; white-space:normal; padding:0.35rem 0.4rem; line-height:1.25;">
+                                <td style="font-size:0.72rem; font-weight:600; color:#334155; word-break:break-word; white-space:normal; padding:0.25rem 0.35rem; line-height:1.25;">
                                     ${studentNamesHtml}
                                 </td>
-                                <td style="font-weight:800; color:#475569; padding:0.35rem 0.4rem;">${window.escapeHTML(tName)} Participants</td>
-                                <td style="padding:0.35rem 0.4rem;">
+                                <td style="font-weight:800; color:#475569; padding:0.25rem 0.35rem;">${window.escapeHTML(tName)} Participants</td>
+                                <td style="padding:0.25rem 0.35rem;">
                                     <span class="call-team-badge">${window.escapeHTML(tName)}</span>
                                 </td>
                             </tr>
@@ -6415,7 +6422,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     // Group Programs OR General Programs with group registrations (render actual group name!)
                     tableBodyHtml = parts.length === 0 ? `
                         <tr>
-                            <td colspan="5" style="text-align:center; padding:0.6rem; color:#64748b;">No registered entries.</td>
+                            <td colspan="5" style="text-align:center; padding:0.5rem; color:#64748b;">No registered entries.</td>
                         </tr>
                     ` : parts.map((groupItem, idx) => {
                         // Sort and de-duplicate chest numbers numerically
@@ -6425,20 +6432,27 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                         const studentNamesList = (groupItem.members || []).map(m => m.name).filter(Boolean);
                         const studentNamesHtml = studentNamesList.length > 0
-                            ? studentNamesList.map(n => window.escapeHTML(n)).join('<br>')
+                            ? `<div class="call-student-list" style="display:flex; flex-direction:column; gap:0.05rem;">` +
+                              studentNamesList.map((n, sIdx) => `
+                                <div class="call-student-item" style="display:flex; align-items:flex-start; padding:0.1rem 0; ${sIdx < studentNamesList.length - 1 ? 'border-bottom:1px solid #f1f5f9;' : ''}">
+                                    <span class="call-student-num" style="display:inline-block; min-width:18px; font-size:0.72rem; font-weight:700; color:#475569; background:none; border:none; border-radius:0; margin-right:0.35rem; flex-shrink:0; line-height:1.25;">${sIdx + 1}.</span>
+                                    <span class="call-student-name" style="flex:1; font-size:0.72rem; font-weight:700; color:#1e1b4b; word-break:break-word; white-space:normal; line-height:1.25;">${window.escapeHTML(n)}</span>
+                                </div>
+                              `).join('') +
+                              `</div>`
                             : '—';
 
                         return `
-                            <tr style="height:28px; page-break-inside:avoid; vertical-align:middle;">
-                                <td style="text-align:center; font-weight:800; color:#64748b; padding:0.35rem 0.4rem;">${idx + 1}</td>
-                                <td style="font-weight:800; color:#1e1b4b; word-break:break-word; white-space:normal; padding:0.35rem 0.4rem; letter-spacing:0.02em;">
+                            <tr style="page-break-inside:avoid; vertical-align:middle;">
+                                <td style="text-align:center; font-weight:800; color:#64748b; padding:0.25rem 0.35rem;">${idx + 1}</td>
+                                <td style="font-weight:800; color:#1e1b4b; word-break:break-word; white-space:normal; padding:0.25rem 0.35rem; letter-spacing:0.02em;">
                                     ${window.escapeHTML(chestNumbers || '—')}
                                 </td>
-                                <td style="font-size:0.72rem; font-weight:600; color:#334155; word-break:break-word; white-space:normal; padding:0.35rem 0.4rem; line-height:1.25;">
+                                <td style="font-size:0.72rem; font-weight:600; color:#334155; word-break:break-word; white-space:normal; padding:0.25rem 0.35rem; line-height:1.25;">
                                     ${studentNamesHtml}
                                 </td>
-                                <td style="font-weight:800; color:#475569; padding:0.35rem 0.4rem;">${window.escapeHTML(groupItem.name)}</td>
-                                <td style="padding:0.35rem 0.4rem;">
+                                <td style="font-weight:800; color:#475569; padding:0.25rem 0.35rem;">${window.escapeHTML(groupItem.name)}</td>
+                                <td style="padding:0.25rem 0.35rem;">
                                     <span class="call-team-badge">${window.escapeHTML(groupItem.teamName || '—')}</span>
                                 </td>
                             </tr>
@@ -7664,6 +7678,43 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             }
             .call-list-table th, .call-list-table td {
                 padding: 0.2rem 0.4rem !important;
+            }
+            .call-student-list {
+                display: flex;
+                flex-direction: column;
+                gap: 0.05rem;
+                padding: 0.05rem 0;
+            }
+            .call-student-item {
+                display: flex;
+                align-items: flex-start;
+                padding: 0.1rem 0;
+                border-bottom: 1px solid #f1f5f9;
+            }
+            .call-student-item:last-child {
+                border-bottom: none;
+            }
+            .call-student-num {
+                display: inline-block;
+                min-width: 18px;
+                font-size: 0.72rem;
+                font-weight: 700;
+                color: #475569;
+                background: none;
+                border: none;
+                border-radius: 0;
+                margin-right: 0.35rem;
+                flex-shrink: 0;
+                line-height: 1.25;
+            }
+            .call-student-name {
+                flex: 1;
+                font-size: 0.72rem;
+                font-weight: 700;
+                color: #1e1b4b;
+                word-break: break-word;
+                white-space: normal;
+                line-height: 1.25;
             }
 
             ${f.type === 'Green Room Sign' ? `
