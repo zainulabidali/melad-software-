@@ -925,40 +925,45 @@ function recalculateDashboard() {
     const elStages = document.getElementById('statStages');
     const elJudges = document.getElementById('statJudges');
 
-    if (elStudents) elStudents.textContent = totalStudents;
+    const safeSetText = (el, val) => {
+        if (el && el.textContent != val) el.textContent = val;
+    };
+
+    safeSetText(elStudents, totalStudents);
     const elStudentsDesc = document.getElementById('statStudentsDesc');
     if (elStudentsDesc) {
         const maleCount = metadataCache.maleStudentsCount || 0;
         const femaleCount = metadataCache.femaleStudentsCount || 0;
-        elStudentsDesc.textContent = `Male: ${maleCount} | Female: ${femaleCount}`;
+        safeSetText(elStudentsDesc, `Male: ${maleCount} | Female: ${femaleCount}`);
     }
-    if (elCompetitions) elCompetitions.textContent = totalCompetitions;
+    safeSetText(elCompetitions, totalCompetitions);
     const elCompetitionsDesc = document.getElementById('statCompetitionsDesc');
     if (elCompetitionsDesc) {
         const stageCount = metadataCache.stageProgramCount || 0;
         const offStageCount = metadataCache.offStageProgramCount || 0;
-        elCompetitionsDesc.textContent = `Stage: ${stageCount} | Off Stage: ${offStageCount}`;
+        safeSetText(elCompetitionsDesc, `Stage: ${stageCount} | Off Stage: ${offStageCount}`);
     }
     const elCompetitionsTypes = document.getElementById('statCompetitionsTypes');
     if (elCompetitionsTypes) {
         const individualCount = metadataCache.individualProgramCount || 0;
         const groupCount = metadataCache.groupProgramCount || 0;
         const generalCount = metadataCache.generalProgramCount || 0;
-        elCompetitionsTypes.textContent = `Indiv: ${individualCount} | Grou: ${groupCount} | Gen: ${generalCount}`;
+        safeSetText(elCompetitionsTypes, `Indiv: ${individualCount} | Grou: ${groupCount} | Gen: ${generalCount}`);
     }
-    if (elTeams) elTeams.textContent = totalTeams;
-    if (elCategories) elCategories.textContent = totalCategories;
-    if (elStages) elStages.textContent = totalStages;
-    if (elJudges) elJudges.textContent = totalJudges;
+    safeSetText(elTeams, totalTeams);
+    safeSetText(elCategories, totalCategories);
+    safeSetText(elStages, totalStages);
+    safeSetText(elJudges, totalJudges);
 
     // 2. Real-time Live Team Leaderboard
     const sortedTeams = metadataCache.leaderboard || [];
     const leaderboardBody = document.getElementById('leaderboardBody');
     if (leaderboardBody) {
+        let newHTML = '';
         if (sortedTeams.length === 0) {
-            leaderboardBody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:2rem; color:#64748b; font-style:italic;">No points recorded yet.</td></tr>`;
+            newHTML = `<tr><td colspan="3" style="text-align:center; padding:2rem; color:#64748b; font-style:italic;">No points recorded yet.</td></tr>`;
         } else {
-            leaderboardBody.innerHTML = sortedTeams.map(({ name, points }, idx) => {
+            newHTML = sortedTeams.map(({ name, points }, idx) => {
                 let rankHTML = `${idx + 1}`;
                 if (idx === 0) rankHTML = '<span class="leaderboard-badge gold-medal">🥇 Gold</span>';
                 else if (idx === 1) rankHTML = '<span class="leaderboard-badge silver-medal">🥈 Silver</span>';
@@ -978,6 +983,11 @@ function recalculateDashboard() {
                 `;
             }).join('');
         }
+        
+        if (leaderboardBody.dataset.lastHTML !== newHTML) {
+            leaderboardBody.innerHTML = newHTML;
+            leaderboardBody.dataset.lastHTML = newHTML;
+        }
     }
 
     // 3. Public Result Portal Status Update
@@ -988,19 +998,26 @@ function recalculateDashboard() {
     const waBtn = document.getElementById('dashWhatsApp');
 
     if (statusEl) {
-        if (hasPublished) {
-            statusEl.innerHTML = `<span style="color:#10b981; font-weight:700; display:flex; align-items:center; gap:4px;">✓ Public Portal Active (${publishedCount} results)</span>`;
-            if (copyBtn) copyBtn.disabled = false;
-            if (waBtn) {
-                waBtn.style.pointerEvents = 'auto';
-                waBtn.style.opacity = '1';
-            }
-        } else {
-            statusEl.innerHTML = `<span style="color:#f59e0b; font-weight:700; display:flex; align-items:center; gap:4px;">⚠ No Published Results</span>`;
-            if (copyBtn) copyBtn.disabled = true;
-            if (waBtn) {
-                waBtn.style.pointerEvents = 'none';
-                waBtn.style.opacity = '0.5';
+        const newStatusHTML = hasPublished 
+            ? `<span style="color:#10b981; font-weight:700; display:flex; align-items:center; gap:4px;">✓ Public Portal Active (${publishedCount} results)</span>`
+            : `<span style="color:#f59e0b; font-weight:700; display:flex; align-items:center; gap:4px;">⚠ No Published Results</span>`;
+            
+        if (statusEl.dataset.lastHTML !== newStatusHTML) {
+            statusEl.innerHTML = newStatusHTML;
+            statusEl.dataset.lastHTML = newStatusHTML;
+            
+            if (hasPublished) {
+                if (copyBtn) copyBtn.disabled = false;
+                if (waBtn) {
+                    waBtn.style.pointerEvents = 'auto';
+                    waBtn.style.opacity = '1';
+                }
+            } else {
+                if (copyBtn) copyBtn.disabled = true;
+                if (waBtn) {
+                    waBtn.style.pointerEvents = 'none';
+                    waBtn.style.opacity = '0.5';
+                }
             }
         }
     }

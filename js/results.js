@@ -284,6 +284,8 @@ async function loadResultsViewData() {
 // ─────────────────────────────────────────────
 // Render Results Grid & Stats & Leaderboard
 // ─────────────────────────────────────────────
+const resultRowCache = new WeakMap();
+
 function renderResultsView() {
     // 1. Calculate Stats
     let countPending = 0;
@@ -413,126 +415,141 @@ function renderResultsView() {
         return;
     }
 
-    grid.innerHTML = `
-        <div style="overflow-x:auto; background:#fff; border:1px solid #cbd5e1; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); width:100%;">
-            <table style="width:100%; border-collapse:collapse; min-width:600px; font-size:0.875rem; color:#1e293b;">
-                <thead>
-                    <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; text-align:left;">
-                        <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:60px; text-align:center;">#</th>
-                        <th style="padding:0.75rem 1rem; color:#475569; font-weight:700;">Program Name</th>
-                        <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:150px;">Category</th>
-                        <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:160px; text-align:center;">Participants</th>
-                        <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:140px;">Status</th>
-                        <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:100px; text-align:center;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="resultsTableBody">
-                </tbody>
-            </table>
-        </div>
-    `;
+    let tableWrap = grid.querySelector('div[style*="overflow-x:auto"]');
+    if (!tableWrap) {
+        grid.innerHTML = `
+            <div style="overflow-x:auto; background:#fff; border:1px solid #cbd5e1; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); width:100%;">
+                <table style="width:100%; border-collapse:collapse; min-width:600px; font-size:0.875rem; color:#1e293b;">
+                    <thead>
+                        <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1; text-align:left;">
+                            <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:60px; text-align:center;">#</th>
+                            <th style="padding:0.75rem 1rem; color:#475569; font-weight:700;">Program Name</th>
+                            <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:150px;">Category</th>
+                            <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:160px; text-align:center;">Participants</th>
+                            <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:140px;">Status</th>
+                            <th style="padding:0.75rem 1rem; color:#475569; font-weight:700; width:100px; text-align:center;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsTableBody">
+                    </tbody>
+                </table>
+            </div>
+        `;
+        tableWrap = grid.firstElementChild;
+    }
 
-    const tbody = document.getElementById('resultsTableBody');
+    const tbody = grid.querySelector('#resultsTableBody');
     const fragment = document.createDocumentFragment();
 
     filteredResults.forEach((r, idx) => {
-        const isDraft = r.status === 'draft';
-        const statusBadge = isDraft 
-            ? (r.markEntryStatus === 'submitted' 
-                ? '<span class="badge" style="font-size:0.72rem; background:#fff7ed; color:#ea580c; border:1px solid #ffedd5;">Submitted (Draft)</span>' 
-                : '<span class="badge" style="font-size:0.72rem; background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd;">In Progress (Draft)</span>')
-            : '<span class="badge" style="font-size:0.72rem; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0;">Published</span>';
+        let tr = resultRowCache.get(r);
+        
+        if (!tr) {
+            const isDraft = r.status === 'draft';
+            const statusBadge = isDraft 
+                ? (r.markEntryStatus === 'submitted' 
+                    ? '<span class="badge" style="font-size:0.72rem; background:#fff7ed; color:#ea580c; border:1px solid #ffedd5;">Submitted (Draft)</span>' 
+                    : '<span class="badge" style="font-size:0.72rem; background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd;">In Progress (Draft)</span>')
+                : '<span class="badge" style="font-size:0.72rem; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0;">Published</span>';
 
-        const partCount = r.participantCount || (Array.isArray(r.marksData) ? r.marksData.length : 0) || 0;
-        const catText = r.className ? `${r.categoryName} (${r.className})` : r.categoryName;
+            const partCount = r.participantCount || (Array.isArray(r.marksData) ? r.marksData.length : 0) || 0;
+            const catText = r.className ? `${r.categoryName} (${r.className})` : r.categoryName;
 
-        const tr = document.createElement('tr');
-        tr.style.borderBottom = '1px solid #e2e8f0';
-        tr.className = 'results-table-row';
-        tr.innerHTML = `
-            <td style="padding:0.75rem 1rem; text-align:center; font-weight:700; color:#64748b;">#${idx + 1}</td>
-            <td style="padding:0.75rem 1rem; font-weight:700; color:#0f172a;">${window.escapeHTML(r.programName)}</td>
-            <td style="padding:0.75rem 1rem; color:#475569;">${window.escapeHTML(catText)}</td>
-            <td style="padding:0.75rem 1rem; text-align:center; font-weight:600; color:#475569;">${partCount} Participants</td>
-            <td style="padding:0.75rem 1rem;">${statusBadge}</td>
-            <td style="padding:0.75rem 1rem; text-align:center; position:relative;">
-                <div style="position:relative; display:inline-block;" class="action-dropdown-container">
-                    <button class="btn btn-secondary btn-sm btn-dropdown-toggle" style="padding:0.25rem 0.5rem; font-size:1.1rem; font-weight:bold; cursor:pointer; background:transparent; border:none; color:#475569; display:inline-block; line-height:1;">⋮</button>
-                    <div class="action-dropdown-menu" style="position:absolute; right:0; top:100%; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); z-index:999; min-width:140px; display:none; flex-direction:column; padding:0.25rem 0;">
-                        <button class="dropdown-item btn-open-result" style="text-align:left; padding:0.5rem 0.75rem; border:none; background:transparent; font-size:0.82rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#1e293b;">👁️ Open Result</button>
-                        ${isDraft && r.markEntryStatus === 'submitted' ? `<button class="dropdown-item btn-publish-result" style="text-align:left; padding:0.5rem 0.75rem; border:none; background:transparent; font-size:0.82rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#1e293b;">🏆 Publish</button>` : ''}
-                        ${!isDraft ? `<button class="dropdown-item btn-revoke-result" style="text-align:left; padding:0.5rem 0.75rem; border:none; background:transparent; font-size:0.82rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#1e293b;">↩ Revoke</button>` : ''}
+            tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #e2e8f0';
+            tr.className = 'results-table-row';
+            tr.innerHTML = `
+                <td style="padding:0.75rem 1rem; text-align:center; font-weight:700; color:#64748b;">#${idx + 1}</td>
+                <td style="padding:0.75rem 1rem; font-weight:700; color:#0f172a;">${window.escapeHTML(r.programName)}</td>
+                <td style="padding:0.75rem 1rem; color:#475569;">${window.escapeHTML(catText)}</td>
+                <td style="padding:0.75rem 1rem; text-align:center; font-weight:600; color:#475569;">${partCount} Participants</td>
+                <td style="padding:0.75rem 1rem;">${statusBadge}</td>
+                <td style="padding:0.75rem 1rem; text-align:center; position:relative;">
+                    <div style="position:relative; display:inline-block;" class="action-dropdown-container">
+                        <button class="btn btn-secondary btn-sm btn-dropdown-toggle" style="padding:0.25rem 0.5rem; font-size:1.1rem; font-weight:bold; cursor:pointer; background:transparent; border:none; color:#475569; display:inline-block; line-height:1;">⋮</button>
+                        <div class="action-dropdown-menu" style="position:absolute; right:0; top:100%; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); z-index:999; min-width:140px; display:none; flex-direction:column; padding:0.25rem 0;">
+                            <button class="dropdown-item btn-open-result" style="text-align:left; padding:0.5rem 0.75rem; border:none; background:transparent; font-size:0.82rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#1e293b;">👁️ Open Result</button>
+                            ${isDraft && r.markEntryStatus === 'submitted' ? `<button class="dropdown-item btn-publish-result" style="text-align:left; padding:0.5rem 0.75rem; border:none; background:transparent; font-size:0.82rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#1e293b;">🏆 Publish</button>` : ''}
+                            ${!isDraft ? `<button class="dropdown-item btn-revoke-result" style="text-align:left; padding:0.5rem 0.75rem; border:none; background:transparent; font-size:0.82rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#1e293b;">↩ Revoke</button>` : ''}
+                        </div>
                     </div>
-                </div>
-            </td>
-        `;
+                </td>
+            `;
 
-        // Wire Action toggle
-        const toggleBtn = tr.querySelector('.btn-dropdown-toggle');
-        const menu = tr.querySelector('.action-dropdown-menu');
-        toggleBtn.onclick = (e) => {
-            e.stopPropagation();
-            // Close other menus first
-            document.querySelectorAll('.action-dropdown-menu').forEach(m => {
-                if (m !== menu) m.style.display = 'none';
-            });
-            const isVisible = menu.style.display === 'flex';
-            menu.style.display = isVisible ? 'none' : 'flex';
-        };
+            // Wire Action toggle
+            const toggleBtn = tr.querySelector('.btn-dropdown-toggle');
+            const menu = tr.querySelector('.action-dropdown-menu');
+            toggleBtn.onclick = (e) => {
+                e.stopPropagation();
+                // Close other menus first
+                document.querySelectorAll('.action-dropdown-menu').forEach(m => {
+                    if (m !== menu) m.style.display = 'none';
+                });
+                const isVisible = menu.style.display === 'flex';
+                menu.style.display = isVisible ? 'none' : 'flex';
+            };
 
-        // Wire Open Result
-        tr.querySelector('.btn-open-result').onclick = async (e) => {
-            e.stopPropagation();
-            menu.style.display = 'none';
-            await openResultDetailPopup(r);
-        };
-
-        // Wire Publish
-        const pubBtn = tr.querySelector('.btn-publish-result');
-        if (pubBtn) {
-            pubBtn.onclick = async (e) => {
+            // Wire Open Result
+            tr.querySelector('.btn-open-result').onclick = async (e) => {
                 e.stopPropagation();
                 menu.style.display = 'none';
-                const confirmed = await window.customConfirm("Publish this result to the public portal?");
-                if (!confirmed) return;
-                try {
-                    await updateDoc(doc(db, "institutes", window.currentInstituteId, "results", r.id), {
-                        status: 'published',
-                        publishedAt: serverTimestamp()
-                    });
-                    await updateDashboardMetadata(window.currentInstituteId);
-                    window.showToast("Result published successfully!", "success");
-                } catch (err) {
-                    console.error(err);
-                    window.showToast("Failed to publish result.", "error");
-                }
+                await openResultDetailPopup(r);
             };
+
+            // Wire Publish
+            const pubBtn = tr.querySelector('.btn-publish-result');
+            if (pubBtn) {
+                pubBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    menu.style.display = 'none';
+                    const confirmed = await window.customConfirm("Publish this result to the public portal?");
+                    if (!confirmed) return;
+                    try {
+                        await updateDoc(doc(db, "institutes", window.currentInstituteId, "results", r.id), {
+                            status: 'published',
+                            publishedAt: serverTimestamp()
+                        });
+                        await updateDashboardMetadata(window.currentInstituteId);
+                        window.showToast("Result published successfully!", "success");
+                    } catch (err) {
+                        console.error(err);
+                        window.showToast("Failed to publish result.", "error");
+                    }
+                };
+            }
+
+            // Wire Revoke
+            const revBtn = tr.querySelector('.btn-revoke-result');
+            if (revBtn) {
+                revBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    menu.style.display = 'none';
+                    const confirmed = await window.customConfirm("Revoke this result from the public view?");
+                    if (!confirmed) return;
+                    try {
+                        await updateDoc(doc(db, "institutes", window.currentInstituteId, "results", r.id), {
+                            status: 'draft',
+                            markEntryStatus: 'submitted'
+                        });
+                        await updateDashboardMetadata(window.currentInstituteId);
+                        window.showToast("Result revoked successfully!", "success");
+                    } catch (err) {
+                        console.error(err);
+                        window.showToast("Failed to revoke result.", "error");
+                    }
+                };
+            }
+            
+            resultRowCache.set(r, tr);
+        } else {
+            // Cache hit: simply update the serial number without rewriting HTML
+            tr.firstElementChild.textContent = '#' + (idx + 1);
         }
 
-        // Wire Revoke
-        const revBtn = tr.querySelector('.btn-revoke-result');
-        if (revBtn) {
-            revBtn.onclick = async (e) => {
-                e.stopPropagation();
-                menu.style.display = 'none';
-                const confirmed = await window.customConfirm("Revoke this result from the public view?");
-                if (!confirmed) return;
-                try {
-                    await updateDoc(doc(db, "institutes", window.currentInstituteId, "results", r.id), {
-                        status: 'draft',
-                        markEntryStatus: 'submitted'
-                    });
-                    await updateDashboardMetadata(window.currentInstituteId);
-                    window.showToast("Result revoked successfully!", "success");
-                } catch (err) {
-                    console.error(err);
-                    window.showToast("Failed to revoke result.", "error");
-                }
-            };
-        }
-
-        tbody.appendChild(tr);
+        fragment.appendChild(tr);
     });
+
+    tbody.replaceChildren(fragment);
 
     // Global click outside to close dropdown
     if (!window.__resultsDropdownListenerAdded) {
