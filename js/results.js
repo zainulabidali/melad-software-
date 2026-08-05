@@ -204,7 +204,7 @@ export async function initResultsView(container, topActions) {
     searchFilter.oninput = debounce((e) => {
         resultsFilter.search = e.target.value.toLowerCase().trim();
         renderResultsView();
-    }, 200);
+    }, 500);
 
     window.currentViewCleanup = () => {
         if (unsubscribeResults) {

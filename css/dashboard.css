@@ -317,6 +317,8 @@
 
 .premium-table tr {
     transition: var(--transition);
+    content-visibility: auto;
+    contain-intrinsic-size: 60px;
 }
 
 .premium-table tr:hover {
@@ -374,6 +376,7 @@
     max-height: 90vh;
     border: 1px solid rgba(255, 255, 255, 0.8);
     animation: modalSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform, opacity;
 }
 
 @keyframes fadeInModal {

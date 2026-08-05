@@ -308,7 +308,7 @@ export async function initStudentsView(container, topActions) {
     if (searchInput) {
         searchInput.addEventListener('input', debounce(() => {
             applyStudentFiltersAndRender();
-        }, 300));
+        }, 500));
     }
 
     if (btnAddStudents) {

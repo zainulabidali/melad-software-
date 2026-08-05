@@ -2213,11 +2213,13 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
     }
     
     // Keystroke input validator and auto calculator
+    let recalcTimeout = null;
     tbody.querySelectorAll('.judge-mark-input').forEach(input => {
         input.addEventListener('input', () => {
             let val = input.value.trim();
             if (val === '') {
-                recalculateSpreadsheet(judges.length);
+                if (recalcTimeout) clearTimeout(recalcTimeout);
+                recalcTimeout = setTimeout(() => recalculateSpreadsheet(judges.length), 300);
                 return;
             }
             let num = parseFloat(val);
@@ -2226,7 +2228,8 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
             if (num > 100) num = 100;
             input.value = num;
 
-            recalculateSpreadsheet(judges.length);
+            if (recalcTimeout) clearTimeout(recalcTimeout);
+            recalcTimeout = setTimeout(() => recalculateSpreadsheet(judges.length), 300);
         });
     });
 
