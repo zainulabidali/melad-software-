@@ -36,6 +36,13 @@ export async function initTopScorersView(container, topActions) {
         unsubscribeResults = null;
     }
 
+    window.currentViewCleanup = () => {
+        if (unsubscribeResults) {
+            unsubscribeResults();
+            unsubscribeResults = null;
+        }
+    };
+
     allCategories = [];
     allTeams = [];
     studentLookupMap.clear();

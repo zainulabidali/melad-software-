@@ -106,6 +106,13 @@ export async function initMarkEntryView(container, topActions) {
         unsubscribeMarkEntry = null;
     }
 
+    window.currentViewCleanup = () => {
+        if (unsubscribeMarkEntry) {
+            unsubscribeMarkEntry();
+            unsubscribeMarkEntry = null;
+        }
+    };
+
     allPrograms = [];
     allResults.clear();
 

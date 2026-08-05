@@ -27,6 +27,13 @@ export async function initJudgesView(container, topActions) {
         unsubscribeJudges = null;
     }
 
+    window.currentViewCleanup = () => {
+        if (unsubscribeJudges) {
+            unsubscribeJudges();
+            unsubscribeJudges = null;
+        }
+    };
+
     allJudges = [];
 
     topActions.innerHTML = `

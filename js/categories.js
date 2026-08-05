@@ -27,9 +27,15 @@ export function normalizeClasses(classes) {
 }
 
 export function initCategoriesView(container, topActions) {
-    if (unsubscribeCategories) unsubscribeCategories();
-    if (unsubscribeStudents) unsubscribeStudents();
-    if (unsubscribePrograms) unsubscribePrograms();
+    if (unsubscribeCategories) { unsubscribeCategories(); unsubscribeCategories = null; }
+    if (unsubscribeStudents) { unsubscribeStudents(); unsubscribeStudents = null; }
+    if (unsubscribePrograms) { unsubscribePrograms(); unsubscribePrograms = null; }
+
+    window.currentViewCleanup = () => {
+        if (unsubscribeCategories) { unsubscribeCategories(); unsubscribeCategories = null; }
+        if (unsubscribeStudents) { unsubscribeStudents(); unsubscribeStudents = null; }
+        if (unsubscribePrograms) { unsubscribePrograms(); unsubscribePrograms = null; }
+    };
 
     localCategories = [];
     localStudents = [];
