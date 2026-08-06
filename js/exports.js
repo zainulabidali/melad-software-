@@ -7015,9 +7015,55 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
                     filteredResults.forEach(r => {
                         const winnersList = Array.isArray(r.winners) ? r.winners : [];
+                        const combinedWinners = [...winnersList];
+
+                        if (r.gradeMode !== 'none' && Array.isArray(r.marksData)) {
+                            r.marksData.forEach(m => {
+                                if (!m.grade || m.grade === 'none' || String(m.grade).trim() === '') return;
+                                const isWinner = winnersList.some(w => 
+                                    (r.programType === 'group' && m.teamName === w.teamName) ||
+                                    (r.programType !== 'group' && (m.studentId === w.studentId || m.studentName === w.studentName))
+                                );
+                                if (!isWinner) {
+                                    combinedWinners.push({
+                                        position: String(m.grade).trim() + ' Grade',
+                                        studentId: m.studentId,
+                                        studentName: m.studentName,
+                                        teamName: m.teamName,
+                                        teamId: m.teamId,
+                                        chestNumbers: m.chestNumbers || m.chestNumber,
+                                        marks: m.totalPoints !== undefined ? m.totalPoints : 0,
+                                        grade: m.grade,
+                                        codeLetter: m.codeLetter,
+                                        isGradeOnly: true
+                                    });
+                                }
+                            });
+                        }
 
                         const posOrder = { 'First': 1, 'Second': 2, 'Third': 3 };
-                        const sortedWinners = [...winnersList].sort((a, b) => (posOrder[a.position] || 4) - (posOrder[b.position] || 4));
+                        const getGradePriority = (grade) => {
+                            if (!grade) return 99;
+                            const g = String(grade).toUpperCase().trim();
+                            if (g.startsWith('A')) return 1;
+                            if (g.startsWith('B')) return 2;
+                            if (g.startsWith('C')) return 3;
+                            return 4;
+                        };
+
+                        const sortedWinners = combinedWinners.sort((a, b) => {
+                            const pA = posOrder[a.position] || 4;
+                            const pB = posOrder[b.position] || 4;
+                            if (pA !== pB) return pA - pB;
+                            
+                            const gA = getGradePriority(a.grade);
+                            const gB = getGradePriority(b.grade);
+                            if (gA !== gB) return gA - gB;
+                            
+                            const mA = Number(a.marks) || 0;
+                            const mB = Number(b.marks) || 0;
+                            return mB - mA;
+                        });
 
                         htmlContent += `
                         <div class="${pageDivClass}">
@@ -8505,7 +8551,57 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
 
             filteredResults.forEach(r => {
                 const winnersList = Array.isArray(r.winners) ? r.winners : [];
-                winnersList.forEach(w => {
+                const combinedWinners = [...winnersList];
+
+                if (r.gradeMode !== 'none' && Array.isArray(r.marksData)) {
+                    r.marksData.forEach(m => {
+                        if (!m.grade || m.grade === 'none' || String(m.grade).trim() === '') return;
+                        const isWinner = winnersList.some(w => 
+                            (r.programType === 'group' && m.teamName === w.teamName) ||
+                            (r.programType !== 'group' && (m.studentId === w.studentId || m.studentName === w.studentName))
+                        );
+                        if (!isWinner) {
+                            combinedWinners.push({
+                                position: String(m.grade).trim() + ' Grade',
+                                studentId: m.studentId,
+                                studentName: m.studentName,
+                                teamName: m.teamName,
+                                teamId: m.teamId,
+                                chestNumbers: m.chestNumbers || m.chestNumber,
+                                marks: m.totalPoints !== undefined ? m.totalPoints : 0,
+                                grade: m.grade,
+                                codeLetter: m.codeLetter,
+                                isGradeOnly: true
+                            });
+                        }
+                    });
+                }
+
+                const posOrder = { 'First': 1, 'Second': 2, 'Third': 3 };
+                const getGradePriority = (grade) => {
+                    if (!grade) return 99;
+                    const g = String(grade).toUpperCase().trim();
+                    if (g.startsWith('A')) return 1;
+                    if (g.startsWith('B')) return 2;
+                    if (g.startsWith('C')) return 3;
+                    return 4;
+                };
+
+                const sortedWinners = combinedWinners.sort((a, b) => {
+                    const pA = posOrder[a.position] || 4;
+                    const pB = posOrder[b.position] || 4;
+                    if (pA !== pB) return pA - pB;
+                    
+                    const gA = getGradePriority(a.grade);
+                    const gB = getGradePriority(b.grade);
+                    if (gA !== gB) return gA - gB;
+                    
+                    const mA = Number(a.marks) || 0;
+                    const mB = Number(b.marks) || 0;
+                    return mB - mA;
+                });
+
+                sortedWinners.forEach(w => {
                     let points = w.marks !== undefined ? w.marks : 0;
                     let match = null;
 
