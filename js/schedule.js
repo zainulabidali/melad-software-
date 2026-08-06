@@ -1215,13 +1215,6 @@ function openCreateStageModal() {
                 <label class="form-label">Stage Name *</label>
                 <input type="text" id="newStageName" class="form-input" placeholder="e.g. Stage 1, Main Stage, Girls Stage, Off Stage A" required>
             </div>
-            <div class="form-group">
-                <label class="form-label">Stage Type *</label>
-                <select id="newStageType" class="form-input" required>
-                    <option value="stage">🎪 On Stage</option>
-                    <option value="offstage">📝 Off Stage</option>
-                </select>
-            </div>
             <div class="modal-actions" style="margin-top:1.25rem;">
                 <button type="submit" class="btn btn-primary w-full" id="saveStageBtn">Create Stage</button>
             </div>
@@ -1234,7 +1227,6 @@ function openCreateStageModal() {
     document.getElementById('createStageForm').onsubmit = async (e) => {
         e.preventDefault();
         const name = document.getElementById('newStageName').value.trim();
-        const type = document.getElementById('newStageType').value;
         if (!name) return;
 
         const btn = document.getElementById('saveStageBtn');
@@ -1245,7 +1237,6 @@ function openCreateStageModal() {
             await setDoc(docRef, {
                 name: name,
                 stageName: name,
-                type: type,
                 status: 'active',
                 order: localStages.length + 1,
                 createdAt: serverTimestamp(),
@@ -1533,11 +1524,6 @@ async function updateStageSchedulesDate(newDate) {
         batch.update(doc(db, "institutes", window.currentInstituteId, "schedules", item.id), {
             scheduleDate: newDate, updatedAt: serverTimestamp()
         });
-        if (item.programId) {
-            batch.update(doc(db, "institutes", window.currentInstituteId, "programs", item.programId), {
-                scheduleDate: newDate, updatedAt: serverTimestamp()
-            });
-        }
     });
     try {
         await batch.commit();
@@ -1738,13 +1724,6 @@ function attachTableEvents(tbody, activeItems) {
                 });
             } catch (err) { console.warn("schedules update:", err); }
 
-            if (item && item.programId) {
-                try {
-                    await updateDoc(doc(db, "institutes", instId, "programs", item.programId), {
-                        scheduleDate: newDate, updatedAt: serverTimestamp()
-                    });
-                } catch (err) { console.warn("programs update:", err); }
-            }
             window.showToast("Schedule Date updated");
         };
     });
@@ -1790,13 +1769,6 @@ function attachTableEvents(tbody, activeItems) {
                 });
             } catch (err) { console.warn("schedules update:", err); }
 
-            if (item && item.programId) {
-                try {
-                    await updateDoc(doc(db, "institutes", instId, "programs", item.programId), {
-                        startTime: startVal, endTime: endVal, updatedAt: serverTimestamp()
-                    });
-                } catch (err) { console.warn("programs update:", err); }
-            }
             window.showToast("Schedule times updated");
         };
     });
@@ -2428,20 +2400,6 @@ async function openAddProgramRowModal() {
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             });
-
-            // Sync location and schedule fields to program document
-            try {
-                await updateDoc(doc(db, "institutes", window.currentInstituteId, "programs", progId), {
-                    programLocation: activeStage,
-                    location: activeStage,
-                    scheduleDate: sDate,
-                    startTime: sStart,
-                    endTime: sEnd,
-                    updatedAt: serverTimestamp()
-                });
-            } catch (pErr) {
-                console.warn("Error updating program location:", pErr);
-            }
 
             window.showToast(`✓ Program "${prog.programName}" added to ${activeStage}`);
 
