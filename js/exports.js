@@ -6843,56 +6843,58 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                 // 2. Category Champions Summaries (Phase 6)
                 let categoryHTML = '';
-                allCategories.forEach(cat => {
-                    const map = categoryScores.get(cat.id);
-                    if (!map || map.size === 0) return;
+                if (f.resultSubOption !== 'Program Wise') {
+                    allCategories.forEach(cat => {
+                        const map = categoryScores.get(cat.id);
+                        if (!map || map.size === 0) return;
 
-                    const sortedStudents = [...map.values()].sort((a, b) => b.points - a.points);
-                    const champ = sortedStudents[0];
-                    const runner = sortedStudents[1];
-                    const third = sortedStudents[2];
+                        const sortedStudents = [...map.values()].sort((a, b) => b.points - a.points);
+                        const champ = sortedStudents[0];
+                        const runner = sortedStudents[1];
+                        const third = sortedStudents[2];
 
-                    categoryHTML += `
-                    <div style="border:1px solid #cbd5e1; border-radius:12px; padding:1.25rem; background:#ffffff; margin-bottom:1.5rem; page-break-inside:avoid; box-shadow:0 2px 4px rgba(0,0,0,0.01);">
-                        <h3 style="margin-top:0; color:#4338ca; border-bottom:2px solid #e2e8f0; padding-bottom:0.4rem; font-size:1rem; font-weight:800; text-transform:uppercase;">
-                            🏷️ CATEGORY CHAMPIONSHIP: ${window.escapeHTML(cat.name)}
-                        </h3>
-                        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem; margin-top:0.75rem;">
-                            
-                            ${champ ? `
-                            <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:0.75rem; text-align:center;">
-                                <div style="font-size:1.25rem;">🥇</div>
-                                <div style="font-size:0.65rem; font-weight:800; color:#d97706; text-transform:uppercase;">Category Champion</div>
-                                <div style="font-weight:800; color:#1e1b4b; font-size:0.85rem; margin-top:0.2rem;">${window.escapeHTML(champ.name)}</div>
-                                <div style="font-size:0.7rem; color:#475569; font-weight:600;">${window.escapeHTML(champ.teamName)}</div>
-                                <div style="font-weight:900; color:#16a34a; font-size:0.9rem; margin-top:0.2rem;">${champ.points} points</div>
+                        categoryHTML += `
+                        <div style="border:1px solid #cbd5e1; border-radius:12px; padding:1.25rem; background:#ffffff; margin-bottom:1.5rem; page-break-inside:avoid; box-shadow:0 2px 4px rgba(0,0,0,0.01);">
+                            <h3 style="margin-top:0; color:#4338ca; border-bottom:2px solid #e2e8f0; padding-bottom:0.4rem; font-size:1rem; font-weight:800; text-transform:uppercase;">
+                                🏷️ CATEGORY CHAMPIONSHIP: ${window.escapeHTML(cat.name)}
+                            </h3>
+                            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem; margin-top:0.75rem;">
+                                
+                                ${champ ? `
+                                <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:0.75rem; text-align:center;">
+                                    <div style="font-size:1.25rem;">🥇</div>
+                                    <div style="font-size:0.65rem; font-weight:800; color:#d97706; text-transform:uppercase;">Category Champion</div>
+                                    <div style="font-weight:800; color:#1e1b4b; font-size:0.85rem; margin-top:0.2rem;">${window.escapeHTML(champ.name)}</div>
+                                    <div style="font-size:0.7rem; color:#475569; font-weight:600;">${window.escapeHTML(champ.teamName)}</div>
+                                    <div style="font-weight:900; color:#16a34a; font-size:0.9rem; margin-top:0.2rem;">${champ.points} points</div>
+                                </div>
+                                ` : ''}
+
+                                ${runner ? `
+                                <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:0.75rem; text-align:center;">
+                                    <div style="font-size:1.25rem;">🥈</div>
+                                    <div style="font-size:0.65rem; font-weight:800; color:#475569; text-transform:uppercase;">Runner Up</div>
+                                    <div style="font-weight:800; color:#1e1b4b; font-size:0.85rem; margin-top:0.2rem;">${window.escapeHTML(runner.name)}</div>
+                                    <div style="font-size:0.7rem; color:#475569; font-weight:600;">${window.escapeHTML(runner.teamName)}</div>
+                                    <div style="font-weight:900; color:#475569; font-size:0.9rem; margin-top:0.2rem;">${runner.points} points</div>
+                                </div>
+                                ` : ''}
+
+                                ${third ? `
+                                <div style="background:#fff7ed; border:1px solid #ffedd5; border-radius:8px; padding:0.75rem; text-align:center;">
+                                    <div style="font-size:1.25rem;">🥉</div>
+                                    <div style="font-size:0.65rem; font-weight:800; color:#ea580c; text-transform:uppercase;">Third Place</div>
+                                    <div style="font-weight:800; color:#1e1b4b; font-size:0.85rem; margin-top:0.2rem;">${window.escapeHTML(third.name)}</div>
+                                    <div style="font-size:0.7rem; color:#475569; font-weight:600;">${window.escapeHTML(third.teamName)}</div>
+                                    <div style="font-weight:900; color:#ea580c; font-size:0.9rem; margin-top:0.2rem;">${third.points} points</div>
+                                </div>
+                                ` : ''}
+
                             </div>
-                            ` : ''}
-
-                            ${runner ? `
-                            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:0.75rem; text-align:center;">
-                                <div style="font-size:1.25rem;">🥈</div>
-                                <div style="font-size:0.65rem; font-weight:800; color:#475569; text-transform:uppercase;">Runner Up</div>
-                                <div style="font-weight:800; color:#1e1b4b; font-size:0.85rem; margin-top:0.2rem;">${window.escapeHTML(runner.name)}</div>
-                                <div style="font-size:0.7rem; color:#475569; font-weight:600;">${window.escapeHTML(runner.teamName)}</div>
-                                <div style="font-weight:900; color:#475569; font-size:0.9rem; margin-top:0.2rem;">${runner.points} points</div>
-                            </div>
-                            ` : ''}
-
-                            ${third ? `
-                            <div style="background:#fff7ed; border:1px solid #ffedd5; border-radius:8px; padding:0.75rem; text-align:center;">
-                                <div style="font-size:1.25rem;">🥉</div>
-                                <div style="font-size:0.65rem; font-weight:800; color:#ea580c; text-transform:uppercase;">Third Place</div>
-                                <div style="font-weight:800; color:#1e1b4b; font-size:0.85rem; margin-top:0.2rem;">${window.escapeHTML(third.name)}</div>
-                                <div style="font-size:0.7rem; color:#475569; font-weight:600;">${window.escapeHTML(third.teamName)}</div>
-                                <div style="font-weight:900; color:#ea580c; font-size:0.9rem; margin-top:0.2rem;">${third.points} points</div>
-                            </div>
-                            ` : ''}
-
                         </div>
-                    </div>
-                `;
-                });
+                    `;
+                    });
+                }
 
                 if (categoryHTML) {
                     htmlContent += `
@@ -7037,22 +7039,19 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             <table class="report-table">
                                 <thead>
                                     <tr>
-                                        <th style="width:100px; text-align:center;">Position</th>
-                                        <th style="width:100px; text-align:center;">Chest No</th>
+                                        <th style="width:70px; text-align:center;">Position</th>
+                                        <th style="width:50px; text-align:center;">Call Letter</th>
+                                        <th style="width:70px; text-align:center;">Chest No</th>
                                         <th>Student / Team Name</th>
                                         <th>Team</th>
-                                        <th style="width:80px; text-align:center;">${(r.gradeMode !== 'none') ? 'Grade' : ''}</th>
-                                        <th style="width:80px; text-align:center;">Marks</th>
+                                        <th style="width:50px; text-align:center;">${(r.gradeMode !== 'none') ? 'Grade' : ''}</th>
+                                        <th style="width:60px; text-align:center;">Marks</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${sortedWinners.length === 0 ? `<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:#64748b;">No winners recorded for this program.</td></tr>` :
+                                    ${sortedWinners.length === 0 ? `<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:#64748b;">No winners recorded for this program.</td></tr>` :
                                 sortedWinners.map(w => {
-                                    let posBadge = '';
-                                    if (w.position === 'First') posBadge = '🥇 First';
-                                    else if (w.position === 'Second') posBadge = '🥈 Second';
-                                    else if (w.position === 'Third') posBadge = '🥉 Third';
-                                    else posBadge = w.position;
+                                    let posBadge = w.position;
 
                                     let points = w.marks !== undefined ? `${w.marks} pts` : '0 pts';
                                     let match = null;
@@ -7073,9 +7072,24 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     const showGrade = r.gradeMode !== 'none';
                                     const gradeVal = showGrade ? (w.grade || (match && match.grade) || '—') : '';
 
+                                    let codeLetterDisplay = '';
+                                    if (match && match.codeLetter !== undefined && match.codeLetter !== null) {
+                                        const valStr = String(match.codeLetter).trim();
+                                        const valLower = valStr.toLowerCase();
+                                        if (valStr !== '' && 
+                                            valLower !== 'n/a' && 
+                                            valLower !== '-' && 
+                                            valLower !== 'none' && 
+                                            valLower !== 'null' && 
+                                            valLower !== 'undefined') {
+                                            codeLetterDisplay = valStr;
+                                        }
+                                    }
+
                                     return `
                                             <tr>
                                                 <td style="text-align:center; font-weight:900; color:#1e1b4b;">${posBadge}</td>
+                                                <td style="text-align:center; font-weight:800; color:#0f172a;">${window.escapeHTML(codeLetterDisplay)}</td>
                                                 <td style="text-align:center; font-weight:800; color:#0f172a;">${window.escapeHTML(resolved.chestNumbers)}</td>
                                                 <td style="font-weight:700; color:#1e293b;">${window.escapeHTML(resolved.displayName)}</td>
                                                 <td style="font-weight:600; color:#475569;">${window.escapeHTML(resolved.teamName || '—')}</td>
@@ -8487,7 +8501,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
         }
 
         else if (f.resultSubOption === 'Program Wise') {
-            csvContent += "POSITION,CHEST NUMBER,STUDENT / TEAM NAME,TEAM,GRADE,MARKS\n";
+            csvContent += "POSITION,CALL LETTER,CHEST NUMBER,STUDENT / TEAM NAME,TEAM,GRADE,MARKS\n";
 
             filteredResults.forEach(r => {
                 const winnersList = Array.isArray(r.winners) ? r.winners : [];
@@ -8513,7 +8527,21 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     const showGrade = r.gradeMode !== 'none';
                     const gradeVal = showGrade ? (w.grade || (match && match.grade) || '—') : '';
 
-                    csvContent += `"${w.position}","${resolved.chestNumbers}","${resolved.displayName}","${resolved.teamName || ''}","${gradeVal}",${points}\n`;
+                    let codeLetterDisplay = '';
+                    if (match && match.codeLetter !== undefined && match.codeLetter !== null) {
+                        const valStr = String(match.codeLetter).trim();
+                        const valLower = valStr.toLowerCase();
+                        if (valStr !== '' && 
+                            valLower !== 'n/a' && 
+                            valLower !== '-' && 
+                            valLower !== 'none' && 
+                            valLower !== 'null' && 
+                            valLower !== 'undefined') {
+                            codeLetterDisplay = valStr;
+                        }
+                    }
+
+                    csvContent += `"${w.position}","${codeLetterDisplay}","${resolved.chestNumbers}","${resolved.displayName}","${resolved.teamName || ''}","${gradeVal}",${points}\n`;
                 });
             });
         }
