@@ -7606,13 +7606,13 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         <style>
             @page {
                 size: A4 ${orientation};
-                margin: 0;
+                margin: ${f.type === 'Call List' ? '12mm 0 0 0 !important' : '0'};
             }
             body {
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
                 color: #000;
                 margin: 0;
-                padding: ${pageMargin};
+                padding: ${f.type === 'Call List' ? '0 15mm 15mm 15mm' : pageMargin};
                 box-sizing: border-box;
                 background: #fff;
                 font-size: ${f.type === 'Green Room Sign' ? '0.75rem' : '0.85rem'};
