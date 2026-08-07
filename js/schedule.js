@@ -2696,6 +2696,10 @@ function executeSchedulePrint(mode = 'current') {
                     `;
                 }
 
+                const progData = localPrograms.find(p => p.id === item.programId);
+                const genderVal = progData ? (progData.genderCategory || progData.gender || progData.Gender) : null;
+                const genderDisplay = genderVal ? ` | ${window.escapeHTML(String(genderVal).trim().toUpperCase())}` : '';
+
                 return `
                     <tr>
                         <td style="text-align:center; font-weight:700; color:#334155; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${idx + 1}</td>
@@ -2704,7 +2708,7 @@ function executeSchedulePrint(mode = 'current') {
                                 ${item.programNumber ? `<span style="color:#3730a3; font-weight:800; margin-right:4px;">[#${item.programNumber}]</span>` : ''}${window.escapeHTML(item.programName)}
                             </div>
                             <div style="font-size:10.5px; color:#64748b; font-weight:500; margin-top:2px; line-height:1.2;">
-                                ${window.escapeHTML(item.categoryName || 'Uncategorized')}
+                                ${window.escapeHTML(item.categoryName || 'Uncategorized')}${genderDisplay}
                             </div>
                         </td>
                         <td style="text-align:center; color:#334155; font-weight:600; padding:6px 10px; border:1px solid #cbd5e1; font-size:12px;">${itemDate}</td>
