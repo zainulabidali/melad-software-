@@ -1641,6 +1641,10 @@ function refreshScheduleTable() {
         const catNameUpper = (item.categoryName || 'GENERAL').toUpperCase();
         const catBadgeBg = catNameUpper.includes('SUB') ? 'background:#dbeafe; color:#1d4ed8;' : (catNameUpper === 'GENERAL' ? 'background:#dcfce7; color:#15803d;' : 'background:#e0e7ff; color:#3730a3;');
 
+        const progData = localPrograms.find(p => p.id === item.programId);
+        const genderVal = progData ? (progData.genderCategory || progData.gender || progData.Gender) : null;
+        const genderHtml = genderVal ? `<div style="font-size:0.75rem; color:#64748b; font-weight:600; margin-top:3px; line-height:1.2;">${window.escapeHTML(String(genderVal).trim())}</div>` : '';
+
         return `
             <tr class="sched-table-row ${item.isLocked ? 'is-locked' : ''}" 
                 draggable="${item.isLocked ? 'false' : 'true'}" 
@@ -1655,8 +1659,11 @@ function refreshScheduleTable() {
                     ${idx + 1}
                 </td>
                 <td style="padding:0.65rem 0.75rem; vertical-align:middle; font-weight:800; color:#0f172a; font-size:0.9rem;">
-                    ${item.isLocked ? '<span title="Locked Slot" style="margin-right:4px;">🔒</span>' : ''}
-                    ${item.programNumber ? `<span style="color:#64748b; font-weight:700; margin-right:4px;">[#${item.programNumber}]</span>` : ''}<span>${window.escapeHTML(item.programName)}</span>
+                    <div style="line-height:1.2;">
+                        ${item.isLocked ? '<span title="Locked Slot" style="margin-right:4px;">🔒</span>' : ''}
+                        ${item.programNumber ? `<span style="color:#64748b; font-weight:700; margin-right:4px;">[#${item.programNumber}]</span>` : ''}<span>${window.escapeHTML(item.programName)}</span>
+                    </div>
+                    ${genderHtml}
                 </td>
                 <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle;">
                     <span class="sched-cat-badge" style="${catBadgeBg} padding:3px 10px; border-radius:6px; font-weight:800; font-size:0.75rem; text-transform:uppercase; display:inline-block;">${window.escapeHTML(catNameUpper)}</span>
