@@ -585,7 +585,7 @@ async function initPublicResultsHub() {
 
         onSnapshot(pubQuery, (querySnap) => {
             publishedResultsList = querySnap.docs.map(d => ({ id: d.id, ...d.data() }))
-                .filter(r => r.publicDisabled !== true);
+                .filter(r => r.publicDisabled !== true && r.publicReleased === true);
 
             publishedResultsList.sort((a, b) => {
                 const tA = a.publishedAt?.seconds || 0;

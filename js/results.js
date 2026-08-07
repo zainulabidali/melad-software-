@@ -84,6 +84,7 @@ export async function initResultsView(container, topActions) {
             </div>
             <div class="filter-item res-btn-wrapper">
                 <button class="btn btn-primary btn-sm filter-btn" id="btnPublishAll" style="font-weight:700;">🚀 Publish All</button>
+                <button class="btn btn-secondary btn-sm filter-btn" id="btnPublishPublic" style="font-weight:700; margin-left: 0.5rem; background: #10b981; color: white;">🌐 Publish Public</button>
             </div>
         </div>
     `;
@@ -200,6 +201,7 @@ export async function initResultsView(container, topActions) {
     const stageFilter = document.getElementById('resStageFilter');
     const statusFilter = document.getElementById('resStatusFilter');
     const publishAllBtn = document.getElementById('btnPublishAll');
+    const publishPublicBtn = document.getElementById('btnPublishPublic');
 
     searchFilter.oninput = debounce((e) => {
         resultsFilter.search = e.target.value.toLowerCase().trim();
@@ -234,6 +236,7 @@ export async function initResultsView(container, topActions) {
     };
 
     publishAllBtn.onclick = () => triggerPublishAll();
+    publishPublicBtn.onclick = () => triggerPublishPublic();
 
     await loadResultsViewData();
 }
@@ -324,6 +327,11 @@ function renderResultsView() {
     // Enable/Disable Publish All button depending on Submitted count
     const publishAllBtn = document.getElementById('btnPublishAll');
     if (publishAllBtn) publishAllBtn.disabled = countSubmitted === 0;
+    
+    // Enable/Disable Publish Public button depending on Published count
+    const publishPublicBtn = document.getElementById('btnPublishPublic');
+    const unpublishedToPublic = allResults.filter(r => r.status === 'published' && !r.publicReleased).length;
+    if (publishPublicBtn) publishPublicBtn.disabled = unpublishedToPublic === 0;
 
     // 2. Dynamic Team Points Live Leaderboard
     const progMap = new Map(allPrograms.map(p => [p.id, p]));
@@ -826,6 +834,38 @@ async function triggerPublishAll() {
     } catch (err) {
         console.error("Batch publish error:", err);
         window.showToast("Failed to batch publish results.", "error");
+    }
+}
+
+// ─────────────────────────────────────────────
+// Batch Publish to Public Action
+// ─────────────────────────────────────────────
+async function triggerPublishPublic() {
+    const publishedResults = allResults.filter(r => r.status === 'published' && !r.publicReleased);
+    if (publishedResults.length === 0) {
+        window.showToast("No published results available to release to public.", "warning");
+        return;
+    }
+
+    const confirmed = await window.customConfirm(`Are you sure you want to release all ${publishedResults.length} published results to the public?`);
+    if (!confirmed) return;
+
+    const batch = writeBatch(db);
+
+    try {
+        publishedResults.forEach(r => {
+            const docRef = doc(db, "institutes", window.currentInstituteId, "results", r.id);
+            batch.update(docRef, {
+                publicReleased: true,
+                publicPublishedAt: serverTimestamp()
+            });
+        });
+
+        await batch.commit();
+        window.showToast(`Successfully released ${publishedResults.length} program results to the public!`, "success");
+    } catch (err) {
+        console.error("Batch publish public error:", err);
+        window.showToast("Failed to release results to public.", "error");
     }
 }
 
