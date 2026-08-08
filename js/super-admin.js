@@ -1,4 +1,4 @@
-import { app, auth, db, updateDashboardMetadata } from './firebase.js';
+import { app, auth, db, updateDashboardMetadata, functions, httpsCallable } from './firebase.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 import {
     doc, getDoc, collection, addDoc, deleteDoc, onSnapshot,
@@ -534,6 +534,7 @@ function applyFiltersAndRender() {
                             <button class="dropdown-item toggle-status-btn" data-id="${inst.id}" data-status="${inst.status}">
                                 ${inst.status === 'active' ? '⏸ Deactivate' : '▶ Activate'}
                             </button>
+                            <button class="dropdown-item reset-pwd-btn" data-id="${inst.id}" data-email="${escapeHTML(inst.teacherEmail)}" data-name="${escapeHTML(inst.teacherName)}" data-inst="${escapeHTML(inst.name)}">🔒 Reset Password</button>
                             <button class="dropdown-item delete-inst-btn text-danger" data-id="${inst.id}">🗑 Delete</button>
                         </div>
                     </div>
@@ -647,6 +648,16 @@ function applyFiltersAndRender() {
             e.stopPropagation();
             e.target.closest('.dropdown-menu')?.classList.remove('show');
             toggleStatus(e);
+        });
+    });
+
+    document.querySelectorAll('.reset-pwd-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.target.closest('.dropdown-menu')?.classList.remove('show');
+            if(window.openResetPasswordModal) {
+                window.openResetPasswordModal(e.target.closest('.reset-pwd-btn'));
+            }
         });
     });
 
@@ -1298,3 +1309,255 @@ window.addEventListener('resize', () => {
         closeSidebarDrawer();
     }
 });
+
+// ---------------------------------------------
+// Admin Reset Password Modal
+// ---------------------------------------------
+
+const resetPasswordModal = document.getElementById('resetPasswordModal');
+const resetPasswordForm = document.getElementById('resetPasswordForm');
+const rpAlert = document.getElementById('rpAlert');
+const rpNewPassword = document.getElementById('rpNewPassword');
+const rpConfirmPassword = document.getElementById('rpConfirmPassword');
+const rpSubmitBtn = document.getElementById('rpSubmitBtn');
+const rpStrengthBar = document.getElementById('rpStrengthBar');
+const rpStrengthText = document.getElementById('rpStrengthText');
+const rpMatchMessage = document.getElementById('rpMatchMessage');
+
+let currentResetTargetEmail = null;
+let currentResetInstId = null;
+let rpTrapListener = null;
+
+// Accessibility: Focus Trap
+function trapFocus(e) {
+    const focusableElements = resetPasswordModal.querySelectorAll('a[href], button, textarea, input[type="text"], input[type="password"], select');
+    const firstFocusableElement = focusableElements[0];
+    const lastFocusableElement = focusableElements[focusableElements.length - 1];
+
+    if (e.key === 'Tab') {
+        if (e.shiftKey) {
+            if (document.activeElement === firstFocusableElement) {
+                lastFocusableElement.focus();
+                e.preventDefault();
+            }
+        } else {
+            if (document.activeElement === lastFocusableElement) {
+                firstFocusableElement.focus();
+                e.preventDefault();
+            }
+        }
+    }
+}
+
+window.openResetPasswordModal = async function(btn) {
+    const instId = btn.getAttribute('data-id');
+    const teacherName = btn.getAttribute('data-teacher');
+    const instName = btn.getAttribute('data-inst');
+    const teacherEmail = btn.getAttribute('data-email');
+    
+    if (!instId || !teacherEmail) {
+        showToast('Missing institute ID or email.', 'error');
+        return;
+    }
+
+    currentResetTargetEmail = teacherEmail;
+    currentResetInstId = instId;
+
+    document.getElementById('rpTeacherNameDisplay').textContent = teacherName;
+    document.getElementById('rpInstituteNameDisplay').textContent = instName;
+    document.getElementById('rpTeacherEmailDisplay').textContent = teacherEmail;
+    document.getElementById('rpRoleDisplay').textContent = 'Admin / Teacher';
+    
+    rpNewPassword.value = '';
+    rpConfirmPassword.value = '';
+    
+    // Reset validations
+    rpSubmitBtn.disabled = true;
+    rpSubmitBtn.style.opacity = '0.5';
+    rpSubmitBtn.style.cursor = 'not-allowed';
+    rpStrengthBar.style.width = '0%';
+    rpStrengthText.textContent = 'Weak';
+    rpMatchMessage.textContent = '';
+    
+    rpAlert.classList.add('hidden');
+    resetPasswordModal.classList.remove('hidden');
+
+    // Focus on first input
+    setTimeout(() => {
+        rpNewPassword.focus();
+    }, 100);
+
+    // Trap focus
+    rpTrapListener = (e) => {
+        if (e.key === 'Escape') {
+            window.hideResetModal();
+        } else {
+            trapFocus(e);
+        }
+    };
+    document.addEventListener('keydown', rpTrapListener);
+};
+
+window.hideResetModal = function() {
+    if (resetPasswordModal) {
+        resetPasswordModal.classList.add('hidden');
+        rpAlert.classList.add('hidden');
+        currentResetTargetEmail = null;
+        
+        // Remove password from memory
+        rpNewPassword.value = '';
+        rpConfirmPassword.value = '';
+        
+        if (rpTrapListener) {
+            document.removeEventListener('keydown', rpTrapListener);
+            rpTrapListener = null;
+        }
+    }
+};
+
+if (document.getElementById('closeResetModalBtn')) {
+    document.getElementById('closeResetModalBtn').addEventListener('click', window.hideResetModal);
+}
+if (document.getElementById('cancelResetModalBtn')) {
+    document.getElementById('cancelResetModalBtn').addEventListener('click', window.hideResetModal);
+}
+
+// Show / Hide Password Toggles
+document.getElementById('rpToggleNewPwd')?.addEventListener('click', function() {
+    const type = rpNewPassword.getAttribute('type') === 'password' ? 'text' : 'password';
+    rpNewPassword.setAttribute('type', type);
+    this.textContent = type === 'password' ? '👁️' : '🙈';
+});
+document.getElementById('rpToggleConfirmPwd')?.addEventListener('click', function() {
+    const type = rpConfirmPassword.getAttribute('type') === 'password' ? 'text' : 'password';
+    rpConfirmPassword.setAttribute('type', type);
+    this.textContent = type === 'password' ? '👁️' : '🙈';
+});
+
+// Live Validation
+function validatePasswords() {
+    const val = rpNewPassword.value;
+    const confirmVal = rpConfirmPassword.value;
+    
+    let strength = 0;
+    if (val.length >= 6) strength += 25;
+    if (val.match(/[A-Z]/)) strength += 25;
+    if (val.match(/[0-9]/)) strength += 25;
+    if (val.match(/[^A-Za-z0-9]/)) strength += 25;
+    
+    if (val.length === 0) strength = 0;
+    
+    rpStrengthBar.style.width = `${strength}%`;
+    if (strength <= 25) {
+        rpStrengthBar.style.background = '#ef4444';
+        rpStrengthText.textContent = 'Weak';
+    } else if (strength <= 50) {
+        rpStrengthBar.style.background = '#eab308';
+        rpStrengthText.textContent = 'Fair';
+    } else if (strength <= 75) {
+        rpStrengthBar.style.background = '#3b82f6';
+        rpStrengthText.textContent = 'Good';
+    } else {
+        rpStrengthBar.style.background = '#22c55e';
+        rpStrengthText.textContent = 'Strong';
+    }
+    
+    let isValid = true;
+    
+    if (val.length > 0 && val.length < 6) {
+        isValid = false;
+    }
+    
+    if (confirmVal.length > 0) {
+        if (val !== confirmVal) {
+            rpMatchMessage.textContent = 'Passwords do not match.';
+            isValid = false;
+        } else {
+            rpMatchMessage.textContent = 'Passwords match.';
+            rpMatchMessage.style.color = '#22c55e';
+        }
+    } else {
+        rpMatchMessage.textContent = '';
+        isValid = false;
+    }
+    
+    if (val.length === 0 || confirmVal.length === 0) {
+        isValid = false;
+    }
+    
+    if (isValid && val === confirmVal && val.length >= 6) {
+        rpSubmitBtn.disabled = false;
+        rpSubmitBtn.style.opacity = '1';
+        rpSubmitBtn.style.cursor = 'pointer';
+    } else {
+        rpSubmitBtn.disabled = true;
+        rpSubmitBtn.style.opacity = '0.5';
+        rpSubmitBtn.style.cursor = 'not-allowed';
+    }
+}
+
+rpNewPassword?.addEventListener('input', validatePasswords);
+rpConfirmPassword?.addEventListener('input', validatePasswords);
+
+if (resetPasswordForm) {
+    resetPasswordForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        rpAlert.classList.add('hidden');
+
+        const newPassword = rpNewPassword.value;
+        const confirmPassword = rpConfirmPassword.value;
+
+        if (newPassword.length < 6 || newPassword !== confirmPassword) {
+            return; // Prevent submit if validation fails
+        }
+
+        const btnText = rpSubmitBtn.querySelector('.btn-text');
+        const spinner = rpSubmitBtn.querySelector('.btn-spinner');
+
+        rpSubmitBtn.disabled = true;
+        rpSubmitBtn.style.opacity = '0.5';
+        btnText.classList.add('hidden');
+        spinner.classList.remove('hidden');
+
+        try {
+            const adminResetPassword = httpsCallable(functions, 'adminResetPassword');
+            const result = await adminResetPassword({
+                targetEmail: currentResetTargetEmail,
+                newPassword: newPassword
+            });
+            
+            showToast(result.data.message || 'Password reset successfully!');
+            window.hideResetModal();
+        } catch (error) {
+            console.error('Reset Password Error:', error);
+            rpAlert.textContent = error.message || 'Failed to reset password. Ensure the user exists.';
+            rpAlert.className = 'alert alert-error';
+            rpAlert.style.backgroundColor = '#fef2f2';
+            rpAlert.style.color = '#991b1b';
+            rpAlert.style.border = '1px solid #fecaca';
+            rpAlert.style.padding = '12px';
+            rpAlert.classList.remove('hidden');
+            
+            // Add shake animation
+            resetPasswordModal.querySelector('.modal-content').animate([
+                { transform: 'translateX(0)' },
+                { transform: 'translateX(-10px)' },
+                { transform: 'translateX(10px)' },
+                { transform: 'translateX(-10px)' },
+                { transform: 'translateX(10px)' },
+                { transform: 'translateX(0)' }
+            ], { duration: 400, easing: 'ease-in-out' });
+        } finally {
+            rpSubmitBtn.disabled = false;
+            rpSubmitBtn.style.opacity = '1';
+            btnText.classList.remove('hidden');
+            spinner.classList.add('hidden');
+            
+            // Clear passwords immediately from memory after attempt
+            rpNewPassword.value = '';
+            rpConfirmPassword.value = '';
+            validatePasswords();
+        }
+    });
+}
+

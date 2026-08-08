@@ -1117,6 +1117,76 @@
         </div>
     </div>
 
+    <!-- Reset Password Modal -->
+    <!-- Reset Password Modal (Redesigned) -->
+    <div id="resetPasswordModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="rpModalTitle">
+        <div class="modal-content glass-modal" style="max-width: 520px; width: 95%; margin: 0 auto; border-radius: 16px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 15px;">
+                <h3 id="rpModalTitle" style="margin: 0; font-weight: 600; color: #1e293b;">🔒 Reset Password</h3>
+                <button type="button" class="close-btn" id="closeResetModalBtn" aria-label="Close modal">&times;</button>
+            </div>
+            
+            <div id="rpAlert" class="alert hidden" style="margin-top: 15px; border-radius: 8px;"></div>
+            
+            <form id="resetPasswordForm" style="margin-top: 20px;">
+                <!-- Read-only Information Cards -->
+                <div class="rp-info-cards" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                    <div class="rp-info-card" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <span style="font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 600; display: block; margin-bottom: 4px;">Teacher Name</span>
+                        <div id="rpTeacherNameDisplay" style="font-size: 0.9rem; color: #0f172a; font-weight: 500; word-break: break-word;"></div>
+                    </div>
+                    <div class="rp-info-card" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <span style="font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 600; display: block; margin-bottom: 4px;">Institute</span>
+                        <div id="rpInstituteNameDisplay" style="font-size: 0.9rem; color: #0f172a; font-weight: 500; word-break: break-word;"></div>
+                    </div>
+                    <div class="rp-info-card" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <span style="font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 600; display: block; margin-bottom: 4px;">Email</span>
+                        <div id="rpTeacherEmailDisplay" style="font-size: 0.9rem; color: #0f172a; font-weight: 500; word-break: break-word;"></div>
+                    </div>
+                    <div class="rp-info-card" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <span style="font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 600; display: block; margin-bottom: 4px;">Role</span>
+                        <div id="rpRoleDisplay" style="font-size: 0.9rem; color: #0f172a; font-weight: 500; word-break: break-word;"></div>
+                    </div>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+
+                <!-- Password Inputs -->
+                <div class="form-group" style="position: relative;">
+                    <label for="rpNewPassword">New Password <span style="color: #ef4444;">*</span></label>
+                    <div style="position: relative;">
+                        <input type="password" id="rpNewPassword" required minlength="6" placeholder="Enter new password (min 6 characters)" style="padding-right: 40px; border-radius: 8px; border: 1px solid #cbd5e1; transition: all 0.2s;" autocomplete="new-password">
+                        <button type="button" class="rp-toggle-pwd" id="rpToggleNewPwd" aria-label="Toggle password visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #64748b; padding: 4px;">👁️</button>
+                    </div>
+                    <!-- Password Strength -->
+                    <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                        <div style="flex-grow: 1; height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden;">
+                            <div id="rpStrengthBar" style="height: 100%; width: 0%; background: #ef4444; transition: all 0.3s ease;"></div>
+                        </div>
+                        <span id="rpStrengthText" style="font-size: 0.75rem; color: #64748b; min-width: 40px; text-align: right;">Weak</span>
+                    </div>
+                </div>
+
+                <div class="form-group" style="position: relative; margin-top: 16px;">
+                    <label for="rpConfirmPassword">Confirm Password <span style="color: #ef4444;">*</span></label>
+                    <div style="position: relative;">
+                        <input type="password" id="rpConfirmPassword" required minlength="6" placeholder="Confirm new password" style="padding-right: 40px; border-radius: 8px; border: 1px solid #cbd5e1; transition: all 0.2s;" autocomplete="new-password">
+                        <button type="button" class="rp-toggle-pwd" id="rpToggleConfirmPwd" aria-label="Toggle confirm password visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #64748b; padding: 4px;">👁️</button>
+                    </div>
+                    <div id="rpMatchMessage" style="font-size: 0.75rem; color: #ef4444; margin-top: 4px; min-height: 14px;"></div>
+                </div>
+
+                <div class="modal-actions" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 12px;">
+                    <button type="button" class="btn btn-secondary" id="cancelResetModalBtn" style="border-radius: 8px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="rpSubmitBtn" disabled style="background: linear-gradient(135deg, #ef4444, #dc2626); border-color: transparent; border-radius: 8px; opacity: 0.5; cursor: not-allowed; transition: all 0.2s ease;">
+                        <span class="btn-text">Update Password</span>
+                        <span class="btn-spinner hidden">🔄 Updating...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toastContainer" class="toast-container"></div>
 

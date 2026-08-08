@@ -159,6 +159,19 @@ match /config/{docId} {
 }
 
 // =====================================================
+// AUDIT LOGS
+// =====================================================
+
+match /audit_logs/{logId} {
+
+  allow read:
+  if isSuperAdmin();
+  
+  allow write:
+  if false; // Only Cloud Functions can write to audit_logs
+}
+
+// =====================================================
 // INSTITUTES
 // =====================================================
 
