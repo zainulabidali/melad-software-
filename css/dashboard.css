@@ -621,20 +621,25 @@
     flex-shrink: 0;
 }
 
-/* Fullscreen Results Screen */
+/* Fullscreen Results Screen & Persistent Bottom Action Bar for Mark Entry */
 .result-fullscreen-modal .modal {
     width: 100vw;
+    width: 100dvw;
     height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
     max-width: none;
-    max-height: none;
     border-radius: 0;
     border: none;
+    display: flex;
+    flex-direction: column;
 }
 
 .result-fullscreen-modal .modal-header {
     background: #0f172a;
     color: #ffffff;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
 }
 
 .result-fullscreen-modal .modal-header h3 {
@@ -652,7 +657,129 @@
 
 .result-fullscreen-modal .modal-body {
     background: var(--bg-main);
-    padding: 2rem;
+    padding: 1.25rem;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+/* Persistent Responsive Bottom Action Bar for Admin/Standalone Mark Entry Modal */
+.result-fullscreen-modal .modal-actions,
+.modal-actions.me-sticky-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 100;
+    background: #ffffff;
+    border-top: 1px solid #cbd5e1;
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08);
+    margin-top: auto;
+    margin-left: -1.25rem;
+    margin-right: -1.25rem;
+    margin-bottom: -1.25rem;
+    padding: 0.75rem 1.25rem;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.result-fullscreen-modal .modal-actions .btn,
+.modal-actions.me-sticky-actions .btn {
+    min-height: 44px;
+    height: 44px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    border-radius: 8px;
+}
+
+/* Mobile responsive styles for Mark Entry bottom actions */
+@media (max-width: 640px) {
+    .result-fullscreen-modal .modal-body {
+        padding: 0.85rem 0.85rem 0 0.85rem;
+    }
+
+    .result-fullscreen-modal .modal-actions,
+    .modal-actions.me-sticky-actions {
+        margin-left: -0.85rem;
+        margin-right: -0.85rem;
+        margin-bottom: 0;
+        padding: 0.65rem 0.85rem;
+        padding-bottom: calc(0.65rem + env(safe-area-inset-bottom, 0px));
+        gap: 0.5rem;
+    }
+
+    .result-fullscreen-modal .modal-actions > div,
+    .modal-actions.me-sticky-actions > div {
+        flex: 1;
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .result-fullscreen-modal .modal-actions .btn,
+    .modal-actions.me-sticky-actions .btn {
+        font-size: 0.82rem;
+        padding: 0.5rem 0.5rem;
+        height: 44px;
+        min-height: 44px;
+    }
+
+    .modal-actions #meCancelBtn {
+        flex: 0 0 auto;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .modal-actions #meDraftBtn {
+        flex: 1;
+    }
+
+    .modal-actions #meSubmitBtn {
+        flex: 1.2;
+    }
+}
+
+/* Persistent Responsive Bottom Action Bar for Judges List Mark Entry Screen */
+.jp-sticky-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 900;
+    background: #ffffff;
+    border-top: 1px solid #cbd5e1;
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.12);
+    padding: 0.75rem 1rem;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.jp-sticky-footer .btn {
+    height: 48px;
+    min-height: 48px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    border-radius: 8px;
+}
+
+#jpScoringList {
+    padding-bottom: calc(85px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ─────────────── Premium Standings & Leaderboards ─────────────── */

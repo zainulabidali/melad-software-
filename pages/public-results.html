@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&family=Cinzel:wght@600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&family=Cinzel:wght@600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Poppins:wght@500;600;700;800&display=swap"
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <style>
@@ -482,7 +482,7 @@
             position: relative;
             overflow: hidden;
             margin: auto;
-            border-radius: 30px;
+            border-radius: 0;
             flex-shrink: 0;
             background-size: cover;
             background-position: center;
@@ -503,7 +503,7 @@
             height: 100%;
             background: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.3) 100%);
             pointer-events: none;
-            border-radius: 30px;
+            border-radius: 0;
             z-index: 1;
         }
 
@@ -1091,7 +1091,7 @@
         .mini-poster-preview {
             width: 160px;
             height: 200px;
-            border-radius: 16px;
+            border-radius: 0;
             position: relative;
             overflow: hidden;
             background-size: cover;
@@ -1280,6 +1280,7 @@
                 color: #000000 !important;
                 min-height: 0 !important;
                 height: auto !important;
+                border-radius: 0 !important;
             }
 
             .result-poster .winner-card {
@@ -1451,7 +1452,7 @@
         }
 
         .poster-brand-event-name {
-            font-family: 'Cinzel', 'Plus Jakarta Sans', serif;
+            font-family: 'Poppins', sans-serif;
             font-size: clamp(13px, 2.6vw, 18px);
             font-weight: 700;
             color: #f7df8a;
@@ -4151,6 +4152,17 @@
                     </div>
                 </div>
 
+                <!-- Gender Filter Custom Dropdown -->
+                <div class="glass-select-container disabled" id="genderFilterContainer">
+                    <div class="glass-select-trigger" id="genderSelectTrigger">
+                        <span class="glass-select-text" id="genderSelectedVal">Select Gender</span>
+                        <span class="glass-select-arrow">▼</span>
+                    </div>
+                    <div class="glass-select-panel" id="genderSelectPanel">
+                        <!-- Dynamic List Items -->
+                    </div>
+                </div>
+
                 <!-- Program Filter Custom Dropdown -->
                 <div class="glass-select-container disabled" id="progFilterContainer">
                     <div class="glass-select-trigger" id="progSelectTrigger">
@@ -4227,6 +4239,12 @@
                     <span class="app-select-chevron">▼</span>
                 </div>
 
+                <div class="app-select-trigger disabled" id="mobGenderSelectTrigger">
+                    <span class="app-select-icon">👥</span>
+                    <span class="app-select-value" id="mobGenderSelectedVal">Select Gender</span>
+                    <span class="app-select-chevron">▼</span>
+                </div>
+
                 <div class="app-select-trigger disabled" id="mobProgSelectTrigger">
                     <span class="app-select-icon">📖</span>
                     <span class="app-select-value" id="mobProgSelectedVal">Select Program</span>
@@ -4279,6 +4297,21 @@
                     </div>
                     <div class="bottom-sheet-body" id="mobCatOptionsList">
                         <!-- Categories dynamic items -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gender Bottom Sheet -->
+            <div class="bottom-sheet" id="mobGenderBottomSheet">
+                <div class="bottom-sheet-overlay" id="mobGenderOverlay"></div>
+                <div class="bottom-sheet-panel">
+                    <div class="bottom-sheet-drag-handle"></div>
+                    <div class="bottom-sheet-header">
+                        <h3 class="bottom-sheet-title">Select Gender</h3>
+                        <button class="bottom-sheet-close" id="mobGenderCloseBtn">&times;</button>
+                    </div>
+                    <div class="bottom-sheet-body" id="mobGenderOptionsList">
+                        <!-- Genders dynamic items -->
                     </div>
                 </div>
             </div>

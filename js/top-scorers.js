@@ -215,9 +215,9 @@ async function loadStaticData() {
         const stuSnap = await getDocs(collection(db, "institutes", instId, "students"));
         stuSnap.forEach(d => {
             const data = d.data();
-            const resolvedTeamName = data.teamName && data.teamName !== '—' && data.teamName !== 'undefined' && data.teamName !== 'null'
-                ? data.teamName
-                : (data.teamId ? (teamMap.get(data.teamId) || 'No Team') : 'No Team');
+            const resolvedTeamName = data.teamId && teamMap.has(data.teamId)
+                ? teamMap.get(data.teamId)
+                : (data.teamName && data.teamName !== '—' && data.teamName !== 'undefined' && data.teamName !== 'null' ? data.teamName : 'No Team');
             studentLookupMap.set(d.id, {
                 studentId: d.id,
                 studentName: data.name || '—',
@@ -278,9 +278,9 @@ function recalculateScorers(publishedResults) {
             if (!stu) {
                 // Double Fallback for legacy registration maps
                 const matchedTeam = allTeams.find(t => t.id === (item.teamId || ''));
-                const resolvedTeamName = item.teamName && item.teamName !== '—' && item.teamName !== 'undefined' && item.teamName !== 'null'
-                    ? item.teamName
-                    : (matchedTeam ? matchedTeam.name : 'No Team');
+                const resolvedTeamName = item.teamId && matchedTeam
+                    ? matchedTeam.name
+                    : (item.teamName && item.teamName !== '—' && item.teamName !== 'undefined' && item.teamName !== 'null' ? item.teamName : 'No Team');
                 stu = {
                     studentId: stuId,
                     studentName: item.studentName || '—',
@@ -292,10 +292,12 @@ function recalculateScorers(publishedResults) {
                     categoryName: r.categoryName || 'General'
                 };
             } else {
-                // Self-healing check: if teamName is empty/placeholder in stu cache, resolve it
+                if (stu.teamId) {
+                    const matchedTeam = allTeams.find(t => t.id === stu.teamId);
+                    if (matchedTeam) stu.teamName = matchedTeam.name;
+                }
                 if (!stu.teamName || stu.teamName === '—' || stu.teamName === 'undefined' || stu.teamName === 'null') {
-                    const matchedTeam = allTeams.find(t => t.id === (stu.teamId || ''));
-                    stu.teamName = matchedTeam ? matchedTeam.name : 'No Team';
+                    stu.teamName = 'No Team';
                 }
             }
 

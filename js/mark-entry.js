@@ -2055,8 +2055,11 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
                 </table>
             </div>
 
+            <!-- Scroll Spacer so final participant row scrolls above sticky footer -->
+            <div style="height:24px; min-height:24px; flex-shrink:0;"></div>
+
             <!-- Footer / Actions -->
-            <div class="modal-actions" style="margin-top:0.5rem;">
+            <div class="modal-actions me-sticky-actions">
                 <button type="button" class="btn btn-secondary" id="meCancelBtn">Cancel</button>
                 <div style="display:flex; gap:0.6rem; margin-left:auto;">
                     <button type="button" class="btn btn-secondary" id="meDraftBtn" style="font-weight:600;">

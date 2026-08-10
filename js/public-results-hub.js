@@ -36,6 +36,7 @@ let publishedResultsList = []; // All published result docs
 let categoriesList = [];
 
 let selectedCategory = '';
+let selectedGender = '';
 let selectedProgramId = '';
 
 // Helper: Escape HTML
@@ -44,6 +45,13 @@ function escapeHTML(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+// Helper: Safely compare categories (case-insensitive, trimmed)
+function isSameCategory(catA, catB) {
+    const a = catA ? String(catA).trim().toLowerCase() : '';
+    const b = catB ? String(catB).trim().toLowerCase() : '';
+    return a === b;
 }
 
 // Ordinal Formatter (1st, 2nd, 3rd, 4th...) - Guarantees NO NaN ever
@@ -76,6 +84,7 @@ function loadCachedHubData() {
 
         updateHeader();
         populateCategorySelect();
+        populateGenderSelect();
         populateProgramSelect();
         updateSummaryStats();
         renderTeamChampionship();
@@ -190,14 +199,52 @@ function populateCategorySelect() {
     if (!select) return;
 
     const catSet = new Set();
+    
+    // Primary Source: All categories in the event
+    if (categoryPerformanceData && categoryPerformanceData.length > 0) {
+        categoryPerformanceData.forEach(c => {
+            if (c.categoryName) catSet.add(String(c.categoryName).trim());
+        });
+    }
+    
+    // Fallback: Published results
     publishedResultsList.forEach(r => {
-        if (r.categoryName) catSet.add(r.categoryName);
+        if (r.categoryName) catSet.add(String(r.categoryName).trim());
     });
 
     categoriesList = Array.from(catSet).sort();
 
     select.innerHTML = '<option value="">All Categories</option>' +
         categoriesList.map(cat => `<option value="${escapeHTML(cat)}" ${selectedCategory === cat ? 'selected' : ''}>${escapeHTML(cat)}</option>`).join('');
+}
+
+function normalizeGender(g) {
+    if (!g) return "Mixed";
+    const tg = String(g).trim().toLowerCase();
+    if (tg === 'boys' || tg === 'boy' || tg === 'male') return "Boys";
+    if (tg === 'girls' || tg === 'girl' || tg === 'female') return "Girls";
+    return "Mixed";
+}
+
+function populateGenderSelect() {
+    const select = document.getElementById('hubGenderSelect');
+    if (!select) return;
+
+    if (!selectedCategory) {
+        select.innerHTML = '<option value="">All Genders</option>';
+        return;
+    }
+
+    const genderSet = new Set();
+    publishedResultsList.forEach(r => {
+        if (isSameCategory(r.categoryName, selectedCategory)) {
+            genderSet.add(normalizeGender(r.genderCategory));
+        }
+    });
+
+    const genderList = Array.from(genderSet).sort();
+    select.innerHTML = '<option value="">All Genders</option>' +
+        genderList.map(g => `<option value="${escapeHTML(g)}" ${selectedGender === g ? 'selected' : ''}>${escapeHTML(g)}</option>`).join('');
 }
 
 function populateProgramSelect() {
@@ -207,7 +254,10 @@ function populateProgramSelect() {
     let filtered = publishedResultsList;
 
     if (selectedCategory) {
-        filtered = filtered.filter(r => r.categoryName === selectedCategory);
+        filtered = filtered.filter(r => isSameCategory(r.categoryName, selectedCategory));
+    }
+    if (selectedGender) {
+        filtered = filtered.filter(r => normalizeGender(r.genderCategory) === selectedGender);
     }
 
     select.innerHTML = '<option value="">All Programs</option>' +
@@ -585,7 +635,7 @@ async function initPublicResultsHub() {
 
         onSnapshot(pubQuery, (querySnap) => {
             publishedResultsList = querySnap.docs.map(d => ({ id: d.id, ...d.data() }))
-                .filter(r => r.publicDisabled !== true && r.publicReleased === true);
+                .filter(r => r.publicDisabled !== true);
 
             publishedResultsList.sort((a, b) => {
                 const tA = a.publishedAt?.seconds || 0;
@@ -594,6 +644,7 @@ async function initPublicResultsHub() {
             });
 
             populateCategorySelect();
+            populateGenderSelect();
             populateProgramSelect();
             updateSummaryStats();
             if (selectedProgramId) renderProgramResultCard();
@@ -604,14 +655,31 @@ async function initPublicResultsHub() {
         console.error("Error loading published results:", e);
     }
 
-    // Bind Category & Program Selectors
+    // Bind Category, Gender & Program Selectors
     const catSelect = document.getElementById('hubCategorySelect');
+    const genderSelect = document.getElementById('hubGenderSelect');
     const progSelect = document.getElementById('hubProgramSelect');
 
     if (catSelect) {
         catSelect.addEventListener('change', (e) => {
             selectedCategory = e.target.value;
+            selectedGender = '';
+            selectedProgramId = '';
+            if (genderSelect) genderSelect.value = '';
+            if (progSelect) progSelect.value = '';
+            populateGenderSelect();
             populateProgramSelect();
+            renderProgramResultCard();
+        });
+    }
+
+    if (genderSelect) {
+        genderSelect.addEventListener('change', (e) => {
+            selectedGender = e.target.value;
+            selectedProgramId = '';
+            if (progSelect) progSelect.value = '';
+            populateProgramSelect();
+            renderProgramResultCard();
         });
     }
 

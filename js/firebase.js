@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, collection, getDocs, doc, writeBatch, setDoc, getDoc, getCountFromServer, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, setLogLevel, collection, getDocs, doc, writeBatch, setDoc, getDoc, getCountFromServer, serverTimestamp, query, where } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-functions.js";
 
@@ -15,6 +15,7 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
+setLogLevel('error');
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
@@ -248,7 +249,7 @@ async function _performUpdateDashboardMetadata(instituteId) {
         // 2. Real-time Live Team Leaderboard
         const teamPoints = new Map();
         teams.forEach(t => {
-            if (t.name) teamPoints.set(t.name, 0);
+            teamPoints.set(t.id, 0);
         });
 
         results.forEach(r => {
@@ -258,43 +259,47 @@ async function _performUpdateDashboardMetadata(instituteId) {
 
                 if (Array.isArray(r.marksData) && r.marksData.length > 0) {
                     r.marksData.forEach(w => {
-                        if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName !== 'No Team' && w.totalPoints > 0) {
-                            const current = teamPoints.get(w.teamName) || 0;
-                            teamPoints.set(w.teamName, current + (w.totalPoints || 0));
+                        if (w.teamId && w.teamId !== 'teamless' && w.totalPoints > 0) {
+                            const current = teamPoints.get(w.teamId) || 0;
+                            teamPoints.set(w.teamId, current + (w.totalPoints || 0));
                         }
                     });
                 } else if (Array.isArray(r.winners)) {
                     r.winners.forEach(w => {
-                        if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName !== 'No Team') {
-                            const current = teamPoints.get(w.teamName) || 0;
-                            teamPoints.set(w.teamName, current + (w.marks || 0));
+                        if (w.teamId && w.teamId !== 'teamless') {
+                            const current = teamPoints.get(w.teamId) || 0;
+                            teamPoints.set(w.teamId, current + (w.marks || 0));
                         }
                     });
                 }
             }
         });
 
-        const sortedTeams = [...teamPoints.entries()]
-            .sort((a, b) => b[1] - a[1])
-            .map(([name, points]) => ({ name, points }));
+        const sortedTeams = teams.map(t => ({
+            id: t.id,
+            name: t.name,
+            points: teamPoints.get(t.id) || 0
+        })).sort((a, b) => b.points - a.points);
 
         // 3. Radar Chart (Participants By Team)
         const teamCounts = new Map();
         teams.forEach(t => {
-            if (t.name) teamCounts.set(t.name, 0);
+            teamCounts.set(t.id, 0);
         });
         students.forEach(s => {
-            if (s.teamId && s.teamId !== 'teamless') {
-                const team = teamMap.get(s.teamId);
-                if (team && team.name) {
-                    const current = teamCounts.get(team.name) || 0;
-                    teamCounts.set(team.name, current + 1);
-                }
+            let teamId = s.teamId;
+            if (!teamId && s.teamName) {
+                const matchedTeam = Array.from(teamMap.values()).find(t => t.name === s.teamName);
+                if (matchedTeam) teamId = matchedTeam.id;
+            }
+            if (teamId && teamCounts.has(teamId)) {
+                const current = teamCounts.get(teamId) || 0;
+                teamCounts.set(teamId, current + 1);
             }
         });
 
         const radarChartData = {
-            labels: [...teamCounts.keys()],
+            labels: [...teamCounts.keys()].map(id => teamMap.get(id)?.name || 'Unknown'),
             data: [...teamCounts.values()]
         };
 
@@ -344,7 +349,7 @@ async function _performUpdateDashboardMetadata(instituteId) {
 
         // 5. Category Performance Aggregation
         const teamSet = new Set();
-        teams.forEach(t => { if (t.name) teamSet.add(t.name); });
+        teams.forEach(t => { teamSet.add(t.id); });
         const categoryMap = {};
         const processedProgramIds = new Set();
 
@@ -364,18 +369,18 @@ async function _performUpdateDashboardMetadata(instituteId) {
 
             if (Array.isArray(r.marksData) && r.marksData.length > 0) {
                 r.marksData.forEach(w => {
-                    if (w.teamName && w.teamName !== 'No Team' && w.totalPoints > 0) {
+                    if (w.teamId && w.teamId !== 'teamless' && w.totalPoints > 0) {
                         const pts = Number(w.totalPoints || 0);
-                        categoryMap[catName][w.teamName] = (categoryMap[catName][w.teamName] || 0) + pts;
-                        teamSet.add(w.teamName);
+                        categoryMap[catName][w.teamId] = (categoryMap[catName][w.teamId] || 0) + pts;
+                        teamSet.add(w.teamId);
                     }
                 });
             } else if (Array.isArray(r.winners)) {
                 r.winners.forEach(w => {
-                    if (w.teamName && w.teamName !== 'No Team' && w.marks > 0) {
+                    if (w.teamId && w.teamId !== 'teamless' && w.marks > 0) {
                         const pts = Number(w.marks || 0);
-                        categoryMap[catName][w.teamName] = (categoryMap[catName][w.teamName] || 0) + pts;
-                        teamSet.add(w.teamName);
+                        categoryMap[catName][w.teamId] = (categoryMap[catName][w.teamId] || 0) + pts;
+                        teamSet.add(w.teamId);
                     }
                 });
             }
@@ -386,9 +391,9 @@ async function _performUpdateDashboardMetadata(instituteId) {
 
         const categoryPerformance = categoryNames.map(catName => {
             const teamScoresObj = categoryMap[catName] || {};
-            const teamList = Array.from(teamSet).map(name => ({
-                name: name,
-                points: teamScoresObj[name] || 0
+            const teamList = Array.from(teamSet).map(id => ({
+                name: teamMap.get(id)?.name || 'Unknown',
+                points: teamScoresObj[id] || 0
             }));
             teamList.sort((a, b) => b.points - a.points);
             computeDenseRanking(teamList, t => t.points, 'rank');
@@ -426,13 +431,13 @@ async function _performUpdateDashboardMetadata(instituteId) {
                 const sorted = [...r.marksData].sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
                 if (sorted[0]) {
                     topWinnerName = sorted[0].studentName || 'Winner';
-                    topTeamName = sorted[0].teamName || '';
+                    topTeamName = sorted[0].teamId ? (teamMap.get(sorted[0].teamId)?.name || sorted[0].teamName) : (sorted[0].teamName || '');
                 }
             } else if (Array.isArray(r.winners) && r.winners.length > 0) {
                 const sorted = [...r.winners].sort((a, b) => (b.marks || 0) - (a.marks || 0));
                 if (sorted[0]) {
                     topWinnerName = sorted[0].name || sorted[0].studentName || 'Winner';
-                    topTeamName = sorted[0].teamName || '';
+                    topTeamName = sorted[0].teamId ? (teamMap.get(sorted[0].teamId)?.name || sorted[0].teamName) : (sorted[0].teamName || '');
                 }
             }
 
@@ -2024,8 +2029,111 @@ export function aggregateManualGrades(grades, pointsConfig = null) {
     return closest ? closest.name : '';
 }
 
+export async function syncTeamNameGlobally(instituteId, teamId, newTeamName, newDescription) {
+    if (!instituteId || !teamId || newTeamName === undefined) return;
+    
+    let batch = writeBatch(db);
+    let operationCount = 0;
 
+    const commitBatchIfNeeded = async () => {
+        if (operationCount >= 450) {
+            await batch.commit();
+            batch = writeBatch(db);
+            operationCount = 0;
+        }
+    };
 
+    function deepUpdateTeamName(obj) {
+        let changed = false;
+        function traverse(node) {
+            if (!node || typeof node !== 'object') return;
+            if (Array.isArray(node)) {
+                for (let i = 0; i < node.length; i++) {
+                    traverse(node[i]);
+                }
+            } else {
+                if (node.teamId !== undefined && String(node.teamId) === String(teamId) && typeof node.teamName === 'string' && node.teamName !== newTeamName) {
+                    node.teamName = newTeamName;
+                    changed = true;
+                }
+                for (const key of Object.keys(node)) {
+                    traverse(node[key]);
+                }
+            }
+        }
+        traverse(obj);
+        return changed;
+    }
 
+    try {
+        // 1. Update Students
+        const stuSnap = await getDocs(collection(db, "institutes", instituteId, "students"));
+        for (const stuDoc of stuSnap.docs) {
+            const data = stuDoc.data();
+            if (deepUpdateTeamName(data)) {
+                batch.update(stuDoc.ref, data);
+                operationCount++;
+                await commitBatchIfNeeded();
+            }
+        }
 
+        // 2. Update Programs and Participants
+        const progSnap = await getDocs(collection(db, "institutes", instituteId, "programs"));
+        for (const progDoc of progSnap.docs) {
+            const data = progDoc.data();
+            if (deepUpdateTeamName(data)) {
+                batch.update(progDoc.ref, data);
+                operationCount++;
+                await commitBatchIfNeeded();
+            }
 
+            const partSnap = await getDocs(collection(db, "institutes", instituteId, "programs", progDoc.id, "participants"));
+            for (const pDoc of partSnap.docs) {
+                const pData = pDoc.data();
+                if (deepUpdateTeamName(pData)) {
+                    batch.update(pDoc.ref, pData);
+                    operationCount++;
+                    await commitBatchIfNeeded();
+                }
+            }
+        }
+
+        // 3. Update Results
+        const resSnap = await getDocs(collection(db, "institutes", instituteId, "results"));
+        for (const resDoc of resSnap.docs) {
+            const data = resDoc.data();
+            if (deepUpdateTeamName(data)) {
+                batch.update(resDoc.ref, data);
+                operationCount++;
+                await commitBatchIfNeeded();
+            }
+        }
+
+        // 4. Update the root team document
+        const teamRef = doc(db, "institutes", instituteId, "teams", teamId);
+        const updates = { name: newTeamName };
+        if (newDescription !== undefined) {
+            updates.description = newDescription;
+        }
+        batch.update(teamRef, updates);
+        operationCount++;
+
+        // Commit remainder
+        if (operationCount > 0) {
+            await batch.commit();
+        }
+
+        // 5. Invalidate cached team maps and dependent caches
+        invalidateTeamsCache(instituteId);
+        localStorage.removeItem(`publicResultsHubData_${instituteId}`);
+        localStorage.removeItem(`topScorersData_${instituteId}`);
+        localStorage.removeItem(`programsCache_${instituteId}`);
+
+        // 6. Force dashboard metadata refresh
+        await updateDashboardMetadata(instituteId);
+
+    } catch (err) {
+        console.error("Failed to sync global team name:", err);
+        throw err;
+    }
+}

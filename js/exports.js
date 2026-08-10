@@ -6339,6 +6339,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
     }
 
     else if (f.type === 'Call List') {
+        const teamNamesMap = {};
+        allTeams.forEach(t => teamNamesMap[t.id] = t.name);
+        
         // Sort programs by location then program name
         programs.sort((a, b) => {
             const locCmp = (a.programLocation || '').localeCompare(b.programLocation || '');
@@ -6372,7 +6375,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     // Group actual participants by team for General Programs with individual registrations (1 row per team)
                     const teamsMap = {};
                     parts.forEach(item => {
-                        const tName = item.teamName || 'General';
+                        let tName = 'General';
+                        if (item.teamId) {
+                            const matchedName = teamNamesMap[item.teamId];
+                            tName = matchedName || item.teamName || 'General';
+                        } else if (item.teamName) {
+                            tName = item.teamName;
+                        }
+                        
                         if (!teamsMap[tName]) teamsMap[tName] = [];
                         teamsMap[tName].push(item);
                     });
@@ -6453,7 +6463,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 </td>
                                 <td style="font-weight:800; color:#475569; padding:0.25rem 0.35rem;">${window.escapeHTML(groupItem.name)}</td>
                                 <td style="padding:0.25rem 0.35rem;">
-                                    <span class="call-team-badge">${window.escapeHTML(groupItem.teamName || '—')}</span>
+                                    <span class="call-team-badge">${window.escapeHTML((groupItem.teamId ? teamNamesMap[groupItem.teamId] : null) || groupItem.teamName || '—')}</span>
                                 </td>
                             </tr>
                         `;
@@ -6498,7 +6508,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             <td style="font-weight:800; color:#1e1b4b;">${window.escapeHTML(item.name)}</td>
                             <td style="font-weight:700; color:#475569;">${window.escapeHTML(className)}</td>
                             <td>
-                                <span class="call-team-badge">${window.escapeHTML(item.teamName || '—')}</span>
+                                <span class="call-team-badge">${window.escapeHTML((item.teamId ? teamNamesMap[item.teamId] : null) || item.teamName || '—')}</span>
                             </td>
                         </tr>
                     `;
@@ -6788,7 +6798,12 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 const teamPoints = new Map();
                 const categoryScores = new Map(); // categoryId -> Map(studentKey -> { name, team, points })
 
-                allTeams.forEach(t => teamPoints.set(t.name, 0));
+                const teamMap = new Map();
+                allTeams.forEach(t => {
+                    teamPoints.set(t.id, 0);
+                    teamMap.set(t.id, t.name);
+                });
+                
                 allCategories.forEach(c => categoryScores.set(c.id, new Map()));
 
                 filteredResults.forEach(r => {
@@ -6797,10 +6812,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                     if (Array.isArray(r.marksData) && r.marksData.length > 0) {
                         r.marksData.forEach(w => {
-                            const team = w.teamName;
                             const pts = Number(w.totalPoints) || 0;
-                            if (w.teamId && w.teamId !== 'teamless' && team && team !== 'No Team' && pts > 0) {
-                                teamPoints.set(team, (teamPoints.get(team) || 0) + pts);
+                            if (w.teamId && w.teamId !== 'teamless' && pts > 0) {
+                                teamPoints.set(w.teamId, (teamPoints.get(w.teamId) || 0) + pts);
                             }
                             // For Category Champions accumulation
                             if (w.studentName && prog.categoryId) {
@@ -6808,7 +6822,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 if (map) {
                                     const key = w.studentName;
                                     if (!map.has(key)) {
-                                        map.set(key, { name: w.studentName, teamName: w.teamName || '—', points: 0 });
+                                        const resolvedTeam = w.teamId ? (teamMap.get(w.teamId) || w.teamName || '—') : (w.teamName || '—');
+                                        map.set(key, { name: w.studentName, teamName: resolvedTeam, points: 0 });
                                     }
                                     map.get(key).points += pts;
                                 }
@@ -6816,10 +6831,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         });
                     } else if (Array.isArray(r.winners)) {
                         r.winners.forEach(w => {
-                            const team = w.teamName;
                             const pts = Number(w.marks) || 0;
-                            if (w.teamId && w.teamId !== 'teamless' && team && team !== 'No Team' && pts > 0) {
-                                teamPoints.set(team, (teamPoints.get(team) || 0) + pts);
+                            if (w.teamId && w.teamId !== 'teamless' && pts > 0) {
+                                teamPoints.set(w.teamId, (teamPoints.get(w.teamId) || 0) + pts);
                             }
                             // For Category Champions accumulation
                             if (w.studentName && prog.categoryId) {
@@ -6827,7 +6841,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 if (map) {
                                     const key = w.studentName;
                                     if (!map.has(key)) {
-                                        map.set(key, { name: w.studentName, teamName: w.teamName || '—', points: 0 });
+                                        const resolvedTeam = w.teamId ? (teamMap.get(w.teamId) || w.teamName || '—') : (w.teamName || '—');
+                                        map.set(key, { name: w.studentName, teamName: resolvedTeam, points: 0 });
                                     }
                                     map.get(key).points += pts;
                                 }
@@ -6839,7 +6854,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 // 1. Team Championship Standings (Phase 6) - Omitted from result report export as requested
                 const sortedTeamStandings = [...teamPoints.entries()]
                     .sort((a, b) => b[1] - a[1])
-                    .map(([name, points], idx) => ({ rank: idx + 1, team: name, points }));
+                    .map(([id, points], idx) => ({ rank: idx + 1, team: teamMap.get(id) || 'Unknown', points }));
 
                 // 2. Category Champions Summaries (Phase 6)
                 let categoryHTML = '';

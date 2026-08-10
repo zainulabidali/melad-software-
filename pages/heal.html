@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legacy Database Inspection & Safe Healer</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 2rem; background: #f8fafc; color: #1e293b; }
+        .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 1.5rem; border: 1px solid #e2e8f0; }
+        h1 { margin-top: 0; color: #4338ca; }
+        select, button { padding: 0.6rem 1rem; font-size: 0.95rem; border-radius: 6px; border: 1px solid #cbd5e1; }
+        button.btn-primary { background: #4f46e5; color: white; border: none; cursor: pointer; font-weight: 600; }
+        button.btn-success { background: #16a34a; color: white; border: none; cursor: pointer; font-weight: 600; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.85rem; }
+        th, td { padding: 0.6rem; border: 1px solid #e2e8f0; text-align: left; }
+        th { background: #f1f5f9; font-weight: 700; color: #475569; }
+        .badge-evidence { background: #dcfce7; color: #166534; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.75rem; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Legacy Data Audit & Safe Migration Tool</h1>
+        <p>This utility inspects legacy records (e.g. legacy string IDs <code>"A"</code> / <code>"B"</code>) and provides a <strong>Safe Preview & Evidence Verification</strong> before any database updates occur.</p>
+        
+        <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+            <div>
+                <label><strong>Map Legacy "A" candidate to:</strong></label><br>
+                <select id="teamASelect"><option value="">Loading teams...</option></select>
+            </div>
+            <div>
+                <label><strong>Map Legacy "B" candidate to:</strong></label><br>
+                <select id="teamBSelect"><option value="">Loading teams...</option></select>
+            </div>
+        </div>
+        <br>
+        <button id="previewBtn" class="btn-primary">1. RUN SAFE PREVIEW & VERIFY RELATIONSHIPS</button>
+    </div>
+
+    <div id="previewCard" class="card" style="display: none;">
+        <h2>2. Migration Preview & Relationship Evidence</h2>
+        <p>Review the affected documents and evidence below. Uncheck any document you do NOT wish to modify.</p>
+        
+        <div style="margin-bottom: 1rem;">
+            <button id="selectAllBtn">Select All</button>
+            <button id="deselectAllBtn">Deselect All</button>
+            <span id="selectedCount" style="margin-left: 1rem; font-weight: 600;">0 items selected</span>
+        </div>
+
+        <div style="overflow-x: auto; max-height: 400px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 30px;"><input type="checkbox" id="headerCheck" checked></th>
+                        <th>COLLECTION / PATH</th>
+                        <th>OLD DATA</th>
+                        <th>CANDIDATE TARGET</th>
+                        <th>MATCH EVIDENCE</th>
+                    </tr>
+                </thead>
+                <tbody id="previewBody"></tbody>
+            </table>
+        </div>
+
+        <br>
+        <button id="executeBtn" class="btn-success" disabled>3. CONFIRM & EXECUTE BATCH MIGRATION</button>
+        <p id="statusText" style="font-weight: 600; margin-top: 0.5rem;"></p>
+    </div>
+
+    <script type="module">
+        import { db, updateDashboardMetadata } from '../js/firebase.js';
+        import { collection, getDocs, doc, writeBatch } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+        
+        const instId = localStorage.getItem('melad_current_institute_id') || localStorage.getItem('melad_institute_id');
+        let teams = [];
+        let previewItems = [];
+
+        if (!instId) {
+            alert("ERROR: Please log into the admin dashboard first.");
+        } else {
+            async function loadTeams() {
+                const snap = await getDocs(collection(db, "institutes", instId, "teams"));
+                teams = snap.docs.map(d => ({ id: d.id, name: d.data().name }));
+                
+                const selectA = document.getElementById('teamASelect');
+                const selectB = document.getElementById('teamBSelect');
+                selectA.innerHTML = '<option value="">Select Team</option>';
+                selectB.innerHTML = '<option value="">Select Team</option>';
+                
+                teams.forEach(t => {
+                    selectA.innerHTML += `<option value="${t.id}">${t.name} (${t.id})</option>`;
+                    selectB.innerHTML += `<option value="${t.id}">${t.name} (${t.id})</option>`;
+                });
+            }
+            loadTeams();
+
+            document.getElementById('previewBtn').addEventListener('click', async () => {
+                const aId = document.getElementById('teamASelect').value;
+                const bId = document.getElementById('teamBSelect').value;
+
+                const aTeam = teams.find(t => t.id === aId);
+                const bTeam = teams.find(t => t.id === bId);
+
+                previewItems = [];
+                const previewBody = document.getElementById('previewBody');
+                previewBody.innerHTML = '<tr><td colspan="5">Scanning database for evidence...</td></tr>';
+                document.getElementById('previewCard').style.display = 'block';
+
+                // Fetch students to build student-to-team map
+                const stuSnap = await getDocs(collection(db, "institutes", instId, "students"));
+                const studentTeamMap = new Map();
+                stuSnap.docs.forEach(d => {
+                    const data = d.data();
+                    if (data.chestNumber && (data.teamId || data.teamName)) {
+                        studentTeamMap.set(String(data.chestNumber).trim(), {
+                            teamId: data.teamId,
+                            teamName: data.teamName,
+                            studentName: data.name
+                        });
+                    }
+                });
+
+                // Scan Results
+                const resSnap = await getDocs(collection(db, "institutes", instId, "results"));
+                resSnap.docs.forEach(resDoc => {
+                    const data = resDoc.data();
+                    let hasLegacy = false;
+                    let evidenceArr = [];
+
+                    if (Array.isArray(data.marksData)) {
+                        data.marksData.forEach(w => {
+                            if (w.teamId === "A" || w.teamName === "A" || w.teamId === "B" || w.teamName === "B") {
+                                hasLegacy = true;
+                                const studentInfo = w.chestNo ? studentTeamMap.get(String(w.chestNo).trim()) : null;
+                                const evidenceStr = studentInfo 
+                                    ? `Linked via Chest #${w.chestNo} (${studentInfo.studentName})`
+                                    : `Matching raw legacy team tag "${w.teamName || w.teamId}"`;
+                                evidenceArr.push(evidenceStr);
+                            }
+                        });
+                    }
+
+                    if (hasLegacy) {
+                        const targetTeam = (data.marksData?.some(w => w.teamId === "A" || w.teamName === "A") && aTeam) ? aTeam : bTeam;
+                        previewItems.push({
+                            ref: resDoc.ref,
+                            path: `results/${resDoc.id} (${data.programName || 'Result'})`,
+                            oldData: `teamId/Name: "A" / "B"`,
+                            targetTeam: targetTeam ? `${targetTeam.name} (${targetTeam.id})` : 'Unassigned',
+                            targetId: targetTeam?.id,
+                            targetName: targetTeam?.name,
+                            evidence: evidenceArr.join(', '),
+                            checked: true,
+                            docData: data,
+                            type: 'result'
+                        });
+                    }
+                });
+
+                renderPreviewTable();
+            });
+
+            function renderPreviewTable() {
+                const previewBody = document.getElementById('previewBody');
+                if (previewItems.length === 0) {
+                    previewBody.innerHTML = '<tr><td colspan="5">No legacy "A"/"B" records found requiring migration.</td></tr>';
+                    document.getElementById('executeBtn').disabled = true;
+                    return;
+                }
+
+                previewBody.innerHTML = previewItems.map((item, idx) => `
+                    <tr>
+                        <td><input type="checkbox" data-idx="${idx}" ${item.checked ? 'checked' : ''} class="item-check"></td>
+                        <td><code>${item.path}</code></td>
+                        <td><span style="color:#ef4444; font-weight:600;">${item.oldData}</span></td>
+                        <td><span style="color:#16a34a; font-weight:600;">${item.targetTeam}</span></td>
+                        <td><span class="badge-evidence">${item.evidence}</span></td>
+                    </tr>
+                `).join('');
+
+                document.getElementById('executeBtn').disabled = !previewItems.some(i => i.checked);
+                updateSelectedCount();
+
+                document.querySelectorAll('.item-check').forEach(chk => {
+                    chk.addEventListener('change', (e) => {
+                        const idx = parseInt(e.target.getAttribute('data-idx'));
+                        previewItems[idx].checked = e.target.checked;
+                        document.getElementById('executeBtn').disabled = !previewItems.some(i => i.checked);
+                        updateSelectedCount();
+                    });
+                });
+            }
+
+            function updateSelectedCount() {
+                const count = previewItems.filter(i => i.checked).length;
+                document.getElementById('selectedCount').innerText = `${count} of ${previewItems.length} items selected`;
+            }
+
+            document.getElementById('headerCheck').addEventListener('change', (e) => {
+                const checked = e.target.checked;
+                previewItems.forEach(i => i.checked = checked);
+                renderPreviewTable();
+            });
+
+            document.getElementById('executeBtn').addEventListener('click', async () => {
+                const selected = previewItems.filter(i => i.checked);
+                if (selected.length === 0) return alert("No items selected.");
+
+                if (!confirm(`Are you sure you want to update ${selected.length} verified records? This action modifies selected Firestore documents.`)) {
+                    return;
+                }
+
+                document.getElementById('statusText').innerText = "Executing batch update...";
+                let batch = writeBatch(db);
+                let count = 0;
+
+                for (const item of selected) {
+                    if (item.type === 'result') {
+                        const data = item.docData;
+                        if (Array.isArray(data.marksData)) {
+                            data.marksData.forEach(w => {
+                                if ((w.teamId === "A" || w.teamName === "A") && item.targetId) {
+                                    w.teamId = item.targetId;
+                                    w.teamName = item.targetName;
+                                }
+                            });
+                        }
+                        batch.update(item.ref, data);
+                        count++;
+                    }
+                }
+
+                if (count > 0) {
+                    await batch.commit();
+                    await updateDashboardMetadata(instId);
+                    document.getElementById('statusText').innerText = `✅ Successfully updated ${count} records and refreshed Dashboard Metadata!`;
+                }
+            });
+        }
+    </script>
+</body>
+</html>

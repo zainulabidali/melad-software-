@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, computeDenseRanking, getCachedCategories, getCachedPrograms, getCachedStudentsMap } from './firebase.js';
+import { db, updateDashboardMetadata, computeDenseRanking, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams } from './firebase.js';
 import {
     collection, doc, getDocs, onSnapshot, serverTimestamp, updateDoc, deleteDoc, writeBatch, setDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -247,10 +247,13 @@ export async function initResultsView(container, topActions) {
 async function loadResultsViewData() {
     try {
         // Load Programs and Students Map from Cache
-        const [cachedProgs, studentMap] = await Promise.all([
+        const [cachedProgs, studentMap, cachedTeams] = await Promise.all([
             getCachedPrograms(window.currentInstituteId),
-            getCachedStudentsMap(window.currentInstituteId)
+            getCachedStudentsMap(window.currentInstituteId),
+            getCachedTeams(window.currentInstituteId)
         ]);
+        window.allTeams = cachedTeams; // Global scope for local mapping
+        window.teamMap = new Map(cachedTeams.map(t => [t.id, t.name]));
         allPrograms = cachedProgs.map(p => {
             const pType = (p.programType || p.type || 'individual').toLowerCase();
             return {
@@ -343,24 +346,41 @@ function renderResultsView() {
 
             if (Array.isArray(r.marksData) && r.marksData.length > 0) {
                 r.marksData.forEach(w => {
-                    if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName !== 'No Team' && w.totalPoints > 0) {
-                        const current = teamPoints.get(w.teamName) || 0;
-                        teamPoints.set(w.teamName, current + (w.totalPoints || 0));
+                    if (w.teamId && w.teamId !== 'teamless' && w.totalPoints > 0) {
+                        const current = teamPoints.get(w.teamId) || 0;
+                        teamPoints.set(w.teamId, current + (w.totalPoints || 0));
                     }
                 });
             } else if (Array.isArray(r.winners)) {
                 // Fallback for backward compatibility
                 r.winners.forEach(w => {
-                    if (w.teamId && w.teamId !== 'teamless' && w.teamName && w.teamName !== 'No Team') {
-                        const current = teamPoints.get(w.teamName) || 0;
-                        teamPoints.set(w.teamName, current + (w.marks || 0));
+                    if (w.teamId && w.teamId !== 'teamless') {
+                        const current = teamPoints.get(w.teamId) || 0;
+                        teamPoints.set(w.teamId, current + (w.marks || 0));
                     }
                 });
             }
         }
     });
 
-    const teamsArray = [...teamPoints.entries()].map(([name, points]) => ({ name, points }));
+    // Ensure ALL teams exist in the array (even those with 0 points)
+    const teamsArray = [];
+    if (window.allTeams) {
+        window.allTeams.forEach(t => {
+            teamsArray.push({ name: t.name || 'Unknown', points: teamPoints.get(t.id) || 0 });
+        });
+    } else {
+        // Fallback if teams didn't load
+        [...teamPoints.entries()].forEach(([id, points]) => {
+            const resolvedName = window.teamMap ? (window.teamMap.get(id) || id) : id;
+            teamsArray.push({ name: resolvedName, points });
+        });
+    }
+    
+    // Filter out teams with 0 points if desired, but sorting will place them at the bottom.
+    // If you only want to show teams with >0 points, filter here. (Usually we show all).
+    teamsArray.sort((a, b) => b.points - a.points);
+
     computeDenseRanking(teamsArray, t => t.points, 'rank');
     const leaderboardBody = document.getElementById('resLeaderboardBody');
     
@@ -664,7 +684,10 @@ async function openResultDetailPopup(r) {
                 }
             }
 
-            const teamDisplay = item.teamName || '—';
+            const resolvedTeam = (item.teamId && window.teamMap && window.teamMap.has(item.teamId))
+                ? window.teamMap.get(item.teamId)
+                : (item.teamName || '—');
+            const teamDisplay = resolvedTeam;
             const finalMark = hasScore ? item.finalMark : '—';
             const grade = (showGrade && hasScore) ? (item.grade || '') : '';
             const points = hasScore ? `${item.totalPoints || 0}pts` : '—';

@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, migrateParticipantCounts, migrateTeamMemberCounts, invalidateTeamsCache, invalidateProgramsCache, cleanupOrphanedTeamData, getCachedPrograms, getCachedProgramOverview, setCachedProgramOverview, invalidateProgramOverviewCache } from './firebase.js';
+import { db, updateDashboardMetadata, migrateParticipantCounts, migrateTeamMemberCounts, invalidateTeamsCache, invalidateProgramsCache, cleanupOrphanedTeamData, getCachedPrograms, getCachedProgramOverview, setCachedProgramOverview, invalidateProgramOverviewCache, syncTeamNameGlobally } from './firebase.js';
 
 
 import {
@@ -583,18 +583,11 @@ function openTeamModal(teamId = null, currentName = "", currentDesc = "") {
                 );
 
                 if (teamId) {
-                    await updateDoc(
-                        doc(
-                            db,
-                            "institutes",
-                            window.currentInstituteId,
-                            "teams",
-                            teamId
-                        ),
-                        {
-                            name,
-                            description: desc
-                        }
+                    await syncTeamNameGlobally(
+                        window.currentInstituteId,
+                        teamId,
+                        name,
+                        desc
                     );
                     window.showToast("Team updated.");
                 } else {
