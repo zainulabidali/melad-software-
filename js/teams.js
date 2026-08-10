@@ -583,12 +583,21 @@ function openTeamModal(teamId = null, currentName = "", currentDesc = "") {
                 );
 
                 if (teamId) {
-                    await syncTeamNameGlobally(
+                    const teamRef = doc(db, "institutes", window.currentInstituteId, "teams", teamId);
+                    const updates = { name };
+                    if (desc !== undefined) updates.description = desc;
+                    await updateDoc(teamRef, updates);
+
+                    // Trigger heavy denormalized sync asynchronously without blocking the UI
+                    syncTeamNameGlobally(
                         window.currentInstituteId,
                         teamId,
                         name,
                         desc
-                    );
+                    ).catch(err => {
+                        console.error("Background sync failed:", err);
+                    });
+
                     window.showToast("Team updated.");
                 } else {
                     await addDoc(teamsRef, {

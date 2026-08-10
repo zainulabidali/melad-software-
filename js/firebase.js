@@ -2066,8 +2066,13 @@ export async function syncTeamNameGlobally(instituteId, teamId, newTeamName, new
     }
 
     try {
-        // 1. Update Students
-        const stuSnap = await getDocs(collection(db, "institutes", instituteId, "students"));
+        // 1. Update Students (Targeted Query)
+        // Note: Firestore 'in' requires 10 or fewer items.
+        const qStudents = query(
+            collection(db, "institutes", instituteId, "students"),
+            where("teamId", "in", [teamId, Number(teamId), String(teamId)])
+        );
+        const stuSnap = await getDocs(qStudents);
         for (const stuDoc of stuSnap.docs) {
             const data = stuDoc.data();
             if (deepUpdateTeamName(data)) {
@@ -2077,28 +2082,19 @@ export async function syncTeamNameGlobally(instituteId, teamId, newTeamName, new
             }
         }
 
-        // 2. Update Programs and Participants
+        // 2. Fetch Programs & Results
         const progSnap = await getDocs(collection(db, "institutes", instituteId, "programs"));
-        for (const progDoc of progSnap.docs) {
+        const programDocs = progSnap.docs;
+        
+        for (const progDoc of programDocs) {
             const data = progDoc.data();
             if (deepUpdateTeamName(data)) {
                 batch.update(progDoc.ref, data);
                 operationCount++;
                 await commitBatchIfNeeded();
             }
-
-            const partSnap = await getDocs(collection(db, "institutes", instituteId, "programs", progDoc.id, "participants"));
-            for (const pDoc of partSnap.docs) {
-                const pData = pDoc.data();
-                if (deepUpdateTeamName(pData)) {
-                    batch.update(pDoc.ref, pData);
-                    operationCount++;
-                    await commitBatchIfNeeded();
-                }
-            }
         }
 
-        // 3. Update Results
         const resSnap = await getDocs(collection(db, "institutes", instituteId, "results"));
         for (const resDoc of resSnap.docs) {
             const data = resDoc.data();
@@ -2109,14 +2105,22 @@ export async function syncTeamNameGlobally(instituteId, teamId, newTeamName, new
             }
         }
 
-        // 4. Update the root team document
-        const teamRef = doc(db, "institutes", instituteId, "teams", teamId);
-        const updates = { name: newTeamName };
-        if (newDescription !== undefined) {
-            updates.description = newDescription;
+        // 3. Update Participants (Parallel Fetch)
+        const participantPromises = programDocs.map(progDoc => 
+            getDocs(collection(db, "institutes", instituteId, "programs", progDoc.id, "participants"))
+        );
+        const participantSnaps = await Promise.all(participantPromises);
+        
+        for (const partSnap of participantSnaps) {
+            for (const pDoc of partSnap.docs) {
+                const pData = pDoc.data();
+                if (deepUpdateTeamName(pData)) {
+                    batch.update(pDoc.ref, pData);
+                    operationCount++;
+                    await commitBatchIfNeeded();
+                }
+            }
         }
-        batch.update(teamRef, updates);
-        operationCount++;
 
         // Commit remainder
         if (operationCount > 0) {
