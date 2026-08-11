@@ -655,7 +655,7 @@ async function deleteTeam(teamId) {
                 const data = pDoc.data();
 
                 // Case A: Participant doc belongs directly to this teamId (individual or group)
-                if (data.teamId === teamId) {
+                if (String(data.teamId) === String(teamId)) {
                     batch.delete(pDoc.ref);
                     if (data.type === 'group' && Array.isArray(data.groups)) {
                         deletedForProg += data.groups.length;
@@ -720,7 +720,7 @@ async function deleteTeam(teamId) {
             const resData = resDoc.data();
             if (Array.isArray(resData.marksData) && resData.marksData.length > 0) {
                 const cleanMarksData = resData.marksData.filter(m => {
-                    if (m.teamId && m.teamId === teamId) return false;
+                    if (m.teamId && String(m.teamId) === String(teamId)) return false;
                     if (m.studentId && studentIdsSet.has(m.studentId)) return false;
                     return true;
                 });

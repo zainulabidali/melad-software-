@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, getCachedStudentsMap, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades } from './firebase.js';
+import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades } from './firebase.js';
 import {
     collection, getDocs, doc, getDoc, setDoc, onSnapshot, serverTimestamp, writeBatch, runTransaction
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -65,6 +65,17 @@ let markEntryFilter = {
 };
 
 let allPrograms = [];
+let teamsMapCache = new Map();
+async function ensureTeamsMap() {
+    if (teamsMapCache.size === 0 && window.currentInstituteId) {
+        try {
+            const teams = await getCachedTeams(window.currentInstituteId);
+            teamsMapCache = new Map(teams.map(t => [String(t.id), t]));
+        } catch (e) {
+            console.error("Failed to load teams:", e);
+        }
+    }
+}
 let allResults = new Map(); // programId -> resultDoc
 let unsubscribeMarkEntry = null;
 
@@ -355,7 +366,7 @@ export async function initMarkEntryView(container, topActions) {
         const pathname = window.location.pathname;
         let basePath = pathname.substring(0, pathname.lastIndexOf('/') + 1);
         const link = `${origin}${basePath}admin-dashboard.html?mode=standalone&instituteId=${instId}`;
-        
+
         if (navigator.clipboard) {
             navigator.clipboard.writeText(link).then(() => {
                 window.showToast("Shared Mark Entry Link copied to clipboard!", "success");
@@ -392,7 +403,7 @@ export async function initMarkEntryView(container, topActions) {
     inputs.forEach(item => {
         const elDt = document.getElementById(item.dt);
         const elMb = document.getElementById(item.mb);
-        
+
         if (elDt) {
             elDt.addEventListener(item.type, (e) => {
                 const val = item.key === 'search' ? e.target.value.toLowerCase().trim() : e.target.value;
@@ -415,18 +426,19 @@ export async function initMarkEntryView(container, topActions) {
 // ─────────────────────────────────────────────
 async function loadMarkEntryData() {
     try {
+        await ensureTeamsMap();
         // Fetch all categories first to construct mapping
         const categories = await getCachedCategories(window.currentInstituteId);
         const catMap = new Map(categories.map(c => [c.id, c.name]));
 
         // Fetch all programs from caching layer
         const cachedPrograms = await getCachedPrograms(window.currentInstituteId);
-        
+
         allPrograms = cachedPrograms.map(p => {
             const pType = (p.programType || p.type || 'individual').toLowerCase();
             const regType = (pType === 'general') ? (p.registrationType || 'individual') : pType;
             const categoryName = p.categoryId === 'general_programs' ? 'General' : (catMap.get(p.categoryId) || p.categoryName || 'General');
-            
+
             return {
                 id: p.id,
                 programName: p.programName || 'Unnamed Program',
@@ -482,12 +494,12 @@ function renderMarkEntryGrid() {
                 const sJudgeName = sessionStorage.getItem('standaloneJudgeName') || '';
                 const sComps = sessionStorage.getItem('standaloneCompetitions') ? JSON.parse(sessionStorage.getItem('standaloneCompetitions')) : [];
                 const sCompIds = sessionStorage.getItem('standaloneCompetitionIds') ? JSON.parse(sessionStorage.getItem('standaloneCompetitionIds')) : [];
-                
+
                 let isEligible = false;
                 if (sCompIds.includes(p.id)) {
                     isEligible = true;
                 } else {
-                    const matches = allPrograms.filter(progItem => 
+                    const matches = allPrograms.filter(progItem =>
                         sComps.some(compName => compName.toLowerCase().trim() === progItem.programName.toLowerCase().trim())
                     );
                     if (matches.some(m => m.id === p.id)) {
@@ -520,11 +532,11 @@ function renderMarkEntryGrid() {
             const q = markEntryFilter.search;
             const cleanQ = q.replace(/#/g, '');
             const nameMatch = p.programName.toLowerCase().includes(q);
-            
+
             const progNumStr = p.programNumber ? String(p.programNumber).toLowerCase() : '';
             const cleanProgNum = progNumStr.replace(/#/g, '');
             const numberMatch = cleanProgNum && cleanQ && cleanProgNum.includes(cleanQ);
-            
+
             if (!nameMatch && !numberMatch) return false;
         }
         // Filters
@@ -563,7 +575,7 @@ function renderMarkEntryGrid() {
         const status = getProgramStatus(p.id);
         const badge = getStatusBadgeHTML(status);
         const displayType = p.programType === 'general' ? 'General' : p.type;
-        
+
         return `
             <tr>
                 <td style="font-weight: 700; color: #1e293b;">
@@ -656,7 +668,7 @@ async function loadStudentsForProgram(prog) {
                         name: g.name || p.teamName || 'Group',
                         chestNumber: '—',
                         teamId: p.teamId || '',
-                        teamName: p.teamName || ''
+                        teamName: (teamsMapCache.get(String(p.teamId))?.name || p.teamName || '')
                     });
                 });
             } else {
@@ -665,7 +677,7 @@ async function loadStudentsForProgram(prog) {
                     name: p.teamName || 'Team',
                     chestNumber: '—',
                     teamId: p.teamId || '',
-                    teamName: p.teamName || ''
+                    teamName: (teamsMapCache.get(String(p.teamId))?.name || p.teamName || '')
                 });
             }
         } else {
@@ -677,7 +689,7 @@ async function loadStudentsForProgram(prog) {
                 name: liveStudent ? liveStudent.name : (p.studentName || '—'),
                 chestNumber: chestNumber || '—',
                 teamId: p.teamId || '',
-                teamName: p.teamName || ''
+                teamName: (teamsMapCache.get(String(p.teamId))?.name || p.teamName || '')
             });
         }
     });
@@ -694,6 +706,7 @@ export async function openMarkEntryModal(prog) {
     }
 
     try {
+        await ensureTeamsMap();
         activePointsConfig = await getCachedPointsConfig(window.currentInstituteId, true);
     } catch (e) {
         console.error("Failed to load points config in mark entry:", e);
@@ -744,7 +757,7 @@ export async function openMarkEntryModal(prog) {
                 if (compIds.includes(prog.id)) {
                     isEligible = true;
                 } else {
-                    const matches = allPrograms.filter(progItem => 
+                    const matches = allPrograms.filter(progItem =>
                         comps.some(compName => compName.toLowerCase().trim() === progItem.programName.toLowerCase().trim())
                     );
                     if (matches.some(m => m.id === prog.id)) {
@@ -873,7 +886,7 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
                 </div>
             </div>
         `;
-        
+
         document.getElementById('jSelectCancelBtn').onclick = () => {
             modal.classList.add('hidden');
             modal.classList.remove('result-fullscreen-modal');
@@ -888,7 +901,7 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
                 renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participants, existingResult);
             };
         }
-        
+
         document.getElementById('jSelectProceedBtn').onclick = async () => {
             const latestRes = await getLatestResultDoc(prog.id);
             let judgesList = latestRes && Array.isArray(latestRes.judges) ? [...latestRes.judges] : [];
@@ -934,38 +947,38 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
                 </div>
             </div>
         `;
-        
+
         document.getElementById('jSelectCancelBtn').onclick = () => {
             modal.classList.add('hidden');
             modal.classList.remove('result-fullscreen-modal');
         };
-        
+
         document.getElementById('jSelectProceedBtn').onclick = async () => {
             const selectedRadio = modalBody.querySelector('.j-select-radio:checked');
             if (!selectedRadio) {
                 window.showToast("Please select your judge identity.", "error");
                 return;
             }
-            
+
             const selectedId = selectedRadio.getAttribute('data-id');
             const selectedName = selectedRadio.getAttribute('data-name');
-            
+
             try {
                 const judgeSnap = await getDoc(doc(db, "institutes", window.currentInstituteId, "judges", selectedId));
                 if (!judgeSnap.exists() || judgeSnap.data().status === 'disabled') {
                     window.showToast("The selected judge account is disabled or invalid.", "error");
                     return;
                 }
-                
+
                 const jData = judgeSnap.data();
                 const compIds = Array.isArray(jData.competitionIds) ? jData.competitionIds : [];
                 const comps = Array.isArray(jData.competitions) ? jData.competitions : [];
-                
+
                 let isEligible = false;
                 if (compIds.includes(prog.id)) {
                     isEligible = true;
                 } else {
-                    const matches = allPrograms.filter(progItem => 
+                    const matches = allPrograms.filter(progItem =>
                         comps.some(compName => compName.toLowerCase().trim() === progItem.programName.toLowerCase().trim())
                     );
                     if (matches.some(m => m.id === prog.id)) {
@@ -989,7 +1002,7 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
                         }
                     }
                 }
-                
+
                 if (!isEligible) {
                     window.showToast(`Access Denied: You are not assigned to judge this competition (${window.escapeHTML(prog.programName)}).`, "error");
                     return;
@@ -999,14 +1012,14 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
                 sessionStorage.setItem('standaloneJudgeName', selectedName);
                 sessionStorage.setItem('standaloneCompetitions', JSON.stringify(comps));
                 sessionStorage.setItem('standaloneCompetitionIds', JSON.stringify(compIds));
-                
+
                 let judgesList = existingResult && Array.isArray(existingResult.judges) ? [...existingResult.judges] : [];
                 if (!judgesList.includes(selectedName)) {
                     judgesList.push(selectedName);
                 }
                 document.getElementById('dynamicModalTitle').textContent = `🖋️ Mark Entry — ${selectedName}`;
                 renderSpreadsheetUI(modalBody, modal, prog, judgesList, participants, existingResult);
-                
+
             } catch (err) {
                 console.error("Verification error:", err);
                 window.showToast("Failed to verify judge profile.", "error");
@@ -1075,7 +1088,7 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
         modal.classList.add('hidden');
         modal.classList.remove('result-fullscreen-modal');
     };
-    
+
     document.getElementById('jSelectAssignBtn').onclick = async () => {
         const checkedNames = [];
         modalBody.querySelectorAll('.j-select-checkbox:checked').forEach(cb => {
@@ -1127,9 +1140,9 @@ function getProgramLetterPool(totalParticipants) {
 function openParticipantLetterModal(modalBody, modal, prog, activeJudges, participants, _legacyResultDoc = null) {
     const existingResult = getLatestResultDocSync(prog.id) || _legacyResultDoc;
     document.getElementById('dynamicModalTitle').textContent = '🏷️ Participant Letter Assignment';
-    
-    const isPublished = (existingResult && (existingResult.status === 'published' || existingResult.markEntryStatus === 'published')) || 
-                        (prog && (prog.status === 'published' || prog.markEntryStatus === 'published' || prog.isPublished === true));
+
+    const isPublished = (existingResult && (existingResult.status === 'published' || existingResult.markEntryStatus === 'published')) ||
+        (prog && (prog.status === 'published' || prog.markEntryStatus === 'published' || prog.isPublished === true));
 
     const savedMarksMap = new Map();
     if (existingResult && Array.isArray(existingResult.marksData)) {
@@ -1142,7 +1155,7 @@ function openParticipantLetterModal(modalBody, modal, prog, activeJudges, partic
     const letterPool = getProgramLetterPool(participants.length);
 
     // Extract unique teams for Quick Filter
-    const uniqueTeams = Array.from(new Set(participants.map(p => p.teamName).filter(Boolean))).sort();
+    const uniqueTeams = Array.from(new Set(participants.map(p => (teamsMapCache.get(String(p.teamId))?.name || p.teamName)).filter(Boolean))).sort();
     const teamOptionsHTML = uniqueTeams.map(t => `<option value="${window.escapeHTML(t)}">${window.escapeHTML(t)}</option>`).join('');
 
     // Generate Desktop Rows
@@ -1151,10 +1164,10 @@ function openParticipantLetterModal(modalBody, modal, prog, activeJudges, partic
         const codeLetter = (saved.codeLetter || '').toUpperCase();
         const hasLetter = codeLetter !== '';
         const isBtnDisabled = hasLetter || isPublished;
-        const searchText = `${p.chestNumber} ${p.name} ${p.teamName || ''}`.toLowerCase();
-        
+        const searchText = `${p.chestNumber} ${p.name} ${(teamsMapCache.get(String(p.teamId))?.name || p.teamName || '')}`.toLowerCase();
+
         return `
-            <tr class="pw-letter-row" data-student-id="${p.id}" data-team="${window.escapeHTML(p.teamName || '')}" data-search-text="${window.escapeHTML(searchText)}">
+            <tr class="pw-letter-row" data-student-id="${p.id}" data-team="${window.escapeHTML((teamsMapCache.get(String(p.teamId))?.name || p.teamName || ''))}" data-search-text="${window.escapeHTML(searchText)}">
                 <td style="padding:0.35rem 0.65rem; font-weight:800; color:#475569; width:80px; font-size:0.82rem;">
                     ${window.escapeHTML(p.chestNumber)}
                 </td>
@@ -1187,10 +1200,10 @@ function openParticipantLetterModal(modalBody, modal, prog, activeJudges, partic
         const codeLetter = (saved.codeLetter || '').toUpperCase();
         const hasLetter = codeLetter !== '';
         const isBtnDisabled = hasLetter || isPublished;
-        const searchText = `${p.chestNumber} ${p.name} ${p.teamName || ''}`.toLowerCase();
+        const searchText = `${p.chestNumber} ${p.name} ${(teamsMapCache.get(String(p.teamId))?.name || p.teamName || '')}`.toLowerCase();
 
         return `
-            <div class="pw-letter-card" data-student-id="${p.id}" data-team="${window.escapeHTML(p.teamName || '')}" data-search-text="${window.escapeHTML(searchText)}"
+            <div class="pw-letter-card" data-student-id="${p.id}" data-team="${window.escapeHTML((teamsMapCache.get(String(p.teamId))?.name || p.teamName || ''))}" data-search-text="${window.escapeHTML(searchText)}"
                 style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:0.65rem 0.85rem; display:flex; flex-direction:column; gap:0.4rem; box-shadow:0 1px 2px rgba(0,0,0,0.02);">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <span style="font-weight:800; color:#475569; font-size:0.8rem; background:#f1f5f9; padding:0.15rem 0.5rem; border-radius:4px; border:1px solid #e2e8f0;">
@@ -1444,8 +1457,8 @@ function updateParticipantLetterUI(studentId, letter) {
 }
 
 async function autoGenerateAllParticipantLetters(prog, participants, existingResult, modalBody) {
-    const isPublished = (existingResult && (existingResult.status === 'published' || existingResult.markEntryStatus === 'published')) || 
-                        (prog && (prog.status === 'published' || prog.markEntryStatus === 'published' || prog.isPublished === true));
+    const isPublished = (existingResult && (existingResult.status === 'published' || existingResult.markEntryStatus === 'published')) ||
+        (prog && (prog.status === 'published' || prog.markEntryStatus === 'published' || prog.isPublished === true));
     if (isPublished) {
         window.showToast("This program is published and participant letters cannot be modified.", "warning");
         return;
@@ -1473,7 +1486,7 @@ async function autoGenerateAllParticipantLetters(prog, participants, existingRes
 
     // Exact N-letter pool for this program
     const letterPool = getProgramLetterPool(participants.length);
-    
+
     // Fisher-Yates Shuffle
     const shuffledPool = [...letterPool];
     for (let i = shuffledPool.length - 1; i > 0; i--) {
@@ -1541,8 +1554,8 @@ async function autoGenerateAllParticipantLetters(prog, participants, existingRes
 }
 
 async function resetAllParticipantLetters(prog, participants, existingResult, modalBody) {
-    const isPublished = (existingResult && (existingResult.status === 'published' || existingResult.markEntryStatus === 'published')) || 
-                        (prog && (prog.status === 'published' || prog.markEntryStatus === 'published' || prog.isPublished === true));
+    const isPublished = (existingResult && (existingResult.status === 'published' || existingResult.markEntryStatus === 'published')) ||
+        (prog && (prog.status === 'published' || prog.markEntryStatus === 'published' || prog.isPublished === true));
     if (isPublished) {
         window.showToast("This program is published and participant letters cannot be modified.", "warning");
         return;
@@ -1600,7 +1613,7 @@ async function autoSaveBulkParticipantLetters(prog, assignmentMap, existingResul
                     groupId: isGroup ? p.id : '',
                     studentName: p.name || '',
                     teamId: p.teamId || '',
-                    teamName: p.teamName || '',
+                    teamName: (teamsMapCache.get(String(p.teamId))?.name || p.teamName || ''),
                     codeLetter: codeLetter,
                     marks: [],
                     finalMark: 0,
@@ -1632,11 +1645,11 @@ async function autoSaveBulkParticipantLetters(prog, assignmentMap, existingResul
         };
 
         await setDoc(docRef, payload, { merge: true });
-        
+
         // Update local cache
         const localDoc = allResults.get(prog.id) || {};
         allResults.set(prog.id, { ...localDoc, ...payload, id: `result_${prog.id}` });
-        
+
         window.showToast("Saved unique letters for all participants.", "success");
     } catch (err) {
         console.error("Auto-save bulk letters error:", err);
@@ -1669,8 +1682,8 @@ async function clearAllParticipantLettersInFirestore(prog, existingResult) {
 }
 
 function triggerLuckyDrawLetterAssignment(prog, studentId, rowElement, existingResult, participantsCount = 26) {
-    const isPublished = (existingResult && (existingResult.status === 'published' || existingResult.markEntryStatus === 'published')) || 
-                        (prog && (prog.status === 'published' || prog.markEntryStatus === 'published' || prog.isPublished === true));
+    const isPublished = (existingResult && (existingResult.status === 'published' || existingResult.markEntryStatus === 'published')) ||
+        (prog && (prog.status === 'published' || prog.markEntryStatus === 'published' || prog.isPublished === true));
     if (isPublished) {
         window.showToast("This program is published and participant letters cannot be modified.", "warning");
         return;
@@ -1678,7 +1691,7 @@ function triggerLuckyDrawLetterAssignment(prog, studentId, rowElement, existingR
 
     const badgeEls = document.querySelectorAll(`.letter-badge-display[data-student-id="${studentId}"]`);
     const generateBtn = rowElement.querySelector('.btn-pw-generate, .btn-pw-generate-sp');
-    
+
     if (badgeEls.length === 0) return;
 
     // FIX 1 & 2: Check if this participant ALREADY has an assigned letter
@@ -1696,7 +1709,7 @@ function triggerLuckyDrawLetterAssignment(prog, studentId, rowElement, existingR
     const mobileScrollContainer = document.querySelector('.pw-cards-mobile-view');
     const savedDesktopScroll = desktopScrollContainer ? desktopScrollContainer.scrollTop : 0;
     const savedMobileScroll = mobileScrollContainer ? mobileScrollContainer.scrollTop : 0;
-    
+
     // Gather all currently assigned letters in DOM inputs & saved data across all participants for this program
     const assignedLetters = new Set();
     document.querySelectorAll('.code-letter-input, .pw-letter-input').forEach(inp => {
@@ -1708,7 +1721,7 @@ function triggerLuckyDrawLetterAssignment(prog, studentId, rowElement, existingR
             if (m.codeLetter) assignedLetters.add(m.codeLetter.trim().toUpperCase());
         });
     }
-    
+
     // Exact letter pool according to participant count N
     const programLetterPool = getProgramLetterPool(participantsCount);
     const availablePool = programLetterPool.filter(l => !assignedLetters.has(l));
@@ -1825,11 +1838,11 @@ async function autoSaveParticipantLetter(prog, studentId, codeLetter, existingRe
         };
 
         await setDoc(docRef, payload, { merge: true });
-        
+
         // Update local cache
         const localDoc = allResults.get(prog.id) || {};
         allResults.set(prog.id, { ...localDoc, ...payload, id: `result_${prog.id}` });
-        
+
         window.showToast(`Saved letter ${codeLetter} for participant.`, "success");
     } catch (err) {
         console.error("Auto-save code letter error:", err);
@@ -1883,7 +1896,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
         const saved = savedMarksMap.get(p.id) || {};
         const savedMarks = Array.isArray(saved.marks) ? saved.marks : [];
         const codeLetter = saved.codeLetter || '';
-        
+
         const legacyGrade = saved.manualGrade || '';
         const adminManualGrade = saved.adminManualGrade || '';
         const manualGrades = Array.isArray(saved.manualGrades) ? saved.manualGrades : [];
@@ -1897,7 +1910,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
         } else {
             screenManualGrade = adminManualGrade || legacyGrade;
         }
-        
+
         let judgeInputsHTML = '';
         if (isStandalone) {
             const jIdx = judges.indexOf(sJudgeName);
@@ -1929,7 +1942,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
         }
 
         return `
-            <tr class="mark-entry-row" data-student-id="${p.id}" data-student-name="${window.escapeHTML(p.name)}" data-team-id="${p.teamId}" data-team-name="${window.escapeHTML(p.teamName)}" data-manual-grade="${window.escapeHTML(screenManualGrade)}" data-judge-manual-grades="${window.escapeHTML(JSON.stringify(manualGrades))}">
+            <tr class="mark-entry-row" data-student-id="${p.id}" data-student-name="${window.escapeHTML(p.name)}" data-team-id="${p.teamId}" data-team-name="${window.escapeHTML((teamsMapCache.get(String(p.teamId))?.name || p.teamName))}" data-manual-grade="${window.escapeHTML(screenManualGrade)}" data-judge-manual-grades="${window.escapeHTML(JSON.stringify(manualGrades))}">
                 <td style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; text-align:center; white-space:nowrap;">
                     <div style="display:inline-flex; align-items:center; gap:4px; justify-content:center;">
                         <input type="text" class="form-input code-letter-input" 
@@ -1983,7 +1996,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
 
         const savedJudges = existingResult && Array.isArray(existingResult.judges) ? existingResult.judges : [];
         const judgeIds = existingResult && Array.isArray(existingResult.judgeIds) ? existingResult.judgeIds : [];
-        
+
         let otherPending = false;
         if (!isResultSubmitted) {
             const submissionStatusMap = existingResult && existingResult.judgeSubmissionStatus ? existingResult.judgeSubmissionStatus : {};
@@ -1993,7 +2006,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
                 otherPending = judges.length > 1;
             }
         }
-        
+
         if (otherPending) {
             statusBannerHTML += `
                 <div style="background:#eff6ff; border:1px solid #3b82f6; color:#1e40af; border-radius:8px; padding:0.75rem 1rem; font-size:0.85rem; font-weight:600; margin-bottom:0.75rem;">
@@ -2112,7 +2125,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
             }
         };
     });
-    
+
     let manualGradeMode = (existingResult?.gradeMode === 'manual');
 
     // Grade mode select listener
@@ -2221,7 +2234,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
             document.addEventListener('click', closeHandler);
         }, 10);
     }
-    
+
     // Keystroke input validator and auto calculator
     let recalcTimeout = null;
     tbody.querySelectorAll('.judge-mark-input').forEach(input => {
@@ -2319,9 +2332,9 @@ function recalculateSpreadsheet(judgesCount) {
 
         if (r.hasScores || activeScreenManualGrade) {
             finalCell.textContent = r.hasScores ? r.finalMark : '—';
-            
+
             const { grade: automaticGrade } = getGradeAndPoints(r.finalMark, activePointsConfig, classType);
-            
+
             let effectiveGrade = '';
             let isOverridden = false;
 
@@ -2348,7 +2361,7 @@ function recalculateSpreadsheet(judgesCount) {
                 }
                 effectiveGrade = adminManualGrade || aggregatedJudgeGrade || automaticGrade || '';
             }
-            
+
             if (gradeMode === 'none') {
                 effectiveGrade = '';
                 isOverridden = false;
@@ -2360,7 +2373,7 @@ function recalculateSpreadsheet(judgesCount) {
             } else {
                 gradeCell.textContent = (gradeMode === 'none') ? '' : '—';
             }
-            
+
             // Highlight ranks 1, 2, 3
             if (r.hasScores) {
                 if (r.rank === 1) {
@@ -2472,24 +2485,24 @@ async function persistMarks(prog, judges, isSubmit) {
                 if (!dbJudgeIds.includes(currentJudgeId)) {
                     dbJudgeIds.push(currentJudgeId);
                 }
-                
+
                 const currentJudgeIdx = dbJudges.indexOf(sJudgeName);
-                
+
                 const judgeRef = doc(db, "institutes", window.currentInstituteId, "judges", sJudgeId);
                 const judgeSnap = await transaction.get(judgeRef);
                 if (!judgeSnap.exists() || judgeSnap.data().status === 'disabled') {
                     throw new Error("Your judge profile is disabled or not found.");
                 }
-                
+
                 const jData = judgeSnap.data();
                 const compIds = Array.isArray(jData.competitionIds) ? jData.competitionIds : [];
                 const comps = Array.isArray(jData.competitions) ? jData.competitions : [];
-                
+
                 let isEligible = false;
                 if (compIds.length > 0) {
                     isEligible = compIds.includes(prog.id);
                 } else {
-                    const matches = allPrograms.filter(progItem => 
+                    const matches = allPrograms.filter(progItem =>
                         comps.some(compName => compName.toLowerCase().trim() === progItem.programName.toLowerCase().trim())
                     );
                     if (matches.length === 1 && matches[0].id === prog.id) {
@@ -2616,7 +2629,7 @@ async function persistMarks(prog, judges, isSubmit) {
                                 judgeIds: dbJudgeIds,
                                 pointsConfig: activePointsConfig
                             });
-                            
+
                             const savedGrade = (gradeMode === 'none') ? '' : effectiveGrade;
                             const pointsGrade = (gradeMode === 'none') ? (automaticGrade || '') : effectiveGrade;
                             const gp = pointsGrade ? getGradePointsForGrade(pointsGrade, activePointsConfig, classType) : 0;
@@ -2790,7 +2803,7 @@ async function persistMarks(prog, judges, isSubmit) {
                             judgeIds: dbJudgeIds,
                             pointsConfig: activePointsConfig
                         });
-                        
+
                         const savedGrade = (gradeMode === 'none') ? '' : effectiveGrade;
                         const pointsGrade = (gradeMode === 'none') ? (automaticGrade || '') : effectiveGrade;
                         const gp = pointsGrade ? getGradePointsForGrade(pointsGrade, activePointsConfig, classType) : 0;
@@ -2933,7 +2946,7 @@ async function saveJudgeAssignment(prog, selectedJudgeNames, activeJudges, exist
             if (hasMarks) {
                 const currentJudges = existingResult.judges || [];
                 const isDifferent = (selectedJudgeNames.length !== currentJudges.length) ||
-                                    selectedJudgeNames.some((name, idx) => currentJudges[idx] !== name);
+                    selectedJudgeNames.some((name, idx) => currentJudges[idx] !== name);
                 if (isDifferent) {
                     alert("Marks already exist for this competition. Judge assignment cannot be changed until the existing marks are cleared or handled by the administrator.");
                     return;
@@ -2985,7 +2998,7 @@ async function saveJudgeAssignment(prog, selectedJudgeNames, activeJudges, exist
                 groupId: isGroup ? p.id : '',
                 studentName: p.name || '',
                 teamId: p.teamId || '',
-                teamName: p.teamName || '',
+                teamName: (teamsMapCache.get(String(p.teamId))?.name || p.teamName || ''),
                 codeLetter: codeLetter,
                 marks: marks,
                 finalMark: 0,
@@ -3041,7 +3054,7 @@ async function saveJudgeAssignment(prog, selectedJudgeNames, activeJudges, exist
             const jName = j.name;
             const comps = Array.isArray(j.competitions) ? j.competitions : [];
             const compIds = Array.isArray(j.competitionIds) ? j.competitionIds : [];
-            
+
             const wasAssigned = existingResult && Array.isArray(existingResult.judges) && existingResult.judges.includes(jName);
             const isNowAssigned = selectedJudgeNames.includes(jName);
 

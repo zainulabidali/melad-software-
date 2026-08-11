@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, computeDenseRanking, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams } from './firebase.js';
+﻿import { db, updateDashboardMetadata, computeDenseRanking, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams } from './firebase.js';
 import {
     collection, doc, getDocs, onSnapshot, serverTimestamp, updateDoc, deleteDoc, writeBatch, setDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -253,7 +253,7 @@ async function loadResultsViewData() {
             getCachedTeams(window.currentInstituteId)
         ]);
         window.allTeams = cachedTeams; // Global scope for local mapping
-        window.teamMap = new Map(cachedTeams.map(t => [t.id, t.name]));
+        window.teamMap = new Map(cachedTeams.map(t => [String(t.id), t.name]));
         allPrograms = cachedProgs.map(p => {
             const pType = (p.programType || p.type || 'individual').toLowerCase();
             return {
@@ -372,7 +372,7 @@ function renderResultsView() {
     } else {
         // Fallback if teams didn't load
         [...teamPoints.entries()].forEach(([id, points]) => {
-            const resolvedName = window.teamMap ? (window.teamMap.get(id) || id) : id;
+            const resolvedName = window.teamMap ? (window.teamMap.get(String(id)) || id) : id;
             teamsArray.push({ name: resolvedName, points });
         });
     }
@@ -684,8 +684,8 @@ async function openResultDetailPopup(r) {
                 }
             }
 
-            const resolvedTeam = (item.teamId && window.teamMap && window.teamMap.has(item.teamId))
-                ? window.teamMap.get(item.teamId)
+            const resolvedTeam = (item.teamId && window.teamMap)
+                ? (window.teamMap.get(String(item.teamId)) || item.teamName || '—')
                 : (item.teamName || '—');
             const teamDisplay = resolvedTeam;
             const finalMark = hasScore ? item.finalMark : '—';

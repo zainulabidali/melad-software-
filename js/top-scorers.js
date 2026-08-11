@@ -209,14 +209,14 @@ async function loadStaticData() {
         allTeams = teamSnap.docs.map(d => ({ id: d.id, name: d.data().name }));
 
         const teamMap = new Map();
-        allTeams.forEach(t => teamMap.set(t.id, t.name));
+        allTeams.forEach(t => teamMap.set(String(t.id), t.name));
 
         // Students lookup mapping cache
         const stuSnap = await getDocs(collection(db, "institutes", instId, "students"));
         stuSnap.forEach(d => {
             const data = d.data();
-            const resolvedTeamName = data.teamId && teamMap.has(data.teamId)
-                ? teamMap.get(data.teamId)
+            const resolvedTeamName = data.teamId && teamMap.has(String(data.teamId))
+                  ? teamMap.get(String(data.teamId))
                 : (data.teamName && data.teamName !== '—' && data.teamName !== 'undefined' && data.teamName !== 'null' ? data.teamName : 'No Team');
             studentLookupMap.set(d.id, {
                 studentId: d.id,
@@ -277,7 +277,7 @@ function recalculateScorers(publishedResults) {
             let stu = studentLookupMap.get(stuId);
             if (!stu) {
                 // Double Fallback for legacy registration maps
-                const matchedTeam = allTeams.find(t => t.id === (item.teamId || ''));
+                const matchedTeam = allTeams.find(t => String(t.id) === String(item.teamId || ''));
                 const resolvedTeamName = item.teamId && matchedTeam
                     ? matchedTeam.name
                     : (item.teamName && item.teamName !== '—' && item.teamName !== 'undefined' && item.teamName !== 'null' ? item.teamName : 'No Team');
@@ -293,7 +293,7 @@ function recalculateScorers(publishedResults) {
                 };
             } else {
                 if (stu.teamId) {
-                    const matchedTeam = allTeams.find(t => t.id === stu.teamId);
+                    const matchedTeam = allTeams.find(t => String(t.id) === String(stu.teamId));
                     if (matchedTeam) stu.teamName = matchedTeam.name;
                 }
                 if (!stu.teamName || stu.teamName === '—' || stu.teamName === 'undefined' || stu.teamName === 'null') {

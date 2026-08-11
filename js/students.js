@@ -359,7 +359,7 @@ function applyStudentFiltersAndRender() {
 
     // 4. Cascaded team post-filter
     if (currentTeamId) {
-        filtered = filtered.filter(s => s.teamId === currentTeamId);
+        filtered = filtered.filter(s => String(s.teamId) === String(currentTeamId));
     }
 
     // 5. Gender post-filter
@@ -431,7 +431,7 @@ function renderStudentsUI() {
         `;
         tableContainer.replaceChildren(tableWrap);
     }
-    
+
     tbody = tableWrap.querySelector('.students-table-body');
     const fragment = document.createDocumentFragment();
 
@@ -1153,7 +1153,7 @@ export async function initAddStudentView(container, topActions) {
             const isDbDup = localStudentsAll.some(s =>
                 s.name.trim().toLowerCase() === nameLower &&
                 s.categoryId === catId &&
-                s.teamId === teamId &&
+                String(s.teamId) === String(teamId) &&
                 s.classId === classId
             );
 
@@ -1496,35 +1496,37 @@ function openEditModal(stuId, data) {
                 updatedAt: serverTimestamp()
             });
 
-            // 2 & 3. Query individual & group participant registrations in parallel
-            const indivPromise = getDocs(query(
-                collectionGroup(db, "participants"),
-                where("studentId", "==", stuId),
-                where("type", "==", "individual")
-            ));
+            // 2 & 3. Query individual & group participant registrations safely across all programs without collectionGroup index
+            const indivDocs = [];
+            const groupDocs = [];
+            
+            const partPromises = allPrograms.map(async (prog) => {
+                const partRef = collection(db, "institutes", instId, "programs", prog.id, "participants");
+                
+                const indQ = query(partRef, where("studentId", "==", stuId), where("type", "==", "individual"));
+                const indSnap = await getDocs(indQ);
+                indSnap.forEach(d => indivDocs.push(d));
 
-            const groupPromise = oldTeamId ? getDocs(query(
-                collectionGroup(db, "participants"),
-                where("type", "==", "group"),
-                where("teamId", "==", oldTeamId)
-            )) : Promise.resolve({ docs: [] });
-
-            const [indivSnap, groupSnap] = await Promise.all([indivPromise, groupPromise]);
-
-            indivSnap.forEach(d => {
-                if (d.ref.path.startsWith(`institutes/${instId}/`)) {
-                    batch.update(d.ref, {
-                        studentName: newName,
-                        gender: newGender,
-                        teamId: newTeamId,
-                        teamName: newTeamId ? (teamMap.get(newTeamId) || '') : 'No Team',
-                        updatedAt: serverTimestamp()
-                    });
+                if (oldTeamId) {
+                    const grpQ = query(partRef, where("type", "==", "group"), where("teamId", "==", oldTeamId));
+                    const grpSnap = await getDocs(grpQ);
+                    grpSnap.forEach(d => groupDocs.push(d));
                 }
             });
+            await Promise.all(partPromises);
 
-            if (oldTeamId && groupSnap.docs.length > 0) {
-                groupSnap.forEach(d => {
+            indivDocs.forEach(d => {
+                batch.update(d.ref, {
+                    studentName: newName,
+                    gender: newGender,
+                    teamId: newTeamId,
+                    teamName: newTeamId ? (teamMap.get(newTeamId) || '') : 'No Team',
+                    updatedAt: serverTimestamp()
+                });
+            });
+
+            if (oldTeamId && groupDocs.length > 0) {
+                groupDocs.forEach(d => {
                     if (d.ref.path.startsWith(`institutes/${instId}/`)) {
                         const data = d.data();
                         const groupsList = Array.isArray(data.groups) ? data.groups : [];

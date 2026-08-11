@@ -736,7 +736,7 @@ function renderStudentsCheklist() {
     if (activeFilter === 'eligible') {
         // Show only eligible students (not assigned yet in this program)
         filtered = filtered.filter(s => {
-            const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && allEventGroups.some(g => g.teamId === teamId && g.members?.some(m => m.studentId === s.id)));
+            const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && allEventGroups.some(g => String(g.teamId) === String(teamId) && g.members?.some(m => m.studentId === s.id)));
             return !isAssigned;
         });
     } else if (activeFilter === 'selected') {
@@ -756,7 +756,7 @@ function renderStudentsCheklist() {
 
     listEl.innerHTML = filtered.map(s => {
         const isSelected = selectedStudentIds.has(s.id);
-        const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && allEventGroups.some(g => g.teamId === teamId && g.members?.some(m => m.studentId === s.id)));
+        const isAssigned = savedIndividualStudentIds.has(s.id) || (isGroupEvent && allEventGroups.some(g => String(g.teamId) === String(teamId) && g.members?.some(m => m.studentId === s.id)));
         
         let statusText = 'Eligible';
         let statusClass = 'pw-badge-eligible';
@@ -835,7 +835,7 @@ function renderStudentsCheklist() {
             const s = teamStudents.find(x => x.id === id);
             if (!s) return;
 
-            const isAssigned = savedIndividualStudentIds.has(id) || (isGroupEvent && allEventGroups.some(g => g.teamId === teamId && g.members?.some(m => m.studentId === id)));
+            const isAssigned = savedIndividualStudentIds.has(id) || (isGroupEvent && allEventGroups.some(g => String(g.teamId) === String(teamId) && g.members?.some(m => m.studentId === id)));
             if (isAssigned) {
                 window.showToast("This student is already registered for this program.", "error");
                 return;
@@ -1274,7 +1274,7 @@ function renderAssignedRightPanel() {
         titleText.textContent = "📂 Registered Groups";
         subtitleText.textContent = "Manage created groups and member registers for your team.";
 
-        const teamGroups = allEventGroups.filter(g => g.teamId === teamId);
+        const teamGroups = allEventGroups.filter(g => String(g.teamId) === String(teamId));
         if (teamGroups.length === 0) {
             container.innerHTML = `<div class="pw-empty" style="padding:2rem; text-align:center; color:#64748b; font-size:0.8rem; border:1.5px dashed #cbd5e1; border-radius:8px;">No groups created.</div>`;
             return;

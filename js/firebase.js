@@ -244,12 +244,12 @@ async function _performUpdateDashboardMetadata(instituteId) {
         }).length;
 
         const progMap = new Map(programs.map(p => [p.id, p]));
-        const teamMap = new Map(teams.map(t => [t.id, t]));
+        const teamMap = new Map(teams.map(t => [String(t.id), t]));
 
         // 2. Real-time Live Team Leaderboard
         const teamPoints = new Map();
         teams.forEach(t => {
-            teamPoints.set(t.id, 0);
+            teamPoints.set(String(t.id), 0);
         });
 
         results.forEach(r => {
@@ -260,15 +260,17 @@ async function _performUpdateDashboardMetadata(instituteId) {
                 if (Array.isArray(r.marksData) && r.marksData.length > 0) {
                     r.marksData.forEach(w => {
                         if (w.teamId && w.teamId !== 'teamless' && w.totalPoints > 0) {
-                            const current = teamPoints.get(w.teamId) || 0;
-                            teamPoints.set(w.teamId, current + (w.totalPoints || 0));
+                            const tid = String(w.teamId);
+                            const current = teamPoints.get(tid) || 0;
+                            teamPoints.set(tid, current + (w.totalPoints || 0));
                         }
                     });
                 } else if (Array.isArray(r.winners)) {
                     r.winners.forEach(w => {
                         if (w.teamId && w.teamId !== 'teamless') {
-                            const current = teamPoints.get(w.teamId) || 0;
-                            teamPoints.set(w.teamId, current + (w.marks || 0));
+                            const tid = String(w.teamId);
+                            const current = teamPoints.get(tid) || 0;
+                            teamPoints.set(tid, current + (w.marks || 0));
                         }
                     });
                 }
@@ -276,21 +278,21 @@ async function _performUpdateDashboardMetadata(instituteId) {
         });
 
         const sortedTeams = teams.map(t => ({
-            id: t.id,
+            id: String(t.id),
             name: t.name,
-            points: teamPoints.get(t.id) || 0
+            points: teamPoints.get(String(t.id)) || 0
         })).sort((a, b) => b.points - a.points);
 
         // 3. Radar Chart (Participants By Team)
         const teamCounts = new Map();
         teams.forEach(t => {
-            teamCounts.set(t.id, 0);
+            teamCounts.set(String(t.id), 0);
         });
         students.forEach(s => {
-            let teamId = s.teamId;
+            let teamId = s.teamId ? String(s.teamId) : null;
             if (!teamId && s.teamName) {
                 const matchedTeam = Array.from(teamMap.values()).find(t => t.name === s.teamName);
-                if (matchedTeam) teamId = matchedTeam.id;
+                if (matchedTeam) teamId = String(matchedTeam.id);
             }
             if (teamId && teamCounts.has(teamId)) {
                 const current = teamCounts.get(teamId) || 0;
@@ -349,7 +351,7 @@ async function _performUpdateDashboardMetadata(instituteId) {
 
         // 5. Category Performance Aggregation
         const teamSet = new Set();
-        teams.forEach(t => { teamSet.add(t.id); });
+        teams.forEach(t => { teamSet.add(String(t.id)); });
         const categoryMap = {};
         const processedProgramIds = new Set();
 
@@ -370,17 +372,19 @@ async function _performUpdateDashboardMetadata(instituteId) {
             if (Array.isArray(r.marksData) && r.marksData.length > 0) {
                 r.marksData.forEach(w => {
                     if (w.teamId && w.teamId !== 'teamless' && w.totalPoints > 0) {
+                        const tid = String(w.teamId);
                         const pts = Number(w.totalPoints || 0);
-                        categoryMap[catName][w.teamId] = (categoryMap[catName][w.teamId] || 0) + pts;
-                        teamSet.add(w.teamId);
+                        categoryMap[catName][tid] = (categoryMap[catName][tid] || 0) + pts;
+                        teamSet.add(tid);
                     }
                 });
             } else if (Array.isArray(r.winners)) {
                 r.winners.forEach(w => {
                     if (w.teamId && w.teamId !== 'teamless' && w.marks > 0) {
+                        const tid = String(w.teamId);
                         const pts = Number(w.marks || 0);
-                        categoryMap[catName][w.teamId] = (categoryMap[catName][w.teamId] || 0) + pts;
-                        teamSet.add(w.teamId);
+                        categoryMap[catName][tid] = (categoryMap[catName][tid] || 0) + pts;
+                        teamSet.add(tid);
                     }
                 });
             }
@@ -538,11 +542,11 @@ export async function migrateParticipantCounts(instituteId) {
     }
 }
 
-window.normalizeTeamId = function(teamId) {
+window.normalizeTeamId = function (teamId) {
     return teamId === "teamless" ? "" : (teamId || "");
 };
 
-window.runTeamIdMigration = async function() {
+window.runTeamIdMigration = async function () {
     try {
         if (!window.currentInstituteId) {
             console.error("Migration failed: window.currentInstituteId is not set. Are you logged in?");
@@ -2031,7 +2035,7 @@ export function aggregateManualGrades(grades, pointsConfig = null) {
 
 export async function syncTeamNameGlobally(instituteId, teamId, newTeamName, newDescription) {
     if (!instituteId || !teamId || newTeamName === undefined) return;
-    
+
     let batch = writeBatch(db);
     let operationCount = 0;
 
@@ -2085,7 +2089,7 @@ export async function syncTeamNameGlobally(instituteId, teamId, newTeamName, new
         // 2. Fetch Programs & Results
         const progSnap = await getDocs(collection(db, "institutes", instituteId, "programs"));
         const programDocs = progSnap.docs;
-        
+
         for (const progDoc of programDocs) {
             const data = progDoc.data();
             if (deepUpdateTeamName(data)) {
@@ -2106,11 +2110,11 @@ export async function syncTeamNameGlobally(instituteId, teamId, newTeamName, new
         }
 
         // 3. Update Participants (Parallel Fetch)
-        const participantPromises = programDocs.map(progDoc => 
+        const participantPromises = programDocs.map(progDoc =>
             getDocs(collection(db, "institutes", instituteId, "programs", progDoc.id, "participants"))
         );
         const participantSnaps = await Promise.all(participantPromises);
-        
+
         for (const partSnap of participantSnaps) {
             for (const pDoc of partSnap.docs) {
                 const pData = pDoc.data();

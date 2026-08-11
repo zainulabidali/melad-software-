@@ -441,7 +441,7 @@ function prepareCategoryPerformanceData() {
         const teamObj = Array.isArray(leaderboardData) ? leaderboardData.find(t => t.id === id || t.name === id) : null;
         return teamObj ? teamObj.name : id;
     }).sort();
-    
+
     // Assign consistent color mapping for each team across all categories
     const teamColorsPalette = [
         'linear-gradient(90deg, #3b82f6, #1d4ed8)', // Blue
@@ -1441,7 +1441,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
                 <div style="display: flex; align-items: center; gap: 3px; width: 100%;">
                     <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
-                    <span style="font-size: 4px; color: rgba(255,255,255,0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px;">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <span style="font-size: 4px; color: rgba(255,255,255,0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: normal; word-wrap: break-word; overflow: visible; line-height: 1.2; text-align: center; max-width: 60px;">${escapeHTML(madrasaName.toUpperCase())}</span>
                     <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
                 </div>
             </div>
@@ -1505,7 +1505,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
                 <!-- Mini Footer -->
                 <div style="display: flex; align-items: center; gap: 3px; width: 100%;">
                     <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
-                    <span style="font-size: 4px; color: rgba(255, 255, 255, 0.45); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px;">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <span style="font-size: 4px; color: rgba(255, 255, 255, 0.45); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: normal; word-wrap: break-word; overflow: visible; line-height: 1.2; text-align: center; max-width: 60px;">${escapeHTML(madrasaName.toUpperCase())}</span>
                     <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
                 </div>
             </div>
@@ -1570,7 +1570,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
                 <!-- Mini Footer -->
                 <div style="display: flex; align-items: center; gap: 3px; width: 100%;">
                     <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
-                    <span style="font-size: 4px; color: rgba(255, 255, 255, 0.45); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px;">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <span style="font-size: 4px; color: rgba(255, 255, 255, 0.45); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: normal; word-wrap: break-word; overflow: visible; line-height: 1.2; text-align: center; max-width: 60px;">${escapeHTML(madrasaName.toUpperCase())}</span>
                     <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
                 </div>
             </div>
@@ -1619,7 +1619,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
                 
                 <div style="display: flex; align-items: center; gap: 3px; width: 100%;">
                     <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
-                    <span style="font-size: 4px; color: rgba(255,255,255,0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px;">${escapeHTML(madrasaName.toUpperCase())}</span>
+                    <span style="font-size: 4px; color: rgba(255,255,255,0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: normal; word-wrap: break-word; overflow: visible; line-height: 1.2; text-align: center; max-width: 60px;">${escapeHTML(madrasaName.toUpperCase())}</span>
                     <div style="flex-grow: 1; height: 0.25px; background: rgba(255,255,255,0.12);"></div>
                 </div>
             </div>
