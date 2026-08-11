@@ -574,7 +574,7 @@ function getPrintIframe() {
 function getSafeTeamName(item, studentMap, teamNamesMap) {
     if (!item) return '—';
     let tId = item.teamId;
-    
+            
     // Fallback to studentMap if participant document lacks teamId
     if (!tId) {
         if (item.isGroup && item.members && item.members.length > 0) {
@@ -585,11 +585,11 @@ function getSafeTeamName(item, studentMap, teamNamesMap) {
             if (stu) tId = stu.teamId;
         }
     }
-    
+            
     if (tId && teamNamesMap && teamNamesMap[String(tId)]) {
         return teamNamesMap[String(tId)];
     }
-    
+            
     return item.teamName || '—';
 }
 export async function initExportsView(container, topActions) {
