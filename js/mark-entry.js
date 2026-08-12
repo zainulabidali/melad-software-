@@ -426,6 +426,33 @@ export async function initMarkEntryView(container, topActions) {
 // ─────────────────────────────────────────────
 async function loadMarkEntryData() {
     try {
+        const urlParams = new URLSearchParams(window.location.search);
+        let urlJudgeId = urlParams.get('judgeId');
+        const token = urlParams.get('token');
+        if (token) {
+            const parts = token.split('_');
+            if (parts.length >= 2) {
+                urlJudgeId = parts[1];
+            }
+        }
+        if (urlJudgeId && window.currentInstituteId) {
+            try {
+                const judgeRef = doc(db, "institutes", window.currentInstituteId, "judges", urlJudgeId);
+                const judgeSnap = await getDoc(judgeRef);
+                if (judgeSnap.exists()) {
+                    const judgeData = judgeSnap.data();
+                    window.standaloneJudgeContext = {
+                        sJudgeId: judgeSnap.id,
+                        sJudgeName: judgeData.name || '',
+                        sComps: Array.isArray(judgeData.competitions) ? judgeData.competitions : [],
+                        sCompIds: Array.isArray(judgeData.competitionIds) ? judgeData.competitionIds : []
+                    };
+                }
+            } catch (e) {
+                console.error("Failed to fetch judge data from URL:", e);
+            }
+        }
+
         await ensureTeamsMap();
         // Fetch all categories first to construct mapping
         const categories = await getCachedCategories(window.currentInstituteId);
@@ -489,11 +516,17 @@ function renderMarkEntryGrid() {
 
     const filtered = allPrograms.filter(p => {
         if (isStandalone) {
-            const sJudgeId = sessionStorage.getItem('standaloneJudgeId');
+            const ctx = window.standaloneJudgeContext || {
+                sJudgeId: sessionStorage.getItem('standaloneJudgeId'),
+                sJudgeName: sessionStorage.getItem('standaloneJudgeName') || '',
+                sComps: sessionStorage.getItem('standaloneCompetitions') ? JSON.parse(sessionStorage.getItem('standaloneCompetitions')) : [],
+                sCompIds: sessionStorage.getItem('standaloneCompetitionIds') ? JSON.parse(sessionStorage.getItem('standaloneCompetitionIds')) : []
+            };
+            const sJudgeId = ctx.sJudgeId;
             if (sJudgeId) {
-                const sJudgeName = sessionStorage.getItem('standaloneJudgeName') || '';
-                const sComps = sessionStorage.getItem('standaloneCompetitions') ? JSON.parse(sessionStorage.getItem('standaloneCompetitions')) : [];
-                const sCompIds = sessionStorage.getItem('standaloneCompetitionIds') ? JSON.parse(sessionStorage.getItem('standaloneCompetitionIds')) : [];
+                const sJudgeName = ctx.sJudgeName;
+                const sComps = ctx.sComps;
+                const sCompIds = ctx.sCompIds;
 
                 let isEligible = false;
                 if (sCompIds.includes(p.id)) {
@@ -650,10 +683,17 @@ function getStatusBadgeHTML(status) {
 // Loading Subcollection Data
 // ─────────────────────────────────────────────
 async function loadStudentsForProgram(prog) {
-    const [snap, studentMap] = await Promise.all([
-        getDocs(collection(db, "institutes", window.currentInstituteId, "programs", prog.id, "participants")),
-        getCachedStudentsMap(window.currentInstituteId)
-    ]);
+    let snap;
+    let studentMap = null;
+    try {
+        [snap, studentMap] = await Promise.all([
+            getDocs(collection(db, "institutes", window.currentInstituteId, "programs", prog.id, "participants")),
+            getCachedStudentsMap(window.currentInstituteId)
+        ]);
+    } catch (err) {
+        console.warn("Could not load full students map (expected for anonymous judge). Falling back to basic participant data.");
+        snap = await getDocs(collection(db, "institutes", window.currentInstituteId, "programs", prog.id, "participants"));
+    }
     const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
     const list = [];
 
@@ -852,9 +892,20 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
     const existingResult = getLatestResultDocSync(prog.id) || _legacyResultDoc;
     const urlParams = new URLSearchParams(window.location.search);
     const isStandalone = urlParams.get('mode') === 'standalone';
-    const hasUrlJudgeId = urlParams.get('judgeId');
-    const sJudgeName = sessionStorage.getItem('standaloneJudgeName');
-    const sJudgeId = sessionStorage.getItem('standaloneJudgeId');
+    
+    let hasUrlJudgeId = urlParams.get('judgeId');
+    const token = urlParams.get('token');
+    if (token) {
+        const parts = token.split('_');
+        if (parts.length >= 2) hasUrlJudgeId = parts[1];
+    }
+    
+    const ctx = window.standaloneJudgeContext || {
+        sJudgeName: sessionStorage.getItem('standaloneJudgeName'),
+        sJudgeId: sessionStorage.getItem('standaloneJudgeId')
+    };
+    const sJudgeName = ctx.sJudgeName;
+    const sJudgeId = ctx.sJudgeId;
 
     if (isStandalone && sJudgeId && sJudgeName) {
         modalBody.innerHTML = `
