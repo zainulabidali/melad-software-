@@ -1488,6 +1488,22 @@ function renderDrawerContent() {
                         </div>
                     </div>
 
+                    <!-- Position Filter (Only visible for specific Results Reports) -->
+                    <div id="expPositionFilterContainer" style="display:none; flex-direction:column; gap:0.45rem; background:#f8fafc; border:1px solid #cbd5e1; padding:0.75rem; border-radius:10px;">
+                        <label style="font-weight:800; color:#475569; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.04em;">POSITIONS FILTER</label>
+                        <div style="display:flex; gap:1.25rem; align-items:center;">
+                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                <input type="checkbox" class="exp-pos-chk" value="First" checked style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> First
+                            </label>
+                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                <input type="checkbox" class="exp-pos-chk" value="Second" checked style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Second
+                            </label>
+                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                <input type="checkbox" class="exp-pos-chk" value="Third" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Third
+                            </label>
+                        </div>
+                    </div>
+
                     <!-- Category / Class filters -->
                     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; width:100%;">
                         <div id="expCatFilterContainer" style="flex:1; min-width:140px;">
@@ -1714,6 +1730,16 @@ function renderDrawerContent() {
             expAwardTypeContainer.style.display = isClassAwards ? 'flex' : 'none';
         }
 
+        // 2.5 Position Filter Container
+        const expPositionFilterContainer = document.getElementById('expPositionFilterContainer');
+        if (expPositionFilterContainer) {
+            if (selType === 'Results' && !isClassAwards) {
+                expPositionFilterContainer.style.display = 'flex';
+            } else {
+                expPositionFilterContainer.style.display = 'none';
+            }
+        }
+
         // 2. Category Filter Container
         const expCatFilterContainer = document.getElementById('expCatFilterContainer');
         if (expCatFilterContainer) {
@@ -1881,6 +1907,16 @@ function renderDrawerContent() {
 
             if (expResultSubVal) {
                 expResultSubVal.onchange = () => {
+                    // Reset position checkboxes
+                    const posChks = document.querySelectorAll('.exp-pos-chk');
+                    posChks.forEach(chk => {
+                        if (chk.value === 'First' || chk.value === 'Second') {
+                            chk.checked = true;
+                        } else {
+                            chk.checked = false;
+                        }
+                    });
+                    
                     updateConditionalFilters();
                     updateClassFilterState();
                     updateProgramsDropdown();
@@ -2239,6 +2275,19 @@ function renderDrawerContent() {
         const teamName = teamId ? allTeams.find(t => t.id === teamId)?.name : 'All';
 
         const resultSubOption = selectedType === 'Results' ? document.getElementById('expResultSubVal').value : 'Team Wise';
+        
+        let includedPositions = null;
+        if (selectedType === 'Results' && resultSubOption !== 'Class Wise Academic & Attendance') {
+            const posChks = document.querySelectorAll('.exp-pos-chk:checked');
+            includedPositions = Array.from(posChks).map(c => c.value);
+            if (includedPositions.length === 0) {
+                btn.disabled = false;
+                btn.innerHTML = '✨ Generate Export';
+                window.showToast("Please select at least one position.", "error");
+                return;
+            }
+        }
+
         let awardTypeFilter = 'All';
         if (selectedType === 'Results' && resultSubOption === 'Class Wise Academic & Attendance') {
             const listContainer = document.getElementById('expAwardTypeList');
@@ -2374,6 +2423,7 @@ function renderDrawerContent() {
                     chestSubmode: activeSubmode,
                     progRegSubmode,
                     resultSubOption,
+                    includedPositions,
                     awardTypeFilter,
                     categoryId,
                     classId,
@@ -6879,7 +6929,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                 // 2. Category Champions Summaries (Phase 6)
                 let categoryHTML = '';
-                if (f.resultSubOption !== 'Program Wise') {
+                if (f.resultSubOption !== 'Program Wise' && f.resultSubOption !== 'Team Wise') {
                     allCategories.forEach(cat => {
                         const map = categoryScores.get(cat.id);
                         if (!map || map.size === 0) return;
@@ -6948,7 +6998,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 if (f.resultSubOption === 'Team Wise') {
                     const teamWinners = new Map();
                     filteredResults.forEach(r => {
-                        const winners = Array.isArray(r.winners) ? r.winners : [];
+                        let winners = Array.isArray(r.winners) ? r.winners : [];
+                        if (f.includedPositions) winners = winners.filter(w => f.includedPositions.includes(w.position));
                         winners.forEach(w => {
                             if (!w.teamName || w.teamName === 'No Team' || !w.teamId || w.teamId === 'teamless') return;
                             if (f.teamId && w.teamId !== f.teamId) return;
@@ -6974,83 +7025,196 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         });
                     });
 
+                    // Utility to rank categories: SUB JUNIOR -> JUNIOR -> SENIOR
+                    const getCatPriority = (catName) => {
+                        const n = String(catName || '').toUpperCase().trim();
+                        if (n.includes('SUB JUNIOR')) return 1;
+                        if (n.includes('JUNIOR') && !n.includes('SUB')) return 2;
+                        if (n.includes('SENIOR') && !n.includes('SUPER')) return 3;
+                        if (typeof allCategories !== 'undefined' && Array.isArray(allCategories)) {
+                            const idx = allCategories.findIndex(c => String(c.name).toUpperCase().trim() === n);
+                            if (idx !== -1) return 10 + idx;
+                        }
+                        return 999;
+                    };
+
                     const sortedTeamNames = [...teamWinners.keys()].sort();
-                    sortedTeamNames.forEach(teamName => {
+                    
+                    // Add global header for Team Wise Standings & Roster
+                    htmlContent += `
+                        <style>
+                            @page {
+                                size: A4 portrait;
+                                margin: 15mm;
+                            }
+                            .team-wise-container {
+                                font-family: 'Inter', sans-serif;
+                            }
+                            .team-wise-container table {
+                                width: 100%;
+                                table-layout: fixed;
+                                border-collapse: collapse;
+                                page-break-inside: auto;
+                            }
+                            .team-wise-container th, 
+                            .team-wise-container td {
+                                padding: 4px 6px !important;
+                                line-height: 1.15;
+                                vertical-align: middle;
+                                word-wrap: break-word;
+                                font-size: 0.72rem !important;
+                            }
+                            .team-wise-container tr {
+                                page-break-inside: avoid;
+                                page-break-after: auto;
+                            }
+                            .team-wise-container thead {
+                                display: table-header-group;
+                            }
+                            /* Column widths to optimize Student Name space */
+                            .team-wise-container th:nth-child(1) { width: 50px; } /* Chest No */
+                            .team-wise-container th:nth-child(2) { width: 33%; }  /* Student Name */
+                            .team-wise-container th:nth-child(3) { width: 14%; }  /* Team */
+                            .team-wise-container th:nth-child(4) { width: 14%; }  /* Category */
+                            .team-wise-container th:nth-child(5) { width: 60px; } /* Position */
+                            .team-wise-container th:nth-child(6) { width: 22%; }  /* Program */
+                            
+                            .team-wise-container h4.pos-heading {
+                                page-break-after: avoid;
+                                break-after: avoid;
+                                margin-top: 0.6rem;
+                                margin-bottom: 0.2rem;
+                                font-size: 0.85rem;
+                            }
+                            .page-header-ident {
+                                text-align: center;
+                                color: #4338ca;
+                                font-weight: 900;
+                                font-size: 1.25rem;
+                                margin-bottom: 0.75rem;
+                                text-transform: uppercase;
+                                border-bottom: 2px solid #e0e7ff;
+                                padding-bottom: 0.35rem;
+                            }
+                        </style>
+                        <div class="team-wise-container">
+                            <div class="page-header-ident">
+                                TEAM WISE STANDINGS & ROSTER
+                            </div>
+                    `;
+
+                    sortedTeamNames.forEach((teamName, index) => {
                         const data = teamWinners.get(teamName);
 
-                        const renderRows = (list, posLabel, actualPos) => {
-                            if (list.length === 0) return `<tr><td colspan="6" style="color:#94a3b8; font-style:italic; font-size:0.75rem;">No ${posLabel} place winners recorded.</td></tr>`;
-                            return list.map(item => `
-                            <tr>
-                                <td style="text-align:center; font-weight:800;">${window.escapeHTML(item.chestNumber)}</td>
-                                <td style="font-weight:700; color:#1e293b;">${window.escapeHTML(item.studentName)}</td>
-                                <td style="font-weight:600; color:#475569;">${window.escapeHTML(teamName)}</td>
-                                <td style="color:#475569; font-weight:600;">${window.escapeHTML(item.categoryName)}</td>
-                                <td style="text-align:center; font-weight:700; color:#4338ca;">${window.escapeHTML(actualPos)}</td>
-                                <td style="font-weight:800; color:#1e293b;">${window.escapeHTML(item.programName)}</td>
-                            </tr>
-                        `).join('');
+                        // Sort each list by category priority
+                        data.First.sort((a, b) => getCatPriority(a.categoryName) - getCatPriority(b.categoryName));
+                        data.Second.sort((a, b) => getCatPriority(a.categoryName) - getCatPriority(b.categoryName));
+                        data.Third.sort((a, b) => getCatPriority(a.categoryName) - getCatPriority(b.categoryName));
+
+                        const renderRowsByGroup = (list, posLabel, actualPos) => {
+                            if (list.length === 0) return `<tr><td colspan="6" style="color:#94a3b8; font-style:italic; font-size:0.75rem; text-align:center; padding: 0.35rem !important;">No ${posLabel} place winners recorded.</td></tr>`;
+                            
+                            // Group by category after sorting
+                            const grouped = new Map();
+                            list.forEach(item => {
+                                const cName = item.categoryName || 'Uncategorized';
+                                if (!grouped.has(cName)) grouped.set(cName, []);
+                                grouped.get(cName).push(item);
+                            });
+
+                            let html = '';
+                            grouped.forEach((items, catName) => {
+                                html += `
+                                <tr style="background:#f1f5f9; page-break-inside: avoid;">
+                                    <td colspan="6" style="padding: 0.25rem 0.4rem !important; font-weight:800; color:#1e293b; text-transform:uppercase; font-size:0.72rem !important;">
+                                        ${window.escapeHTML(catName)}
+                                    </td>
+                                </tr>
+                                `;
+                                items.forEach(item => {
+                                    html += `
+                                    <tr>
+                                        <td style="text-align:center; font-weight:800;">${window.escapeHTML(item.chestNumber)}</td>
+                                        <td style="font-weight:700; color:#1e293b;">${window.escapeHTML(item.studentName)}</td>
+                                        <td style="font-weight:600; color:#475569;">${window.escapeHTML(teamName)}</td>
+                                        <td style="color:#475569; font-weight:600;">${window.escapeHTML(item.categoryName)}</td>
+                                        <td style="text-align:center; font-weight:700; color:#4338ca;">${window.escapeHTML(actualPos)}</td>
+                                        <td style="font-weight:800; color:#1e293b;">${window.escapeHTML(item.programName)}</td>
+                                    </tr>
+                                    `;
+                                });
+                            });
+                            return html;
                         };
 
                         htmlContent += `
-                        <div class="program-page-standard">
-                            <div style="border-bottom:3px solid #1e1b4b; padding-bottom:0.5rem; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:flex-end;">
-                                <h2 style="color:#1e1b4b; margin:0;">👥 TEAM WINNERS INDEX: ${window.escapeHTML(teamName)}</h2>
+                        <div style="${index > 0 ? 'page-break-before: always; margin-top:1.5rem;' : ''}">
+                            <div style="border-bottom:2px solid #1e1b4b; padding-bottom:0.25rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:flex-end;">
+                                <h2 style="color:#1e1b4b; margin:0; font-size:1.15rem;">👥 TEAM WINNERS INDEX: ${window.escapeHTML(teamName)}</h2>
                             </div>
 
-                            <h4 style="color:#d97706; margin-top:0.75rem; margin-bottom:0.4rem;">🥇 FIRST WINNERS</h4>
-                            <table class="report-table" style="margin-bottom:1rem; font-size:0.8rem;">
-                                <thead>
-                                    <tr style="background:#fffbeb;">
-                                        <th style="width:100px; text-align:center;">Chest No</th>
-                                        <th>Student / Group Name</th>
-                                        <th>Team</th>
-                                        <th>Category</th>
-                                        <th style="width:100px; text-align:center;">Position</th>
-                                        <th>Program</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${renderRows(data.First, 'first', 'First')}</tbody>
-                            </table>
+                            <div style="page-break-inside: avoid; break-inside: avoid;">
+                                <h4 class="pos-heading" style="color:#d97706; margin-top:0;">🥇 FIRST WINNERS</h4>
+                                <table class="report-table" style="margin-bottom:1rem; font-size:0.75rem;">
+                                    <thead>
+                                        <tr style="background:#fffbeb;">
+                                            <th style="text-align:center;">Chest No</th>
+                                            <th>Student / Group Name</th>
+                                            <th>Team</th>
+                                            <th>Category</th>
+                                            <th style="text-align:center;">Position</th>
+                                            <th>Program</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${renderRowsByGroup(data.First, 'first', 'First')}</tbody>
+                                </table>
+                            </div>
 
-                            <h4 style="color:#475569; margin-top:1.25rem; margin-bottom:0.4rem;">🥈 SECOND WINNERS</h4>
-                            <table class="report-table" style="margin-bottom:1rem; font-size:0.8rem;">
-                                <thead>
-                                    <tr style="background:#f8fafc;">
-                                        <th style="width:100px; text-align:center;">Chest No</th>
-                                        <th>Student / Group Name</th>
-                                        <th>Team</th>
-                                        <th>Category</th>
-                                        <th style="width:100px; text-align:center;">Position</th>
-                                        <th>Program</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${renderRows(data.Second, 'second', 'Second')}</tbody>
-                            </table>
+                            <div style="page-break-inside: avoid; break-inside: avoid;">
+                                <h4 class="pos-heading" style="color:#475569;">🥈 SECOND WINNERS</h4>
+                                <table class="report-table" style="margin-bottom:1rem; font-size:0.75rem;">
+                                    <thead>
+                                        <tr style="background:#f8fafc;">
+                                            <th style="text-align:center;">Chest No</th>
+                                            <th>Student / Group Name</th>
+                                            <th>Team</th>
+                                            <th>Category</th>
+                                            <th style="text-align:center;">Position</th>
+                                            <th>Program</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${renderRowsByGroup(data.Second, 'second', 'Second')}</tbody>
+                                </table>
+                            </div>
 
-                            <h4 style="color:#ea580c; margin-top:1.25rem; margin-bottom:0.4rem;">🥉 THIRD WINNERS</h4>
-                            <table class="report-table" style="font-size:0.8rem;">
-                                <thead>
-                                    <tr style="background:#fff7ed;">
-                                        <th style="width:100px; text-align:center;">Chest No</th>
-                                        <th>Student / Group Name</th>
-                                        <th>Team</th>
-                                        <th>Category</th>
-                                        <th style="width:100px; text-align:center;">Position</th>
-                                        <th>Program</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${renderRows(data.Third, 'third', 'Third')}</tbody>
-                            </table>
+                            <div style="page-break-inside: avoid; break-inside: avoid;">
+                                <h4 class="pos-heading" style="color:#ea580c;">🥉 THIRD WINNERS</h4>
+                                <table class="report-table" style="font-size:0.75rem;">
+                                    <thead>
+                                        <tr style="background:#fff7ed;">
+                                            <th style="text-align:center;">Chest No</th>
+                                            <th>Student / Group Name</th>
+                                            <th>Team</th>
+                                            <th>Category</th>
+                                            <th style="text-align:center;">Position</th>
+                                            <th>Program</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${renderRowsByGroup(data.Third, 'third', 'Third')}</tbody>
+                                </table>
+                            </div>
                         </div>
                     `;
                     });
+                    
+                    htmlContent += `</div>`;
                 }
 
                 else if (f.resultSubOption === 'Program Wise') {
                     const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
                     filteredResults.forEach(r => {
-                        const winnersList = Array.isArray(r.winners) ? r.winners : [];
+                        let winnersList = Array.isArray(r.winners) ? r.winners : [];
+                        if (f.includedPositions) winnersList = winnersList.filter(w => f.includedPositions.includes(w.position));
                         const combinedWinners = [...winnersList];
 
                         if (r.gradeMode !== 'none' && Array.isArray(r.marksData)) {
@@ -7217,7 +7381,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             prizeCat = 1;
                         }
 
-                        const winnersList = Array.isArray(r.winners) ? r.winners : [];
+                        let winnersList = Array.isArray(r.winners) ? r.winners : [];
+                        if (f.includedPositions) winnersList = winnersList.filter(w => f.includedPositions.includes(w.position));
                         winnersList.forEach(w => {
                             const prog = allPrograms.find(p => p.id === r.programId);
                             if (!prog) return;
@@ -7353,7 +7518,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         else if (isGroup) subKey = 'Group';
                         else if (isOffStage) subKey = 'Off Stage';
 
-                        const winnersList = Array.isArray(r.winners) ? r.winners : [];
+                        let winnersList = Array.isArray(r.winners) ? r.winners : [];
+                        if (f.includedPositions) winnersList = winnersList.filter(w => f.includedPositions.includes(w.position));
 
                         winnersList.forEach(w => {
                             const posKey = w.position;
@@ -7539,8 +7705,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             });
                         });
 
-                        const hasMajorPrize = prizes.some(p => p === 'First' || p === 'Second');
-                        if (hasMajorPrize) return;
+                        const hasExcludedPrize = f.includedPositions
+                            ? prizes.some(p => f.includedPositions.includes(p))
+                            : prizes.some(p => p === 'First' || p === 'Second');
+                        if (hasExcludedPrize) return;
 
                         let statusLabel = '';
                         if (participations.length === 0) {
@@ -7997,7 +8165,20 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     pagebreak: { mode: ['css', 'legacy'] }
                 };
                 const element = doc.body;
-                await html2pdf().set(opt).from(element).save();
+
+                if (f && (f.type === 'Results' || f.reportType === 'results')) {
+                    await html2pdf().set(opt).from(element).toPdf().get('pdf').then(function(pdf) {
+                        const totalPages = pdf.internal.getNumberOfPages();
+                        for (let i = 1; i <= totalPages; i++) {
+                            pdf.setPage(i);
+                            pdf.setFontSize(10);
+                            pdf.setTextColor(100);
+                            pdf.text('Page ' + i + ' of ' + totalPages, pdf.internal.pageSize.getWidth() - 25, pdf.internal.pageSize.getHeight() - 5, { align: 'right' });
+                        }
+                    }).save();
+                } else {
+                    await html2pdf().set(opt).from(element).save();
+                }
 
                 printIframe.style.width = prevWidth;
                 printIframe.style.height = prevHeight;
@@ -8563,7 +8744,8 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
 
             const teamWinners = new Map();
             filteredResults.forEach(r => {
-                const winners = Array.isArray(r.winners) ? r.winners : [];
+                let winners = Array.isArray(r.winners) ? r.winners : [];
+                if (f.includedPositions) winners = winners.filter(w => f.includedPositions.includes(w.position));
                 winners.forEach(w => {
                     if (!w.teamName) return;
                     if (f.teamId && w.teamId !== f.teamId) return;
@@ -8599,7 +8781,8 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             csvContent += "POSITION,CALL LETTER,CHEST NUMBER,STUDENT / TEAM NAME,TEAM,GRADE,MARKS\n";
 
             filteredResults.forEach(r => {
-                const winnersList = Array.isArray(r.winners) ? r.winners : [];
+                let winnersList = Array.isArray(r.winners) ? r.winners : [];
+                if (f.includedPositions) winnersList = winnersList.filter(w => f.includedPositions.includes(w.position));
                 const combinedWinners = [...winnersList];
 
                 if (r.gradeMode !== 'none' && Array.isArray(r.marksData)) {
@@ -8722,7 +8905,8 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     prizeCat = 1;
                 }
 
-                const winnersList = Array.isArray(r.winners) ? r.winners : [];
+                let winnersList = Array.isArray(r.winners) ? r.winners : [];
+                if (f.includedPositions) winnersList = winnersList.filter(w => f.includedPositions.includes(w.position));
                 winnersList.forEach(w => {
                     const prog = allPrograms.find(p => p.id === r.programId);
                     if (!prog) return;
@@ -8818,7 +9002,8 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 else if (isGroup) subKey = 'Group';
                 else if (isOffStage) subKey = 'Off Stage';
 
-                const winnersList = Array.isArray(r.winners) ? r.winners : [];
+                let winnersList = Array.isArray(r.winners) ? r.winners : [];
+                if (f.includedPositions) winnersList = winnersList.filter(w => f.includedPositions.includes(w.position));
 
                 winnersList.forEach(w => {
                     const posKey = w.position;
@@ -8947,8 +9132,10 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     });
                 });
 
-                const hasMajorPrize = prizes.some(p => p === 'First' || p === 'Second');
-                if (hasMajorPrize) return;
+                const hasExcludedPrize = f.includedPositions
+                    ? prizes.some(p => f.includedPositions.includes(p))
+                    : prizes.some(p => p === 'First' || p === 'Second');
+                if (hasExcludedPrize) return;
 
                 let statusLabel = '';
                 if (participations.length === 0) {
