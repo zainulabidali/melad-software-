@@ -359,12 +359,7 @@ function loadInstitutes() {
             const expiryDateObj = inst.expiryDate?.toDate?.();
             const isExpired = expiryDateObj && (new Date().getTime() > expiryDateObj.getTime());
 
-            // Self-heal expired institutes status in Firestore
-            if (isExpired && status === 'active') {
-                updateDoc(doc(db, "institutes", instId), { status: "deactivated" }).catch(err => {
-                    console.error("Auto-deactivation error for expired institute:", err);
-                });
-            }
+
 
             allInstitutes.push({
                 id: instId,

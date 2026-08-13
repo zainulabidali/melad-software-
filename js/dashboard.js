@@ -187,11 +187,6 @@ onAuthStateChanged(auth, async (user) => {
                     const isExpired = expiryDateObj && (new Date().getTime() > expiryDateObj.getTime());
 
                     if (isExpired) {
-                        // Self-healing: trigger deactivation update in database
-                        if (instData.status !== 'deactivated') {
-                            await updateDoc(instRef, { status: "deactivated" }).catch(e => { });
-                        }
-
                         if (isImpersonating) {
                             window.customAlert ? window.customAlert("This institute's subscription has expired.", "Subscription Expired") : alert("This institute's subscription has expired.");
                             return;

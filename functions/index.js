@@ -101,3 +101,74 @@ exports.adminResetPassword = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', 'An internal error occurred during password reset.');
     }
 });
+
+// =====================================================
+// SERVER-SIDE EXPIRATION
+// =====================================================
+exports.checkInstituteExpirations = functions.pubsub.schedule('every 24 hours').onRun(async (context) => {
+    const serverTime = admin.firestore.Timestamp.now();
+    const institutesRef = admin.firestore().collection('institutes');
+    const auditLogsRef = admin.firestore().collection('audit_logs');
+    
+    // Query only active institutes
+    const snapshot = await institutesRef.where('status', '==', 'active').get();
+    
+    if (snapshot.empty) {
+        console.log('No active institutes found to check.');
+        return null;
+    }
+    
+    let deactivatedCount = 0;
+    
+    for (const docSnapshot of snapshot.docs) {
+        const instId = docSnapshot.id;
+        const instRef = institutesRef.doc(instId);
+        
+        try {
+            await admin.firestore().runTransaction(async (transaction) => {
+                const currentDoc = await transaction.get(instRef);
+                if (!currentDoc.exists) return;
+                
+                const currentData = currentDoc.data();
+                
+                // 13. RACE CONDITION PROTECTION - Ensure still active
+                if (currentData.status !== 'active') return;
+                
+                const currentExpiry = currentData.expiryDate;
+                
+                // 11. INVALID EXPIRY DATA MUST NOT DEACTIVATE
+                if (!currentExpiry || typeof currentExpiry.toDate !== 'function') {
+                    console.warn(`[WARNING] Institute ${instId} has missing or invalid expiryDate. Skipping.`);
+                    return;
+                }
+                
+                // 9. SERVER-SIDE EXPIRATION
+                if (serverTime.toMillis() > currentExpiry.toMillis()) {
+                    // Update status
+                    transaction.update(instRef, { status: 'deactivated' });
+                    
+                    // 14. AUDIT LOGGING
+                    const auditRef = auditLogsRef.doc();
+                    transaction.set(auditRef, {
+                        action: 'SUBSCRIPTION_EXPIRED',
+                        instituteId: instId,
+                        expiryDate: currentExpiry,
+                        serverTime: serverTime,
+                        previousStatus: 'active',
+                        newStatus: 'deactivated',
+                        reason: 'subscription_expired',
+                        source: 'server_expiration_check'
+                    });
+                    
+                    deactivatedCount++;
+                }
+            });
+        } catch (error) {
+            // 17. NO SILENT ERROR HANDLING
+            console.error(`[ERROR] Failed to process expiration for institute ${instId}:`, error);
+        }
+    }
+    
+    console.log(`Expiration check complete. Deactivated ${deactivatedCount} institutes.`);
+    return null;
+});

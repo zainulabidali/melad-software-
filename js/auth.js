@@ -271,10 +271,6 @@ export async function validateInstituteAccess(user) {
             const isExpired = expiryDateObj && (now >= expiryDateObj.getTime());
 
             if (isExpired) {
-                // Auto-deactivate status in database to self-heal
-                if (status !== 'deactivated') {
-                    await updateDoc(instRef, { status: "deactivated" }).catch(e => {});
-                }
                 safeSessionClear();
                 await signOut(auth);
                 
