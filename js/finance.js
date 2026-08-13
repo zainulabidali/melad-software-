@@ -35,6 +35,10 @@ export async function initFinanceView(container, topActions) {
             }
         } catch (e) {}
     }
+    
+    if (sessionStorage.getItem('publicFinanceMode') === 'true') {
+        isAllowed = true;
+    }
 
     if (!isAllowed) {
         container.innerHTML = `

@@ -340,6 +340,17 @@ function renderSettingsLayout(container) {
                     </div>
                     <button type="button" id="btnFinanceManagement" class="btn btn-primary btn-sm" style="font-weight:700; font-size:0.78rem; padding:0.45rem 1.25rem;">Finance Management</button>
                 </div>
+                
+                <hr style="margin: 1.25rem 0; border: none; border-top: 1px solid #e2e8f0;">
+                
+                <div>
+                    <h4 style="font-size:0.9rem; font-weight:700; color:#1e293b; margin:0 0 0.5rem 0;">Finance Committee Access</h4>
+                    <p style="font-size:0.75rem; color:#64748b; margin:0 0 1rem 0;">Create a secure link that allows the Meelad Program Committee to manage finances without requiring an admin login.</p>
+                    
+                    <div id="financeLinkContainer" style="display:flex; flex-direction:column; gap:0.75rem;">
+                        <button type="button" id="btnGenerateFinanceLink" class="btn btn-secondary btn-sm" style="font-weight:700; font-size:0.78rem; padding:0.45rem 1.25rem; align-self: flex-start;">Generate Finance Link</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Danger Zone Card (Compact, spans full width, always last) -->
@@ -1650,6 +1661,8 @@ function bindFormEvents() {
         };
     }
 
+    setupFinanceLinkUI(window.currentInstituteId);
+
     const btnOpenDangerZone = document.getElementById('btnOpenDangerZone');
     if (btnOpenDangerZone) {
         btnOpenDangerZone.onclick = () => {
@@ -2135,3 +2148,100 @@ function showToast(msg) {
 window.openPointManageModal = openPointManageModal;
 window.openGradeFormModal = openGradeFormModal;
 
+
+// ─────────────────────────────────────────────
+// Finance Public Link System
+// ─────────────────────────────────────────────
+async function setupFinanceLinkUI(instId) {
+    const container = document.getElementById('financeLinkContainer');
+    if (!container) return;
+
+    try {
+        const instRef = doc(db, "institutes", instId);
+        const instSnap = await getDoc(instRef);
+        const instData = instSnap.data() || {};
+        const currentToken = instData.financeAccessToken;
+
+        if (currentToken) {
+            const linkUrl = `${window.location.origin}${window.location.pathname.replace(/[^/]+$/, '')}finance-access.html?token=${currentToken}`;
+            container.innerHTML = `
+                <div style="background:#f8fafc; padding:0.75rem; border:1px solid #e2e8f0; border-radius:0.375rem; display:flex; flex-direction:column; gap:0.5rem;">
+                    <div style="font-size:0.75rem; font-weight:700; color:#475569;">Public Finance Link</div>
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <input type="text" readonly value="${linkUrl}" style="flex:1; padding:0.4rem; font-size:0.75rem; border:1px solid #cbd5e1; border-radius:0.25rem; background:#ffffff; color:#0f172a;">
+                        <button type="button" class="btn btn-primary btn-sm" onclick="navigator.clipboard.writeText('${linkUrl}'); window.showToast('✓ Link copied');" style="padding:0.4rem 0.75rem; font-weight:600;">Copy</button>
+                    </div>
+                </div>
+                <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="regenerateFinanceLink('${instId}')" style="padding:0.4rem 0.75rem; font-weight:600;">Regenerate</button>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="revokeFinanceLink('${instId}', '${currentToken}')" style="padding:0.4rem 0.75rem; font-weight:600;">Revoke</button>
+                </div>
+            `;
+        } else {
+            container.innerHTML = `
+                <button type="button" id="btnGenerateFinanceLink" class="btn btn-secondary btn-sm" style="font-weight:700; font-size:0.78rem; padding:0.45rem 1.25rem; align-self: flex-start;">Generate Finance Link</button>
+            `;
+            document.getElementById('btnGenerateFinanceLink').onclick = () => generateFinanceLink(instId);
+        }
+    } catch (e) {
+        console.error("Error loading finance link:", e);
+    }
+}
+
+async function generateFinanceLink(instId) {
+    if (!confirm("Are you sure you want to generate a new Public Finance Link?")) return;
+    
+    // Generate secure 32-char token
+    const array = new Uint8Array(16);
+    window.crypto.getRandomValues(array);
+    const token = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    
+    try {
+        await setDoc(doc(db, "finance_tokens", token), {
+            instituteId: instId,
+            enabled: true,
+            createdAt: serverTimestamp()
+        });
+        
+        await updateDoc(doc(db, "institutes", instId), {
+            financeAccessToken: token
+        });
+        
+        showToast("✓ Link generated");
+        setupFinanceLinkUI(instId);
+    } catch (e) {
+        console.error("Error generating finance link:", e);
+        showToast("❌ Failed to generate link.");
+    }
+}
+
+window.regenerateFinanceLink = async function(instId) {
+    if (!confirm("Regenerating the link will invalidate the old one. Continue?")) return;
+    try {
+        const instSnap = await getDoc(doc(db, "institutes", instId));
+        const oldToken = instSnap.data().financeAccessToken;
+        if (oldToken) {
+            await deleteDoc(doc(db, "finance_tokens", oldToken));
+        }
+    } catch(e) {}
+    
+    await generateFinanceLink(instId);
+}
+
+window.revokeFinanceLink = async function(instId, currentToken) {
+    if (!confirm("Are you sure you want to revoke access? The current link will stop working immediately.")) return;
+    
+    try {
+        await deleteDoc(doc(db, "finance_tokens", currentToken));
+        await updateDoc(doc(db, "institutes", instId), {
+            financeAccessToken: null
+        });
+        showToast("✓ Link revoked");
+        setupFinanceLinkUI(instId);
+    } catch (e) {
+        console.error("Error revoking finance link:", e);
+        showToast("❌ Failed to revoke link.");
+    }
+}
+
+window.showToast = showToast;

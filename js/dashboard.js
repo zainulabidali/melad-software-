@@ -1,7 +1,7 @@
 import { auth, db, updateDashboardMetadata } from './firebase.js';
 import { getUserProfile, validateInstituteAccess, logoutUser, safeSessionClear } from './auth.js';
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
-import { doc, getDoc, collection, query, where, getCountFromServer, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+import { onAuthStateChanged, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+import { doc, getDoc, collection, query, where, getCountFromServer, onSnapshot, updateDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 // Import modules
 import { initTeamsView } from './teams.js';
@@ -57,6 +57,7 @@ const views = {
         return initParticipantsWorkflowView(container, topActions, payload);
     }
 };
+
 
 // Standalone Mode Helper
 async function initStandaloneMode(instId) {
@@ -118,10 +119,12 @@ onAuthStateChanged(auth, async (user) => {
     const urlParams = new URLSearchParams(window.location.search);
     const isStandalone = urlParams.get('mode') === 'standalone' || urlParams.get('standalone') === 'true';
     const standaloneInstId = urlParams.get('instituteId') || urlParams.get('instId');
-
     // Standalone Mode Priority Bypass: Executes before any auth or role checks
     if (isStandalone && standaloneInstId) {
-        initStandaloneMode(standaloneInstId);
+        if (!window.standaloneInitStarted) {
+            window.standaloneInitStarted = true;
+            initStandaloneMode(standaloneInstId);
+        }
         return;
     }
 

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance Management - Public Access</title>
+    <!-- App Favicon Package -->
+    <link rel="icon" type="image/x-icon" href="../favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <style>
+        /* Force full width and hide sidebar */
+        body { margin: 0; padding: 0; background: #f1f5f9; display: flex; flex-direction: column; min-height: 100vh; }
+        .main-content { margin-left: 0 !important; width: 100% !important; max-width: 1200px !important; margin: 0 auto !important; padding: 1rem !important; flex: 1; }
+        .dashboard-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 1rem; border-bottom: 1px solid #e2e8f0; margin-bottom: 1.5rem; }
+        #authGateLoader { position: fixed; inset: 0; background: #ffffff; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 1rem; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="standalone-mode">
+    <div id="authGateLoader">
+        <div class="spinner"></div>
+        <p style="font-family: 'Inter', sans-serif; color: #64748b; font-weight: 500;">Validating secure link...</p>
+    </div>
+
+    <main class="main-content" style="display: none;" id="mainContentWrapper">
+        <header class="dashboard-header">
+            <div>
+                <h1 id="instituteNameHeader" style="font-family: 'Poppins', sans-serif; font-size: 1.5rem; font-weight: 700; color: #0f172a; margin: 0;">Finance Management</h1>
+                <p style="color: #64748b; font-size: 0.875rem; margin-top: 0.25rem;">Public Committee Access</p>
+            </div>
+        </header>
+
+        <!-- Finance View Container -->
+        <div id="financeViewContainer"></div>
+    </main>
+
+    <!-- Global Empty Modal Shell -->
+    <div class="modal-overlay hidden" id="dynamicModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="dynamicModalTitle">Modal Title</h3>
+                <button class="close-modal" id="closeDynamicModalBtn">&times;</button>
+            </div>
+            <div class="modal-body" id="dynamicModalBody">
+                <!-- Content injected dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="../js/firebase.js"></script>
+    <script type="module" src="../js/finance-access.js"></script>
+</body>
+</html>
