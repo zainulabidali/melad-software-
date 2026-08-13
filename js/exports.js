@@ -7167,13 +7167,26 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                             codeLetterDisplay = valStr;
                                         }
                                     }
+                                    
+                                    let classDisplay = '';
+                                    if (resolved.memberStudents && resolved.memberStudents.length > 0) {
+                                        const classes = [...new Set(resolved.memberStudents.map(m => m.className).filter(c => c && c !== '—'))];
+                                        if (classes.length > 0) {
+                                            classDisplay = classes.join(', ');
+                                        }
+                                    }
+                                    
+                                    let displayNameHtml = window.escapeHTML(resolved.displayName);
+                                    if (classDisplay) {
+                                        displayNameHtml += ` - <span style="font-size:0.85em; opacity:0.85;">${window.escapeHTML(classDisplay)}</span>`;
+                                    }
 
                                     return `
                                             <tr>
                                                 <td style="text-align:center; font-weight:900; color:#1e1b4b;">${posBadge}</td>
                                                 <td style="text-align:center; font-weight:800; color:#0f172a;">${window.escapeHTML(codeLetterDisplay)}</td>
                                                 <td style="text-align:center; font-weight:800; color:#0f172a;">${window.escapeHTML(resolved.chestNumbers)}</td>
-                                                <td style="font-weight:700; color:#1e293b;">${window.escapeHTML(resolved.displayName)}</td>
+                                                <td style="font-weight:700; color:#1e293b;">${displayNameHtml}</td>
                                                 <td style="font-weight:600; color:#475569;">${window.escapeHTML(resolved.teamName || '—')}</td>
                                                 <td style="text-align:center; font-weight:700; color:#4338ca;">${window.escapeHTML(gradeVal)}</td>
                                                 <td style="text-align:center; font-weight:900; color:#16a34a;">${points}</td>
@@ -8672,8 +8685,21 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                             codeLetterDisplay = valStr;
                         }
                     }
+                    
+                    let classDisplay = '';
+                    if (resolved.memberStudents && resolved.memberStudents.length > 0) {
+                        const classes = [...new Set(resolved.memberStudents.map(m => m.className).filter(c => c && c !== '—'))];
+                        if (classes.length > 0) {
+                            classDisplay = classes.join(', ');
+                        }
+                    }
+                    
+                    let csvDisplayName = resolved.displayName;
+                    if (classDisplay) {
+                        csvDisplayName += ` - ${classDisplay}`;
+                    }
 
-                    csvContent += `"${w.position}","${codeLetterDisplay}","${resolved.chestNumbers}","${resolved.displayName}","${resolved.teamName || ''}","${gradeVal}",${points}\n`;
+                    csvContent += `"${w.position}","${codeLetterDisplay}","${resolved.chestNumbers}","${csvDisplayName}","${resolved.teamName || ''}","${gradeVal}",${points}\n`;
                 });
             });
         }
