@@ -6929,7 +6929,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                 // 2. Category Champions Summaries (Phase 6)
                 let categoryHTML = '';
-                if (f.resultSubOption !== 'Program Wise' && f.resultSubOption !== 'Team Wise') {
+                if (f.resultSubOption !== 'Program Wise' && f.resultSubOption !== 'Team Wise' && f.resultSubOption !== 'Participants Without Major Prizes') {
                     allCategories.forEach(cat => {
                         const map = categoryScores.get(cat.id);
                         if (!map || map.size === 0) return;
@@ -7833,6 +7833,55 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         </div>
                     `;
                     } else {
+                        htmlContent += `
+                        <div class="participants-without-prizes-report-container">
+                            <style>
+                                .pwmp-print-header, .pwmp-print-footer { display: none; }
+                                @media print {
+                                    @page {
+                                        margin: 15mm;
+                                    }
+                                    .participants-without-prizes-report-container {
+                                        counter-reset: page;
+                                    }
+                                    .pwmp-print-header {
+                                        display: block;
+                                        position: fixed;
+                                        top: 0;
+                                        left: 0;
+                                        right: 0;
+                                        text-align: center;
+                                        font-size: 10px;
+                                        font-weight: bold;
+                                        color: #94a3b8;
+                                        text-transform: uppercase;
+                                        padding-bottom: 5px;
+                                    }
+                                    .pwmp-print-footer {
+                                        display: block;
+                                        position: fixed;
+                                        bottom: 0;
+                                        left: 0;
+                                        right: 0;
+                                        text-align: center;
+                                        font-size: 10px;
+                                        font-weight: bold;
+                                        color: #64748b;
+                                        padding-top: 5px;
+                                    }
+                                    .pwmp-print-footer::after {
+                                        content: "Page " counter(page);
+                                    }
+                                    body {
+                                        padding-top: 20px;
+                                        padding-bottom: 20px;
+                                    }
+                                }
+                            </style>
+                            <div class="pwmp-print-header">Participants Without Major Prizes</div>
+                            <div class="pwmp-print-footer"></div>
+                        `;
+
                         const grouped = {};
                         studentDataList.forEach(stu => {
                             const catId = stu.categoryId;
@@ -7921,7 +7970,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 };
 
                                 htmlContent += `
-                                <div style="margin-left:0.5rem; margin-top:0.75rem; margin-bottom:0.75rem; page-break-inside:avoid; break-inside:avoid;">
+                                <div style="margin-left:0.5rem; margin-top:0.75rem; margin-bottom:0.75rem;">
                                     <h4 style="color:#1e1b4b; font-size:0.85rem; font-weight:800; margin-bottom:0.35rem;">Class: ${window.escapeHTML(cls.name)}</h4>
                                     
                                     <table class="report-table" style="margin-top:0; margin-bottom:0.5rem; width:100%;">
@@ -7939,7 +7988,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                             ${students.map(s => `
                                                 <tr>
                                                     <td style="text-align:center; font-weight:900; color:#0f172a;">${window.escapeHTML(s.chestNumber)}</td>
-                                                    <td style="font-weight:800; color:#1e1b4b;">${window.escapeHTML(s.name)}</td>
+                                                    <td style="font-weight:800; color:#1e1b4b;">${window.escapeHTML(s.name)} - ${window.escapeHTML(s.className)}</td>
                                                     <td style="font-weight:700; color:#475569;">${window.escapeHTML(s.teamName)}</td>
                                                     <td style="text-align:center; font-weight:800; color:#4338ca;">${s.participationsCount}</td>
                                                     <td style="text-align:center; font-weight:700; color:${statusColors[s.status] || '#475569'}; font-size:0.75rem;">${s.status}</td>
@@ -7954,6 +8003,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                             htmlContent += `</div>`;
                         });
+                        htmlContent += `</div>`;
                     }
                 }
             }
