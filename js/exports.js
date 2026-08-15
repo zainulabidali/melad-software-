@@ -7484,9 +7484,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 }
 
                 else if (f.resultSubOption === 'Prize Distribution Register') {
-                    // Structure: Class (Category) -> Program Type + Gender -> Program -> Winners
-
-                    const classData = {};
+                    // Structure: Position -> Program Type -> Class -> Winners
+                    const positionData = {};
                     
                     filteredResults.forEach(r => {
                         const prog = allPrograms.find(p => p.id === r.programId);
@@ -7511,28 +7510,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                         // Determine Program Type string
                         let programType = 'STAGE PROGRAMS';
-                        if (isGeneral) programType = 'GENERAL PROGRAMS';
-                        else if (isGroup) programType = 'GROUP PROGRAMS';
-                        else if (isOffStage) programType = 'OFF STAGE PROGRAMS';
+                        if (isGroup || isOffStage || isGeneral) programType = 'OFF-STAGE PROGRAMS';
 
                         let winnersList = Array.isArray(r.winners) ? r.winners : [];
                         if (f.includedPositions) winnersList = winnersList.filter(w => f.includedPositions.includes(w.position));
-
-                        // Determine gender
-                        let rawGender = typeof getProgramGenderDisplay === 'function' ? getProgramGenderDisplay(prog) : (prog.genderCategory || prog.gender || '');
-                        let pGender = 'MIXED';
-                        if (rawGender.toLowerCase() === 'boys') pGender = 'BOYS';
-                        else if (rawGender.toLowerCase() === 'girls') pGender = 'GIRLS';
-
-                        const subKey = `${programType} — ${pGender}`;
-                        const className = r.categoryName || prog.categoryName || 'General';
-
-                        if (!classData[className]) {
-                            classData[className] = {};
-                        }
-                        if (!classData[className][subKey]) {
-                            classData[className][subKey] = [];
-                        }
 
                         winnersList.forEach(w => {
                             const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
@@ -7558,49 +7539,76 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             if (members.length === 0) return;
 
                             members.forEach(stu => {
-                                classData[className][subKey].push({
-                                    position: w.position,
+                                const sClass = stu.className || (studentMap[stu.studentId] && studentMap[stu.studentId].className) || '—';
+                                const pos = w.position || 'Unknown';
+
+                                if (!positionData[pos]) positionData[pos] = {};
+                                if (!positionData[pos][programType]) positionData[pos][programType] = [];
+
+                                positionData[pos][programType].push({
+                                    position: pos,
                                     programName: r.programName || prog.programName || '—',
                                     programNumber: prog.programNumber || '',
                                     chestNumber: stu.chestNumber || '—',
                                     studentName: stu.name || '—',
-                                    teamName: stu.teamName || resolved.teamName || w.teamName || '—'
+                                    teamName: stu.teamName || resolved.teamName || w.teamName || '—',
+                                    className: sClass
                                 });
                             });
                         });
                     });
 
                     let totalEntries = 0;
-                    
-                    const sortedClassNames = Object.keys(classData).sort((a, b) => {
-                        if (typeof compareCategoriesByMinClass === 'function') {
-                            return compareCategoriesByMinClass(a, b);
-                        }
-                        return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+                    let sectionsHtml = '';
+
+                    const posOrderMap = { 'First': 1, 'Second': 2, 'Third': 3, 'Fourth': 4, 'Fifth': 5 };
+                    const sortedPositions = Object.keys(positionData).sort((a, b) => {
+                        const pa = posOrderMap[a] || 99;
+                        const pb = posOrderMap[b] || 99;
+                        return pa - pb;
                     });
 
-                    if (sortedClassNames.length === 0) {
+                    if (sortedPositions.length === 0) {
                         htmlContent = `<div style="text-align:center; padding:3rem; color:#64748b; font-weight:600;">No prize winners found matching the selected parameters.</div>`;
                     } else {
-                        let sectionsHtml = '';
-
-                        sortedClassNames.forEach((className, posIdx) => {
-                            const subSections = classData[className];
+                        const posIconMap = { 'First': '🥇', 'Second': '🥈', 'Third': '🥉' };
+                        
+                        sortedPositions.forEach((pos, posIdx) => {
+                            const typesData = positionData[pos];
+                            const progTypesOrder = ['STAGE PROGRAMS', 'OFF-STAGE PROGRAMS'];
                             
-                            let classTotal = 0;
-                            let subSectionsHtml = '';
+                            let positionHtml = '';
+                            let hasAnyInPos = false;
 
-                            const sortedSubKeys = Object.keys(subSections).sort();
+                            const posTitle = `${posIconMap[pos] || '🏅'} ${pos.toUpperCase()} PLACE WINNERS`;
 
-                            sortedSubKeys.forEach(subKey => {
-                                const items = subSections[subKey];
-                                if (items.length === 0) return;
-                                
-                                classTotal += items.length;
+                            positionHtml += `
+                            <div class="program-page-standard" style="margin-bottom:2rem; ${posIdx > 0 ? 'page-break-before:always;' : ''}">
+                                <div style="border-bottom:3px solid #1e1b4b; padding-bottom:0.4rem; margin-bottom:0.75rem;">
+                                    <h2 style="color:#1e1b4b; margin:0; font-weight:900; text-transform:uppercase;">${posTitle}</h2>
+                                </div>
+                            `;
+
+                            progTypesOrder.forEach(pType => {
+                                const items = typesData[pType];
+                                if (!items || items.length === 0) return;
+                                hasAnyInPos = true;
                                 totalEntries += items.length;
 
-                                // Sort items by Program Number/Order, then Position
+                                // Sort items by Class (Ascending), then Program Number/Name
                                 items.sort((a, b) => {
+                                    const extractNum = (str) => {
+                                        const m = String(str).match(/\d+/);
+                                        return m ? parseInt(m[0], 10) : 999;
+                                    };
+                                    const classNumA = extractNum(a.className);
+                                    const classNumB = extractNum(b.className);
+
+                                    if (classNumA !== classNumB) return classNumA - classNumB;
+                                    
+                                    const clsComp = String(a.className).localeCompare(String(b.className), undefined, { numeric: true, sensitivity: 'base' });
+                                    if (clsComp !== 0) return clsComp;
+
                                     const pNumA = a.programNumber ? String(a.programNumber) : '';
                                     const pNumB = b.programNumber ? String(b.programNumber) : '';
                                     if (pNumA !== pNumB) return pNumA.localeCompare(pNumB, undefined, { numeric: true, sensitivity: 'base' });
@@ -7608,85 +7616,53 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     const pComp = a.programName.localeCompare(b.programName, undefined, { sensitivity: 'base' });
                                     if (pComp !== 0) return pComp;
 
-                                    const posOrder = { 'First': 1, 'Second': 2, 'Third': 3 };
-                                    const posA = posOrder[a.position] || 99;
-                                    const posB = posOrder[b.position] || 99;
-                                    if (posA !== posB) return posA - posB;
-
                                     return a.chestNumber.localeCompare(b.chestNumber, undefined, { numeric: true, sensitivity: 'base' });
                                 });
 
-                                subSectionsHtml += `
-                                <div style="margin-top:1rem; margin-bottom:1.25rem;">
-                                    <h4 style="margin:0 0 0.4rem 0; color:#4338ca; font-size:0.9rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em;">
-                                        ${window.escapeHTML(subKey)} (${items.length})
-                                    </h4>
-                                    <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 10.5px;">
-                                        <thead>
-                                            <tr style="background-color: #f8fafc;">
+                                positionHtml += `
+                                <div style="margin-top:1rem; margin-bottom:1.25rem; page-break-inside: auto;">
+                                    <h3 style="margin:0 0 0.4rem 0; color:#4338ca; font-size:1rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em;">
+                                        ${window.escapeHTML(pType)}
+                                    </h3>
+                                    <table class="report-table pww-table" style="width: 100%; border-collapse: collapse; font-size: 10.5px; page-break-inside: auto;">
+                                        <thead style="display: table-header-group;">
+                                            <tr style="background-color: #f8fafc; page-break-inside: avoid;">
                                                 <th style="width: 35px; text-align: center; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">SL</th>
                                                 <th style="text-align: left; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Program Name</th>
-                                                <th style="width: 70px; text-align: center; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Position</th>
                                                 <th style="width: 70px; text-align: center; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Chest No</th>
                                                 <th style="text-align: left; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Student Name</th>
                                                 <th style="width: 110px; text-align: left; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Team Name</th>
+                                                <th style="width: 70px; text-align: center; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Class</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            ${(() => {
-                                                let rowsHtml = '';
-                                                let currentProgramId = null;
-                                                let rowspanCount = 0;
-                                                
-                                                for (let idx = 0; idx < items.length; idx++) {
-                                                    const item = items[idx];
-                                                    const pId = item.programNumber ? item.programNumber + '_' + item.programName : item.programName;
-                                                    
-                                                    let programCell = '';
-                                                    if (pId !== currentProgramId) {
-                                                        currentProgramId = pId;
-                                                        rowspanCount = 0;
-                                                        for (let j = idx; j < items.length; j++) {
-                                                            const jId = items[j].programNumber ? items[j].programNumber + '_' + items[j].programName : items[j].programName;
-                                                            if (jId === pId) rowspanCount++;
-                                                            else break;
-                                                        }
-                                                        
-                                                        const pDisp = window.escapeHTML(item.programNumber ? `[#${item.programNumber}] ${item.programName}` : item.programName);
-                                                        programCell = `
-                                                        <td rowspan="${rowspanCount}" style="font-weight:800; color:#1e1b4b; padding: 4px 5px; border: 1px solid #cbd5e1; vertical-align: middle;">${pDisp}</td>
-                                                        `;
-                                                    }
-                                                    
-                                                    rowsHtml += `
-                                                        <tr style="height: 22px; page-break-inside: avoid;">
-                                                            <td style="text-align:center; font-weight:700; color:#64748b; padding: 4px 5px; border: 1px solid #cbd5e1;">${idx + 1}</td>
-                                                            ${programCell}
-                                                            <td style="text-align:center; font-weight:800; color:#4338ca; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.position)}</td>
-                                                            <td style="text-align:center; font-weight:900; color:#0f172a; font-size:11px; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.chestNumber)}</td>
-                                                            <td style="font-weight:800; color:#1e1b4b; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.studentName)}</td>
-                                                            <td style="font-weight:700; color:#475569; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.teamName)}</td>
-                                                        </tr>
-                                                    `;
-                                                }
-                                                return rowsHtml;
-                                            })()}
+                                `;
+
+                                items.forEach((item, idx) => {
+                                    const pDisp = window.escapeHTML(item.programNumber ? `[${item.programNumber}] ${item.programName}` : item.programName);
+
+                                    positionHtml += `
+                                        <tr style="height: 22px; page-break-inside: avoid;">
+                                            <td style="text-align:center; font-weight:700; color:#64748b; padding: 4px 5px; border: 1px solid #cbd5e1;">${idx + 1}</td>
+                                            <td style="font-weight:800; color:#1e1b4b; padding: 4px 5px; border: 1px solid #cbd5e1;">${pDisp}</td>
+                                            <td style="text-align:center; font-weight:900; color:#0f172a; font-size:11px; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.chestNumber)}</td>
+                                            <td style="font-weight:800; color:#1e1b4b; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.studentName)}</td>
+                                            <td style="font-weight:700; color:#475569; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.teamName)}</td>
+                                            <td style="text-align:center; font-weight:800; color:#4338ca; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.className)}</td>
+                                        </tr>
+                                    `;
+                                });
+
+                                positionHtml += `
                                         </tbody>
                                     </table>
                                 </div>
                                 `;
                             });
-                            
-                            if (classTotal > 0) {
-                                sectionsHtml += `
-                                <div class="program-page-standard" style="margin-bottom:2rem; ${posIdx > 0 ? 'page-break-before:always;' : ''}">
-                                    <div style="border-bottom:3px solid #1e1b4b; padding-bottom:0.4rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:flex-end;">
-                                        <h2 style="color:#1e1b4b; margin:0; font-weight:900; text-transform:uppercase;">${window.escapeHTML(className)}</h2>
-                                        <span style="font-weight:800; color:#4338ca; font-size:0.8rem;">TOTAL: ${classTotal} WINNERS</span>
-                                    </div>
-                                    ${subSectionsHtml}
-                                </div>
-                                `;
+
+                            positionHtml += `</div>`;
+                            if (hasAnyInPos) {
+                                sectionsHtml += positionHtml;
                             }
                         });
 
@@ -7726,13 +7702,13 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                         color: #64748b;
                                         padding-top: 5px;
                                     }
-                                    .pww-print-footer::after {
-                                        content: "Page " counter(page);
-                                    }
                                     body {
                                         padding-top: 20px;
                                         padding-bottom: 20px;
                                     }
+                                }
+                                .pww-table th, .pww-table td {
+                                    page-break-inside: avoid;
                                 }
                             </style>
                             <div class="pww-print-header">Position Wise Winners</div>
@@ -7741,7 +7717,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             <div style="border-bottom:3px solid #4338ca; padding-bottom:0.4rem; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:flex-end;">
                                 <div>
                                     <h2 style="color:#1e1b4b; margin:0; font-weight:900; text-transform:uppercase;">🏆 POSITION WISE WINNERS</h2>
-                                    <p style="margin:0.15rem 0 0 0; font-size:0.72rem; color:#64748b; font-weight:600;">Class-wise prize distribution register including expanded group & general participants.</p>
+                                    <p style="margin:0.15rem 0 0 0; font-size:0.72rem; color:#64748b; font-weight:600;">Position-wise prize distribution register including expanded group & general participants.</p>
                                 </div>
                                 <div style="text-align:right; font-size:0.75rem; font-weight:800; color:#4338ca;">
                                     Total Registered Entries: ${totalEntries}
@@ -8323,7 +8299,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             if (f.resultSubOption === 'Prize Distribution Register') {
                                 pdf.text('POSITION WISE WINNERS', 15, 8);
                             }
-                            pdf.text('Page ' + i + ' of ' + totalPages, pdf.internal.pageSize.getWidth() - 25, pdf.internal.pageSize.getHeight() - 5, { align: 'right' });
+                            pdf.text(i + '/' + totalPages, pdf.internal.pageSize.getWidth() - 25, pdf.internal.pageSize.getHeight() - 5, { align: 'right' });
                         }
                     }).save();
                 } else {
