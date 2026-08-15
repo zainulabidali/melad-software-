@@ -7272,7 +7272,12 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     <div class="report-title">🏆 PROGRAM RESULTS PODIUM</div>
                                     <h2 style="margin-top:0.3rem; margin-bottom:0.1rem; color:#1e1b4b; font-size:1.3rem;">${window.escapeHTML(r.programName)}</h2>
                                     <div style="font-size:0.75rem; font-weight:700; color:#4338ca;">
-                                        Category: ${window.escapeHTML(r.categoryName)} ${r.className ? `· Class: ${window.escapeHTML(r.className)}` : ''} · 
+                                        Category: ${window.escapeHTML(r.categoryName)} ${r.className ? `· Class: ${window.escapeHTML(r.className)}` : ''} ${(function() {
+                                            const prog = typeof allPrograms !== 'undefined' ? allPrograms.find(p => p.id === (r.programId || r.id)) : null;
+                                            const rawG = prog ? (prog.genderCategory || prog.gender || '').toString().trim() : (r.genderCategory || r.gender || '').toString().trim();
+                                            if (!rawG || rawG.toLowerCase() === 'mixed' || rawG.toLowerCase() === 'general' || rawG.toLowerCase() === 'all genders') return '';
+                                            return `· Gender: ${window.escapeHTML(rawG.toUpperCase())} `;
+                                        })()}· 
                                         Type: ${r.programType === 'group' ? 'Group Event' : 'Individual Event'}
                                     </div>
                                 </div>
