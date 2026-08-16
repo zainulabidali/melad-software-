@@ -2145,3 +2145,16 @@ export async function syncTeamNameGlobally(instituteId, teamId, newTeamName, new
         throw err;
     }
 }
+
+// ─────────────────────────────────────────────
+// Category Normalization
+// ─────────────────────────────────────────────
+/**
+ * Normalizes a category name by trimming whitespace,
+ * replacing multiple spaces and hyphens with a single space,
+ * and converting to lowercase.
+ */
+export function getCategoryComparisonKey(name) {
+    if (!name) return "";
+    return String(name).trim().replace(/-/g, ' ').replace(/\s+/g, ' ').toLowerCase();
+}

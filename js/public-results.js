@@ -1,4 +1,4 @@
-import { db, computeDenseRanking } from './firebase.js';
+import { db, computeDenseRanking, getCategoryComparisonKey } from './firebase.js';
 import {
     collection, doc, getDoc, getDocs, onSnapshot, query, where
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -371,7 +371,8 @@ function prepareCategoryPerformanceData() {
     }
 
     // 2. Accumulate points per category per team using exact Team Championship calculation
-    const categoryMap = {}; // { [catName]: { [teamName]: points } }
+    const categoryMap = {}; // { [normCatName]: { [teamName]: points } }
+    const canonicalCategoryNames = {}; // { [normCatName]: "Display Name" }
     const processedProgramIds = new Set();
 
     allResults.forEach(r => {
@@ -384,8 +385,13 @@ function prepareCategoryPerformanceData() {
         if (processedProgramIds.has(progKey)) return;
         processedProgramIds.add(progKey);
 
-        const catName = r.categoryName ? r.categoryName.trim() : '';
-        if (!catName) return;
+        const rawCatName = r.categoryName ? r.categoryName.trim() : '';
+        if (!rawCatName) return;
+        
+        const catName = getCategoryComparisonKey(rawCatName);
+        if (!canonicalCategoryNames[catName]) {
+            canonicalCategoryNames[catName] = rawCatName;
+        }
 
         if (!categoryMap[catName]) {
             categoryMap[catName] = {};
@@ -491,7 +497,7 @@ function prepareCategoryPerformanceData() {
         }));
 
         return {
-            categoryName: catName,
+            categoryName: canonicalCategoryNames[catName] || catName,
             teams: processedTeams
         };
     });
