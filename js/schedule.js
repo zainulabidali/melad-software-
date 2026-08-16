@@ -1,4 +1,4 @@
-import { db, getCachedCategories, getCategoryComparisonKey } from './firebase.js';
+import { db, getCachedCategories } from './firebase.js';
 import {
     collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc,
     writeBatch, serverTimestamp
@@ -2081,21 +2081,17 @@ async function openAddProgramRowModal() {
     };
 
     // Build unique list of category names for filter dropdown
-    const canonicalCategoryNames = {};
+    const categoryNamesList = [];
     categories.forEach(c => {
-        if (c.name) {
-            const norm = getCategoryComparisonKey(c.name);
-            if (!canonicalCategoryNames[norm]) canonicalCategoryNames[norm] = c.name;
-        }
+        if (c.name && !categoryNamesList.includes(c.name)) categoryNamesList.push(c.name);
     });
     availablePrograms.forEach(p => {
         const cName = getProgramCategoryName(p) || 'General';
-        const norm = getCategoryComparisonKey(cName);
-        if (!canonicalCategoryNames[norm]) canonicalCategoryNames[norm] = cName;
+        if (cName && !categoryNamesList.includes(cName)) categoryNamesList.push(cName);
     });
 
-    const categoryOptionsHtml = Object.entries(canonicalCategoryNames).map(([norm, disp]) => 
-        `<option value="${window.escapeHTML(norm)}">${window.escapeHTML(disp)}</option>`
+    const categoryOptionsHtml = categoryNamesList.map(cName => 
+        `<option value="${window.escapeHTML(cName)}">${window.escapeHTML(cName)}</option>`
     ).join('');
 
     // Sort available programs ascending by programNumber (numerically if possible)
@@ -2311,7 +2307,7 @@ async function openAddProgramRowModal() {
             // 1. Category Filter
             if (selectedCat) {
                 const pCat = getProgramCategoryName(p) || 'General';
-                if (getCategoryComparisonKey(pCat) !== selectedCat) return false;
+                if (pCat !== selectedCat) return false;
             }
 
             // 2. Gender Filter

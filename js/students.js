@@ -1,4 +1,4 @@
-import { auth, db, updateDashboardMetadata, invalidateStudentsCache, getCachedCategories, getCachedTeams, getCachedPrograms, getCategoryComparisonKey } from './firebase.js';
+import { auth, db, updateDashboardMetadata, invalidateStudentsCache, getCachedCategories, getCachedTeams, getCachedPrograms } from './firebase.js';
 import {
     collection,
     addDoc,
@@ -2072,7 +2072,7 @@ async function openBulkImportModal() {
 
                     let matchedCategory = null;
                     if (categoryName) {
-                        matchedCategory = allCategories.find(c => getCategoryComparisonKey(c.name) === getCategoryComparisonKey(categoryName));
+                        matchedCategory = allCategories.find(c => c.name.toLowerCase().trim() === categoryName.toLowerCase().trim());
                         if (!matchedCategory) {
                             errors.push(`Category "${categoryName}" does not exist`);
                         }

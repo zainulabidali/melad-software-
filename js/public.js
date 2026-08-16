@@ -1,4 +1,4 @@
-import { db, getCategoryComparisonKey } from './firebase.js';
+import { db } from './firebase.js';
 import {
     collection, getDocs, onSnapshot, query,
     orderBy, limit, where
@@ -147,20 +147,16 @@ function sortCategories(categories) {
 // Populate Category select from results data
 // ─────────────────────────────────────────────
 function populateCategorySelect() {
-    const uniqueCats = new Map(); // normName -> { id: normName, name: rawName }
+    const uniqueCats = new Map();
     allResults.forEach(r => {
-        const rawName = r.categoryName || r.categoryId;
-        if (rawName) {
-            const normName = getCategoryComparisonKey(rawName);
-            if (!uniqueCats.has(normName)) {
-                uniqueCats.set(normName, { id: normName, name: r.categoryName || rawName });
-            }
+        if (r.categoryId && r.categoryName && !uniqueCats.has(r.categoryId)) {
+            uniqueCats.set(r.categoryId, r.categoryName);
         }
     });
 
     let catArray = [];
-    uniqueCats.forEach((catObj) => {
-        catArray.push(catObj);
+    uniqueCats.forEach((name, id) => {
+        catArray.push({ id, name });
     });
 
     sortCategories(catArray);
@@ -185,10 +181,7 @@ catSelect.addEventListener('change', (e) => {
     progSelect.disabled = true;
 
     if (categoryId) {
-        const filteredResults = allResults.filter(r => {
-            const rawName = r.categoryName || r.categoryId;
-            return rawName && getCategoryComparisonKey(rawName) === categoryId;
-        });
+        const filteredResults = allResults.filter(r => r.categoryId === categoryId);
         const uniqueProgs = new Map();
         filteredResults.forEach(r => {
             if (r.programId && r.programName && !uniqueProgs.has(r.programId)) {
