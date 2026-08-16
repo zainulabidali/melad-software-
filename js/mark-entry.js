@@ -73,7 +73,7 @@ async function ensureTeamsMap() {
             const teams = await getCachedTeams(window.currentInstituteId);
             teamsMapCache = new Map(teams.map(t => [String(t.id), t]));
         } catch (e) {
-            console.error("Failed to load teams:", e);
+            console.warn("Could not load teams map (expected for anonymous/standalone judge).", e.message || e);
         }
     }
 }
@@ -2920,7 +2920,9 @@ async function persistMarks(prog, judges, isSubmit) {
 
         // Batch sync of judge assignments was removed here.
         // It is safely handled exclusively in saveJudgeAssignment.
-        await updateDashboardMetadata(window.currentInstituteId);
+        updateDashboardMetadata(window.currentInstituteId).catch(err => {
+            console.error("Background dashboard metadata update failed:", err);
+        });
         window.showToast(isSubmit ? "📤 Marks submitted successfully!" : "📝 Draft saved successfully!", "success");
         document.getElementById('dynamicModal').classList.add('hidden');
         document.getElementById('dynamicModal').classList.remove('result-fullscreen-modal');

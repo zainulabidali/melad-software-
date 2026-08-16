@@ -160,8 +160,10 @@ onAuthStateChanged(auth, async (user) => {
                 const banner = document.getElementById('impersonationBanner');
                 if (banner) {
                     banner.classList.remove('hidden');
-                    const nameEl = document.getElementById('impersonatedInstName');
-                    if (nameEl) nameEl.textContent = sessionStorage.getItem('impersonatedInstituteName') || 'Institute';
+                    const nameSpan = document.getElementById('impersonatedInstName');
+                    if (nameSpan) {
+                        nameSpan.textContent = sessionStorage.getItem('impersonatedInstituteName') || 'Unknown Institute';
+                    }
                 }
                 const returnBtn = document.getElementById('returnToSuperAdminBtn');
                 if (returnBtn) {
@@ -269,11 +271,34 @@ onAuthStateChanged(auth, async (user) => {
                         document.body.classList.remove('hidden');
 
                         setupNavigation();
-                        // Default View
+                        // Parse View from URL
                         if (document.body.classList.contains('standalone-mode')) {
                             navigateTo('mark-entry');
                         } else {
-                            navigateTo('dashboard');
+                            // 1. Check Hash Fragment (e.g., #students)
+                            const hashView = window.location.hash.substring(1);
+                            // 2. Check Query Parameters (e.g., ?view=students)
+                            const urlParams = new URLSearchParams(window.location.search);
+                            const paramView = urlParams.get('view') || urlParams.get('page');
+                            // 3. Check Pathname fallback (e.g. if the user physically copies admin-dashboard.html to students.html)
+                            const pathMatch = window.location.pathname.match(/\/pages\/([a-zA-Z0-9-]+)\.html/);
+                            const pathView = (pathMatch && pathMatch[1] !== 'admin-dashboard') ? pathMatch[1] : null;
+                            
+                            let initialView = 'dashboard';
+                            if (hashView && views[hashView]) {
+                                initialView = hashView;
+                            } else if (paramView && views[paramView]) {
+                                initialView = paramView;
+                            } else if (pathView && views[pathView]) {
+                                initialView = pathView;
+                            }
+                            
+                            // Activate corresponding nav item
+                            const navItems = document.querySelectorAll('.nav-item, .bottom-nav-item, .drawer-item');
+                            navItems.forEach(nav => nav.classList.remove('active'));
+                            document.querySelectorAll(`[data-view="${initialView}"]`).forEach(el => el.classList.add('active'));
+
+                            navigateTo(initialView);
                         }
                     }
                 } else {
@@ -327,7 +352,14 @@ function setupNavigation() {
     const navItems = document.querySelectorAll('.nav-item[data-view], .bottom-nav-item[data-view], .drawer-item[data-view]');
     navItems.forEach(item => {
         item.addEventListener('click', (e) => {
-            e.preventDefault();
+            // Only prevent default and update hash if it's an internal link
+            if (item.getAttribute('href') === '#') {
+                e.preventDefault();
+                const targetView = item.getAttribute('data-view');
+                if (targetView) {
+                    window.location.hash = targetView;
+                }
+            }
 
             // Remove active from all
             navItems.forEach(nav => nav.classList.remove('active'));
