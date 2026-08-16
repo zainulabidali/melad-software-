@@ -15,9 +15,9 @@ import {
     writeBatch,
     query,
     where,
-    collectionGroup,
     increment
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+
 
 let unsubscribeTeams = null;
 let unsubscribeStudents = null;
@@ -295,80 +295,32 @@ async function loadProgramAssignmentOverview(forceRefresh = false) {
             }
         };
 
-        // 2. Fetch participant docs in a single collectionGroup query
-        const partQuery = query(collectionGroup(db, "participants"));
-        const partSnap = await getDocs(partQuery);
-        const instPrefix = `institutes/${instId}/`;
 
-        partSnap.forEach(docSnap => {
-            if (docSnap.ref.path.startsWith(instPrefix)) {
-                const data = docSnap.data();
-                const pathTokens = docSnap.ref.path.split('/');
-                const fallbackProgId = pathTokens[3];
-                processDocData(data, fallbackProgId);
-            }
-        });
-    } catch (e) {
-        console.warn("CollectionGroup fetch error, using program subcollections fallback:", e);
-        if (localOverviewPrograms.length > 0) {
-            const teamLookup = new Map();
-            localTeams.forEach(t => {
-                if (t.id) teamLookup.set(t.id, t.id);
-                if (t.name) teamLookup.set(t.name, t.id);
-            });
-
-            const batchSize = 10;
-            for (let i = 0; i < localOverviewPrograms.length; i += batchSize) {
-                const chunk = localOverviewPrograms.slice(i, i + batchSize);
-                await Promise.all(chunk.map(async (prog) => {
-                    try {
-                        const partSnap = await getDocs(collection(db, "institutes", instId, "programs", prog.id, "participants"));
-                        if (!partSnap.empty) {
-                            partSnap.forEach(d => {
-                                const data = d.data();
-                                const progId = data.programId || prog.id;
-
-                                let entriesCount = 0;
-                                if (data.type === 'group') {
-                                    if (Array.isArray(data.groups)) {
-                                        data.groups.forEach(g => {
-                                            if (Array.isArray(g.members)) {
-                                                entriesCount += g.members.length;
-                                            } else if (g.studentId || g.studentName) {
-                                                entriesCount += 1;
-                                            }
-                                        });
-                                    }
-                                } else {
-                                    entriesCount = 1;
-                                }
-
-                                if (entriesCount > 0) {
-                                    totalAssignedProgramsSet.add(progId);
-
-                                    const rawTeamKey = data.teamId || data.teamName;
-                                    if (rawTeamKey) {
-                                        const canonicalTeamId = teamLookup.get(rawTeamKey) || rawTeamKey;
-                                        if (!localAssignedProgramsByTeam.has(canonicalTeamId)) {
-                                            localAssignedProgramsByTeam.set(canonicalTeamId, new Set());
-                                        }
-                                        localAssignedProgramsByTeam.get(canonicalTeamId).add(progId);
-
-                                        localParticipantEntriesByTeam.set(
-                                            canonicalTeamId,
-                                            (localParticipantEntriesByTeam.get(canonicalTeamId) || 0) + entriesCount
-                                        );
-                                    }
-                                }
-                            });
-                        }
-                    } catch (err) { }
-                }));
-            }
+        // Fetch participant docs scoped to this institute only.
+        // Previously this used collectionGroup(db, "participants") with no filter which read
+        // ALL participants across every Madrasa in the database (~8-9s). Now we read only
+        // institutes/{instId}/programs/*/participants — fast, correct, and tenant-isolated.
+        const batchSize = 10;
+        for (let i = 0; i < localOverviewPrograms.length; i += batchSize) {
+            const chunk = localOverviewPrograms.slice(i, i + batchSize);
+            await Promise.all(chunk.map(async (prog) => {
+                try {
+                    const partSnap = await getDocs(collection(db, "institutes", instId, "programs", prog.id, "participants"));
+                    if (!partSnap.empty) {
+                        partSnap.forEach(d => {
+                            const data = d.data();
+                            processDocData(data, prog.id);
+                        });
+                    }
+                } catch (err) { }
+            }));
         }
+
+    } catch (e) {
+        console.warn("Error loading program assignment overview:", e);
     }
 
-    // Save to 2-level Cache
+
     const cacheObj = {
         overviewPrograms: localOverviewPrograms,
         assignedProgramsByTeam: Array.from(localAssignedProgramsByTeam.entries()).map(([k, set]) => [k, Array.from(set)]),
