@@ -56,6 +56,7 @@ document.head.appendChild(gradeOverrideStyle);
 // ─────────────────────────────────────────────
 // Module State
 // ─────────────────────────────────────────────
+let currentSessionJudgeIdMap = new Map();
 let markEntryFilter = {
     search: '',
     categoryId: '',
@@ -483,18 +484,17 @@ async function loadMarkEntryData() {
             };
         });
 
-        // Real-time listener for results to map status reactively
+        // Load results once instead of listening to the entire collection real-time
         const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
-        unsubscribeMarkEntry = onSnapshot(resultsRef, (snapshot) => {
-            allResults.clear();
-            snapshot.forEach(d => {
-                const r = d.data();
-                if (r.programId) {
-                    allResults.set(r.programId, { id: d.id, ...r });
-                }
-            });
-            renderMarkEntryGrid();
+        const snapshot = await getDocs(resultsRef);
+        allResults.clear();
+        snapshot.forEach(d => {
+            const r = d.data();
+            if (r.programId) {
+                allResults.set(r.programId, { id: d.id, ...r });
+            }
         });
+        renderMarkEntryGrid();
 
     } catch (err) {
         console.error("Error loading Mark Entry data:", err);
@@ -844,18 +844,22 @@ export async function openMarkEntryModal(prog) {
     }
 
     try {
-        // Fetch all active judges from judges module
-        const judgesSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "judges"));
+        // Fetch all active judges, participants, and latest result concurrently
+        const [judgesSnap, participants, existingResult] = await Promise.all([
+            getDocs(collection(db, "institutes", window.currentInstituteId, "judges")),
+            loadStudentsForProgram(prog),
+            getLatestResultDoc(prog.id)
+        ]);
+
+        currentSessionJudgeIdMap.clear();
         const activeJudges = [];
         judgesSnap.forEach(d => {
             const data = d.data();
+            currentSessionJudgeIdMap.set(data.name || d.id, d.id);
             if (data.status !== 'disabled') {
                 activeJudges.push({ id: d.id, name: data.name || d.id });
             }
         });
-
-        const participants = await loadStudentsForProgram(prog);
-        const existingResult = await getLatestResultDoc(prog.id);
 
         if (participants.length === 0) {
             modalBody.innerHTML = `
@@ -2287,23 +2291,24 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
     }
 
     // Keystroke input validator and auto calculator
-    let recalcTimeout = null;
     tbody.querySelectorAll('.judge-mark-input').forEach(input => {
         input.addEventListener('input', () => {
             let val = input.value.trim();
-            if (val === '') {
-                if (recalcTimeout) clearTimeout(recalcTimeout);
-                recalcTimeout = setTimeout(() => recalculateSpreadsheet(judges.length), 300);
-                return;
+            if (val !== '') {
+                let num = parseFloat(val);
+                if (isNaN(num)) num = 0;
+                if (num < 0) num = 0;
+                if (num > 100) num = 100;
+                input.value = num;
             }
-            let num = parseFloat(val);
-            if (isNaN(num)) num = 0;
-            if (num < 0) num = 0;
-            if (num > 100) num = 100;
-            input.value = num;
+            // Instant O(1) row update
+            const rowTr = input.closest('.mark-entry-row');
+            if (rowTr) recalculateSpreadsheet(judges.length, rowTr);
+        });
 
-            if (recalcTimeout) clearTimeout(recalcTimeout);
-            recalcTimeout = setTimeout(() => recalculateSpreadsheet(judges.length), 300);
+        input.addEventListener('change', () => {
+            // Full rank recalculation when leaving the input
+            recalculateSpreadsheet(judges.length);
         });
     });
 
@@ -2333,14 +2338,17 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
 // ─────────────────────────────────────────────
 // Real-time Spreadsheet Calculation
 // ─────────────────────────────────────────────
-function recalculateSpreadsheet(judgesCount) {
+function recalculateSpreadsheet(judgesCount, changedRowTr = null) {
     const tbody = document.getElementById('meSpreadsheetBody');
-    const isStandalone = tbody ? (tbody.getAttribute('data-is-standalone') === 'true') : false;
-    const gradeMode = tbody ? (tbody.getAttribute('data-grade-mode') || 'auto') : 'auto';
-    const classType = tbody ? (tbody.getAttribute('data-class-type') || 'individual') : 'individual';
+    if (!tbody) return;
+    const isStandalone = (tbody.getAttribute('data-is-standalone') === 'true');
+    const gradeMode = (tbody.getAttribute('data-grade-mode') || 'auto');
+    const classType = (tbody.getAttribute('data-class-type') || 'individual');
 
+    const targetElements = changedRowTr ? [changedRowTr] : tbody.querySelectorAll('.mark-entry-row');
     const rows = [];
-    document.querySelectorAll('.mark-entry-row').forEach(tr => {
+
+    targetElements.forEach(tr => {
         let sum = 0;
         let filledCount = 0;
         const marks = [];
@@ -2357,23 +2365,16 @@ function recalculateSpreadsheet(judgesCount) {
             }
         });
 
-        // If any mark is filled, calculate average. Empty is 0
         const finalMark = filledCount > 0 ? Number((sum / judgesCount).toFixed(2)) : 0;
         const hasScores = filledCount > 0;
-
-        rows.push({
-            tr,
-            finalMark,
-            hasScores
-        });
+        rows.push({ tr, finalMark, hasScores, rank: null });
     });
 
-    // Ranks calculation (dense) using the centralized helper
-    // Ranks apply to rows that have at least some scores
-    const activeRows = rows.filter(r => r.hasScores);
-    computeDenseRanking(activeRows, r => r.finalMark, 'rank');
+    if (!changedRowTr) {
+        const activeRows = rows.filter(r => r.hasScores);
+        computeDenseRanking(activeRows, r => r.finalMark, 'rank');
+    }
 
-    // Render cells in real time
     rows.forEach(r => {
         const finalCell = r.tr.querySelector('.cell-final-mark');
         const gradeCell = r.tr.querySelector('.cell-grade');
@@ -2385,7 +2386,6 @@ function recalculateSpreadsheet(judgesCount) {
             finalCell.textContent = r.hasScores ? r.finalMark : '—';
 
             const { grade: automaticGrade } = getGradeAndPoints(r.finalMark, activePointsConfig, classType);
-
             let effectiveGrade = '';
             let isOverridden = false;
 
@@ -2404,9 +2404,7 @@ function recalculateSpreadsheet(judgesCount) {
                             aggregatedJudgeGrade = aggregateManualGrades(validJudgeGrades, activePointsConfig);
                         }
                         isOverridden = isValidManualGrade(adminManualGrade, activePointsConfig) || jGrades.some(g => isValidManualGrade(g, activePointsConfig));
-                    } catch (e) {
-                        console.error("Failed to parse judge manual grades:", e);
-                    }
+                    } catch (e) {}
                 } else {
                     isOverridden = isValidManualGrade(adminManualGrade, activePointsConfig);
                 }
@@ -2425,24 +2423,27 @@ function recalculateSpreadsheet(judgesCount) {
                 gradeCell.textContent = (gradeMode === 'none') ? '' : '—';
             }
 
-            // Highlight ranks 1, 2, 3
-            if (r.hasScores) {
-                if (r.rank === 1) {
-                    rankCell.innerHTML = `<span style="background:#fef3c7; color:#d97706; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.82rem; border:1px solid #fde68a;">🥇 1st</span>`;
-                } else if (r.rank === 2) {
-                    rankCell.innerHTML = `<span style="background:#f1f5f9; color:#475569; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.82rem; border:1px solid #cbd5e1;">🥈 2nd</span>`;
-                } else if (r.rank === 3) {
-                    rankCell.innerHTML = `<span style="background:#fff7ed; color:#ea580c; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.82rem; border:1px solid #ffedd5;">🥉 3rd</span>`;
+            if (!changedRowTr) {
+                if (r.hasScores && r.rank !== null) {
+                    if (r.rank === 1) {
+                        rankCell.innerHTML = `<span style="background:#fef3c7; color:#d97706; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.82rem; border:1px solid #fde68a;">🥇 1st</span>`;
+                    } else if (r.rank === 2) {
+                        rankCell.innerHTML = `<span style="background:#f1f5f9; color:#475569; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.82rem; border:1px solid #cbd5e1;">🥈 2nd</span>`;
+                    } else if (r.rank === 3) {
+                        rankCell.innerHTML = `<span style="background:#fff7ed; color:#ea580c; padding:0.15rem 0.5rem; border-radius:6px; font-weight:800; font-size:0.82rem; border:1px solid #ffedd5;">🥉 3rd</span>`;
+                    } else {
+                        rankCell.textContent = `${r.rank}th`;
+                    }
                 } else {
-                    rankCell.textContent = `${r.rank}th`;
+                    rankCell.textContent = '—';
                 }
-            } else {
-                rankCell.textContent = '—';
             }
         } else {
             finalCell.textContent = '—';
             gradeCell.textContent = '—';
-            rankCell.textContent = '—';
+            if (!changedRowTr) {
+                rankCell.textContent = '—';
+            }
         }
     });
 }
@@ -2511,11 +2512,7 @@ async function persistMarks(prog, judges, isSubmit) {
     }
 
     try {
-        const judgesSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "judges"));
-        const nameToIdMap = new Map();
-        judgesSnap.forEach(d => {
-            nameToIdMap.set(d.data().name, d.id);
-        });
+        const nameToIdMap = currentSessionJudgeIdMap;
 
         const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
         const docRef = doc(resultsRef, `result_${prog.id}`);
@@ -2921,42 +2918,8 @@ async function persistMarks(prog, judges, isSubmit) {
             }
         });
 
-        if (!isStandalone) {
-            const batch = writeBatch(db);
-            const existingDoc = allResults.get(prog.id);
-            const judgesSnap = await getDocs(collection(db, "institutes", window.currentInstituteId, "judges"));
-            judgesSnap.forEach(d => {
-                const j = d.data();
-                const jName = j.name;
-                const comps = Array.isArray(j.competitions) ? j.competitions : [];
-                const compIds = Array.isArray(j.competitionIds) ? j.competitionIds : [];
-                const wasAssigned = existingDoc && Array.isArray(existingDoc.judges) && existingDoc.judges.includes(jName);
-                const isNowAssigned = judges.includes(jName);
-
-                if (isNowAssigned) {
-                    let compsUpdated = false;
-                    let newComps = [...comps];
-                    let newCompIds = [...compIds];
-                    if (!comps.includes(prog.programName)) {
-                        newComps.push(prog.programName);
-                        compsUpdated = true;
-                    }
-                    if (!compIds.includes(prog.id)) {
-                        newCompIds.push(prog.id);
-                        compsUpdated = true;
-                    }
-                    if (compsUpdated) {
-                        batch.update(d.ref, { competitions: newComps, competitionIds: newCompIds, updatedAt: serverTimestamp() });
-                    }
-                } else if (wasAssigned) {
-                    const newComps = comps.filter(c => c !== prog.programName);
-                    const newCompIds = compIds.filter(id => id !== prog.id);
-                    batch.update(d.ref, { competitions: newComps, competitionIds: newCompIds, updatedAt: serverTimestamp() });
-                }
-            });
-            await batch.commit();
-        }
-
+        // Batch sync of judge assignments was removed here.
+        // It is safely handled exclusively in saveJudgeAssignment.
         await updateDashboardMetadata(window.currentInstituteId);
         window.showToast(isSubmit ? "📤 Marks submitted successfully!" : "📝 Draft saved successfully!", "success");
         document.getElementById('dynamicModal').classList.add('hidden');
