@@ -80,6 +80,21 @@ async function ensureTeamsMap() {
 let allResults = new Map(); // programId -> resultDoc
 let unsubscribeMarkEntry = null;
 
+// ─── P0 Cache Layer ───────────────────────────
+// Results freshness — controls background refresh only, NOT cache visibility.
+// If cache is available (allResults.size > 0), UI renders immediately regardless of TTL.
+let _lastResultsFetchTime = 0;
+const _RESULTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+let _resultsRefreshInProgress = false;
+
+// Judges cache (keyed per-institute, 5-min TTL)
+let _judgesCache = null;         // Array<{id, name, status, competitions, competitionIds, ...}>
+let _judgesCacheTime = 0;
+const _JUDGES_CACHE_TTL = 5 * 60 * 1000;
+
+// Participants cache (keyed per-program, invalidated on assignment change)
+const _participantsCache = new Map(); // progId → participant array
+
 export function getLatestResultDocSync(progId) {
     if (!progId) return null;
     return allResults.get(progId) || null;
@@ -101,6 +116,38 @@ export async function getLatestResultDoc(progId) {
         }
     }
     return res || null;
+}
+
+// ─── P0 Cache Helpers ─────────────────────────
+
+/**
+ * Returns judges array from cache (TTL: 5 min) or fetches from Firestore.
+ * Cache stores plain objects so DocumentRefs for batch ops are NOT cached here;
+ * saveJudgeAssignment retains its own getDocs for batch.update(d.ref, ...) operations.
+ */
+async function _getJudgesWithCache(instituteId) {
+    if (_judgesCache && (Date.now() - _judgesCacheTime < _JUDGES_CACHE_TTL)) {
+        return _judgesCache;
+    }
+    const snap = await getDocs(collection(db, "institutes", instituteId, "judges"));
+    const data = [];
+    snap.forEach(d => data.push({ id: d.id, ...d.data() }));
+    _judgesCache = data;
+    _judgesCacheTime = Date.now();
+    return data;
+}
+
+/**
+ * Returns participants for a program from cache, or fetches via loadStudentsForProgram.
+ * Cache is invalidated explicitly after judge assignment changes.
+ */
+async function _getParticipantsWithCache(prog) {
+    if (_participantsCache.has(prog.id)) {
+        return _participantsCache.get(prog.id);
+    }
+    const participants = await loadStudentsForProgram(prog);
+    _participantsCache.set(prog.id, participants);
+    return participants;
 }
 
 // ─────────────────────────────────────────────
@@ -126,7 +173,9 @@ export async function initMarkEntryView(container, topActions) {
     };
 
     allPrograms = [];
-    allResults.clear();
+    // NOTE: allResults is intentionally NOT cleared here.
+    // If cached results exist, loadMarkEntryData will render from them immediately
+    // and refresh Firestore in the background (stale-while-revalidate).
 
     // Load Categories for filter using the pre-existing cache
     let catOptions = '<option value="">All Categories</option>';
@@ -484,17 +533,46 @@ async function loadMarkEntryData() {
             };
         });
 
-        // Load results once instead of listening to the entire collection real-time
+        // P0-1: Stale-while-revalidate for results.
+        // RULE: If any cached data exists, render immediately — TTL controls background refresh only.
         const resultsRef = collection(db, "institutes", window.currentInstituteId, "results");
-        const snapshot = await getDocs(resultsRef);
-        allResults.clear();
-        snapshot.forEach(d => {
-            const r = d.data();
-            if (r.programId) {
-                allResults.set(r.programId, { id: d.id, ...r });
+
+        if (allResults.size > 0) {
+            // Cache available — render immediately without any network wait.
+            renderMarkEntryGrid();
+
+            // Refresh in background if TTL expired (or forced stale by a local write).
+            const isStale = (Date.now() - _lastResultsFetchTime) >= _RESULTS_CACHE_TTL;
+            if (isStale && !_resultsRefreshInProgress) {
+                _resultsRefreshInProgress = true;
+                getDocs(resultsRef).then(snapshot => {
+                    snapshot.forEach(d => {
+                        const r = d.data();
+                        if (r.programId) {
+                            allResults.set(r.programId, { id: d.id, ...r });
+                        }
+                    });
+                    _lastResultsFetchTime = Date.now();
+                    _resultsRefreshInProgress = false;
+                    renderMarkEntryGrid(); // Re-render if background data differs
+                }).catch(err => {
+                    _resultsRefreshInProgress = false;
+                    // Background refresh failed — cached data remains usable.
+                    console.warn('Mark Entry: background results refresh failed. Cached data remains active.', err);
+                });
             }
-        });
-        renderMarkEntryGrid();
+        } else {
+            // No cache — first visit. Fetch from Firestore (spinner already visible).
+            const snapshot = await getDocs(resultsRef);
+            snapshot.forEach(d => {
+                const r = d.data();
+                if (r.programId) {
+                    allResults.set(r.programId, { id: d.id, ...r });
+                }
+            });
+            _lastResultsFetchTime = Date.now();
+            renderMarkEntryGrid();
+        }
 
     } catch (err) {
         console.error("Error loading Mark Entry data:", err);
@@ -844,20 +922,20 @@ export async function openMarkEntryModal(prog) {
     }
 
     try {
-        // Fetch all active judges, participants, and latest result concurrently
-        const [judgesSnap, participants, existingResult] = await Promise.all([
-            getDocs(collection(db, "institutes", window.currentInstituteId, "judges")),
-            loadStudentsForProgram(prog),
+        // P0-2 & P0-3: Use cached judges and participants where available.
+        // Judges: 5-min TTL module cache. Participants: per-program cache, invalidated on assignment.
+        const [judgesData, participants, existingResult] = await Promise.all([
+            _getJudgesWithCache(window.currentInstituteId),
+            _getParticipantsWithCache(prog),
             getLatestResultDoc(prog.id)
         ]);
 
         currentSessionJudgeIdMap.clear();
         const activeJudges = [];
-        judgesSnap.forEach(d => {
-            const data = d.data();
-            currentSessionJudgeIdMap.set(data.name || d.id, d.id);
-            if (data.status !== 'disabled') {
-                activeJudges.push({ id: d.id, name: data.name || d.id });
+        judgesData.forEach(j => {
+            currentSessionJudgeIdMap.set(j.name || j.id, j.id);
+            if (j.status !== 'disabled') {
+                activeJudges.push({ id: j.id, name: j.name || j.id });
             }
         });
 
@@ -957,8 +1035,10 @@ function renderJudgeSelectionUI(modalBody, modal, prog, activeJudges, participan
             };
         }
 
-        document.getElementById('jSelectProceedBtn').onclick = async () => {
-            const latestRes = await getLatestResultDoc(prog.id);
+        // P0-5A: existingResult is already loaded above. Use sync cache lookup instead of
+        // a redundant async getLatestResultDoc call — allResults is kept consistent by all local writes.
+        document.getElementById('jSelectProceedBtn').onclick = () => {
+            const latestRes = getLatestResultDocSync(prog.id) || existingResult;
             let judgesList = latestRes && Array.isArray(latestRes.judges) ? [...latestRes.judges] : [];
             if (!judgesList.includes(sJudgeName)) {
                 judgesList.push(sJudgeName);
@@ -1656,7 +1736,8 @@ async function autoSaveBulkParticipantLetters(prog, assignmentMap, existingResul
         let existingDoc = docSnap.exists() ? docSnap.data() : (existingResult || null);
         let marksData = existingDoc && Array.isArray(existingDoc.marksData) ? [...existingDoc.marksData] : [];
 
-        const participants = await loadStudentsForProgram(prog);
+        // P0-5B: Reuse cached participants if the program was already opened in this session.
+        const participants = await _getParticipantsWithCache(prog);
         participants.forEach(p => {
             const codeLetter = assignmentMap.get(p.id) || '';
             let targetEntry = marksData.find(m => (isGroup ? m.groupId === p.id : m.studentId === p.id));
@@ -2923,6 +3004,8 @@ async function persistMarks(prog, judges, isSubmit) {
         updateDashboardMetadata(window.currentInstituteId).catch(err => {
             console.error("Background dashboard metadata update failed:", err);
         });
+        // Mark results cache stale after submit so the next re-entry triggers a background refresh.
+        _lastResultsFetchTime = 0;
         window.showToast(isSubmit ? "📤 Marks submitted successfully!" : "📝 Draft saved successfully!", "success");
         document.getElementById('dynamicModal').classList.add('hidden');
         document.getElementById('dynamicModal').classList.remove('result-fullscreen-modal');
@@ -3097,11 +3180,22 @@ async function saveJudgeAssignment(prog, selectedJudgeNames, activeJudges, exist
         });
 
         await batch.commit();
-        await updateDashboardMetadata(window.currentInstituteId);
+
+        // P0-2/P0-3 cache invalidation: judge docs changed, participants may have changed for this program.
+        _judgesCache = null;
+        _judgesCacheTime = 0;
+        _participantsCache.delete(prog.id);
+        // Mark results stale so next Mark Entry re-entry refreshes the judgeIds/judgeSubmissionStatus fields.
+        _lastResultsFetchTime = 0;
 
         window.showToast("🧑‍⚖️ Judge assignments updated successfully!", "success");
         modal.classList.add('hidden');
         modal.classList.remove('result-fullscreen-modal');
+
+        // P0-4: Dashboard metadata runs in background — does not block the success path.
+        updateDashboardMetadata(window.currentInstituteId).catch(err => {
+            console.error("Background dashboard metadata update failed after judge assignment:", err);
+        });
 
     } catch (err) {
         console.error("Failed saving judge assignments:", err);
