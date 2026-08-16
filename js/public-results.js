@@ -1893,7 +1893,39 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
     }
 }
 
-function renderSingleResult(r) {
+async function renderSingleResult(r) {
+    // SAFE TEMPORARY FIX - Fetch Master Category Name
+    let displayCategoryName = r.categoryName;
+    let targetCatId = r.categoryId;
+
+    try {
+        // Fallback: If result is missing categoryId, try to get it from the linked program
+        if (!targetCatId && r.programId) {
+            const progRef = doc(db, "institutes", instId, "programs", r.programId);
+            const progSnap = await getDoc(progRef);
+            if (progSnap.exists()) {
+                targetCatId = progSnap.data().categoryId;
+            }
+        }
+
+        // Fetch the fresh category name using the resolved targetCatId
+        if (targetCatId) {
+            const catDocRef = doc(db, "institutes", instId, "categories", targetCatId);
+            const catDoc = await getDoc(catDocRef);
+            if (catDoc.exists()) {
+                const catData = catDoc.data();
+                if (catData && catData.name) {
+                    displayCategoryName = catData.name;
+                }
+            }
+        }
+    } catch (err) {
+        console.warn("Failed to fetch master category name for poster", err);
+    }
+    
+    // Shadow the result object for display purposes only
+    r = { ...r, categoryName: displayCategoryName };
+
     currentDisplayedResult = r;
     const list = document.getElementById('resultsList');
     const mobList = document.getElementById('mobResultsList');
