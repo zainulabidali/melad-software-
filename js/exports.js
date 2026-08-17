@@ -1504,6 +1504,22 @@ function renderDrawerContent() {
                         </div>
                     </div>
 
+                    <!-- Program Order Filter (Only for Program Wise Podiums) -->
+                    <div id="expProgramOrderContainer" style="display:none; flex-direction:column; gap:0.45rem; width:100%; margin-bottom:0.75rem;">
+                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">PROGRAM ORDER</label>
+                        <div style="display:flex; flex-direction:column; gap:0.45rem; background:#f8fafc; border:1px solid #cbd5e1; padding:0.75rem; border-radius:10px;">
+                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                <input type="radio" name="expProgramOrderFilter" value="default" checked style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Default Order
+                            </label>
+                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                <input type="radio" name="expProgramOrderFilter" value="result_number" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Result Number Wise
+                            </label>
+                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                <input type="radio" name="expProgramOrderFilter" value="category_order" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Category Order
+                            </label>
+                        </div>
+                    </div>
+
                     <!-- Category / Class filters -->
                     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; width:100%;">
                         <div id="expCatFilterContainer" style="flex:1; min-width:140px;">
@@ -1737,6 +1753,16 @@ function renderDrawerContent() {
                 expPositionFilterContainer.style.display = 'flex';
             } else {
                 expPositionFilterContainer.style.display = 'none';
+            }
+        }
+
+        // 2.75 Program Order Container
+        const expProgramOrderContainer = document.getElementById('expProgramOrderContainer');
+        if (expProgramOrderContainer) {
+            if (selType === 'Results' && expResultSubVal && expResultSubVal.value === 'Program Wise') {
+                expProgramOrderContainer.style.display = 'flex';
+            } else {
+                expProgramOrderContainer.style.display = 'none';
             }
         }
 
@@ -2312,6 +2338,10 @@ function renderDrawerContent() {
         const srcIncludeSubmitted = selectedType === 'Results' && document.getElementById('srcIncludeSubmitted').checked;
         const srcIncludeDraft = selectedType === 'Results' && document.getElementById('srcIncludeDraft').checked;
         const compactPacking = selectedType === 'Results' ? true : document.getElementById('expCompactPacking').checked;
+        
+        const expProgramOrderRadio = document.querySelector('input[name="expProgramOrderFilter"]:checked');
+        const programOrder = expProgramOrderRadio ? expProgramOrderRadio.value : 'default';
+
         const chestSort = 'chest';
         const chestMode = selectedType === 'Chest Number List' ? document.getElementById('expChestMode').value : 'class-wise';
         const programLocation = ['Green Room Sign', 'Valuation Sheet', 'Call List', 'Results', 'Program Participation Register'].includes(selectedType) ? document.getElementById('expLocationFilter').value : '';
@@ -2381,7 +2411,11 @@ function renderDrawerContent() {
         if (programId) scopeText = `_${cleanName(programName)}`;
         else if (categoryId) scopeText = `_${cleanName(categoryName)}`;
 
-        const finalFilename = `${fileTypePrefix}${scopeText}_${dateStr}.${format}`;
+        let finalFilename = `${fileTypePrefix}${scopeText}_${dateStr}.${format}`;
+        if (selectedType === 'Results' && resultSubOption === 'Program Wise') {
+            if (programOrder === 'result_number') finalFilename = `${fileTypePrefix}${scopeText}_Result_Number_Wise_${dateStr}.${format}`;
+            else if (programOrder === 'category_order') finalFilename = `${fileTypePrefix}${scopeText}_Category_Order_${dateStr}.${format}`;
+        }
 
         let awardTypeSummary = 'All';
         if (Array.isArray(awardTypeFilter)) {
@@ -2440,6 +2474,7 @@ function renderDrawerContent() {
                     participationType,
                     registerMode,
                     chestMode,
+                    programOrder,
                     enableTeamBg: isTeamBgEnabled
                 }
             };
@@ -7212,7 +7247,70 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                 else if (f.resultSubOption === 'Program Wise') {
                     const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
-                    filteredResults.forEach(r => {
+                    
+                    let programsToRender = filteredResults;
+                    
+                    if (f.programOrder === 'result_number') {
+                        const orderMap = new Map();
+                        const sortedPublished = [...resultsList]
+                            .filter(r => r.status === 'published' && r.publishedAt)
+                            .sort((a, b) => {
+                                const timeA = a.publishedAt?.seconds || 0;
+                                const timeB = b.publishedAt?.seconds || 0;
+                                return timeA - timeB;
+                            });
+                            
+                        sortedPublished.forEach((r, idx) => {
+                            orderMap.set(r.id, idx + 1);
+                        });
+                        
+                        programsToRender = [...filteredResults].sort((a, b) => {
+                            const numA = orderMap.has(a.id) ? orderMap.get(a.id) : 999999;
+                            const numB = orderMap.has(b.id) ? orderMap.get(b.id) : 999999;
+                            return numA - numB;
+                        });
+                    } else if (f.programOrder === 'category_order') {
+                        const catOrder = new Map();
+                        allCategories.forEach((cat, idx) => {
+                            if (cat.id === 'general_programs') {
+                                catOrder.set(cat.id, 99999);
+                            } else {
+                                catOrder.set(cat.id, idx);
+                            }
+                        });
+                        
+                        programsToRender = [...filteredResults].sort((a, b) => {
+                            const progA = allPrograms.find(p => p.id === (a.programId || a.id));
+                            const progB = allPrograms.find(p => p.id === (b.programId || b.id));
+                            
+                            const catIdA = progA ? progA.categoryId : a.categoryId;
+                            const catIdB = progB ? progB.categoryId : b.categoryId;
+                            
+                            const catWeightA = catIdA === 'general_programs' ? 99999 : (catOrder.has(catIdA) ? catOrder.get(catIdA) : 88888);
+                            const catWeightB = catIdB === 'general_programs' ? 99999 : (catOrder.has(catIdB) ? catOrder.get(catIdB) : 88888);
+                            
+                            if (catWeightA !== catWeightB) return catWeightA - catWeightB;
+                            
+                            const classIdA = progA ? progA.classId : null;
+                            const classIdB = progB ? progB.classId : null;
+                            
+                            const catA = allCategories.find(c => c.id === catIdA);
+                            const clsOrderMap = new Map();
+                            if (catA && Array.isArray(catA.classes)) {
+                                catA.classes.forEach((cls, idx) => {
+                                    clsOrderMap.set(cls.id, idx);
+                                });
+                            }
+                            const classWeightA = classIdA ? (clsOrderMap.has(classIdA) ? clsOrderMap.get(classIdA) : 999) : 999;
+                            const classWeightB = classIdB ? (clsOrderMap.has(classIdB) ? clsOrderMap.get(classIdB) : 999) : 999;
+                            
+                            if (classWeightA !== classWeightB) return classWeightA - classWeightB;
+                            
+                            return 0;
+                        });
+                    }
+
+                    programsToRender.forEach(r => {
                         let winnersList = Array.isArray(r.winners) ? r.winners : [];
                         if (f.includedPositions) winnersList = winnersList.filter(w => f.includedPositions.includes(w.position));
                         const combinedWinners = [...winnersList];
@@ -7272,12 +7370,12 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     <div class="report-title">🏆 PROGRAM RESULTS PODIUM</div>
                                     <h2 style="margin-top:0.3rem; margin-bottom:0.1rem; color:#1e1b4b; font-size:1.3rem;">${window.escapeHTML(r.programName)}</h2>
                                     <div style="font-size:0.75rem; font-weight:700; color:#4338ca;">
-                                        Category: ${window.escapeHTML(r.categoryName)} ${r.className ? `· Class: ${window.escapeHTML(r.className)}` : ''} ${(function() {
-                                            const prog = typeof allPrograms !== 'undefined' ? allPrograms.find(p => p.id === (r.programId || r.id)) : null;
-                                            const rawG = prog ? (prog.genderCategory || prog.gender || '').toString().trim() : (r.genderCategory || r.gender || '').toString().trim();
-                                            if (!rawG || rawG.toLowerCase() === 'mixed' || rawG.toLowerCase() === 'general' || rawG.toLowerCase() === 'all genders') return '';
-                                            return `· Gender: ${window.escapeHTML(rawG.toUpperCase())} `;
-                                        })()}· 
+                                        Category: ${window.escapeHTML(r.categoryName)} ${r.className ? `· Class: ${window.escapeHTML(r.className)}` : ''} ${(function () {
+                                const prog = typeof allPrograms !== 'undefined' ? allPrograms.find(p => p.id === (r.programId || r.id)) : null;
+                                const rawG = prog ? (prog.genderCategory || prog.gender || '').toString().trim() : (r.genderCategory || r.gender || '').toString().trim();
+                                if (!rawG || rawG.toLowerCase() === 'mixed' || rawG.toLowerCase() === 'general' || rawG.toLowerCase() === 'all genders') return '';
+                                return `· Gender: ${window.escapeHTML(rawG.toUpperCase())} `;
+                            })()}· 
                                         Type: ${r.programType === 'group' ? 'Group Event' : 'Individual Event'}
                                     </div>
                                 </div>
@@ -7486,7 +7584,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 else if (f.resultSubOption === 'Prize Distribution Register') {
                     // Structure: Position -> Program Type -> Class -> Winners
                     const positionData = {};
-                    
+
                     filteredResults.forEach(r => {
                         const prog = allPrograms.find(p => p.id === r.programId);
                         if (!prog) return;
@@ -7572,11 +7670,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         htmlContent = `<div style="text-align:center; padding:3rem; color:#64748b; font-weight:600;">No prize winners found matching the selected parameters.</div>`;
                     } else {
                         const posIconMap = { 'First': '🥇', 'Second': '🥈', 'Third': '🥉' };
-                        
+
                         sortedPositions.forEach((pos, posIdx) => {
                             const typesData = positionData[pos];
                             const progTypesOrder = ['STAGE PROGRAMS', 'OFF-STAGE PROGRAMS'];
-                            
+
                             let positionHtml = '';
                             let hasAnyInPos = false;
 
@@ -7605,14 +7703,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     const classNumB = extractNum(b.className);
 
                                     if (classNumA !== classNumB) return classNumA - classNumB;
-                                    
+
                                     const clsComp = String(a.className).localeCompare(String(b.className), undefined, { numeric: true, sensitivity: 'base' });
                                     if (clsComp !== 0) return clsComp;
 
                                     const pNumA = a.programNumber ? String(a.programNumber) : '';
                                     const pNumB = b.programNumber ? String(b.programNumber) : '';
                                     if (pNumA !== pNumB) return pNumA.localeCompare(pNumB, undefined, { numeric: true, sensitivity: 'base' });
-                                    
+
                                     const pComp = a.programName.localeCompare(b.programName, undefined, { sensitivity: 'base' });
                                     if (pComp !== 0) return pComp;
 
