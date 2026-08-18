@@ -10,6 +10,7 @@ function resolveInstituteId() {
     const urlParams = new URLSearchParams(window.location.search);
     let id = urlParams.get('id') || urlParams.get('instId');
     if (id) {
+        id = id.trim();
         try {
             localStorage.setItem('currentInstituteId', id);
             localStorage.setItem('melad_institute_id', id);
@@ -580,6 +581,30 @@ function initBottomNav() {
 // ─────────────────────────────────────────────
 // INITIALIZATION & SILENT FIRESTORE LISTENERS
 // ─────────────────────────────────────────────
+function handleDataError(err, context) {
+    console.warn(`${context} error notice:`, err);
+    
+    const tbody = document.getElementById('hubTeamChampionshipBody');
+    if (tbody && (!leaderboardData || leaderboardData.length === 0)) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="empty-state-box">
+                    <div style="color: #DC2626; font-weight: 500;">Unable to load results right now. Please check your internet connection and try again.</div>
+                </td>
+            </tr>
+        `;
+    }
+    
+    const catContainer = document.getElementById('hubCategoryAccordionContent');
+    if (catContainer && (!categoryPerformanceData || categoryPerformanceData.length === 0)) {
+        catContainer.innerHTML = `
+            <div class="empty-state-box">
+                <div style="color: #DC2626; font-weight: 500;">Unable to load results right now. Please check your internet connection and try again.</div>
+            </div>
+        `;
+    }
+}
+
 async function initPublicResultsHub() {
     if (!instId) {
         const header = document.getElementById('hubEventName');
@@ -591,16 +616,15 @@ async function initPublicResultsHub() {
     const hasCache = loadCachedHubData();
 
     // Step 2: In background, fetch/listen to Firestore to verify & update cache silently
-    try {
-        const instSnap = await getDoc(doc(db, "institutes", instId));
+    getDoc(doc(db, "institutes", instId)).then(instSnap => {
         if (instSnap.exists()) {
             instituteDetails = { id: instSnap.id, ...instSnap.data() };
             updateHeader();
             saveHubDataCache();
         }
-    } catch (e) {
+    }).catch(e => {
         console.warn("Institute profile fetch notice:", e);
-    }
+    });
 
     // Listener A: eventConfig
     const configRef = doc(db, "institutes", instId, "metadata", "eventConfig");
@@ -626,20 +650,19 @@ async function initPublicResultsHub() {
             renderCategoryStandings();
             saveHubDataCache();
         }
-    }, err => console.warn("Dashboard metadata snapshot notice:", err));
+    }, err => handleDataError(err, "Dashboard metadata"));
 
     // Real-time Published Results listener for dropdown options, result sheets & cache synchronization
     try {
         const resultsRef = collection(db, "institutes", instId, "results");
         const pubQuery = query(
             resultsRef, 
-            where("status", "==", "published"),
-            where("publicReleased", "==", true)
+            where("status", "==", "published")
         );
 
         onSnapshot(pubQuery, (querySnap) => {
             publishedResultsList = querySnap.docs.map(d => ({ id: d.id, ...d.data() }))
-                .filter(r => r.publicDisabled !== true);
+                .filter(r => r.publicReleased === true && r.publicDisabled !== true);
 
             publishedResultsList.sort((a, b) => {
                 const tA = a.publishedAt?.seconds || 0;
@@ -654,9 +677,9 @@ async function initPublicResultsHub() {
             if (selectedProgramId) renderProgramResultCard();
 
             saveHubDataCache();
-        }, (err) => console.warn("Published results snapshot notice:", err));
+        }, (err) => handleDataError(err, "Published results snapshot"));
     } catch (e) {
-        console.error("Error loading published results:", e);
+        handleDataError(e, "Published results initialization");
     }
 
     // Bind Category, Gender & Program Selectors
