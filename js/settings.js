@@ -704,7 +704,9 @@ async function openPointManageModal() {
                         third: parsePoint('pt_ind_third', 6)
                     },
                     group: {
-                        third: parseInt(document.getElementById('pt_grp_third').value, 10) || 0
+                        first: parsePoint('pt_grp_first', 10),
+                        second: parsePoint('pt_grp_second', 8),
+                        third: parsePoint('pt_grp_third', 6)
                     },
                     general: {
                         first: parseInt(document.getElementById('pt_gen_first').value, 10) || 0,

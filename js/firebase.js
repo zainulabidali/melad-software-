@@ -1551,8 +1551,13 @@ export function normalizePointsConfig(data) {
     }
     const config = { ...data };
     if (!config.individual) config.individual = { ...DEFAULT_POINTS.individual };
+    else config.individual = { ...DEFAULT_POINTS.individual, ...config.individual };
+    
     if (!config.group) config.group = { ...DEFAULT_POINTS.group };
+    else config.group = { ...DEFAULT_POINTS.group, ...config.group };
+    
     if (!config.general) config.general = { ...DEFAULT_POINTS.general };
+    else config.general = { ...DEFAULT_POINTS.general, ...config.general };
 
     if (!Array.isArray(config.grades) || config.grades.length === 0) {
         config.grades = JSON.parse(JSON.stringify(DEFAULT_GRADES));
