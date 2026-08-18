@@ -1,4 +1,4 @@
-import { db, computeDenseRanking } from './firebase.js';
+import { db, computeDenseRanking, getCachedStudentsMap } from './firebase.js';
 import {
     collection, doc, getDoc, getDocs, onSnapshot, query, where
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -10,6 +10,7 @@ let allResults = [];
 let allPrograms = [];
 let allTeams = [];
 let previousTeamPoints = {};
+let publicStudentMap = null;
 
 // Safe Team Name Resolver using leaderboardData (which contains fresh team names)
 function resolveTeamName(teamId, fallbackName) {
@@ -709,6 +710,7 @@ async function init() {
         }
 
         instituteDetails = { id: instSnap.id, ...instSnap.data() };
+        publicStudentMap = await getCachedStudentsMap(instId, false);
 
         // Timezone-safe UTC absolute timestamp comparison (Option B)
         const expiryDateObj = instituteDetails.expiryDate?.toDate?.() || (instituteDetails.expiryDate ? new Date(instituteDetails.expiryDate) : null);
@@ -1297,6 +1299,16 @@ function setupFilters() {
             }
 
             const data = docSnap.data();
+
+            // Diagnostic: confirm snapshot arrival and what names are in fresh marksData
+            const firstWinner = Array.isArray(data.marksData)
+                ? data.marksData.filter(w => w.finalMark && w.finalMark > 0)
+                              .sort((a, b) => (b.finalMark || 0) - (a.finalMark || 0))[0]
+                : null;
+            console.log(`[PUBLIC-RESULT] onSnapshot received for result id=${docSnap.id}`,
+                `| fromCache=${docSnap.metadata?.fromCache}`,
+                `| top winner name="${firstWinner ? firstWinner.studentName : '(none)'}"`
+            );
             if (data.categoryName) {
                 data.categoryName = normalizeCategoryName(data.categoryName);
             }
@@ -1311,6 +1323,15 @@ function setupFilters() {
             }
 
             currentDisplayedResult = targetResult;
+
+            // Keep allResults in sync with the live Firestore data so that poster
+            // generation (downloadPosterAsImage / sharePosterContent) always reads
+            // the current marksData — including any studentName updates.
+            const syncIdx = allResults.findIndex(x => x.id === targetResult.id);
+            if (syncIdx !== -1) {
+                allResults[syncIdx] = { ...allResults[syncIdx], ...targetResult };
+            }
+
             renderSingleResult(targetResult);
         }, (err) => {
             btn.innerHTML = originalText;
@@ -1362,6 +1383,20 @@ function getCategoryWithGenderHTML(categoryName, genderCategory, isMini = false)
     return `${cat} <span class="poster-gender-tag" style="opacity: 0.75; font-size: 0.88em; font-weight: 600; margin-left: 4px; letter-spacing: 1.5px; text-transform: uppercase;">• ${escapeHTML(genderLabel)}</span>`;
 }
 
+function resolvePosterContestantName(w, isGroup, groupFallback = 'TEAM A') {
+    if (!w) return '—';
+    if (isGroup) return w.studentName || groupFallback || '—';
+    
+    // Priority 1: Use live student record if available (by studentId)
+    if (w.studentId && publicStudentMap && publicStudentMap.has(w.studentId)) {
+        const liveName = publicStudentMap.get(w.studentId).name;
+        if (liveName) return liveName;
+    }
+    
+    // Fallback: stored result name
+    return w.studentName || '—';
+}
+
 function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
     const activeWinners = [...(r.marksData || [])]
         .filter(w => w.finalMark && w.finalMark > 0)
@@ -1376,13 +1411,13 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
         const w2 = sortedWinners[1];
         const w3 = sortedWinners[2];
 
-        const name1 = w1 ? (isGroup ? (w1.studentName || 'TEAM A') : (w1.studentName || '—')) : '—';
+        const name1 = resolvePosterContestantName(w1, isGroup, 'TEAM A');
         const team1 = w1 ? resolveTeamName(w1.teamId, w1.teamName) : '—';
 
-        const name2 = w2 ? (isGroup ? (w2.studentName || 'TEAM B') : (w2.studentName || '—')) : '—';
+        const name2 = resolvePosterContestantName(w2, isGroup, 'TEAM B');
         const team2 = w2 ? resolveTeamName(w2.teamId, w2.teamName) : '—';
 
-        const name3 = w3 ? (isGroup ? (w3.studentName || 'TEAM C') : (w3.studentName || '—')) : '—';
+        const name3 = resolvePosterContestantName(w3, isGroup, 'TEAM C');
         const team3 = w3 ? resolveTeamName(w3.teamId, w3.teamName) : '—';
 
         const hasWinners = sortedWinners.length > 0;
@@ -1450,7 +1485,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
         const rankLabels = { 1: '1ST', 2: '2ND', 3: '3RD' };
         const winnersHTML = sortedWinners.map((w) => {
             const rank = w.rank;
-            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
+            const nameText = resolvePosterContestantName(w, isGroup, 'TEAM A');
             const teamText = w.teamId ? resolveTeamName(w.teamId, w.teamName) : (w.teamName || '—');
             const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
             const rankColor = rankColors[rank] || '#ffffff';
@@ -1514,7 +1549,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
         const rankLabels = { 1: '1ST', 2: '2ND', 3: '3RD' };
         const winnersHTML = sortedWinners.map((w) => {
             const rank = w.rank;
-            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
+            const nameText = resolvePosterContestantName(w, isGroup, 'TEAM A');
             const teamText = w.teamId ? resolveTeamName(w.teamId, w.teamName) : (w.teamName || '—');
             const rankColors = { 1: '#fbbf24', 2: '#cbd5e1', 3: '#fdba74' };
             const rankColor = rankColors[rank] || '#ffffff';
@@ -1584,7 +1619,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
         const winnersHTML = sortedWinners.map((w) => {
             const rank = w.rank;
-            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
+            const nameText = resolvePosterContestantName(w, isGroup, 'TEAM A');
             const teamText = w.teamId ? resolveTeamName(w.teamId, w.teamName) : (w.teamName || '—');
             const accentColor = rankAccentColors[rank] || '#ffffff';
 
@@ -1663,13 +1698,13 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
         const w2 = sortedWinners[1];
         const w3 = sortedWinners[2];
 
-        const name1 = w1 ? (isGroup ? (w1.studentName || 'TEAM A') : (w1.studentName || '—')) : '—';
+        const name1 = resolvePosterContestantName(w1, isGroup, 'TEAM A');
         const team1 = w1 ? resolveTeamName(w1.teamId, w1.teamName) : '—';
 
-        const name2 = w2 ? (isGroup ? (w2.studentName || 'TEAM B') : (w2.studentName || '—')) : '—';
+        const name2 = resolvePosterContestantName(w2, isGroup, 'TEAM B');
         const team2 = w2 ? resolveTeamName(w2.teamId, w2.teamName) : '—';
 
-        const name3 = w3 ? (isGroup ? (w3.studentName || 'TEAM C') : (w3.studentName || '—')) : '—';
+        const name3 = resolvePosterContestantName(w3, isGroup, 'TEAM C');
         const team3 = w3 ? resolveTeamName(w3.teamId, w3.teamName) : '—';
 
         const hasWinners = sortedWinners.length > 0;
@@ -1739,7 +1774,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
         const rankLabels = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
         const winnersHTML = sortedWinners.map((w) => {
             const rank = w.rank;
-            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
+            const nameText = resolvePosterContestantName(w, isGroup, 'TEAM A');
             const teamText = w.teamId ? resolveTeamName(w.teamId, w.teamName) : (w.teamName || '—');
             const rankLabel = rankLabels[rank] || `${rank}TH PLACE`;
 
@@ -1786,7 +1821,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
         const rankLabels = { 1: '1ST PLACE', 2: '2ND PLACE', 3: '3RD PLACE' };
         const winnersHTML = sortedWinners.map((w) => {
             const rank = w.rank;
-            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
+            const nameText = resolvePosterContestantName(w, isGroup, 'TEAM A');
             const teamText = w.teamId ? resolveTeamName(w.teamId, w.teamName) : (w.teamName || '—');
             const rankLabel = rankLabels[rank] || `${rank}TH PLACE`;
 
@@ -1844,7 +1879,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
     } else {
         const winnersHTML = sortedWinners.map((w) => {
             const rank = w.rank;
-            const nameText = isGroup ? (w.studentName || 'TEAM A') : (w.studentName || '—');
+            const nameText = resolvePosterContestantName(w, isGroup, 'TEAM A');
             const teamText = w.teamId ? resolveTeamName(w.teamId, w.teamName) : (w.teamName || '—');
 
             return `
@@ -2775,7 +2810,11 @@ async function generatePosterCanvas(r) {
 // Poster Image Direct Download
 // ─────────────────────────────────────────────
 async function downloadPosterAsImage(cardId) {
-    const r = allResults.find(x => x.id === cardId);
+    // Prefer currentDisplayedResult (kept live via onSnapshot) over the initial
+    // getDocs snapshot in allResults, so the poster always reflects the current name.
+    const r = (currentDisplayedResult && currentDisplayedResult.id === cardId)
+        ? currentDisplayedResult
+        : allResults.find(x => x.id === cardId);
     if (!r) return;
 
     showToast("Generating image download...");
@@ -2797,7 +2836,11 @@ async function downloadPosterAsImage(cardId) {
 // Native Web Share API or Clipboard Fallsharing
 // ─────────────────────────────────────────────
 async function sharePosterContent(cardId) {
-    const r = allResults.find(x => x.id === cardId);
+    // Prefer currentDisplayedResult (kept live via onSnapshot) over the initial
+    // getDocs snapshot in allResults, so the poster always reflects the current name.
+    const r = (currentDisplayedResult && currentDisplayedResult.id === cardId)
+        ? currentDisplayedResult
+        : allResults.find(x => x.id === cardId);
     if (!r) return;
 
     const madrasaName = getEffectiveEventName();
@@ -2813,7 +2856,7 @@ async function sharePosterContent(cardId) {
 
     const formatWinner = (w) => {
         if (!w) return '—';
-        const namePart = isGroup ? w.studentName : w.studentName;
+        const namePart = resolvePosterContestantName(w, isGroup, 'TEAM A');
         const teamPart = isGroup ? 'Group' : (w.teamId ? resolveTeamName(w.teamId, w.teamName) : (w.teamName || '—'));
         return `${namePart} (${teamPart})`;
     };

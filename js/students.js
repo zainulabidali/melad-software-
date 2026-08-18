@@ -1471,6 +1471,7 @@ function openEditModal(stuId, data) {
         btn.disabled = true;
 
         const newName = document.getElementById('eName').value.trim();
+        const oldName = data.name || '';
         const newGender = document.getElementById('eGender').value;
         const newIsCompetitive = document.getElementById('eIsCompetitive').checked;
         const newTeamId = newIsCompetitive ? document.getElementById('eTeam').value : '';
@@ -1567,6 +1568,53 @@ function openEditModal(stuId, data) {
             // Immediate UI completion (< 500ms)
             closeModal();
             window.showToast("Student updated successfully.");
+
+            // 5. Sync studentName inside marksData[] of result documents (background, non-blocking).
+            // This ensures Public Result and Public Result Poster always show the current name,
+            // since those pages read studentName directly from the stored result document.
+            // Only runs when the name actually changed; does NOT touch marks, ranks, grades, or any other field.
+            if (newName !== oldName) {
+                (async () => {
+                    try {
+                        const resultsRef = collection(db, "institutes", instId, "results");
+                        const resultsSnap = await getDocs(resultsRef);
+
+                        // Use a fresh batch for result doc updates to avoid mixing with the committed batch
+                        const resultsBatch = writeBatch(db);
+                        let resultsBatchOps = 0;
+
+                        resultsSnap.forEach(rDoc => {
+                            const rData = rDoc.data();
+                            if (!Array.isArray(rData.marksData)) return;
+
+                            let modified = false;
+                            const updatedMarksData = rData.marksData.map(entry => {
+                                // Only patch individual entries whose studentId matches this student.
+                                // Group entries use groupId (not studentId) and store a team/group name — leave untouched.
+                                if (entry.studentId && entry.studentId === stuId) {
+                                    modified = true;
+                                    return { ...entry, studentName: newName };
+                                }
+                                return entry;
+                            });
+
+                            if (modified) {
+                                resultsBatch.update(rDoc.ref, { marksData: updatedMarksData });
+                                resultsBatchOps++;
+                            }
+                        });
+
+                        if (resultsBatchOps > 0) {
+                            await resultsBatch.commit();
+                        }
+                    } catch (resErr) {
+                        // Non-critical: log but do not surface to user.
+                        // The admin Result Details screen already resolves names from the live
+                        // studentMap as a fallback, so the admin view is still correct.
+                        console.error("Background result marksData name sync error:", resErr);
+                    }
+                })();
+            }
 
             // Run background metadata recalculation asynchronously without blocking UI
             updateDashboardMetadata(instId).catch(err => {

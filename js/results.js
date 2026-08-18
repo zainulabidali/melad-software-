@@ -603,7 +603,68 @@ async function openResultDetailPopup(r) {
     const modalEl = modal.querySelector('.modal');
     modalEl.classList.add('modal-result-detail');
 
-    const studentMap = await getCachedStudentsMap(window.currentInstituteId);
+    // Auto-heal: detect and fix any stale studentName snapshots in this result document.
+    // IMPORTANT: force-refresh the student cache so we compare against the true current
+    // name in Firestore — NOT a stale 30-min localStorage/memory cached copy.
+    const studentMap = await getCachedStudentsMap(window.currentInstituteId, true);
+
+    console.log(`[NAME-AUTO-HEAL] openResultDetailPopup called for result: "${r.programName || r.id}" (id=${r.id})`);
+    console.log(`[NAME-AUTO-HEAL] studentMap size: ${studentMap ? studentMap.size : 'null'}, marksData entries: ${Array.isArray(r.marksData) ? r.marksData.length : 0}`);
+
+    if (!r.programType || r.programType !== 'group') {
+        if (studentMap && Array.isArray(r.marksData)) {
+            let namesMismatch = false;
+            const healedMarksData = r.marksData.map((entry, idx) => {
+                const storedId = entry.studentId || '';
+                const storedName = entry.studentName || '';
+
+                if (!storedId) {
+                    console.log(`[NAME-AUTO-HEAL] entry[${idx}] — no studentId, skipping (group entry or empty)`);
+                    return entry;
+                }
+
+                const liveStudent = studentMap.get(storedId);
+                const liveName = liveStudent ? liveStudent.name : null;
+
+                console.log(
+                    `[NAME-AUTO-HEAL] entry[${idx}] chestNo=${liveStudent?.chestNumber || '?'}`,
+                    `storedId=${storedId}`,
+                    `storedName="${storedName}"`,
+                    `liveName="${liveName ?? '(not found)'}"`
+                );
+
+                if (!liveStudent) {
+                    console.warn(`[NAME-AUTO-HEAL] entry[${idx}] — studentId "${storedId}" not found in studentMap`);
+                    return entry;
+                }
+
+                if (liveName && liveName !== storedName) {
+                    console.log(`[NAME-AUTO-HEAL] entry[${idx}] — MISMATCH detected. Will update "${storedName}" → "${liveName}"`);
+                    namesMismatch = true;
+                    return { ...entry, studentName: liveName };
+                }
+
+                console.log(`[NAME-AUTO-HEAL] entry[${idx}] — name matches, no update needed`);
+                return entry;
+            });
+
+            if (namesMismatch) {
+                console.log(`[NAME-AUTO-HEAL] Writing corrected marksData to Firestore for result id=${r.id}`);
+                const resultDocRef = doc(db, "institutes", window.currentInstituteId, "results", r.id);
+                updateDoc(resultDocRef, { marksData: healedMarksData })
+                    .then(() => console.log(`[NAME-AUTO-HEAL] updateDoc SUCCESS for result id=${r.id}`))
+                    .catch(err => console.error(`[NAME-AUTO-HEAL] updateDoc FAILED for result id=${r.id}:`, err));
+                // Also update the local in-memory copy so the modal renders correct names immediately
+                r = { ...r, marksData: healedMarksData };
+            } else {
+                console.log(`[NAME-AUTO-HEAL] No name mismatches found — Firestore write skipped.`);
+            }
+        } else {
+            console.log(`[NAME-AUTO-HEAL] Skipped — studentMap=${!!studentMap}, marksData is array=${Array.isArray(r.marksData)}`);
+        }
+    } else {
+        console.log(`[NAME-AUTO-HEAL] Skipped — programType is "group", no individual names to heal.`);
+    }
 
     const handleClose = () => {
         modalEl.classList.remove('modal-result-detail');
@@ -644,11 +705,13 @@ async function openResultDetailPopup(r) {
                 else positionHTML = `${item.rank}th`;
             }
 
-            const displayName = item.studentName || item.groupName || item.name || '—';
-
-            // Resolve latest Chest Number strictly from live Students collection
+            // Resolve latest name & chest number strictly from live Students collection
             const studentId = item.studentId || item.id || '';
             const liveStudent = (studentMap && studentId) ? studentMap.get(studentId) : null;
+
+            // Prefer the live student name (authoritative) over the snapshot stored in marksData
+            const displayName = (liveStudent ? liveStudent.name : null) || item.studentName || item.groupName || item.name || '—';
+
             let latestChestNumber = '—';
             if (liveStudent && liveStudent.chestNumber && liveStudent.chestNumber !== '—' && liveStudent.chestNumber !== 'undefined' && liveStudent.chestNumber !== 'null') {
                 latestChestNumber = String(liveStudent.chestNumber).trim();
