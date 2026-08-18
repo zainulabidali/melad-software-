@@ -6937,7 +6937,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         });
                     } else if (Array.isArray(r.winners)) {
                         r.winners.forEach(w => {
-                            const pts = Number(w.marks) || 0;
+                            const pts = w.totalPoints !== undefined ? Number(w.totalPoints) : (Number(w.marks) || 0);
                             if (w.teamId && w.teamId !== 'teamless' && pts > 0) {
                                 teamPoints.set(w.teamId, (teamPoints.get(w.teamId) || 0) + pts);
                             }
@@ -7318,10 +7318,20 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         if (r.gradeMode !== 'none' && Array.isArray(r.marksData)) {
                             r.marksData.forEach(m => {
                                 if (!m.grade || m.grade === 'none' || String(m.grade).trim() === '') return;
-                                const isWinner = winnersList.some(w =>
-                                    (r.programType === 'group' && m.teamName === w.teamName) ||
-                                    (r.programType !== 'group' && (m.studentId === w.studentId || m.studentName === w.studentName))
-                                );
+                                const isWinner = winnersList.some(w => {
+                                    const mId = m.studentId || m.groupId || m.id || '';
+                                    const wId = w.studentId || w.groupId || w.id || '';
+                                    const mName = m.studentName || m.groupName || m.name || '';
+                                    const wName = w.studentName || w.groupName || w.name || '';
+                                    const mTeam = m.teamName || '';
+                                    const wTeam = w.teamName || '';
+
+                                    if (r.programType === 'group' || r.type === 'Group') {
+                                        return (mTeam && wTeam && mTeam === wTeam) || (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                                    } else {
+                                        return (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                                    }
+                                });
                                 if (!isWinner) {
                                     combinedWinners.push({
                                         position: String(m.grade).trim() + ' Grade',
@@ -7358,8 +7368,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             const gB = getGradePriority(b.grade);
                             if (gA !== gB) return gA - gB;
 
-                            const mA = Number(a.marks) || 0;
-                            const mB = Number(b.marks) || 0;
+                            const mA = a.totalPoints !== undefined ? Number(a.totalPoints) : (Number(a.marks) || 0);
+                            const mB = b.totalPoints !== undefined ? Number(b.totalPoints) : (Number(b.marks) || 0);
                             return mB - mA;
                         });
 
@@ -7402,15 +7412,34 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 sortedWinners.map(w => {
                                     let posBadge = w.position;
 
-                                    let points = w.marks !== undefined ? `${w.marks} pts` : '0 pts';
+                                    let wTotal = w.totalPoints !== undefined ? w.totalPoints : w.marks;
+                                    let points = wTotal !== undefined ? `${wTotal} pts` : '0 pts';
                                     let match = null;
 
                                     if (Array.isArray(r.marksData)) {
-                                        match = r.marksData.find(m =>
-                                            (r.programType === 'group' && m.teamName === w.teamName) ||
-                                            (r.programType !== 'group' && m.studentId === w.studentId) ||
-                                            (r.programType !== 'group' && m.studentName === w.studentName)
-                                        );
+                                        const posToRank = { 'First': 1, 'Second': 2, 'Third': 3 };
+                                        const rankToMatch = posToRank[w.position];
+                                        
+                                        // 1. Bulletproof match by Rank/Position (guarantees correct points even if names mismatch)
+                                        match = r.marksData.find(m => m.position === w.position || (rankToMatch && m.rank === rankToMatch));
+                                        
+                                        // 2. Fallback to name/id identity
+                                        if (!match) {
+                                            match = r.marksData.find(m => {
+                                                const mId = m.studentId || m.groupId || m.id || '';
+                                                const wId = w.studentId || w.groupId || w.id || '';
+                                                const mName = m.studentName || m.groupName || m.name || '';
+                                                const wName = w.studentName || w.groupName || w.name || '';
+                                                const mTeam = m.teamName || '';
+                                                const wTeam = w.teamName || '';
+    
+                                                if (r.programType === 'group' || r.type === 'Group') {
+                                                    return (mTeam && wTeam && mTeam === wTeam) || (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                                                } else {
+                                                    return (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                                                }
+                                            });
+                                        }
                                         if (match) {
                                             points = match.totalPoints !== undefined ? `${match.totalPoints} pts` : points;
                                         }
@@ -9012,10 +9041,20 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 if (r.gradeMode !== 'none' && Array.isArray(r.marksData)) {
                     r.marksData.forEach(m => {
                         if (!m.grade || m.grade === 'none' || String(m.grade).trim() === '') return;
-                        const isWinner = winnersList.some(w =>
-                            (r.programType === 'group' && m.teamName === w.teamName) ||
-                            (r.programType !== 'group' && (m.studentId === w.studentId || m.studentName === w.studentName))
-                        );
+                        const isWinner = winnersList.some(w => {
+                                    const mId = m.studentId || m.groupId || m.id || '';
+                                    const wId = w.studentId || w.groupId || w.id || '';
+                                    const mName = m.studentName || m.groupName || m.name || '';
+                                    const wName = w.studentName || w.groupName || w.name || '';
+                                    const mTeam = m.teamName || '';
+                                    const wTeam = w.teamName || '';
+
+                                    if (r.programType === 'group' || r.type === 'Group') {
+                                        return (mTeam && wTeam && mTeam === wTeam) || (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                                    } else {
+                                        return (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                                    }
+                                });
                         if (!isWinner) {
                             combinedWinners.push({
                                 position: String(m.grade).trim() + ' Grade',
@@ -9052,21 +9091,31 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     const gB = getGradePriority(b.grade);
                     if (gA !== gB) return gA - gB;
 
-                    const mA = Number(a.marks) || 0;
-                    const mB = Number(b.marks) || 0;
+                    const mA = a.totalPoints !== undefined ? Number(a.totalPoints) : (Number(a.marks) || 0);
+                            const mB = b.totalPoints !== undefined ? Number(b.totalPoints) : (Number(b.marks) || 0);
                     return mB - mA;
                 });
 
                 sortedWinners.forEach(w => {
-                    let points = w.marks !== undefined ? w.marks : 0;
+                    let wTotal = w.totalPoints !== undefined ? w.totalPoints : w.marks;
+                    let points = wTotal !== undefined ? wTotal : 0;
                     let match = null;
 
                     if (Array.isArray(r.marksData)) {
-                        match = r.marksData.find(m =>
-                            (r.programType === 'group' && m.teamName === w.teamName) ||
-                            (r.programType !== 'group' && m.studentId === w.studentId) ||
-                            (r.programType !== 'group' && m.studentName === w.studentName)
-                        );
+                        match = r.marksData.find(m => {
+                                            const mId = m.studentId || m.groupId || m.id || '';
+                                            const wId = w.studentId || w.groupId || w.id || '';
+                                            const mName = m.studentName || m.groupName || m.name || '';
+                                            const wName = w.studentName || w.groupName || w.name || '';
+                                            const mTeam = m.teamName || '';
+                                            const wTeam = w.teamName || '';
+
+                                            if (r.programType === 'group' || r.type === 'Group') {
+                                                return (mTeam && wTeam && mTeam === wTeam) || (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                                            } else {
+                                                return (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                                            }
+                                        });
                         if (match) {
                             points = match.totalPoints !== undefined ? match.totalPoints : points;
                         }
@@ -9235,11 +9284,20 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
 
                     let match = null;
                     if (Array.isArray(r.marksData)) {
-                        match = r.marksData.find(m =>
-                            (isGroup && m.teamName === w.teamName) ||
-                            (!isGroup && m.studentId === w.studentId) ||
-                            (!isGroup && m.studentName === w.studentName)
-                        );
+                        match = r.marksData.find(m => {
+                                            const mId = m.studentId || m.groupId || m.id || '';
+                                            const wId = w.studentId || w.groupId || w.id || '';
+                                            const mName = m.studentName || m.groupName || m.name || '';
+                                            const wName = w.studentName || w.groupName || w.name || '';
+                                            const mTeam = m.teamName || '';
+                                            const wTeam = w.teamName || '';
+
+                                            if (r.programType === 'group' || r.type === 'Group') {
+                                                return (mTeam && wTeam && mTeam === wTeam) || (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                                            } else {
+                                                return (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                                            }
+                                        });
                     }
                     const showGrade = r.gradeMode !== 'none';
                     const gradeVal = showGrade ? (w.grade || (match && match.grade) || '') : '';

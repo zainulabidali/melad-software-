@@ -1,4 +1,4 @@
-﻿import { db, updateDashboardMetadata, computeDenseRanking, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams } from './firebase.js';
+import { db, updateDashboardMetadata, computeDenseRanking, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams } from './firebase.js';
 import {
     collection, doc, getDocs, onSnapshot, serverTimestamp, updateDoc, deleteDoc, writeBatch, setDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -627,16 +627,6 @@ async function openResultDetailPopup(r) {
         return markB - markA;
     });
 
-    // Compute rendered ranks dynamically (handling standard competition ties) using the centralized helper
-    const scoredData = sortedData.filter(item => item.finalMark !== undefined && item.finalMark > 0);
-    computeDenseRanking(scoredData, item => item.finalMark, 'renderedRank');
-
-    sortedData.forEach(item => {
-        if (!(item.finalMark !== undefined && item.finalMark > 0)) {
-            item.renderedRank = null;
-        }
-    });
-
     const showGrade = r.gradeMode !== 'none';
     let tableRowsHTML = '';
     if (sortedData.length === 0) {
@@ -647,11 +637,11 @@ async function openResultDetailPopup(r) {
             
             // Format Position/Rank
             let positionHTML = '—';
-            if (item.renderedRank !== null) {
-                if (item.renderedRank === 1) positionHTML = '<span style="font-size:1.2rem;">🥇</span> 1st';
-                else if (item.renderedRank === 2) positionHTML = '<span style="font-size:1.2rem;">🥈</span> 2nd';
-                else if (item.renderedRank === 3) positionHTML = '<span style="font-size:1.2rem;">🥉</span> 3rd';
-                else positionHTML = `${item.renderedRank}th`;
+            if (item.rank !== null && item.rank !== undefined) {
+                if (item.rank === 1) positionHTML = '<span style="font-size:1.2rem;">🥇</span> 1st';
+                else if (item.rank === 2) positionHTML = '<span style="font-size:1.2rem;">🥈</span> 2nd';
+                else if (item.rank === 3) positionHTML = '<span style="font-size:1.2rem;">🥉</span> 3rd';
+                else positionHTML = `${item.rank}th`;
             }
 
             const displayName = item.studentName || item.groupName || item.name || '—';

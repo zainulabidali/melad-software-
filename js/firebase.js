@@ -1584,6 +1584,118 @@ export function getGradePointsForGrade(gradeName, pointsConfig = null, classType
     return 0;
 }
 
+/**
+ * Canonical calculation engine for result pipeline.
+ */
+export function calculateResultData({
+    marksData,
+    dbJudges,
+    judgeIds,
+    judgeSubmissionStatus,
+    gradeMode = 'auto',
+    pointsConfig,
+    classType,
+    isGroup = false
+}) {
+    let updatedMarksData = Array.isArray(marksData) ? JSON.parse(JSON.stringify(marksData)) : [];
+    
+    // 1. Determine if all required judges have submitted
+    const requiredJudgesCount = Array.isArray(dbJudges) ? dbJudges.length : 0;
+    const submittedJudgesCount = Array.isArray(judgeIds) ? judgeIds.filter(jid => judgeSubmissionStatus && judgeSubmissionStatus[jid] === 'submitted').length : 0;
+    const allSubmitted = requiredJudgesCount > 0 && submittedJudgesCount >= requiredJudgesCount;
+
+    const activePointsConfig = normalizePointsConfig(pointsConfig);
+    const config = activePointsConfig[classType] || DEFAULT_POINTS[classType];
+    const positionPointsMap = {
+        'First': config.first !== undefined ? Number(config.first) : 10,
+        'Second': config.second !== undefined ? Number(config.second) : 8,
+        'Third': config.third !== undefined ? Number(config.third) : 6,
+        'Participation': 0
+    };
+
+    // 2. Compute finalMark for each entry
+    updatedMarksData.forEach(entry => {
+        let sum = 0;
+        let count = 0;
+        if (Array.isArray(entry.marks)) {
+            entry.marks.forEach(m => {
+                if (m !== null && m !== undefined && m !== '') {
+                    sum += Number(m);
+                    count++;
+                }
+            });
+        }
+        
+        // Reset derived fields to strictly enforce partial states
+        entry.finalMark = null;
+        entry.rank = null;
+        entry.position = '';
+        entry.positionPoints = null;
+        entry.grade = '';
+        entry.gradePoints = null;
+        entry.totalPoints = null;
+
+        // Compute finalMark if we have any marks
+        if (count > 0) {
+            entry.finalMark = Number((sum / requiredJudgesCount).toFixed(2));
+        }
+    });
+
+    // 3. Compute Ranking if applicable
+    const activeEntries = updatedMarksData.filter(e => e.finalMark !== null && e.finalMark > 0);
+    computeDenseRanking(activeEntries, e => e.finalMark, 'rank');
+
+    // 4. Map points and grades
+    const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
+    
+    updatedMarksData.forEach(entry => {
+        if (entry.finalMark !== null && entry.finalMark > 0) {
+            // Position Points
+            const pos = posMap[entry.rank] || '';
+            const pp = positionPointsMap[pos] || 0;
+            entry.position = pos;
+            entry.positionPoints = pp;
+
+            // Grade Points
+            const dynamicAuto = getGradeAndPoints(entry.finalMark, activePointsConfig, classType);
+            const effectiveGrade = resolveEffectiveGrade({
+                automaticGrade: dynamicAuto.grade || '',
+                adminManualGrade: entry.adminManualGrade,
+                legacyManualGrade: entry.manualGrade,
+                manualGrades: entry.manualGrades,
+                judgeSubmissionStatus: judgeSubmissionStatus,
+                judgeIds: judgeIds,
+                pointsConfig: activePointsConfig
+            });
+
+            const savedGrade = (gradeMode === 'none') ? '' : effectiveGrade;
+            const pointsGrade = (gradeMode === 'none') ? (dynamicAuto.grade || '') : effectiveGrade;
+            const gp = pointsGrade ? getGradePointsForGrade(pointsGrade, activePointsConfig, classType) : 0;
+
+            entry.grade = savedGrade;
+            entry.gradePoints = gp;
+            entry.totalPoints = gp + pp;
+        }
+    });
+
+    // 5. Build Winners Array
+    const activeWinners = updatedMarksData.filter(r => r.finalMark !== null && r.finalMark > 0 && r.rank !== null && r.rank <= 3);
+    const updatedWinners = activeWinners.map(r => ({
+        studentId: isGroup ? '' : (r.studentId || r.id || ''),
+        groupId: isGroup ? (r.groupId || r.id || '') : '',
+        studentName: r.studentName || r.groupName || r.name || '',
+        teamId: r.teamId || '',
+        teamName: r.teamName || '',
+        position: r.position || '',
+        grade: r.grade || '',
+        manualGrade: r.manualGrade || null,
+        marks: r.totalPoints || 0,
+        remarks: `Average: ${r.finalMark} (Grade Points: ${r.gradePoints} + Position Points: ${r.positionPoints})`
+    }));
+
+    return { marksData: updatedMarksData, winners: updatedWinners, allSubmitted };
+}
+
 export async function getCachedPointsConfig(instituteId, forceRefresh = false) {
     const instId = instituteId || window.currentInstituteId;
     if (!instId) return normalizePointsConfig(DEFAULT_POINTS);
@@ -1677,93 +1789,27 @@ export async function recalculateAllResultsPoints(instituteId) {
         if (pType === 'general') classType = 'general';
         else if (pType === 'group') classType = 'group';
 
-        const config = pointsConfig[classType] || DEFAULT_POINTS[classType];
-
-        const positionPointsMap = {
-            'First': config.first !== undefined ? Number(config.first) : 10,
-            'Second': config.second !== undefined ? Number(config.second) : 8,
-            'Third': config.third !== undefined ? Number(config.third) : 6,
-            'Participation': 0
-        };
-
         let changed = false;
 
-        // Recalculate marksData
-        let updatedMarksData = [];
-        if (Array.isArray(res.marksData)) {
-            updatedMarksData = res.marksData.map(m => {
-                const markVal = (m.mark !== undefined && m.mark !== null && m.mark !== '') ? m.mark
-                    : ((m.finalMark !== undefined && m.finalMark !== null && m.finalMark !== '') ? m.finalMark : m.score);
+        const { marksData: newMarksData, winners: newWinners } = calculateResultData({
+            marksData: res.marksData,
+            dbJudges: res.judges,
+            judgeIds: res.judgeIds,
+            judgeSubmissionStatus: res.judgeSubmissionStatus,
+            gradeMode: res.gradeMode || prog.gradeMode || 'auto',
+            pointsConfig: pointsConfig,
+            classType: classType,
+            isGroup: (classType === 'group')
+        });
 
-                const dynamicAuto = getGradeAndPoints(markVal, pointsConfig, classType);
-
-                const effectiveGrade = resolveEffectiveGrade({
-                    automaticGrade: dynamicAuto.grade || m.grade,
-                    adminManualGrade: m.adminManualGrade,
-                    legacyManualGrade: m.manualGrade,
-                    manualGrades: m.manualGrades,
-                    judgeSubmissionStatus: res.judgeSubmissionStatus,
-                    judgeIds: res.judgeIds,
-                    pointsConfig: pointsConfig
-                });
-
-                const gp = getGradePointsForGrade(effectiveGrade, pointsConfig, classType);
-                const pp = positionPointsMap[m.position] || 0;
-                const totalPoints = gp + pp;
-
-                if (m.grade !== effectiveGrade || m.gradePoints !== gp || m.positionPoints !== pp || m.totalPoints !== totalPoints) {
-                    changed = true;
-                }
-
-                return {
-                    ...m,
-                    grade: effectiveGrade,
-                    gradePoints: gp,
-                    positionPoints: pp,
-                    totalPoints: totalPoints
-                };
-            });
-        }
-
-        // Recalculate winners
-        let updatedWinners = [];
-        if (Array.isArray(res.winners)) {
-            updatedWinners = res.winners.map(w => {
-                const markVal = (w.marks !== undefined && w.marks !== null && w.marks !== '') ? w.marks : w.mark;
-                const dynamicAuto = getGradeAndPoints(markVal, pointsConfig, classType);
-
-                const effectiveGrade = resolveEffectiveGrade({
-                    automaticGrade: dynamicAuto.grade || w.grade,
-                    adminManualGrade: w.adminManualGrade,
-                    legacyManualGrade: w.manualGrade,
-                    manualGrades: w.manualGrades,
-                    judgeSubmissionStatus: res.judgeSubmissionStatus,
-                    judgeIds: res.judgeIds,
-                    pointsConfig: pointsConfig
-                });
-
-                const gp = getGradePointsForGrade(effectiveGrade, pointsConfig, classType);
-                const pp = positionPointsMap[w.position] || 0;
-                const totalPoints = gp + pp;
-
-                if (w.grade !== effectiveGrade || w.gradePoints !== gp || w.positionPoints !== pp || w.marks !== totalPoints) {
-                    changed = true;
-                }
-
-                return {
-                    ...w,
-                    grade: effectiveGrade,
-                    gradePoints: gp,
-                    positionPoints: pp,
-                    marks: totalPoints
-                };
-            });
+        if (JSON.stringify(res.marksData) !== JSON.stringify(newMarksData) || JSON.stringify(res.winners) !== JSON.stringify(newWinners)) {
+            changed = true;
         }
 
         if (changed) {
             batch.update(res.ref, {
-                marksData: updatedMarksData,
-                winners: updatedWinners,
+                marksData: newMarksData,
+                winners: newWinners,
                 updatedAt: serverTimestamp()
             });
             batchCount++;

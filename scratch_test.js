@@ -6340,7 +6340,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
     else if (f.type === 'Call List') {
         const teamNamesMap = {};
-        allTeams.forEach(t => if(t.id) teamNamesMap[String(t.id)] = t.name);
+        allTeams.forEach(t => { if(t.id) teamNamesMap[String(t.id)] = t.name; });
         
         // Sort programs by location then program name
         programs.sort((a, b) => {

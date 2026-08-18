@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades } from './firebase.js';
+import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades, calculateResultData } from './firebase.js';
 import {
     collection, getDocs, doc, getDoc, setDoc, onSnapshot, serverTimestamp, writeBatch, runTransaction
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -2713,84 +2713,25 @@ async function persistMarks(prog, judges, isSubmit) {
                     return jId && (dbJudgeSubmissionStatus[jId] === 'submitted' || dbJudgeSubmissionStatus[jId] === true);
                 });
 
-                let winners = [];
-                let markEntryStatus = 'in-progress';
-                if (allSubmitted) {
-                    markEntryStatus = 'submitted';
-                    updatedMarksData.forEach(entry => {
-                        let sum = 0;
-                        let count = 0;
-                        entry.marks.forEach(m => {
-                            if (m !== null && m !== undefined) {
-                                sum += m;
-                                count++;
-                            }
-                        });
-                        entry.finalMark = count > 0 ? Number((sum / dbJudges.length).toFixed(2)) : 0;
-                    });
+                const pType = (prog.programType || prog.type || 'individual').toLowerCase();
+                let classType = 'individual';
+                if (pType === 'general') classType = 'general';
+                else if (pType === 'group') classType = 'group';
 
-                    const activeEntries = updatedMarksData.filter(e => e.marks.some(m => m !== null && m !== undefined));
-                    computeDenseRanking(activeEntries, e => e.finalMark, 'rank');
+                const calcRes = calculateResultData({
+                    marksData: updatedMarksData,
+                    dbJudges: dbJudges,
+                    judgeIds: dbJudgeIds,
+                    judgeSubmissionStatus: dbJudgeSubmissionStatus,
+                    gradeMode: gradeMode,
+                    pointsConfig: activePointsConfig,
+                    classType: classType,
+                    isGroup: isGroup
+                });
 
-                    const pType = (prog.programType || prog.type || 'individual').toLowerCase();
-                    let classType = 'individual';
-                    if (pType === 'general') classType = 'general';
-                    else if (pType === 'group') classType = 'group';
-
-                    const config = activePointsConfig[classType] || DEFAULT_POINTS[classType];
-                    const positionPointsMap = {
-                        'First': config.first !== undefined ? Number(config.first) : 10,
-                        'Second': config.second !== undefined ? Number(config.second) : 8,
-                        'Third': config.third !== undefined ? Number(config.third) : 6,
-                        'Participation': 0
-                    };
-
-                    updatedMarksData.forEach(entry => {
-                        const hasScores = entry.marks.some(m => m !== null && m !== undefined);
-                        if (hasScores) {
-                            const { grade: automaticGrade } = getGradeAndPoints(entry.finalMark, activePointsConfig, classType);
-                            const effectiveGrade = resolveEffectiveGrade({
-                                automaticGrade,
-                                adminManualGrade: entry.adminManualGrade,
-                                legacyManualGrade: entry.manualGrade,
-                                manualGrades: entry.manualGrades,
-                                judgeSubmissionStatus: dbJudgeSubmissionStatus,
-                                judgeIds: dbJudgeIds,
-                                pointsConfig: activePointsConfig
-                            });
-
-                            const savedGrade = (gradeMode === 'none') ? '' : effectiveGrade;
-                            const pointsGrade = (gradeMode === 'none') ? (automaticGrade || '') : effectiveGrade;
-                            const gp = pointsGrade ? getGradePointsForGrade(pointsGrade, activePointsConfig, classType) : 0;
-
-                            const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
-                            const position = posMap[entry.rank] || '';
-                            const pp = positionPointsMap[position] || 0;
-                            entry.grade = savedGrade;
-                            entry.gradePoints = gp;
-                            entry.position = position || '';
-                            entry.positionPoints = pp || 0;
-                            entry.totalPoints = gp + pp;
-                        }
-                    });
-
-                    const activeWinners = updatedMarksData.filter(r => r.finalMark > 0 && r.rank !== null && r.rank <= 3);
-                    activeWinners.sort((a, b) => a.rank - b.rank);
-                    activeWinners.forEach(r => {
-                        winners.push({
-                            studentId: isGroup ? '' : (r.studentId || ''),
-                            groupId: isGroup ? (r.groupId || '') : '',
-                            studentName: r.studentName || '',
-                            teamId: r.teamId || '',
-                            teamName: r.teamName || '',
-                            position: r.position || '',
-                            grade: r.grade || '',
-                            manualGrade: r.manualGrade || null,
-                            marks: r.totalPoints || 0,
-                            remarks: `Average: ${r.finalMark} (Grade Points: ${r.gradePoints} + Position Points: ${r.positionPoints})`
-                        });
-                    });
-                }
+                const finalMarksData = calcRes.marksData;
+                const winners = calcRes.winners;
+                const markEntryStatus = calcRes.allSubmitted ? 'submitted' : 'in-progress';
 
                 const payload = {
                     programId: prog.id,
@@ -2806,7 +2747,7 @@ async function persistMarks(prog, judges, isSubmit) {
                     participantCount: rows.length,
                     judges: dbJudges,
                     judgeIds: dbJudgeIds,
-                    marksData: updatedMarksData,
+                    marksData: finalMarksData,
                     winners,
                     status: existingDoc?.status || 'draft',
                     markEntryStatus,
@@ -2891,80 +2832,25 @@ async function persistMarks(prog, judges, isSubmit) {
                     });
                 });
 
-                updatedMarksData.forEach(entry => {
-                    let sum = 0;
-                    let count = 0;
-                    entry.marks.forEach(m => {
-                        if (m !== null && m !== undefined) {
-                            sum += m;
-                            count++;
-                        }
-                    });
-                    entry.finalMark = count > 0 ? Number((sum / dbJudges.length).toFixed(2)) : 0;
-                });
-
-                const activeEntries = updatedMarksData.filter(e => e.marks.some(m => m !== null && m !== undefined));
-                computeDenseRanking(activeEntries, e => e.finalMark, 'rank');
-
                 const pType = (prog.programType || prog.type || 'individual').toLowerCase();
                 let classType = 'individual';
                 if (pType === 'general') classType = 'general';
                 else if (pType === 'group') classType = 'group';
 
-                const config = activePointsConfig[classType] || DEFAULT_POINTS[classType];
-                const positionPointsMap = {
-                    'First': config.first !== undefined ? Number(config.first) : 10,
-                    'Second': config.second !== undefined ? Number(config.second) : 8,
-                    'Third': config.third !== undefined ? Number(config.third) : 6,
-                    'Participation': 0
-                };
-
-                updatedMarksData.forEach(entry => {
-                    const hasScores = entry.marks.some(m => m !== null && m !== undefined);
-                    if (hasScores) {
-                        const { grade: automaticGrade } = getGradeAndPoints(entry.finalMark, activePointsConfig, classType);
-                        const effectiveGrade = resolveEffectiveGrade({
-                            automaticGrade,
-                            adminManualGrade: entry.adminManualGrade,
-                            legacyManualGrade: entry.manualGrade,
-                            manualGrades: entry.manualGrades,
-                            judgeSubmissionStatus: dbJudgeSubmissionStatus,
-                            judgeIds: dbJudgeIds,
-                            pointsConfig: activePointsConfig
-                        });
-
-                        const savedGrade = (gradeMode === 'none') ? '' : effectiveGrade;
-                        const pointsGrade = (gradeMode === 'none') ? (automaticGrade || '') : effectiveGrade;
-                        const gp = pointsGrade ? getGradePointsForGrade(pointsGrade, activePointsConfig, classType) : 0;
-
-                        const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
-                        const position = posMap[entry.rank] || '';
-                        const pp = positionPointsMap[position] || 0;
-                        entry.grade = savedGrade;
-                        entry.gradePoints = gp;
-                        entry.position = position || '';
-                        entry.positionPoints = pp || 0;
-                        entry.totalPoints = gp + pp;
-                    }
+                const calcRes = calculateResultData({
+                    marksData: updatedMarksData,
+                    dbJudges: dbJudges,
+                    judgeIds: dbJudgeIds,
+                    judgeSubmissionStatus: dbJudgeSubmissionStatus,
+                    gradeMode: gradeMode,
+                    pointsConfig: activePointsConfig,
+                    classType: classType,
+                    isGroup: isGroup
                 });
 
-                const winners = [];
-                const activeWinners = updatedMarksData.filter(r => r.finalMark > 0 && r.rank !== null && r.rank <= 3);
-                activeWinners.sort((a, b) => a.rank - b.rank);
-                activeWinners.forEach(r => {
-                    winners.push({
-                        studentId: isGroup ? '' : (r.studentId || ''),
-                        groupId: isGroup ? (r.groupId || '') : '',
-                        studentName: r.studentName || '',
-                        teamId: r.teamId || '',
-                        teamName: r.teamName || '',
-                        position: r.position || '',
-                        grade: r.grade || '',
-                        manualGrade: r.manualGrade || null,
-                        marks: r.totalPoints || 0,
-                        remarks: `Average: ${r.finalMark} (Grade Points: ${r.gradePoints} + Position Points: ${r.positionPoints})`
-                    });
-                });
+                const finalMarksData = calcRes.marksData;
+                const winners = calcRes.winners;
+                let markEntryStatus = isSubmit ? 'submitted' : 'in-progress';
 
                 const payload = {
                     programId: prog.id,
@@ -2980,7 +2866,7 @@ async function persistMarks(prog, judges, isSubmit) {
                     participantCount: rows.length,
                     judges: dbJudges,
                     judgeIds: dbJudgeIds,
-                    marksData: updatedMarksData,
+                    marksData: finalMarksData,
                     winners,
                     status: existingDoc?.status || 'draft',
                     markEntryStatus: isSubmit ? 'submitted' : 'in-progress',

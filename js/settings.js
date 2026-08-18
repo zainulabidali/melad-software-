@@ -688,15 +688,22 @@ async function openPointManageModal() {
                 btnCancel.disabled = true;
                 btnSave.innerHTML = `<span class="spinner" style="width:0.8rem;height:0.8rem;border-width:2px;border-top-color:transparent;"></span> Saving...`;
 
+                function parsePoint(id, def) {
+                    const el = document.getElementById(id);
+                    if (!el) return def;
+                    const val = el.value.trim();
+                    if (val === '') return def;
+                    const parsed = parseInt(val, 10);
+                    return isNaN(parsed) ? def : parsed;
+                }
+
                 const payload = {
                     individual: {
-                        first: parseInt(document.getElementById('pt_ind_first').value, 10) || 0,
-                        second: parseInt(document.getElementById('pt_ind_second').value, 10) || 0,
-                        third: parseInt(document.getElementById('pt_ind_third').value, 10) || 0
+                        first: parsePoint('pt_ind_first', 10),
+                        second: parsePoint('pt_ind_second', 8),
+                        third: parsePoint('pt_ind_third', 6)
                     },
                     group: {
-                        first: parseInt(document.getElementById('pt_grp_first').value, 10) || 0,
-                        second: parseInt(document.getElementById('pt_grp_second').value, 10) || 0,
                         third: parseInt(document.getElementById('pt_grp_third').value, 10) || 0
                     },
                     general: {

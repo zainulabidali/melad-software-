@@ -1,6 +1,6 @@
-import { db, computeDenseRanking, getCachedStudentsMap, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades } from './firebase.js';
+import { db, computeDenseRanking, getCachedStudentsMap, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades, calculateResultData } from './firebase.js';
 import {
-    collection, doc, getDoc, getDocs, setDoc, onSnapshot, serverTimestamp, writeBatch
+    collection, doc, getDoc, getDocs, setDoc, onSnapshot, serverTimestamp, writeBatch, runTransaction
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 // Point Systems & Grading Mapping
@@ -521,234 +521,140 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
         console.error("Failed refreshing points config in saveMarks:", e);
     }
 
-    // Build existing marks lookup to preserve other judges' scores
-    const existingMarksMap = new Map();
-    if (existingResDoc && Array.isArray(existingResDoc.marksData)) {
-        existingResDoc.marksData.forEach(m => {
-            const key = m.studentId || m.groupId || '';
-            if (key) existingMarksMap.set(key, m);
-        });
-    }
-
-    const marksData = [];
-    let filledCount = 0;
-
-    const sortedRows = [];
-    rows.forEach(row => {
-        const id = row.getAttribute('data-id');
-        const name = row.getAttribute('data-name');
-        const teamId = row.getAttribute('data-team-id');
-        const teamName = row.getAttribute('data-team-name');
-        const input = row.querySelector('.jp-mark-input');
-        const codeLetter = input.getAttribute('data-code') || '';
-
-        const val = input.value.trim();
-        const existing = existingMarksMap.get(id) || {};
-        const marks = Array.isArray(existing.marks) ? [...existing.marks] : [];
-
-        // Ensure array length covers all judges
-        while (marks.length < judgesList.length) {
-            marks.push(null);
-        }
-
-        if (val !== '') {
-            marks[judgeIdx] = parseFloat(val) || 0;
-            filledCount++;
-        } else {
-            marks[judgeIdx] = null;
-        }
-
-        const manualGrades = existing.manualGrades && Array.isArray(existing.manualGrades) ? [...existing.manualGrades] : [];
-        while (manualGrades.length < judgesList.length) {
-            manualGrades.push(null);
-        }
-        const adminManualGrade = existing.adminManualGrade || null;
-        const legacyManualGrade = existing.manualGrade || null;
-
-        // Calculate average finalMark across filled judge scores
-        let sum = 0;
-        let validJudgesCount = 0;
-        marks.forEach(m => {
-            if (m !== null && m !== undefined) {
-                sum += m;
-                validJudgesCount++;
-            }
-        });
-
-        const hasScores = validJudgesCount > 0;
-        const finalMark = validJudgesCount > 0 ? Number((sum / validJudgesCount).toFixed(2)) : 0;
-
-        sortedRows.push({
-            id, name, teamId, teamName, codeLetter, marks, finalMark, hasScores, rank: null,
-            adminManualGrade,
-            manualGrade: legacyManualGrade,
-            manualGrades
-        });
-    });
-
-    // Compute ranks using dense ranking helper
-    const activeRows = sortedRows.filter(r => r.hasScores);
-    computeDenseRanking(activeRows, r => r.finalMark, 'rank');
-
-    const dbJudges = existingResDoc && Array.isArray(existingResDoc.judges) ? existingResDoc.judges : judgesList;
-    const dbJudgeIds = existingResDoc && Array.isArray(existingResDoc.judgeIds) ? existingResDoc.judgeIds : [];
-    let dbJudgeSubmissionStatus = existingResDoc && existingResDoc.judgeSubmissionStatus ? { ...existingResDoc.judgeSubmissionStatus } : {};
-
-    const currentJudgeId = sessionStorage.getItem('standaloneJudgeId') || '';
-    if (currentJudgeId) {
-        dbJudgeSubmissionStatus[currentJudgeId] = isSubmit ? 'submitted' : 'saved';
-    }
-
-    const pType = (prog.programType || prog.type || 'individual').toLowerCase();
-    let classType = 'individual';
-    if (pType === 'general') classType = 'general';
-    else if (pType === 'group') classType = 'group';
-
-    const config = activePointsConfig[classType] || DEFAULT_POINTS[classType];
-    const positionPointsMap = {
-        'First': config.first !== undefined ? Number(config.first) : 10,
-        'Second': config.second !== undefined ? Number(config.second) : 8,
-        'Third': config.third !== undefined ? Number(config.third) : 6,
-        'Participation': 0
-    };
-
-    const gradeModeSelect = document.getElementById('jpGradeModeSelect');
-    const gradeMode = gradeModeSelect ? gradeModeSelect.value : (existingResDoc?.gradeMode || 'auto');
-
-    sortedRows.forEach(r => {
-        if (r.hasScores) {
-            const { grade: automaticGrade } = getGradeAndPoints(r.finalMark, activePointsConfig, classType);
-            const effectiveGrade = resolveEffectiveGrade({
-                automaticGrade,
-                adminManualGrade: r.adminManualGrade,
-                legacyManualGrade: r.manualGrade,
-                manualGrades: r.manualGrades,
-                judgeSubmissionStatus: dbJudgeSubmissionStatus,
-                judgeIds: dbJudgeIds,
-                pointsConfig: activePointsConfig
-            });
-
-            const savedGrade = (gradeMode === 'none') ? '' : effectiveGrade;
-            const pointsGrade = (gradeMode === 'none') ? (automaticGrade || '') : effectiveGrade;
-            const gp = pointsGrade ? getGradePointsForGrade(pointsGrade, activePointsConfig, classType) : 0;
-
-            const posMap = { 1: 'First', 2: 'Second', 3: 'Third' };
-            const position = posMap[r.rank] || '';
-            const pp = positionPointsMap[position] || 0;
-            const totalPoints = gp + pp;
-
-            marksData.push({
-                studentId: isGroup ? '' : r.id,
-                groupId: isGroup ? r.id : '',
-                studentName: r.name || '',
-                teamId: r.teamId || '',
-                teamName: r.teamName || '',
-                codeLetter: r.codeLetter || '',
-                marks: r.marks || [],
-                finalMark: r.finalMark || 0,
-                grade: savedGrade,
-                gradePoints: gp || 0,
-                adminManualGrade: r.adminManualGrade,
-                manualGrade: r.manualGrade,
-                manualGrades: r.manualGrades,
-                rank: r.rank || null,
-                position: position || '',
-                positionPoints: pp || 0,
-                totalPoints: totalPoints || 0
-            });
-        } else {
-            marksData.push({
-                studentId: isGroup ? '' : r.id,
-                groupId: isGroup ? r.id : '',
-                studentName: r.name || '',
-                teamId: r.teamId || '',
-                teamName: r.teamName || '',
-                codeLetter: r.codeLetter || '',
-                marks: r.marks || [],
-                finalMark: 0,
-                grade: '',
-                gradePoints: 0,
-                adminManualGrade: r.adminManualGrade,
-                manualGrade: r.manualGrade,
-                manualGrades: r.manualGrades,
-                rank: null,
-                position: '',
-                positionPoints: 0,
-                totalPoints: 0
-            });
-        }
-    });
-
-    // Build winners array (ranks 1, 2, 3)
-    const winners = [];
-    const activeWinners = marksData.filter(r => r.finalMark > 0 && r.rank !== null && r.rank <= 3);
-    activeWinners.sort((a, b) => a.rank - b.rank);
-
-    activeWinners.forEach(r => {
-        winners.push({
-            studentId: isGroup ? '' : (r.studentId || ''),
-            groupId: isGroup ? (r.groupId || '') : '',
-            studentName: r.studentName || '',
-            teamId: r.teamId || '',
-            teamName: r.teamName || '',
-            position: r.position || '',
-            grade: r.grade || '',
-            adminManualGrade: r.adminManualGrade || null,
-            manualGrade: r.manualGrade || null,
-            manualGrades: r.manualGrades || [],
-            marks: r.totalPoints || 0,
-            remarks: `Average: ${r.finalMark} (Grade Points: ${r.gradePoints} + Position Points: ${r.positionPoints})`
-        });
-    });
-
     const draftBtn = document.getElementById('jpDraftBtn');
     const submitBtn = document.getElementById('jpSubmitBtn');
     if (draftBtn) draftBtn.disabled = true;
     if (submitBtn) submitBtn.disabled = true;
 
     try {
-        const payload = {
-            programId: prog.id,
-            programName: prog.programName || prog.name || '',
-            programType: prog.programType || prog.type || 'individual',
-            registrationType: prog.registrationType || '',
-            categoryId: prog.categoryId || '',
-            categoryName: prog.categoryName || '',
-            classId: prog.classId || '',
-            className: prog.className || '',
-            genderCategory: prog.genderCategory || '',
-            programLocation: prog.programLocation || '',
-            participantCount: participants.length,
-            judges: dbJudges,
-            judgeIds: dbJudgeIds,
-            judgeSubmissionStatus: dbJudgeSubmissionStatus,
-            marksData,
-            winners,
-            status: existingResDoc?.status || 'draft',
-            markEntryStatus: isSubmit ? 'submitted' : 'in-progress',
-            gradeMode,
-            updatedAt: serverTimestamp()
-        };
+        const docRef = doc(db, "institutes", currentInstituteId, "results", `result_${prog.id}`);
 
-        const resultsRef = collection(db, "institutes", currentInstituteId, "results");
-        if (existingResDoc) {
-            if (existingResDoc.publishedAt) payload.publishedAt = existingResDoc.publishedAt;
-            if (existingResDoc.status === 'published') payload.status = 'published';
-            await setDoc(doc(resultsRef, existingResDoc.id), payload, { merge: true });
-        } else {
-            payload.createdAt = serverTimestamp();
-            await setDoc(doc(resultsRef, `result_${prog.id}`), payload);
-        }
+        await runTransaction(db, async (transaction) => {
+            const docSnap = await transaction.get(docRef);
+            let latestResDoc = docSnap.exists() ? docSnap.data() : existingResDoc;
+
+            const dbJudges = latestResDoc && Array.isArray(latestResDoc.judges) ? latestResDoc.judges : judgesList;
+            const dbJudgeIds = latestResDoc && Array.isArray(latestResDoc.judgeIds) ? latestResDoc.judgeIds : [];
+            let dbJudgeSubmissionStatus = latestResDoc && latestResDoc.judgeSubmissionStatus ? { ...latestResDoc.judgeSubmissionStatus } : {};
+
+            const currentJudgeId = sessionStorage.getItem('standaloneJudgeId') || '';
+            if (currentJudgeId) {
+                dbJudgeSubmissionStatus[currentJudgeId] = isSubmit ? 'submitted' : 'saved';
+            }
+
+            const latestMarksMap = new Map();
+            if (latestResDoc && Array.isArray(latestResDoc.marksData)) {
+                latestResDoc.marksData.forEach(m => {
+                    const key = m.studentId || m.groupId || '';
+                    if (key) latestMarksMap.set(key, m);
+                });
+            }
+
+            const updatedMarksData = [];
+
+            rows.forEach(row => {
+                const id = row.getAttribute('data-id');
+                const name = row.getAttribute('data-name');
+                const teamId = row.getAttribute('data-team-id');
+                const teamName = row.getAttribute('data-team-name');
+                const input = row.querySelector('.jp-mark-input');
+                const codeLetter = input.getAttribute('data-code') || '';
+                const val = input.value.trim();
+
+                const existing = latestMarksMap.get(id) || {};
+                const marks = Array.isArray(existing.marks) ? [...existing.marks] : [];
+
+                while (marks.length < dbJudges.length) {
+                    marks.push(null);
+                }
+
+                if (val !== '') {
+                    marks[judgeIdx] = parseFloat(val);
+                } else {
+                    marks[judgeIdx] = null;
+                }
+
+                const manualGrades = existing.manualGrades && Array.isArray(existing.manualGrades) ? [...existing.manualGrades] : [];
+                while (manualGrades.length < dbJudges.length) {
+                    manualGrades.push(null);
+                }
+                const adminManualGrade = existing.adminManualGrade || null;
+                const legacyManualGrade = existing.manualGrade || null;
+
+                updatedMarksData.push({
+                    studentId: isGroup ? '' : id,
+                    groupId: isGroup ? id : '',
+                    studentName: name || '',
+                    teamId: teamId || '',
+                    teamName: teamName || '',
+                    codeLetter: codeLetter || existing.codeLetter || '',
+                    marks,
+                    adminManualGrade,
+                    manualGrade: legacyManualGrade,
+                    manualGrades
+                });
+            });
+
+            const pType = (prog.programType || prog.type || 'individual').toLowerCase();
+            let classType = 'individual';
+            if (pType === 'general') classType = 'general';
+            else if (pType === 'group') classType = 'group';
+
+            const gradeModeSelect = document.getElementById('jpGradeModeSelect');
+            const gradeMode = gradeModeSelect ? gradeModeSelect.value : (latestResDoc?.gradeMode || 'auto');
+
+            const { marksData: finalMarksData, winners, allSubmitted } = calculateResultData({
+                marksData: updatedMarksData,
+                dbJudges: dbJudges,
+                judgeIds: dbJudgeIds,
+                judgeSubmissionStatus: dbJudgeSubmissionStatus,
+                gradeMode: gradeMode,
+                pointsConfig: activePointsConfig,
+                classType: classType,
+                isGroup: isGroup
+            });
+
+            const payload = {
+                programId: prog.id,
+                programName: prog.programName || prog.name || '',
+                programType: prog.programType || prog.type || 'individual',
+                registrationType: prog.registrationType || '',
+                categoryId: prog.categoryId || '',
+                categoryName: prog.categoryName || '',
+                classId: prog.classId || '',
+                className: prog.className || '',
+                genderCategory: prog.genderCategory || '',
+                programLocation: prog.programLocation || '',
+                participantCount: participants.length,
+                judges: dbJudges,
+                judgeIds: dbJudgeIds,
+                judgeSubmissionStatus: dbJudgeSubmissionStatus,
+                marksData: finalMarksData,
+                winners,
+                status: latestResDoc?.status || 'draft',
+                markEntryStatus: allSubmitted ? 'submitted' : 'in-progress',
+                gradeMode,
+                updatedAt: serverTimestamp()
+            };
+
+            if (latestResDoc && latestResDoc.publishedAt) payload.publishedAt = latestResDoc.publishedAt;
+            if (latestResDoc && latestResDoc.status === 'published') payload.status = 'published';
+
+            if (!docSnap.exists() && (!latestResDoc || !latestResDoc.createdAt)) {
+                payload.createdAt = serverTimestamp();
+            }
+
+            transaction.set(docRef, payload, { merge: true });
+        });
 
         window.showToast(isSubmit ? "📤 Marks submitted successfully!" : "📝 Draft saved successfully!", "success");
         setTimeout(() => loadAssignedPrograms(), 600);
-    } catch (e) {
-        console.error("Failed to save judge scores:", e);
+
+    } catch (err) {
+        console.error("Failed to save judge scores:", err);
         window.showToast("Failed to save marks.", "error");
     } finally {
         if (draftBtn) draftBtn.disabled = false;
         if (submitBtn) submitBtn.disabled = false;
     }
 }
-
-
