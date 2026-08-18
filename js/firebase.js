@@ -474,7 +474,7 @@ async function _performUpdateDashboardMetadata(instituteId) {
             return timeB - timeA;
         });
 
-        const latestPublishedResults = publishedResultsList.slice(0, 4).map(r => {
+        const latestPublishedResults = publishedResultsList.map(r => {
             const prog = programs.find(p => p.id === r.programId);
             const progCode = r.programCode || prog?.code || r.programNumber || '';
             const progName = r.programName || prog?.name || 'Competition';
@@ -515,7 +515,7 @@ async function _performUpdateDashboardMetadata(instituteId) {
             return timeB - timeA;
         });
 
-        const publicLatestPublishedResults = publicPublishedResultsList.slice(0, 4).map(r => {
+        const publicLatestPublishedResults = publicPublishedResultsList.map(r => {
             const prog = programs.find(p => p.id === r.programId);
             const progCode = r.programCode || prog?.code || r.programNumber || '';
             const progName = r.programName || prog?.name || 'Competition';

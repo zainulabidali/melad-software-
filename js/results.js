@@ -939,6 +939,7 @@ async function triggerPublishPublic() {
         });
 
         await batch.commit();
+        await updateDashboardMetadata(window.currentInstituteId);
         window.showToast(`Successfully released ${publishedResults.length} program results to the public!`, "success");
     } catch (err) {
         console.error("Batch publish public error:", err);
