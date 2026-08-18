@@ -156,12 +156,12 @@ function updateHeader() {
 
     // 2. Metrics calculation from precalculated dashboard document
     const totalProgCount = dashboardData?.programsCount || 0;
-    const completedCount = dashboardData?.publishedResultsCount || 0;
-    const pendingCount = dashboardData?.pendingProgramsCount !== undefined
-        ? dashboardData.pendingProgramsCount
+    const completedCount = dashboardData?.publicPublishedResultsCount || 0;
+    const pendingCount = dashboardData?.publicPendingProgramsCount !== undefined
+        ? dashboardData.publicPendingProgramsCount
         : Math.max(0, totalProgCount - completedCount);
-    const progressPct = dashboardData?.overallProgressPct !== undefined
-        ? dashboardData.overallProgressPct
+    const progressPct = dashboardData?.publicOverallProgressPct !== undefined
+        ? dashboardData.publicOverallProgressPct
         : (totalProgCount > 0 ? Math.round((completedCount / totalProgCount) * 100) : 0);
 
     const statCompleted = document.getElementById('statCompletedProg');
@@ -582,9 +582,9 @@ async function initLiveDisplayEngine() {
         if (snap.exists()) {
             const data = snap.data();
             dashboardData = data;
-            leaderboardData = data.leaderboard || [];
-            categoryPerformanceData = data.categoryPerformance || [];
-            latestPublishedResults = data.latestPublishedResults || [];
+            leaderboardData = data.publicLeaderboard || [];
+            categoryPerformanceData = data.publicCategoryPerformance || [];
+            latestPublishedResults = data.publicLatestPublishedResults || [];
         } else {
             dashboardData = null;
             leaderboardData = [];

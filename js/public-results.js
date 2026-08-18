@@ -764,7 +764,7 @@ async function init() {
         onSnapshot(dashboardMetaRef, (snap) => {
             if (snap.exists()) {
                 const data = snap.data();
-                leaderboardData = data.leaderboard || [];
+                leaderboardData = data.publicLeaderboard || [];
             } else {
                 leaderboardData = [];
             }
@@ -778,7 +778,8 @@ async function init() {
         const resultsRef = collection(db, "institutes", instId, "results");
         const publishedQuery = query(
             resultsRef,
-            where("status", "==", "published")
+            where("status", "==", "published"),
+            where("publicReleased", "==", true)
         );
 
         try {

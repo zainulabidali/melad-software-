@@ -248,8 +248,10 @@ async function _performUpdateDashboardMetadata(instituteId) {
 
         // 2. Real-time Live Team Leaderboard
         const teamPoints = new Map();
+        const publicTeamPoints = new Map();
         teams.forEach(t => {
             teamPoints.set(String(t.id), 0);
+            publicTeamPoints.set(String(t.id), 0);
         });
 
         results.forEach(r => {
@@ -263,6 +265,10 @@ async function _performUpdateDashboardMetadata(instituteId) {
                             const tid = String(w.teamId);
                             const current = teamPoints.get(tid) || 0;
                             teamPoints.set(tid, current + (w.totalPoints || 0));
+                            if (r.publicReleased === true) {
+                                const currentPub = publicTeamPoints.get(tid) || 0;
+                                publicTeamPoints.set(tid, currentPub + (w.totalPoints || 0));
+                            }
                         }
                     });
                 } else if (Array.isArray(r.winners)) {
@@ -271,6 +277,10 @@ async function _performUpdateDashboardMetadata(instituteId) {
                             const tid = String(w.teamId);
                             const current = teamPoints.get(tid) || 0;
                             teamPoints.set(tid, current + (w.marks || 0));
+                            if (r.publicReleased === true) {
+                                const currentPub = publicTeamPoints.get(tid) || 0;
+                                publicTeamPoints.set(tid, currentPub + (w.marks || 0));
+                            }
                         }
                     });
                 }
@@ -281,6 +291,12 @@ async function _performUpdateDashboardMetadata(instituteId) {
             id: String(t.id),
             name: t.name,
             points: teamPoints.get(String(t.id)) || 0
+        })).sort((a, b) => b.points - a.points);
+
+        const publicSortedTeams = teams.map(t => ({
+            id: String(t.id),
+            name: t.name,
+            points: publicTeamPoints.get(String(t.id)) || 0
         })).sort((a, b) => b.points - a.points);
 
         // 3. Radar Chart (Participants By Team)
@@ -348,11 +364,14 @@ async function _performUpdateDashboardMetadata(instituteId) {
         };
 
         const publishedCount = results.filter(r => r.status === 'published').length;
+        const publicPublishedCount = results.filter(r => r.status === 'published' && r.publicReleased === true).length;
 
         // 5. Category Performance Aggregation
         const teamSet = new Set();
-        teams.forEach(t => { teamSet.add(String(t.id)); });
+        const publicTeamSet = new Set();
+        teams.forEach(t => { teamSet.add(String(t.id)); publicTeamSet.add(String(t.id)); });
         const categoryMap = {};
+        const publicCategoryMap = {};
         const processedProgramIds = new Set();
 
         results.forEach(r => {
@@ -368,6 +387,7 @@ async function _performUpdateDashboardMetadata(instituteId) {
             if (!catName) return;
 
             if (!categoryMap[catName]) categoryMap[catName] = {};
+            if (!publicCategoryMap[catName]) publicCategoryMap[catName] = {};
 
             if (Array.isArray(r.marksData) && r.marksData.length > 0) {
                 r.marksData.forEach(w => {
@@ -376,6 +396,10 @@ async function _performUpdateDashboardMetadata(instituteId) {
                         const pts = Number(w.totalPoints || 0);
                         categoryMap[catName][tid] = (categoryMap[catName][tid] || 0) + pts;
                         teamSet.add(tid);
+                        if (r.publicReleased === true) {
+                            publicCategoryMap[catName][tid] = (publicCategoryMap[catName][tid] || 0) + pts;
+                            publicTeamSet.add(tid);
+                        }
                     }
                 });
             } else if (Array.isArray(r.winners)) {
@@ -385,6 +409,10 @@ async function _performUpdateDashboardMetadata(instituteId) {
                         const pts = Number(w.marks || 0);
                         categoryMap[catName][tid] = (categoryMap[catName][tid] || 0) + pts;
                         teamSet.add(tid);
+                        if (r.publicReleased === true) {
+                            publicCategoryMap[catName][tid] = (publicCategoryMap[catName][tid] || 0) + pts;
+                            publicTeamSet.add(tid);
+                        }
                     }
                 });
             }
@@ -396,6 +424,30 @@ async function _performUpdateDashboardMetadata(instituteId) {
         const categoryPerformance = categoryNames.map(catName => {
             const teamScoresObj = categoryMap[catName] || {};
             const teamList = Array.from(teamSet).map(id => ({
+                name: teamMap.get(id)?.name || 'Unknown',
+                points: teamScoresObj[id] || 0
+            }));
+            teamList.sort((a, b) => b.points - a.points);
+            computeDenseRanking(teamList, t => t.points, 'rank');
+
+            const maxPoints = Math.max(...teamList.map(t => t.points), 1);
+            const processedTeams = teamList.map(t => ({
+                ...t,
+                pct: t.points > 0 ? Math.min(Math.round((t.points / maxPoints) * 100), 100) : 0
+            }));
+
+            return {
+                categoryName: catName,
+                teams: processedTeams
+            };
+        });
+
+        const publicCategoryNames = Object.keys(publicCategoryMap);
+        publicCategoryNames.sort((a, b) => a.localeCompare(b));
+
+        const publicCategoryPerformance = publicCategoryNames.map(catName => {
+            const teamScoresObj = publicCategoryMap[catName] || {};
+            const teamList = Array.from(publicTeamSet).map(id => ({
                 name: teamMap.get(id)?.name || 'Unknown',
                 points: teamScoresObj[id] || 0
             }));
@@ -456,6 +508,47 @@ async function _performUpdateDashboardMetadata(instituteId) {
             };
         });
 
+        const publicPublishedResultsList = results.filter(r => r.status === 'published' && r.publicReleased === true);
+        publicPublishedResultsList.sort((a, b) => {
+            const timeA = a.publicPublishedAt?.seconds || a.publishedAt?.seconds || a.updatedAt?.seconds || 0;
+            const timeB = b.publicPublishedAt?.seconds || b.publishedAt?.seconds || b.updatedAt?.seconds || 0;
+            return timeB - timeA;
+        });
+
+        const publicLatestPublishedResults = publicPublishedResultsList.slice(0, 4).map(r => {
+            const prog = programs.find(p => p.id === r.programId);
+            const progCode = r.programCode || prog?.code || r.programNumber || '';
+            const progName = r.programName || prog?.name || 'Competition';
+            const catName = r.categoryName || prog?.categoryName || '';
+
+            let topWinnerName = '';
+            let topTeamName = '';
+
+            if (Array.isArray(r.marksData) && r.marksData.length > 0) {
+                const sorted = [...r.marksData].sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+                if (sorted[0]) {
+                    topWinnerName = sorted[0].studentName || 'Winner';
+                    topTeamName = sorted[0].teamId ? (teamMap.get(sorted[0].teamId)?.name || sorted[0].teamName) : (sorted[0].teamName || '');
+                }
+            } else if (Array.isArray(r.winners) && r.winners.length > 0) {
+                const sorted = [...r.winners].sort((a, b) => (b.marks || 0) - (a.marks || 0));
+                if (sorted[0]) {
+                    topWinnerName = sorted[0].name || sorted[0].studentName || 'Winner';
+                    topTeamName = sorted[0].teamId ? (teamMap.get(sorted[0].teamId)?.name || sorted[0].teamName) : (sorted[0].teamName || '');
+                }
+            }
+
+            return {
+                id: r.id,
+                programCode: progCode,
+                programName: progName,
+                categoryName: catName,
+                winnerName: topWinnerName,
+                winningTeam: topTeamName,
+                publishedAt: r.publicPublishedAt?.seconds ? r.publicPublishedAt.seconds * 1000 : (r.publishedAt?.seconds ? r.publishedAt.seconds * 1000 : Date.now())
+            };
+        });
+
         // Write metadata document
         const metaRef = doc(db, "institutes", instituteId, "metadata", "dashboard");
         await setDoc(metaRef, {
@@ -473,11 +566,17 @@ async function _performUpdateDashboardMetadata(instituteId) {
             judgesCount: totalJudges,
             stagesCount: totalStages,
             publishedResultsCount: publishedCount,
+            publicPublishedResultsCount: publicPublishedCount,
             pendingProgramsCount: Math.max(0, totalCompetitions - publishedCount),
+            publicPendingProgramsCount: Math.max(0, totalCompetitions - publicPublishedCount),
             overallProgressPct: totalCompetitions > 0 ? Math.round((publishedCount / totalCompetitions) * 100) : 0,
+            publicOverallProgressPct: totalCompetitions > 0 ? Math.round((publicPublishedCount / totalCompetitions) * 100) : 0,
             leaderboard: sortedTeams,
+            publicLeaderboard: publicSortedTeams,
             categoryPerformance: categoryPerformance,
+            publicCategoryPerformance: publicCategoryPerformance,
             latestPublishedResults: latestPublishedResults,
+            publicLatestPublishedResults: publicLatestPublishedResults,
             radarChartData: radarChartData,
             barChartData: barChartData,
             lastUpdated: new Date()

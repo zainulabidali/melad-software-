@@ -530,7 +530,7 @@ function renderResultsView() {
                 pubBtn.onclick = async (e) => {
                     e.stopPropagation();
                     menu.style.display = 'none';
-                    const confirmed = await window.customConfirm("Publish this result to the public portal?");
+                    const confirmed = await window.customConfirm("Publish this result in the Admin section?");
                     if (!confirmed) return;
                     try {
                         await updateDoc(doc(db, "institutes", window.currentInstituteId, "results", r.id), {
@@ -557,7 +557,8 @@ function renderResultsView() {
                     try {
                         await updateDoc(doc(db, "institutes", window.currentInstituteId, "results", r.id), {
                             status: 'draft',
-                            markEntryStatus: 'submitted'
+                            markEntryStatus: 'submitted',
+                            publicReleased: false
                         });
                         await updateDashboardMetadata(window.currentInstituteId);
                         window.showToast("Result revoked successfully!", "success");

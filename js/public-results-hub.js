@@ -172,12 +172,12 @@ function updateHeader() {
 // ─────────────────────────────────────────────
 function updateSummaryStats() {
     const totalProgCount = dashboardData?.programsCount || publishedResultsList.length || 0;
-    const completedCount = dashboardData?.publishedResultsCount || publishedResultsList.length || 0;
-    const pendingCount = dashboardData?.pendingProgramsCount !== undefined
-        ? dashboardData.pendingProgramsCount
+    const completedCount = dashboardData?.publicPublishedResultsCount || publishedResultsList.length || 0;
+    const pendingCount = dashboardData?.publicPendingProgramsCount !== undefined
+        ? dashboardData.publicPendingProgramsCount
         : Math.max(0, totalProgCount - completedCount);
-    const progressPct = dashboardData?.overallProgressPct !== undefined
-        ? dashboardData.overallProgressPct
+    const progressPct = dashboardData?.publicOverallProgressPct !== undefined
+        ? dashboardData.publicOverallProgressPct
         : (totalProgCount > 0 ? Math.round((completedCount / totalProgCount) * 100) : 0);
 
     const elPublished = document.getElementById('statPublishedVal');
@@ -618,8 +618,8 @@ async function initPublicResultsHub() {
         if (snap.exists()) {
             const data = snap.data();
             dashboardData = data;
-            leaderboardData = data.leaderboard || [];
-            categoryPerformanceData = data.categoryPerformance || [];
+            leaderboardData = data.publicLeaderboard || [];
+            categoryPerformanceData = data.publicCategoryPerformance || [];
 
             updateSummaryStats();
             renderTeamChampionship();
@@ -631,7 +631,11 @@ async function initPublicResultsHub() {
     // Real-time Published Results listener for dropdown options, result sheets & cache synchronization
     try {
         const resultsRef = collection(db, "institutes", instId, "results");
-        const pubQuery = query(resultsRef, where("status", "==", "published"));
+        const pubQuery = query(
+            resultsRef, 
+            where("status", "==", "published"),
+            where("publicReleased", "==", true)
+        );
 
         onSnapshot(pubQuery, (querySnap) => {
             publishedResultsList = querySnap.docs.map(d => ({ id: d.id, ...d.data() }))
