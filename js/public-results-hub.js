@@ -325,8 +325,25 @@ function renderProgramResultCard() {
         if (result.third || result['3rd']) winnersList.push({ position: 3, ...(result.third || result['3rd']) });
     }
 
-    // Sort by position numeric
-    winnersList.sort((a, b) => (parseInt(a.position || a.rank || 99, 10) - parseInt(b.position || b.rank || 99, 10)));
+    const getMark = (w) => parseFloat(w.finalMark || w.finalMarks || w.totalMarks || w.marks || w.totalPoints) || 0;
+    const hasMarks = winnersList.some(w => getMark(w) > 0);
+
+    if (hasMarks) {
+        winnersList.sort((a, b) => getMark(b) - getMark(a));
+        let currentRank = 0;
+        let prevScore = null;
+        for (let w of winnersList) {
+            const score = getMark(w);
+            if (prevScore === null || score !== prevScore) {
+                currentRank++;
+                prevScore = score;
+            }
+            w.dynamicRank = currentRank;
+        }
+    } else {
+        // Sort by position numeric
+        winnersList.sort((a, b) => (parseInt(a.position || a.rank || 99, 10) - parseInt(b.position || b.rank || 99, 10)));
+    }
 
     let winnersHTML = '';
 
@@ -338,8 +355,13 @@ function renderProgramResultCard() {
         `;
     } else {
         winnersHTML = winnersList.map((w, idx) => {
-            const rawPos = w.position !== undefined ? w.position : (w.rank !== undefined ? w.rank : (idx + 1));
-            const posNum = parseInt(rawPos, 10) || (idx + 1);
+            let posNum;
+            if (w.dynamicRank !== undefined) {
+                posNum = w.dynamicRank;
+            } else {
+                const rawPos = w.position !== undefined ? w.position : (w.rank !== undefined ? w.rank : (idx + 1));
+                posNum = parseInt(rawPos, 10) || (idx + 1);
+            }
             const ordText = formatOrdinal(posNum);
 
             let rankBadgeClass = 'rank-other';
