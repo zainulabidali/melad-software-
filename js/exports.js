@@ -1501,6 +1501,9 @@ function renderDrawerContent() {
                             <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
                                 <input type="checkbox" class="exp-pos-chk" value="Third" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Third
                             </label>
+                            <label id="expPosGeneralProgramLabel" style="display:none; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                <input type="checkbox" class="exp-pos-chk" value="General Programs" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> General Programs
+                            </label>
                         </div>
                     </div>
 
@@ -1751,6 +1754,14 @@ function renderDrawerContent() {
         if (expPositionFilterContainer) {
             if (selType === 'Results' && !isClassAwards) {
                 expPositionFilterContainer.style.display = 'flex';
+                const generalProgramLabel = document.getElementById('expPosGeneralProgramLabel');
+                if (generalProgramLabel) {
+                    if (expResultSubVal && expResultSubVal.value === 'Participants Without Major Prizes') {
+                        generalProgramLabel.style.display = 'inline-flex';
+                    } else {
+                        generalProgramLabel.style.display = 'none';
+                    }
+                }
             } else {
                 expPositionFilterContainer.style.display = 'none';
             }
@@ -7900,21 +7911,32 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
                                 const isMember = resolved.memberStudents.some(mst => mst.studentId === studentId || mst.name === stu.name);
                                 if (isMember) {
-                                    prizes.push(w.position);
+                                    prizes.push({
+                                        position: w.position,
+                                        isGeneral: (prog.categoryId === 'general_programs' || prog.programType === 'general' || r.categoryId === 'general_programs' || r.programType === 'general')
+                                    });
                                 }
                             });
                         });
 
-                        const hasExcludedPrize = f.includedPositions
-                            ? prizes.some(p => f.includedPositions.includes(p))
-                            : prizes.some(p => p === 'First' || p === 'Second');
+                        const hasExcludedPrize = prizes.some(p => {
+                            const excludedByPosition = f.includedPositions
+                                ? f.includedPositions.includes(p.position)
+                                : (p.position === 'First' || p.position === 'Second');
+                            if (!excludedByPosition) return false;
+
+                            if (p.isGeneral) {
+                                return f.includedPositions && f.includedPositions.includes('General Programs');
+                            }
+                            return true;
+                        });
                         if (hasExcludedPrize) return;
 
                         let statusLabel = '';
                         if (participations.length === 0) {
                             statusLabel = 'No Participation';
                         } else {
-                            const hasThirdPrize = prizes.some(p => p === 'Third');
+                            const hasThirdPrize = prizes.some(p => p.position === 'Third');
                             statusLabel = hasThirdPrize ? 'Third Prize Only' : 'No Prize';
                         }
 
