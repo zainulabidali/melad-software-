@@ -467,7 +467,7 @@ function prepareCategoryPerformanceData() {
         const teamScoresObj = categoryMap[catName] || {};
 
         // Include ALL teams (even 0 point teams) so public sees full comparison
-        const teamList = Array.from(teamSet).map(id => {
+        const teamListRaw = Array.from(teamSet).map(id => {
             let tName = id;
             if (Array.isArray(leaderboardData)) {
                 const found = leaderboardData.find(t => t.id === id || t.name === id);
@@ -480,6 +480,16 @@ function prepareCategoryPerformanceData() {
                 color: teamColorMap[id] || 'linear-gradient(90deg, #3b82f6, #1d4ed8)'
             };
         });
+
+        // Deduplicate teams by name, keeping the entry with the highest points
+        const uniqueTeamsMap = new Map();
+        teamListRaw.forEach(t => {
+            const existing = uniqueTeamsMap.get(t.name);
+            if (!existing || t.points > existing.points) {
+                uniqueTeamsMap.set(t.name, t);
+            }
+        });
+        const teamList = Array.from(uniqueTeamsMap.values());
 
         // Sort teams inside category from highest points to lowest points (0 points at bottom)
         teamList.sort((a, b) => b.points - a.points);
