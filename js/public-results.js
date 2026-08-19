@@ -677,13 +677,10 @@ function showToast(msg) {
 
 function normalizeCategoryName(name) {
     if (!name) return "";
-    const cleaned = name.trim().replace(/\s+/g, ' ');
+    const cleaned = name.replace(/-/g, ' ').trim().replace(/\s+/g, ' ');
     return cleaned.split(' ').map(word => {
         if (!word) return "";
-        return word.split('-').map(subWord => {
-            if (!subWord) return "";
-            return subWord.charAt(0).toUpperCase() + subWord.slice(1).toLowerCase();
-        }).join('-');
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     }).join(' ');
 }
 
