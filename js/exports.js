@@ -6459,11 +6459,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         const teamNamesMap = {};
         allTeams.forEach(t => { if (t.id) teamNamesMap[String(t.id)] = t.name; });
 
-        // Sort programs by location then program name
+        // Sort programs strictly by Program Number in ascending numerical/natural order
         programs.sort((a, b) => {
-            const locCmp = (a.programLocation || '').localeCompare(b.programLocation || '');
-            if (locCmp !== 0) return locCmp;
-            return (a.programName || '').localeCompare(b.programName || '');
+            return String(a.programNumber || '').localeCompare(String(b.programNumber || ''), undefined, { numeric: true, sensitivity: 'base' });
         });
 
         programs.forEach(p => {
@@ -6599,6 +6597,32 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 `;
             } else {
                 // Individual Programs: 5-column compact table
+                
+                // Sort participants by Class in ascending numerical/natural order, then by Division alphabetically.
+                parts.sort((a, b) => {
+                    const resolvedStudentA = a.studentId ? studentMap[a.studentId] : null;
+                    const classA = resolvedStudentA ? (resolvedStudentA.className || resolvedStudentA.classId || '') : '';
+                    
+                    const resolvedStudentB = b.studentId ? studentMap[b.studentId] : null;
+                    const classB = resolvedStudentB ? (resolvedStudentB.className || resolvedStudentB.classId || '') : '';
+                    
+                    const parseClassDiv = (str) => {
+                        const match = String(str || '').trim().match(/^(\d+)(.*)$/i);
+                        if (match) {
+                            return { num: parseInt(match[1], 10), div: match[2].trim().toUpperCase() };
+                        }
+                        return { num: 9999, div: String(str || '').trim().toUpperCase() };
+                    };
+                    
+                    const parsedA = parseClassDiv(classA);
+                    const parsedB = parseClassDiv(classB);
+                    
+                    if (parsedA.num !== parsedB.num) {
+                        return parsedA.num - parsedB.num;
+                    }
+                    return parsedA.div.localeCompare(parsedB.div);
+                });
+
                 const tableHeaderHtml = `
                     <tr>
                         <th style="width:50px; text-align:center;">SL</th>
