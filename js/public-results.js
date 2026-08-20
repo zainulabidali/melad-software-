@@ -1678,6 +1678,18 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
 
     const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
 
+    const getAdaptiveNameStyle = (name) => {
+        if (!name) return '';
+        const len = name.length;
+        if (len > 35) {
+            return `font-size: 65% !important; line-height: 1.1 !important;`;
+        } else if (len > 22) {
+            return `font-size: 80% !important; line-height: 1.15 !important;`;
+        }
+        return '';
+    };
+
+
     const ordinalLabel = (rank) => {
         const labels = { 1: '1ST', 2: '2ND', 3: '3RD' };
         return labels[rank] || `${rank}TH`;
@@ -1722,7 +1734,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
                 <div class="t2-card-bento t2-card-1st">
                     <div class="t2-details">
                         <span style="color: #fbbf24; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block;">${w1 ? ordinalLabel(w1.rank) : '1ST'} STANDING</span>
-                        <div class="t2-student">${escapeHTML(name1.toUpperCase())}</div>
+                        <div class="t2-student" style="${getAdaptiveNameStyle(name1)}">${escapeHTML(name1.toUpperCase())}</div>
                         <div class="t2-team">TEAM: ${escapeHTML(team1.toUpperCase())}</div>
                     </div>
                     <div class="t2-rank-large" style="color: rgba(251, 191, 36, 0.15);">${w1 ? String(w1.rank).padStart(2, '0') : '01'}</div>
@@ -1735,7 +1747,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
                         <div class="t2-rank-large" style="color: rgba(203, 213, 225, 0.15); position: absolute; right: 16px; top: 12px;">${w2 ? String(w2.rank).padStart(2, '0') : '02'}</div>
                         <div class="t2-details" style="margin-top: auto; z-index: 2;">
                             <span style="color: #cbd5e1; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block;">${w2 ? ordinalLabel(w2.rank) : '2ND'} STANDING</span>
-                            <div class="t2-student" style="font-size: 15px;">${escapeHTML(name2.toUpperCase())}</div>
+                            <div class="t2-student" style="font-size: 15px; ${getAdaptiveNameStyle(name2)}">${escapeHTML(name2.toUpperCase())}</div>
                             <div class="t2-team" style="font-size: 10px;">TEAM: ${escapeHTML(team2.toUpperCase())}</div>
                         </div>
                     </div>
@@ -1745,7 +1757,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
                         <div class="t2-rank-large" style="color: rgba(217, 119, 6, 0.15); position: absolute; right: 16px; top: 12px;">${w3 ? String(w3.rank).padStart(2, '0') : '03'}</div>
                         <div class="t2-details" style="margin-top: auto; z-index: 2;">
                             <span style="color: #fdba74; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block;">${w3 ? ordinalLabel(w3.rank) : '3RD'} STANDING</span>
-                            <div class="t2-student" style="font-size: 15px;">${escapeHTML(name3.toUpperCase())}</div>
+                            <div class="t2-student" style="font-size: 15px; ${getAdaptiveNameStyle(name3)}">${escapeHTML(name3.toUpperCase())}</div>
                             <div class="t2-team" style="font-size: 10px;">TEAM: ${escapeHTML(team3.toUpperCase())}</div>
                         </div>
                     </div>
@@ -1792,7 +1804,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
                         <span class="t3-rank-label">${rankLabel}</span>
                     </div>
                     <div class="t3-row-right">
-                        <span class="t3-student-name">${escapeHTML(nameText.toUpperCase())}</span>
+                        <span class="t3-student-name" style="${getAdaptiveNameStyle(nameText)}">${escapeHTML(nameText.toUpperCase())}</span>
                         <span class="t3-team-name">${escapeHTML(teamText.toUpperCase())}</span>
                     </div>
                 </div>
@@ -1839,7 +1851,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
                         <span class="t4-rank-label">${rankLabel}</span>
                     </div>
                     <div class="t4-rank-right">
-                        <span class="t4-student-name">${escapeHTML(nameText.toUpperCase())}</span>
+                        <span class="t4-student-name" style="${getAdaptiveNameStyle(nameText)}">${escapeHTML(nameText.toUpperCase())}</span>
                         <span class="t4-team-name">${escapeHTML(teamText.toUpperCase())}</span>
                     </div>
                 </div>
@@ -1893,7 +1905,7 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
                 <div class="t1-row t1-rank-${rank <= 3 ? rank : 3}">
                     <div class="t1-rank-num">#${rank}</div>
                     <div class="t1-details">
-                        <div class="t1-name">${escapeHTML(nameText.toUpperCase())}</div>
+                        <div class="t1-name" style="${getAdaptiveNameStyle(nameText)}">${escapeHTML(nameText.toUpperCase())}</div>
                         <div class="t1-team">${escapeHTML(teamText.toUpperCase())}</div>
                     </div>
                 </div>
