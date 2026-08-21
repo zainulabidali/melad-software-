@@ -151,7 +151,8 @@ body {
     background-position: center;
     background-repeat: no-repeat;
     position: relative;
-    border-radius: 16px;
+    border-radius: 0;
+    container-type: inline-size;
     overflow: hidden;
     box-shadow: 0 20px 40px rgba(0,0,0,0.2);
     display: flex;
@@ -292,13 +293,13 @@ body {
 }
 
 .team-row {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
+    display: grid;
+    grid-template-columns: 52.5cqi 18.75cqi;
+    align-items: baseline;
     justify-content: center;
-    gap: 15px;
-    width: 100%;
-    flex-wrap: nowrap; /* Force same row */
+    gap: 2.5cqi;
+    width: 75cqi;
+    margin: 0 auto;
 }
 
 .team-rank {
@@ -313,10 +314,10 @@ body {
     text-transform: uppercase;
     letter-spacing: 2px;
     text-shadow: 0 4px 15px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.5);
-    text-align: center;
+    text-align: left;
     white-space: nowrap; /* Prevent text wrapping */
     line-height: 1.1;
-    flex-shrink: 1;
+    overflow: hidden;
 }
 
 .points-value {
@@ -326,29 +327,10 @@ body {
     color: #fbbf24;
     line-height: 1.1;
     text-shadow: 0 6px 20px rgba(0,0,0,0.9), 0 0 30px rgba(251, 191, 36, 0.5);
+    text-align: right;
 }
 
-/* Rank Specific Styling */
-.team-points-card[data-rank="1"] {
-    margin-bottom: 50px;
-    transform: none;
-}
-.team-points-card[data-rank="1"] .team-name {
-    font-size: 55px; /* Slightly larger than before */
-    color: #fbbf24;
-}
-.team-points-card[data-rank="1"] .points-value {
-    font-size: 75px; /* Points remain unchanged */
-}
-
-.team-points-card[data-rank="2"] .team-name {
-    font-size: 65px; /* Larger than first team's name */
-}
-
-.team-points-card[data-rank="2"],
-.team-points-card[data-rank="3"] {
-    margin-bottom: 40px;
-}
+/* Rank Specific Styling (Handled via JS for dynamic scaling) */
 
 @media print {
     .no-print {

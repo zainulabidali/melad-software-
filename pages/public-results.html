@@ -4377,6 +4377,24 @@
     </div>
 
     <script type="module" src="../js/public-results.js?v=1.0.2"></script>
+    <script>
+        (function() {
+            const btn = document.querySelector('button[onclick*="team-point-poster.html"]');
+            const deskTarget = document.querySelector('.championship-header');
+            const mobTarget = document.querySelector('.app-championship-header');
+            function handlePosterBtn() {
+                if(!btn || !deskTarget || !mobTarget) return;
+                if(window.innerWidth <= 768) {
+                    if(btn.parentElement !== mobTarget) mobTarget.appendChild(btn);
+                } else {
+                    if(btn.parentElement !== deskTarget) deskTarget.appendChild(btn);
+                }
+            }
+            window.addEventListener('resize', handlePosterBtn);
+            document.addEventListener('DOMContentLoaded', handlePosterBtn);
+            handlePosterBtn();
+        })();
+    </script>
 </body>
 
 </html>

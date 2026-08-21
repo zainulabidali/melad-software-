@@ -188,10 +188,22 @@ function renderPoster() {
         card.className = 'team-points-card';
         card.setAttribute('data-rank', rank);
         
+        let nameSizePx = Math.max(30, 65 - ((rank - 1) * 8));
+        let pointSizePx = Math.max(45, 75 - ((rank - 1) * 6));
+        
+        // Convert to cqi (Container Query Inline-size) based on 800px design width
+        let nameSizeCqi = nameSizePx / 8;
+        let pointSizeCqi = pointSizePx / 8;
+        
+        let nameColor = rank === 1 ? '#fbbf24' : 'white';
+        let marginBottomCqi = rank === 1 ? 6.25 : (rank <= 3 ? 5 : 3.125); // 50px, 40px, 25px in cqi
+        
+        card.style.marginBottom = `${marginBottomCqi}cqi`;
+
         card.innerHTML = `
             <div class="team-row">
-                <span class="team-name">${team.name}</span>
-                <span class="points-value">${team.displayPoints}</span>
+                <span class="team-name" style="font-size: ${nameSizeCqi}cqi; color: ${nameColor};" data-original-size="${nameSizeCqi}">${team.name}</span>
+                <span class="points-value" style="font-size: ${pointSizeCqi}cqi;">${team.displayPoints}</span>
             </div>
         `;
         mainContainer.appendChild(card);
@@ -208,6 +220,18 @@ function renderPoster() {
     
     // Expose array globally for the save button handler
     window.currentDisplayTeams = displayTeams;
+
+    // Auto-scale long team names to fit column
+    setTimeout(() => {
+        const teamNames = mainContainer.querySelectorAll('.team-name');
+        teamNames.forEach(el => {
+            let currentSize = parseFloat(el.getAttribute('data-original-size'));
+            while (el.scrollWidth > el.clientWidth && currentSize > 2) {
+                currentSize -= 0.2;
+                el.style.fontSize = currentSize + 'cqi';
+            }
+        });
+    }, 100);
 }
 
 function setupControls() {
