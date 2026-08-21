@@ -4098,10 +4098,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         if (f.chestSubmode === 'card') {
             const isA3 = orientation === 'a3_portrait';
             const pageSizeStr = isA3 ? 'A3 portrait' : 'A4 portrait';
-            const gridCols = isA3 ? 'repeat(3, 9.8cm)' : '10cm 10cm';
-            const gridRows = isA3 ? 'repeat(6, 6.7cm)' : 'repeat(4, 6.7cm)';
-            const gridWidth = isA3 ? '29.4cm' : '20cm';
-            const gridHeight = isA3 ? '40.2cm' : '26.8cm';
+            const gridCols = isA3 ? 'repeat(3, 9.6cm)' : '10cm 10cm';
+            const gridRows = isA3 ? 'repeat(6, 6.6cm)' : 'repeat(4, 6.7cm)';
+            const gridWidth = isA3 ? '28.8cm' : '20cm';
+            const gridHeight = isA3 ? '39.6cm' : '26.8cm';
 
             styleBlock = `
                 <style>
@@ -4189,12 +4189,12 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         flex-shrink: 0;
                     }
                     .cards-print-grid.format-a3 .card-slot {
-                        width: 9.8cm;
-                        height: 6.7cm;
+                        width: 9.6cm;
+                        height: 6.6cm;
                     }
                     .cards-print-grid.format-a3 .student-card-item {
-                        width: 6.7cm;
-                        height: 9.8cm;
+                        width: 6.6cm;
+                        height: 9.6cm;
                     }
                     .card-header {
                         display: flex;
