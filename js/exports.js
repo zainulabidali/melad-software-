@@ -6606,21 +6606,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     const resolvedStudentB = b.studentId ? studentMap[b.studentId] : null;
                     const classB = resolvedStudentB ? (resolvedStudentB.className || resolvedStudentB.classId || '') : '';
                     
-                    const parseClassDiv = (str) => {
-                        const match = String(str || '').trim().match(/^(\d+)(.*)$/i);
-                        if (match) {
-                            return { num: parseInt(match[1], 10), div: match[2].trim().toUpperCase() };
-                        }
-                        return { num: 9999, div: String(str || '').trim().toUpperCase() };
-                    };
-                    
-                    const parsedA = parseClassDiv(classA);
-                    const parsedB = parseClassDiv(classB);
-                    
-                    if (parsedA.num !== parsedB.num) {
-                        return parsedA.num - parsedB.num;
-                    }
-                    return parsedA.div.localeCompare(parsedB.div);
+                    return String(classA).localeCompare(String(classB), undefined, { numeric: true, sensitivity: 'base' });
                 });
 
                 const tableHeaderHtml = `

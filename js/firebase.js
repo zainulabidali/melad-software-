@@ -20,6 +20,7 @@ export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
 export { httpsCallable };
+export { collection, getDocs, doc, writeBatch, setDoc, getDoc, getCountFromServer, serverTimestamp, query, where };
 
 let dbInstance;
 try {

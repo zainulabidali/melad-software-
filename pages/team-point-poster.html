@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Point Poster</title>
+    <!-- App Favicon Package -->
+    <link rel="icon" type="image/x-icon" href="../favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cinzel:wght@600;700;800&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="../css/team-point-poster.css">
+    
+    <!-- html2canvas for image download -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+
+    <!-- Admin/Control Panel (Hidden in print/export) -->
+    <div class="control-panel no-print" id="controlPanel">
+        <h3>Poster Controls</h3>
+        
+        <div class="control-section">
+            <label>Select Background</label>
+            <div class="bg-picker">
+                <!-- Default Background Images -->
+                <div class="bg-thumb default-bg" data-bg="default1" style="background-image: url('../assets/tema-poster/team1.jfif'); background-size: cover; background-position: center;"></div>
+                <div class="bg-thumb default-bg" data-bg="default2" style="background-image: url('../assets/tema-poster/team2.jfif'); background-size: cover; background-position: center;"></div>
+                <div class="bg-thumb default-bg" data-bg="default3" style="background-image: url('../assets/tema-poster/team3.jfif'); background-size: cover; background-position: center;"></div>
+                <div class="bg-thumb default-bg" data-bg="default4" style="background-image: url('../assets/tema-poster/team4.jfif'); background-size: cover; background-position: center;"></div>
+            </div>
+            
+            <label for="customBgUpload" class="upload-btn">Upload Custom Background</label>
+            <input type="file" id="customBgUpload" accept="image/*" style="display: none;">
+            <button id="clearCustomBgBtn" class="clear-btn" style="display: none;">Clear Custom BG</button>
+        </div>
+
+        <div class="control-section">
+            <label>Manual Edit Points</label>
+            <div id="manualEditContainer">
+                <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Loading teams...</p>
+            </div>
+            <button id="saveManualPointsBtn" class="save-btn">Apply & Save</button>
+        </div>
+        
+        <div class="control-section">
+            <button id="downloadImageBtn" class="save-btn" style="background-color: #0ea5e9;">Download Image</button>
+            <button class="clear-btn" onclick="window.location.href='public-results.html'" style="margin-top: 10px;">Back to Results</button>
+        </div>
+    </div>
+
+    <!-- Poster Content -->
+    <div class="poster-container" id="posterContainer">
+        <!-- Overlay for better text visibility -->
+        <div class="poster-overlay"></div>
+        
+        <!-- Header Section -->
+        <div class="poster-header">
+            <!-- App Logo from local assets if available, fallback to text -->
+            <img src="" alt="Logo" class="poster-logo" id="posterLogo" style="display:none;" onerror="this.style.display='none'">
+            <div class="event-name">TEAM POINTS</div>
+            <div class="tagline">CHAMPIONSHIP STANDINGS</div>
+        </div>
+
+        <!-- Main Section -->
+        <div class="poster-main" id="posterMain">
+            <div class="loading-state">Calculating actual team points...</div>
+            <!-- Teams and points will be injected here dynamically -->
+        </div>
+
+        <!-- Footer Section -->
+        <div class="poster-footer">
+            <div class="madrasa-name" id="madrasaNameDisplay">Loading...</div>
+            <div class="location" id="locationDisplay"></div>
+        </div>
+    </div>
+
+    <script type="module" src="../js/team-point-poster.js"></script>
+</body>
+</html>
