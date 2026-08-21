@@ -1917,6 +1917,21 @@ async function reorderRowsByIndex(items, fromIdx, toIdx) {
 
     await triggerTimeCascade(items, true);
     refreshScheduleTable();
+
+    try {
+        const batch = writeBatch(db);
+        items.forEach((item) => {
+            const docRef = doc(db, "institutes", window.currentInstituteId, "schedules", item.id);
+            batch.set(docRef, { 
+                runningOrder: item.runningOrder,
+                updatedAt: serverTimestamp() 
+            }, { merge: true });
+        });
+        await batch.commit();
+    } catch (err) {
+        console.error("Error saving new order to DB:", err);
+        window.showToast("Failed to persist schedule order. Please refresh.", "error");
+    }
 }
 
 // Open modal to add break slot to active stage
