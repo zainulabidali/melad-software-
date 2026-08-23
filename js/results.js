@@ -49,6 +49,7 @@ export async function initResultsView(container, topActions) {
         cats.forEach(c => {
             catOptions += `<option value="${c.id}">${window.escapeHTML(c.name)}</option>`;
         });
+        catOptions += `<option value="general_programs">GENERAL</option>`;
     } catch (e) { console.error(e); }
 
     topActions.innerHTML = `
@@ -418,7 +419,13 @@ function renderResultsView() {
             if (!progName.includes(resultsFilter.search)) return false;
         }
         // Category filter
-        if (resultsFilter.categoryId && r.categoryId !== resultsFilter.categoryId) return false;
+        if (resultsFilter.categoryId) {
+            if (resultsFilter.categoryId === 'general_programs') {
+                if (r.categoryId !== 'general_programs' && r.programType !== 'general') return false;
+            } else {
+                if (r.categoryId !== resultsFilter.categoryId) return false;
+            }
+        }
         // Gender filter
         if (resultsFilter.gender && r.genderCategory !== resultsFilter.gender) return false;
         // Stage filter
