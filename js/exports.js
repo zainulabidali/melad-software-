@@ -1756,7 +1756,7 @@ function renderDrawerContent() {
                 expPositionFilterContainer.style.display = 'flex';
                 const generalProgramLabel = document.getElementById('expPosGeneralProgramLabel');
                 if (generalProgramLabel) {
-                    if (expResultSubVal && expResultSubVal.value === 'Participants Without Major Prizes') {
+                    if (expResultSubVal && (expResultSubVal.value === 'Participants Without Major Prizes' || expResultSubVal.value === 'Student Prize Distribution')) {
                         generalProgramLabel.style.display = 'inline-flex';
                     } else {
                         generalProgramLabel.style.display = 'none';
@@ -7532,6 +7532,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                     filteredResults.forEach(r => {
                         const isGeneral = (r.programType || '').toLowerCase() === 'general' || r.categoryId === 'general_programs';
+                        
+                        if (isGeneral && f.includedPositions && !f.includedPositions.includes('General Programs')) {
+                            return;
+                        }
+
                         const isGroup = (r.programType || '').toLowerCase() === 'group';
                         const pLoc = (r.programLocation || '').toLowerCase();
 
@@ -9225,6 +9230,11 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             const studentPrizes = new Map();
             filteredResults.forEach(r => {
                 const isGeneral = (r.programType || '').toLowerCase() === 'general' || r.categoryId === 'general_programs';
+                
+                if (isGeneral && f.includedPositions && !f.includedPositions.includes('General Programs')) {
+                    return;
+                }
+
                 const isGroup = (r.programType || '').toLowerCase() === 'group';
                 const pLoc = (r.programLocation || '').toLowerCase();
 
