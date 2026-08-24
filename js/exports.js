@@ -7609,6 +7609,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 10.5px; margin-top: 0.5rem;">
                                 <thead>
                                     <tr style="background-color: #f8fafc;">
+                                        <th style="width: 40px; text-align: right; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10.5px;">S.No.</th>
                                         <th style="width: 70px; text-align: center; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10.5px;">Chest No</th>
                                         <th style="text-align: left; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10.5px;">Student Name</th>
                                         <th style="width: 80px; text-align: left; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10px;">Class</th>
@@ -7618,7 +7619,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${sortedStudents.map(stu => {
+                                    ${sortedStudents.map((stu, index) => {
                             stu.prizes.sort((a, b) => a.categoryIndex - b.categoryIndex);
                             const prizeDetailsHtml = stu.prizes.map(p => {
                                 return `<div style="font-size: 9.5px; font-weight: 600; color: #1e293b; line-height: 1.25; margin-bottom: 2px;">${window.escapeHTML(p.programName)} - ${window.escapeHTML(p.position)}</div>`;
@@ -7626,6 +7627,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                             return `
                                             <tr style="height: 22px; page-break-inside: avoid;">
+                                                <td style="text-align:right; font-weight:700; color:#475569; font-size:10.5px; padding: 5px 6px; border: 1px solid #cbd5e1;">${index + 1}</td>
                                                 <td style="text-align:center; font-weight:900; color:#0f172a; font-size:11px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.chestNumber)}</td>
                                                 <td style="font-weight:800; color:#1e1b4b; font-size:10.5px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.studentName)}</td>
                                                 <td style="font-weight:700; color:#475569; font-size:10px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.className)}</td>
@@ -9218,7 +9220,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
         }
 
         else if (f.resultSubOption === 'Student Prize Distribution') {
-            csvContent += "CHEST NUMBER,STUDENT NAME,CLASS,CATEGORY,TEAM,PRIZE DETAILS\n";
+            csvContent += "S.No.,CHEST NUMBER,STUDENT NAME,CLASS,CATEGORY,TEAM,PRIZE DETAILS\n";
 
             const studentPrizes = new Map();
             filteredResults.forEach(r => {
@@ -9288,10 +9290,10 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 return chestA.localeCompare(chestB, undefined, { numeric: true, sensitivity: 'base' });
             });
 
-            sortedStudents.forEach(stu => {
+            sortedStudents.forEach((stu, index) => {
                 stu.prizes.sort((a, b) => a.categoryIndex - b.categoryIndex);
                 const prizeList = stu.prizes.map(p => `${p.programName} - ${p.position}`);
-                csvContent += `"${stu.chestNumber}","${stu.studentName}","${stu.className}","${stu.categoryName}","${stu.teamName}","${prizeList.join('; ')}"\n`;
+                csvContent += `"${index + 1}","${stu.chestNumber}","${stu.studentName}","${stu.className}","${stu.categoryName}","${stu.teamName}","${prizeList.join('; ')}"\n`;
             });
         }
 
