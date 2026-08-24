@@ -8070,6 +8070,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                         const sortedCatIds = Object.keys(grouped).sort((a, b) => grouped[a].name.localeCompare(grouped[b].name));
 
+                        let globalSerialNo = 1;
+
                         sortedCatIds.forEach(catId => {
                             const cat = grouped[catId];
 
@@ -8138,6 +8140,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     <table class="report-table" style="margin-top:0; margin-bottom:0.5rem; width:100%;">
                                         <thead>
                                             <tr>
+                                                <th style="width:45px; text-align:center;">S.No.</th>
                                                 <th style="width:70px; text-align:center;">Chest No</th>
                                                 <th>Student Name</th>
                                                 <th>Team / House</th>
@@ -8149,6 +8152,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                         <tbody>
                                             ${students.map(s => `
                                                 <tr>
+                                                    <td style="text-align:center; font-weight:700; color:#475569;">${globalSerialNo++}</td>
                                                     <td style="text-align:center; font-weight:900; color:#0f172a;">${window.escapeHTML(s.chestNumber)}</td>
                                                     <td style="font-weight:800; color:#1e1b4b;">${window.escapeHTML(s.name)} - ${window.escapeHTML(s.className)}</td>
                                                     <td style="font-weight:700; color:#475569;">${window.escapeHTML(s.teamName)}</td>
@@ -9438,7 +9442,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
         }
 
         else if (f.resultSubOption === 'Participants Without Major Prizes') {
-            csvContent += "CATEGORY,CHEST NUMBER,STUDENT NAME,CLASS,TEAM / HOUSE,NUMBER OF PARTICIPATIONS,STATUS,PROGRAMS PARTICIPATED\n";
+            csvContent += "S.No.,CATEGORY,CHEST NUMBER,STUDENT NAME,CLASS,TEAM / HOUSE,NUMBER OF PARTICIPATIONS,STATUS,PROGRAMS PARTICIPATED\n";
 
             const teamNamesMap = {};
             allTeams.forEach(t => {
@@ -9545,8 +9549,9 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 return a.name.localeCompare(b.name);
             });
 
+            let csvGlobalSerialNo = 1;
             studentDataList.forEach(s => {
-                csvContent += `"${s.categoryName}","${s.chestNumber}","${s.name}","${s.className}","${s.teamName}",${s.participationsCount},"${s.status}","${s.participationsList.join('; ')}"\n`;
+                csvContent += `"${csvGlobalSerialNo++}","${s.categoryName}","${s.chestNumber}","${s.name}","${s.className}","${s.teamName}",${s.participationsCount},"${s.status}","${s.participationsList.join('; ')}"\n`;
             });
         }
     }
