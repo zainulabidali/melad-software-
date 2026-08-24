@@ -7380,7 +7380,17 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             return 4;
                         };
 
-                        const sortedWinners = combinedWinners.sort((a, b) => {
+                        let finalWinners = combinedWinners;
+                        if (f.gender && f.gender !== 'Mixed' && f.gender !== 'All' && f.gender !== 'All Genders') {
+                            const targetGender = f.gender === 'Boys' ? 'Male' : (f.gender === 'Girls' ? 'Female' : f.gender);
+                            finalWinners = finalWinners.filter(w => {
+                                const prog = allPrograms.find(p => p.id === (r.programId || r.id));
+                                const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                                return resolved.memberStudents.length > 0 && resolved.memberStudents.every(stu => stu.gender === targetGender);
+                            });
+                        }
+
+                        const sortedWinners = finalWinners.sort((a, b) => {
                             const pA = posOrder[a.position] || 4;
                             const pB = posOrder[b.position] || 4;
                             if (pA !== pB) return pA - pB;
@@ -7543,6 +7553,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
 
                             resolved.memberStudents.forEach(stu => {
+                                if (f.gender && f.gender !== 'Mixed' && f.gender !== 'All' && f.gender !== 'All Genders') {
+                                    const targetGender = f.gender === 'Boys' ? 'Male' : (f.gender === 'Girls' ? 'Female' : f.gender);
+                                    if (stu.gender !== targetGender) return;
+                                }
+
                                 const chestNo = stu.chestNumber || '—';
                                 const stuKey = (chestNo && chestNo !== '—') ? chestNo : (stu.studentId || stu.name || 'unknown');
 
@@ -9114,7 +9129,17 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     return 4;
                 };
 
-                const sortedWinners = combinedWinners.sort((a, b) => {
+                let finalWinners = combinedWinners;
+                if (f.gender && f.gender !== 'Mixed' && f.gender !== 'All' && f.gender !== 'All Genders') {
+                    const targetGender = f.gender === 'Boys' ? 'Male' : (f.gender === 'Girls' ? 'Female' : f.gender);
+                    finalWinners = finalWinners.filter(w => {
+                        const prog = allPrograms.find(p => p.id === (r.programId || r.id));
+                        const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                        return resolved.memberStudents.length > 0 && resolved.memberStudents.every(stu => stu.gender === targetGender);
+                    });
+                }
+
+                const sortedWinners = finalWinners.sort((a, b) => {
                     const pA = posOrder[a.position] || 4;
                     const pB = posOrder[b.position] || 4;
                     if (pA !== pB) return pA - pB;
@@ -9219,6 +9244,11 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
 
                     resolved.memberStudents.forEach(stu => {
+                        if (f.gender && f.gender !== 'Mixed' && f.gender !== 'All' && f.gender !== 'All Genders') {
+                            const targetGender = f.gender === 'Boys' ? 'Male' : (f.gender === 'Girls' ? 'Female' : f.gender);
+                            if (stu.gender !== targetGender) return;
+                        }
+
                         const chestNo = stu.chestNumber || '—';
                         const stuKey = (chestNo && chestNo !== '—') ? chestNo : (stu.studentId || stu.name || 'unknown');
 
@@ -9677,6 +9707,10 @@ function filterResultsBySource(results, f) {
         if (f.categoryId && r.categoryId !== f.categoryId) return false;
         if (f.classId && r.classId !== f.classId) return false;
         if (f.programId && r.programId !== f.programId) return false;
+        if (f.gender && f.gender !== 'Mixed' && f.gender !== 'All' && f.gender !== 'All Genders') {
+            const prog = allPrograms.find(p => p.id === r.programId);
+            if (prog && prog.genderCategory && prog.genderCategory !== f.gender && prog.genderCategory !== 'General' && prog.genderCategory !== 'Mixed') return false;
+        }
         if (f.programLocation) {
             const prog = allPrograms.find(p => p.id === r.programId);
             const pLoc = prog ? (prog.programLocation || prog.location || 'Stage') : (r.programLocation || 'Stage');
