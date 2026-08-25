@@ -2349,7 +2349,7 @@ function renderDrawerContent() {
         const srcIncludeSubmitted = selectedType === 'Results' && document.getElementById('srcIncludeSubmitted').checked;
         const srcIncludeDraft = selectedType === 'Results' && document.getElementById('srcIncludeDraft').checked;
         const compactPacking = selectedType === 'Results' ? true : document.getElementById('expCompactPacking').checked;
-        
+
         const expProgramOrderRadio = document.querySelector('input[name="expProgramOrderFilter"]:checked');
         const programOrder = expProgramOrderRadio ? expProgramOrderRadio.value : 'default';
 
@@ -6597,15 +6597,15 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 `;
             } else {
                 // Individual Programs: 5-column compact table
-                
+
                 // Sort participants by Class in ascending numerical/natural order, then by Division alphabetically.
                 parts.sort((a, b) => {
                     const resolvedStudentA = a.studentId ? studentMap[a.studentId] : null;
                     const classA = resolvedStudentA ? (resolvedStudentA.className || resolvedStudentA.classId || '') : '';
-                    
+
                     const resolvedStudentB = b.studentId ? studentMap[b.studentId] : null;
                     const classB = resolvedStudentB ? (resolvedStudentB.className || resolvedStudentB.classId || '') : '';
-                    
+
                     return String(classA).localeCompare(String(classB), undefined, { numeric: true, sensitivity: 'base' });
                 });
 
@@ -7268,9 +7268,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                 else if (f.resultSubOption === 'Program Wise') {
                     const pageDivClass = isCompact ? 'program-card-compact' : 'program-page-standard';
-                    
+
                     let programsToRender = filteredResults;
-                    
+
                     if (f.programOrder === 'result_number') {
                         const orderMap = new Map();
                         const sortedPublished = [...resultsList]
@@ -7280,11 +7280,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 const timeB = b.publishedAt?.seconds || 0;
                                 return timeA - timeB;
                             });
-                            
+
                         sortedPublished.forEach((r, idx) => {
                             orderMap.set(r.id, idx + 1);
                         });
-                        
+
                         programsToRender = [...filteredResults].sort((a, b) => {
                             const numA = orderMap.has(a.id) ? orderMap.get(a.id) : 999999;
                             const numB = orderMap.has(b.id) ? orderMap.get(b.id) : 999999;
@@ -7299,22 +7299,22 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 catOrder.set(cat.id, idx);
                             }
                         });
-                        
+
                         programsToRender = [...filteredResults].sort((a, b) => {
                             const progA = allPrograms.find(p => p.id === (a.programId || a.id));
                             const progB = allPrograms.find(p => p.id === (b.programId || b.id));
-                            
+
                             const catIdA = progA ? progA.categoryId : a.categoryId;
                             const catIdB = progB ? progB.categoryId : b.categoryId;
-                            
+
                             const catWeightA = catIdA === 'general_programs' ? 99999 : (catOrder.has(catIdA) ? catOrder.get(catIdA) : 88888);
                             const catWeightB = catIdB === 'general_programs' ? 99999 : (catOrder.has(catIdB) ? catOrder.get(catIdB) : 88888);
-                            
+
                             if (catWeightA !== catWeightB) return catWeightA - catWeightB;
-                            
+
                             const classIdA = progA ? progA.classId : null;
                             const classIdB = progB ? progB.classId : null;
-                            
+
                             const catA = allCategories.find(c => c.id === catIdA);
                             const clsOrderMap = new Map();
                             if (catA && Array.isArray(catA.classes)) {
@@ -7324,9 +7324,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             }
                             const classWeightA = classIdA ? (clsOrderMap.has(classIdA) ? clsOrderMap.get(classIdA) : 999) : 999;
                             const classWeightB = classIdB ? (clsOrderMap.has(classIdB) ? clsOrderMap.get(classIdB) : 999) : 999;
-                            
+
                             if (classWeightA !== classWeightB) return classWeightA - classWeightB;
-                            
+
                             return 0;
                         });
                     }
@@ -7450,10 +7450,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     if (Array.isArray(r.marksData)) {
                                         const posToRank = { 'First': 1, 'Second': 2, 'Third': 3 };
                                         const rankToMatch = posToRank[w.position];
-                                        
+
                                         // 1. Bulletproof match by Rank/Position (guarantees correct points even if names mismatch)
                                         match = r.marksData.find(m => m.position === w.position || (rankToMatch && m.rank === rankToMatch));
-                                        
+
                                         // 2. Fallback to name/id identity
                                         if (!match) {
                                             match = r.marksData.find(m => {
@@ -7463,7 +7463,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                                 const wName = w.studentName || w.groupName || w.name || '';
                                                 const mTeam = m.teamName || '';
                                                 const wTeam = w.teamName || '';
-    
+
                                                 if (r.programType === 'group' || r.type === 'Group') {
                                                     return (mTeam && wTeam && mTeam === wTeam) || (mId && wId && mId === wId) || (mName && wName && mName === wName);
                                                 } else {
@@ -7532,7 +7532,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                     filteredResults.forEach(r => {
                         const isGeneral = (r.programType || '').toLowerCase() === 'general' || r.categoryId === 'general_programs';
-                        
+
                         if (isGeneral && f.includedPositions && !f.includedPositions.includes('General Programs')) {
                             return;
                         }
@@ -7983,7 +7983,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             teamName: teamNamesMap[String(stu.teamId)] || stu.teamName || 'Independent',
                             participationsCount: participations.length,
                             participationsList: participations,
-                            status: statusLabel
+                            status: statusLabel,
+                            gender: stu.gender || 'Unknown'
                         });
                     });
 
@@ -7995,181 +7996,72 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         </div>
                     `;
                     } else {
+                        studentDataList.sort((a, b) => {
+                            const extractNum = (str) => {
+                                const m = String(str).match(/\d+/);
+                                return m ? parseInt(m[0], 10) : 999;
+                            };
+                            const classNumA = extractNum(a.className);
+                            const classNumB = extractNum(b.className);
+                            if (classNumA !== classNumB) return classNumA - classNumB;
+
+                            const clsComp = String(a.className).localeCompare(String(b.className), undefined, { numeric: true, sensitivity: 'base' });
+                            if (clsComp !== 0) return clsComp;
+
+                            const gA = a.gender === 'Male' ? 1 : (a.gender === 'Female' ? 2 : 3);
+                            const gB = b.gender === 'Male' ? 1 : (b.gender === 'Female' ? 2 : 3);
+                            if (gA !== gB) return gA - gB;
+
+                            return String(a.name).localeCompare(String(b.name));
+                        });
+
                         htmlContent += `
                         <div class="participants-without-prizes-report-container">
                             <style>
                                 .pwmp-print-header, .pwmp-print-footer { display: none; }
                                 @media print {
-                                    @page {
-                                        margin: 15mm;
-                                    }
-                                    .participants-without-prizes-report-container {
-                                        counter-reset: page;
-                                    }
-                                    .pwmp-print-header {
-                                        display: block;
-                                        position: fixed;
-                                        top: 0;
-                                        left: 0;
-                                        right: 0;
-                                        text-align: center;
-                                        font-size: 10px;
-                                        font-weight: bold;
-                                        color: #94a3b8;
-                                        text-transform: uppercase;
-                                        padding-bottom: 5px;
-                                    }
-                                    .pwmp-print-footer {
-                                        display: block;
-                                        position: fixed;
-                                        bottom: 0;
-                                        left: 0;
-                                        right: 0;
-                                        text-align: center;
-                                        font-size: 10px;
-                                        font-weight: bold;
-                                        color: #64748b;
-                                        padding-top: 5px;
-                                    }
-                                    .pwmp-print-footer::after {
-                                        content: "Page " counter(page);
-                                    }
-                                    body {
-                                        padding-top: 20px;
-                                        padding-bottom: 20px;
-                                    }
+                                    @page { margin: 15mm; }
+                                    .participants-without-prizes-report-container { counter-reset: page; }
+                                    .pwmp-print-header { display: block; position: fixed; top: 0; left: 0; right: 0; text-align: center; font-size: 10px; font-weight: bold; color: #94a3b8; text-transform: uppercase; padding-bottom: 5px; }
+                                    .pwmp-print-footer { display: block; position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 10px; font-weight: bold; color: #64748b; padding-top: 5px; }
+                                    .pwmp-print-footer::after { content: "Page " counter(page); }
+                                    body { padding-top: 20px; padding-bottom: 20px; }
                                 }
                             </style>
-                            <div class="pwmp-print-header">Participants Without Major Prizes</div>
+                            <div class="pwmp-print-header"></div>
                             <div class="pwmp-print-footer"></div>
-                        `;
-
-                        const grouped = {};
-                        studentDataList.forEach(stu => {
-                            const catId = stu.categoryId;
-                            const catName = stu.categoryName;
-                            const classId = stu.classId;
-                            const className = stu.className;
-
-                            if (!grouped[catId]) {
-                                grouped[catId] = {
-                                    name: catName,
-                                    classes: {}
-                                };
-                            }
-
-                            if (!grouped[catId].classes[classId]) {
-                                grouped[catId].classes[classId] = {
-                                    name: className,
-                                    students: []
-                                };
-                            }
-
-                            grouped[catId].classes[classId].students.push(stu);
-                        });
-
-                        const sortedCatIds = Object.keys(grouped).sort((a, b) => grouped[a].name.localeCompare(grouped[b].name));
-
-                        let globalSerialNo = 1;
-
-                        sortedCatIds.forEach(catId => {
-                            const cat = grouped[catId];
-
-                            let noParticipationCount = 0;
-                            let noPrizeCount = 0;
-                            let thirdPrizeCount = 0;
-
-                            Object.values(cat.classes).forEach(cls => {
-                                cls.students.forEach(s => {
-                                    if (s.status === 'No Participation') noParticipationCount++;
-                                    else if (s.status === 'No Prize') noPrizeCount++;
-                                    else if (s.status === 'Third Prize Only') thirdPrizeCount++;
-                                });
-                            });
-
-                            const totalEligible = noParticipationCount + noPrizeCount + thirdPrizeCount;
-
-                            htmlContent += `
-                            <div class="program-page-standard" style="margin-bottom: 2rem;">
-                                <div style="border-bottom:3px solid #1e1b4b; padding-bottom:0.5rem; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:flex-end;">
-                                    <div>
-                                        <h2 style="color:#1e1b4b; margin:0; text-transform:uppercase; font-weight:900;">🏅 PARTICIPANTS WITHOUT MAJOR PRIZES</h2>
-                                        <h3 style="color:#4338ca; margin-top:0.25rem; font-size:1.1rem; font-weight:700;">${window.escapeHTML(cat.name)}</h3>
-                                    </div>
-                                    <div class="summary-section" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; padding:0.5rem 0.75rem; font-size:0.75rem; color:#334155; line-height:1.45; min-width:200px;">
-                                        <div style="font-weight:800; text-transform:uppercase; border-bottom:1.5px solid #cbd5e1; padding-bottom:0.2rem; margin-bottom:0.3rem; color:#1e1b4b;">Category Summary</div>
-                                        <div>No Participation: <strong>${noParticipationCount}</strong></div>
-                                        <div>No Prize: <strong>${noPrizeCount}</strong></div>
-                                        <div>Third Prize Only: <strong>${thirdPrizeCount}</strong></div>
-                                        <div style="font-weight:700; color:#4338ca; margin-top:0.25rem;">Total Eligible: <strong>${totalEligible}</strong></div>
-                                    </div>
+                            
+                            <div class="program-page-standard">
+                                <div style="border-bottom:3px solid #4338ca; padding-bottom:0.4rem; margin-bottom:0.75rem;">
+                                    <h2 style="color:#1e1b4b; margin:0; font-weight:900;">PARTICIPANTS WITHOUT MAJOR PRIZES</h2>
+                                    <p style="margin:0.15rem 0 0 0; font-size:0.7rem; color:#64748b; font-weight:600;">Complete list of participants without major prizes.</p>
                                 </div>
-                        `;
-
-                            const sortedClassIds = Object.keys(cat.classes).sort((a, b) => {
-                                const nameA = cat.classes[a].name;
-                                const nameB = cat.classes[b].name;
-                                return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
-                            });
-
-                            sortedClassIds.forEach(classId => {
-                                const cls = cat.classes[classId];
-
-                                const statusPriority = {
-                                    'No Participation': 1,
-                                    'No Prize': 2,
-                                    'Third Prize Only': 3
-                                };
-                                const students = [...cls.students].sort((a, b) => {
-                                    const pA = statusPriority[a.status] || 99;
-                                    const pB = statusPriority[b.status] || 99;
-                                    if (pA !== pB) return pA - pB;
-                                    return a.name.localeCompare(b.name);
-                                });
-
-                                const statusColors = {
-                                    'No Participation': '#64748b',
-                                    'No Prize': '#475569',
-                                    'Third Prize Only': '#b45309'
-                                };
-
-                                htmlContent += `
-                                <div style="margin-left:0.5rem; margin-top:0.75rem; margin-bottom:0.75rem;">
-                                    <h4 style="color:#1e1b4b; font-size:0.85rem; font-weight:800; margin-bottom:0.35rem;">Class: ${window.escapeHTML(cls.name)}</h4>
-                                    
-                                    <table class="report-table" style="margin-top:0; margin-bottom:0.5rem; width:100%;">
-                                        <thead>
-                                            <tr>
-                                                <th style="width:45px; text-align:center;">S.No.</th>
-                                                <th style="width:70px; text-align:center;">Chest No</th>
-                                                <th>Student Name</th>
-                                                <th>Team / House</th>
-                                                <th style="width:80px; text-align:center;">Participations</th>
-                                                <th style="width:130px; text-align:center;">Status</th>
-                                                <th>Programs Participated</th>
+                                <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 10.5px; margin-top: 0.5rem;">
+                                    <thead>
+                                        <tr style="background-color: #f8fafc;">
+                                            <th style="width: 40px; text-align: right; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10.5px;">S.No.</th>
+                                            <th style="width: 70px; text-align: center; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10.5px;">Chest No</th>
+                                            <th style="text-align: left; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10.5px;">Student Name</th>
+                                            <th style="width: 80px; text-align: left; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10px;">Class</th>
+                                            <th style="width: 90px; text-align: left; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10px;">Category</th>
+                                            <th style="width: 100px; text-align: left; padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 800; font-size: 10px;">Team / House</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${studentDataList.map((stu, index) => `
+                                            <tr style="height: 22px; page-break-inside: avoid;">
+                                                <td style="text-align:right; font-weight:700; color:#475569; font-size:10.5px; padding: 5px 6px; border: 1px solid #cbd5e1;">${index + 1}</td>
+                                                <td style="text-align:center; font-weight:900; color:#0f172a; font-size:11px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.chestNumber)}</td>
+                                                <td style="font-weight:800; color:#1e1b4b; font-size:10.5px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.name)}</td>
+                                                <td style="font-weight:700; color:#475569; font-size:10px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.className)}</td>
+                                                <td style="font-weight:700; color:#475569; font-size:10px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.categoryName)}</td>
+                                                <td style="font-weight:700; color:#475569; font-size:10px; padding: 5px 6px; border: 1px solid #cbd5e1;">${window.escapeHTML(stu.teamName)}</td>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${students.map(s => `
-                                                <tr>
-                                                    <td style="text-align:center; font-weight:700; color:#475569;">${globalSerialNo++}</td>
-                                                    <td style="text-align:center; font-weight:900; color:#0f172a;">${window.escapeHTML(s.chestNumber)}</td>
-                                                    <td style="font-weight:800; color:#1e1b4b;">${window.escapeHTML(s.name)} - ${window.escapeHTML(s.className)}</td>
-                                                    <td style="font-weight:700; color:#475569;">${window.escapeHTML(s.teamName)}</td>
-                                                    <td style="text-align:center; font-weight:800; color:#4338ca;">${s.participationsCount}</td>
-                                                    <td style="text-align:center; font-weight:700; color:${statusColors[s.status] || '#475569'}; font-size:0.75rem;">${s.status}</td>
-                                                    <td style="font-size:0.72rem; color:#475569; font-weight:500;">${window.escapeHTML(s.participationsList.join(', ') || 'None')}</td>
-                                                </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            `;
-                            });
-
-                            htmlContent += `</div>`;
-                        });
-                        htmlContent += `</div>`;
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>`;
                     }
                 }
             }
@@ -9100,19 +8992,19 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     r.marksData.forEach(m => {
                         if (!m.grade || m.grade === 'none' || String(m.grade).trim() === '') return;
                         const isWinner = winnersList.some(w => {
-                                    const mId = m.studentId || m.groupId || m.id || '';
-                                    const wId = w.studentId || w.groupId || w.id || '';
-                                    const mName = m.studentName || m.groupName || m.name || '';
-                                    const wName = w.studentName || w.groupName || w.name || '';
-                                    const mTeam = m.teamName || '';
-                                    const wTeam = w.teamName || '';
+                            const mId = m.studentId || m.groupId || m.id || '';
+                            const wId = w.studentId || w.groupId || w.id || '';
+                            const mName = m.studentName || m.groupName || m.name || '';
+                            const wName = w.studentName || w.groupName || w.name || '';
+                            const mTeam = m.teamName || '';
+                            const wTeam = w.teamName || '';
 
-                                    if (r.programType === 'group' || r.type === 'Group') {
-                                        return (mTeam && wTeam && mTeam === wTeam) || (mId && wId && mId === wId) || (mName && wName && mName === wName);
-                                    } else {
-                                        return (mId && wId && mId === wId) || (mName && wName && mName === wName);
-                                    }
-                                });
+                            if (r.programType === 'group' || r.type === 'Group') {
+                                return (mTeam && wTeam && mTeam === wTeam) || (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                            } else {
+                                return (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                            }
+                        });
                         if (!isWinner) {
                             combinedWinners.push({
                                 position: String(m.grade).trim() + ' Grade',
@@ -9160,7 +9052,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     if (gA !== gB) return gA - gB;
 
                     const mA = a.totalPoints !== undefined ? Number(a.totalPoints) : (Number(a.marks) || 0);
-                            const mB = b.totalPoints !== undefined ? Number(b.totalPoints) : (Number(b.marks) || 0);
+                    const mB = b.totalPoints !== undefined ? Number(b.totalPoints) : (Number(b.marks) || 0);
                     return mB - mA;
                 });
 
@@ -9171,19 +9063,19 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
 
                     if (Array.isArray(r.marksData)) {
                         match = r.marksData.find(m => {
-                                            const mId = m.studentId || m.groupId || m.id || '';
-                                            const wId = w.studentId || w.groupId || w.id || '';
-                                            const mName = m.studentName || m.groupName || m.name || '';
-                                            const wName = w.studentName || w.groupName || w.name || '';
-                                            const mTeam = m.teamName || '';
-                                            const wTeam = w.teamName || '';
+                            const mId = m.studentId || m.groupId || m.id || '';
+                            const wId = w.studentId || w.groupId || w.id || '';
+                            const mName = m.studentName || m.groupName || m.name || '';
+                            const wName = w.studentName || w.groupName || w.name || '';
+                            const mTeam = m.teamName || '';
+                            const wTeam = w.teamName || '';
 
-                                            if (r.programType === 'group' || r.type === 'Group') {
-                                                return (mTeam && wTeam && mTeam === wTeam) || (mId && wId && mId === wId) || (mName && wName && mName === wName);
-                                            } else {
-                                                return (mId && wId && mId === wId) || (mName && wName && mName === wName);
-                                            }
-                                        });
+                            if (r.programType === 'group' || r.type === 'Group') {
+                                return (mTeam && wTeam && mTeam === wTeam) || (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                            } else {
+                                return (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                            }
+                        });
                         if (match) {
                             points = match.totalPoints !== undefined ? match.totalPoints : points;
                         }
@@ -9234,7 +9126,7 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             const studentPrizes = new Map();
             filteredResults.forEach(r => {
                 const isGeneral = (r.programType || '').toLowerCase() === 'general' || r.categoryId === 'general_programs';
-                
+
                 if (isGeneral && f.includedPositions && !f.includedPositions.includes('General Programs')) {
                     return;
                 }
@@ -9363,19 +9255,19 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                     let match = null;
                     if (Array.isArray(r.marksData)) {
                         match = r.marksData.find(m => {
-                                            const mId = m.studentId || m.groupId || m.id || '';
-                                            const wId = w.studentId || w.groupId || w.id || '';
-                                            const mName = m.studentName || m.groupName || m.name || '';
-                                            const wName = w.studentName || w.groupName || w.name || '';
-                                            const mTeam = m.teamName || '';
-                                            const wTeam = w.teamName || '';
+                            const mId = m.studentId || m.groupId || m.id || '';
+                            const wId = w.studentId || w.groupId || w.id || '';
+                            const mName = m.studentName || m.groupName || m.name || '';
+                            const wName = w.studentName || w.groupName || w.name || '';
+                            const mTeam = m.teamName || '';
+                            const wTeam = w.teamName || '';
 
-                                            if (r.programType === 'group' || r.type === 'Group') {
-                                                return (mTeam && wTeam && mTeam === wTeam) || (mId && wId && mId === wId) || (mName && wName && mName === wName);
-                                            } else {
-                                                return (mId && wId && mId === wId) || (mName && wName && mName === wName);
-                                            }
-                                        });
+                            if (r.programType === 'group' || r.type === 'Group') {
+                                return (mTeam && wTeam && mTeam === wTeam) || (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                            } else {
+                                return (mId && wId && mId === wId) || (mName && wName && mName === wName);
+                            }
+                        });
                     }
                     const showGrade = r.gradeMode !== 'none';
                     const gradeVal = showGrade ? (w.grade || (match && match.grade) || '') : '';
