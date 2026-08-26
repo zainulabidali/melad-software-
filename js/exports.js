@@ -6082,77 +6082,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             titleFontSize = '0.82rem';
         }
 
-        // Density level configuration based on participant count (0-8, 9-12, 13-15, 16+)
-        let rowHeight = '23px';
-        let fontSize = '0.65rem';
-        let padding = '0.2rem 0.35rem';
-        let remarksHeight = '90px';
-        let headerMarginBottom = '0.25rem';
-        let metadataPadding = '0.15rem 0.3rem';
-        let tableMarginTop = '0.25rem';
-        let footerMarginTop = '0.3rem';
-        let footerPaddingTop = '0.25rem';
-
-        if (isTall) {
-            // Comfortable density for tall vertical cards
-            if (totalCount > 35) {
-                rowHeight = '15.5px';
-                fontSize = '0.54rem';
-                padding = '0.05rem 0.15rem';
-                remarksHeight = '25px';
-                headerMarginBottom = '0.08rem';
-                metadataPadding = '0.04rem 0.15rem';
-                tableMarginTop = '0.08rem';
-                footerMarginTop = '0.08rem';
-                footerPaddingTop = '0.08rem';
-            } else {
-                rowHeight = '19.5px';
-                fontSize = '0.62rem';
-                padding = '0.12rem 0.25rem';
-                remarksHeight = '65px';
-                headerMarginBottom = '0.15rem';
-                metadataPadding = '0.1rem 0.2rem';
-                tableMarginTop = '0.15rem';
-                footerMarginTop = '0.2rem';
-                footerPaddingTop = '0.15rem';
-            }
-        } else {
-            // Standard card constraints
-            if (totalCount >= 16) {
-                // Ultra-compact mode (16+ entries)
-                rowHeight = '14.5px';
-                fontSize = '0.52rem';
-                padding = '0.04rem 0.15rem';
-                remarksHeight = '12px';
-                headerMarginBottom = '0.04rem';
-                metadataPadding = '0.02rem 0.1rem';
-                tableMarginTop = '0.04rem';
-                footerMarginTop = '0.04rem';
-                footerPaddingTop = '0.04rem';
-            } else if (totalCount >= 13) {
-                // Dense mode (13-15 entries)
-                rowHeight = '17px';
-                fontSize = '0.58rem';
-                padding = '0.08rem 0.2rem';
-                remarksHeight = '25px';
-                headerMarginBottom = '0.08rem';
-                metadataPadding = '0.04rem 0.15rem';
-                tableMarginTop = '0.08rem';
-                footerMarginTop = '0.08rem';
-                footerPaddingTop = '0.08rem';
-            } else if (totalCount >= 9) {
-                // Compact density (9-12 entries)
-                rowHeight = '19.5px';
-                fontSize = '0.62rem';
-                padding = '0.12rem 0.25rem';
-                remarksHeight = '45px';
-                headerMarginBottom = '0.15rem';
-                metadataPadding = '0.1rem 0.2rem';
-                tableMarginTop = '0.15rem';
-                footerMarginTop = '0.2rem';
-                footerPaddingTop = '0.15rem';
-            }
-        }
+        const rowHeight = '38px';
+        const fontSize = '0.65rem';
+        const padding = '0.2rem 0.35rem';
+        const headerMarginBottom = '0.25rem';
+        const metadataPadding = '0.15rem 0.3rem';
+        const tableMarginTop = '0.25rem';
+        const footerMarginTop = '0.3rem';
+        const footerPaddingTop = '0.25rem';
 
         const rowsHtml = partsSlice.map((item, idx) => {
             const sl = pageNum ? (pageNum - 1) * 30 + idx + 1 : idx + 1;
@@ -6199,7 +6136,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 </div>
                 
                 <!-- Valuation Scoring Table starts immediately below headers (Phase 2 & 11) -->
-                <div class="val-card-body" style="width:100%; box-sizing:border-box; margin-top:${tableMarginTop};">
+                <div class="val-card-body" style="flex: 1; width:100%; box-sizing:border-box; margin-top:${tableMarginTop};">
                     <table class="val-card-table">
                         <thead>
                             <tr>
@@ -6214,11 +6151,6 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             ${rowsHtml || `<tr><td colspan="5" style="text-align:center; padding:0.5rem; color:#64748b; font-size:0.65rem;">No registered participants.</td></tr>`}
                         </tbody>
                     </table>
-                </div>
-                
-                <!-- Flex-Growable Notes Area for Judge Remarks (Phase 3) -->
-                <div class="val-notes-area" style="min-height: ${remarksHeight}; flex:1; border:1px dashed #cbd5e1; border-radius:6px; margin-top:${footerMarginTop}; padding:0.4rem; font-size:0.65rem; color:#94a3b8; box-sizing:border-box; display:flex; flex-direction:column; justify-content:flex-start;">
-                    <span style="font-weight:800; color:#475569; display:block; margin-bottom:0.1rem; font-size:0.6rem;">JUDGE REMARKS / OBSERVATIONS / CALCULATIONS:</span>
                 </div>
                 
                 <!-- Fixed Judge Footer Pinned to Absolute Bottom (Phase 4) -->
@@ -6299,12 +6231,45 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
         // Packing programs into pages with 4 slots (2x2 grid)
         const pagesList = []; // array of { slots: [null, null, null, null], cards: [] }
+        
+        const cardsToPack = [];
+        const STANDARD_MAX = 9;
+        const TALL_MAX = 22;
 
         programs.forEach(p => {
             const parts = participantsMap[p.id] || [];
-            const count = parts.length;
-            const isTall = count > 20;
+            if (parts.length === 0) {
+                cardsToPack.push({ p, parts: [], isTall: false, pageNum: null, totalPages: null });
+                return;
+            }
 
+            let remaining = [...parts];
+            const chunks = [];
+            while (remaining.length > 0) {
+                if (remaining.length > TALL_MAX) {
+                    chunks.push(remaining.splice(0, TALL_MAX));
+                } else if (remaining.length > STANDARD_MAX) {
+                    chunks.push(remaining.splice(0, remaining.length));
+                } else {
+                    chunks.push(remaining.splice(0, remaining.length));
+                }
+            }
+
+            chunks.forEach((chunk, idx) => {
+                const count = chunk.length;
+                const isTall = count > STANDARD_MAX;
+                cardsToPack.push({
+                    p,
+                    parts: chunk,
+                    isTall,
+                    pageNum: chunks.length > 1 ? idx + 1 : null,
+                    totalPages: chunks.length > 1 ? chunks.length : null
+                });
+            });
+        });
+
+        cardsToPack.forEach(cardData => {
+            const { p, parts, isTall, pageNum, totalPages } = cardData;
             let placed = false;
 
             // Search for an existing page that can fit this card
@@ -6314,13 +6279,13 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     if (page.slots[0] === null && page.slots[2] === null) {
                         page.slots[0] = p.id;
                         page.slots[2] = p.id;
-                        page.cards.push({ p, parts, isTall: true, gridStyle: 'grid-row: 1 / span 2; grid-column: 1;' });
+                        page.cards.push({ p, parts, isTall: true, gridStyle: 'grid-row: 1 / span 2; grid-column: 1;', pageNum, totalPages });
                         placed = true;
                         break;
                     } else if (page.slots[1] === null && page.slots[3] === null) {
                         page.slots[1] = p.id;
                         page.slots[3] = p.id;
-                        page.cards.push({ p, parts, isTall: true, gridStyle: 'grid-row: 1 / span 2; grid-column: 2;' });
+                        page.cards.push({ p, parts, isTall: true, gridStyle: 'grid-row: 1 / span 2; grid-column: 2;', pageNum, totalPages });
                         placed = true;
                         break;
                     }
@@ -6335,7 +6300,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             else if (slotIdx === 2) gridStyle = 'grid-row: 2; grid-column: 1;';
                             else if (slotIdx === 3) gridStyle = 'grid-row: 2; grid-column: 2;';
 
-                            page.cards.push({ p, parts, isTall: false, gridStyle });
+                            page.cards.push({ p, parts, isTall: false, gridStyle, pageNum, totalPages });
                             placed = true;
                             break;
                         }
@@ -6350,10 +6315,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 if (isTall) {
                     newPage.slots[0] = p.id;
                     newPage.slots[2] = p.id;
-                    newPage.cards.push({ p, parts, isTall: true, gridStyle: 'grid-row: 1 / span 2; grid-column: 1;' });
+                    newPage.cards.push({ p, parts, isTall: true, gridStyle: 'grid-row: 1 / span 2; grid-column: 1;', pageNum, totalPages });
                 } else {
                     newPage.slots[0] = p.id;
-                    newPage.cards.push({ p, parts, isTall: false, gridStyle: 'grid-row: 1; grid-column: 1;' });
+                    newPage.cards.push({ p, parts, isTall: false, gridStyle: 'grid-row: 1; grid-column: 1;', pageNum, totalPages });
                 }
                 pagesList.push(newPage);
             }
@@ -6363,7 +6328,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         pagesList.forEach(page => {
             htmlContent += `
                 <div class="valuation-grid-sheet-2x2">
-                    ${page.cards.map(item => renderValuationCard(item.p, item.parts, item.isTall, item.gridStyle)).join('')}
+                    ${page.cards.map(item => renderValuationCard(item.p, item.parts, item.isTall, item.gridStyle, item.pageNum, item.totalPages)).join('')}
                 </div>
             `;
         });
