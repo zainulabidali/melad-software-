@@ -7679,8 +7679,16 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         }
 
                         // Determine Program Type string
-                        let programType = 'STAGE PROGRAMS';
-                        if (isGroup || isOffStage || isGeneral) programType = 'OFF-STAGE PROGRAMS';
+                        let programType;
+                        if (isGeneral) {
+                            programType = 'GENERAL PROGRAMS';
+                        } else if (isGroup) {
+                            programType = 'GROUP PROGRAMS';
+                        } else if (!isOffStage) {
+                            programType = 'STAGE PROGRAMS';
+                        } else {
+                            programType = 'PROGRAMS';
+                        }
 
                         let winnersList = Array.isArray(r.winners) ? r.winners : [];
                         if (f.includedPositions) winnersList = winnersList.filter(w => f.includedPositions.includes(w.position));
@@ -7722,7 +7730,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     chestNumber: stu.chestNumber || '—',
                                     studentName: stu.name || '—',
                                     teamName: stu.teamName || resolved.teamName || w.teamName || '—',
-                                    className: sClass
+                                    className: sClass,
+                                    programLocation: pLoc
                                 });
                             });
                         });
@@ -7745,7 +7754,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                         sortedPositions.forEach((pos, posIdx) => {
                             const typesData = positionData[pos];
-                            const progTypesOrder = ['STAGE PROGRAMS', 'OFF-STAGE PROGRAMS'];
+                            const progTypesOrder = ['STAGE PROGRAMS', 'PROGRAMS', 'GROUP PROGRAMS', 'GENERAL PROGRAMS'];
 
                             let positionHtml = '';
                             let hasAnyInPos = false;
@@ -7765,8 +7774,15 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 hasAnyInPos = true;
                                 totalEntries += items.length;
 
-                                // Sort items by Class (Ascending), then Program Number/Name
+                                // Sort items by Program Number/Name, then Class, then Chest No
                                 items.sort((a, b) => {
+                                    const pNumA = a.programNumber ? String(a.programNumber) : '';
+                                    const pNumB = b.programNumber ? String(b.programNumber) : '';
+                                    if (pNumA !== pNumB) return pNumA.localeCompare(pNumB, undefined, { numeric: true, sensitivity: 'base' });
+
+                                    const pComp = a.programName.localeCompare(b.programName, undefined, { sensitivity: 'base' });
+                                    if (pComp !== 0) return pComp;
+
                                     const extractNum = (str) => {
                                         const m = String(str).match(/\d+/);
                                         return m ? parseInt(m[0], 10) : 999;
@@ -7778,13 +7794,6 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
 
                                     const clsComp = String(a.className).localeCompare(String(b.className), undefined, { numeric: true, sensitivity: 'base' });
                                     if (clsComp !== 0) return clsComp;
-
-                                    const pNumA = a.programNumber ? String(a.programNumber) : '';
-                                    const pNumB = b.programNumber ? String(b.programNumber) : '';
-                                    if (pNumA !== pNumB) return pNumA.localeCompare(pNumB, undefined, { numeric: true, sensitivity: 'base' });
-
-                                    const pComp = a.programName.localeCompare(b.programName, undefined, { sensitivity: 'base' });
-                                    if (pComp !== 0) return pComp;
 
                                     return a.chestNumber.localeCompare(b.chestNumber, undefined, { numeric: true, sensitivity: 'base' });
                                 });
@@ -7798,6 +7807,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                         <thead style="display: table-header-group;">
                                             <tr style="background-color: #f8fafc; page-break-inside: avoid;">
                                                 <th style="width: 35px; text-align: center; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">SL</th>
+                                                <th style="width: 70px; text-align: center; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Stage</th>
                                                 <th style="text-align: left; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Program Name</th>
                                                 <th style="width: 70px; text-align: center; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Chest No</th>
                                                 <th style="text-align: left; padding: 5px; border: 1px solid #cbd5e1; font-weight: 800;">Student Name</th>
@@ -7814,6 +7824,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                     positionHtml += `
                                         <tr style="height: 22px; page-break-inside: avoid;">
                                             <td style="text-align:center; font-weight:700; color:#64748b; padding: 4px 5px; border: 1px solid #cbd5e1;">${idx + 1}</td>
+                                            <td style="text-align:center; font-weight:700; color:#475569; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.programLocation || '—')}</td>
                                             <td style="font-weight:800; color:#1e1b4b; padding: 4px 5px; border: 1px solid #cbd5e1;">${pDisp}</td>
                                             <td style="text-align:center; font-weight:900; color:#0f172a; font-size:11px; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.chestNumber)}</td>
                                             <td style="font-weight:800; color:#1e1b4b; padding: 4px 5px; border: 1px solid #cbd5e1;">${window.escapeHTML(item.studentName)}</td>
