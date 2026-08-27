@@ -30,6 +30,7 @@ let sortByVal = 'newest';
 
 // Team Background Manager state
 let teamBackgroundsCache = {};
+let chestNumTeamBackgroundsCache = {};
 let isTeamBgEnabled = false;
 
 async function ensureEventDetailsLoaded(force = false) {
@@ -61,9 +62,22 @@ function loadTeamBackgrounds() {
         } else {
             teamBackgroundsCache = {};
         }
-    } catch (e) {
+} catch (e) {
         console.error("Failed to load team backgrounds from LocalStorage:", e);
         teamBackgroundsCache = {};
+    }
+}
+
+function loadChestNumTeamBackgrounds() {
+    try {
+        const stored = localStorage.getItem('milad_chest_num_team_backgrounds');
+        if (stored) {
+            chestNumTeamBackgroundsCache = JSON.parse(stored);
+        } else {
+            chestNumTeamBackgroundsCache = {};
+        }
+    } catch (e) {
+        chestNumTeamBackgroundsCache = {};
     }
 }
 
@@ -208,6 +222,98 @@ function renderTeamBgCards() {
         };
 
         updateTeamCardUI(t.id);
+    });
+}
+
+function updateChestNumTeamCardUI(teamId, tIndex) {
+    const previewDiv = document.getElementById(`chest-num-preview-${teamId}`);
+    const btnChoose = document.getElementById(`chest-num-btn-choose-${teamId}`);
+    const btnReplace = document.getElementById(`chest-num-btn-replace-${teamId}`);
+    const btnRemove = document.getElementById(`chest-num-btn-remove-${teamId}`);
+    const defaultBgs = ['../assets/chest_number_bg_2.png', '../assets/chest_number_card.png'];
+
+    const base64 = chestNumTeamBackgroundsCache[teamId];
+    if (base64 && base64 !== 'undefined' && base64 !== 'null') {
+        if (previewDiv) {
+            previewDiv.innerHTML = `<img src="${base64}" alt="Team Background" style="width:100%; height:100%; object-fit:contain;" />`;
+            previewDiv.style.borderStyle = 'solid';
+        }
+        if (btnChoose) btnChoose.style.display = 'none';
+        if (btnReplace) btnReplace.style.display = 'block';
+        if (btnRemove) btnRemove.style.display = 'block';
+    } else {
+        const defaultBg = defaultBgs[tIndex % 2];
+        if (previewDiv) {
+            previewDiv.innerHTML = `<img src="${defaultBg}" alt="Default Background" style="width:100%; height:100%; object-fit:contain; opacity:0.7;" />`;
+            previewDiv.style.borderStyle = 'dashed';
+        }
+        if (btnChoose) btnChoose.style.display = 'block';
+        if (btnReplace) btnReplace.style.display = 'none';
+        if (btnRemove) btnRemove.style.display = 'none';
+    }
+}
+
+function renderChestNumTeamBgs() {
+    const grid = document.getElementById('chestNumTeamBgGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    
+    allTeams.forEach((t, index) => {
+        const card = document.createElement('div');
+        card.className = 'team-bg-card'; 
+        card.innerHTML = `
+            <div style="font-weight: 700; color: #1e1b4b; font-size: 0.85rem;">${window.escapeHTML(t.name)}</div>
+            <div class="team-bg-preview" id="chest-num-preview-${t.id}" style="height: 120px;">
+                <span>No Custom Background</span>
+            </div>
+            <div class="team-bg-actions">
+                <input type="file" id="chest-num-file-${t.id}" accept="image/png, image/jpeg, image/jpg, image/webp" style="display:none;" />
+                <button type="button" class="btn-choose-bg" id="chest-num-btn-choose-${t.id}">Choose Image</button>
+                <button type="button" class="btn-replace-bg" id="chest-num-btn-replace-${t.id}" style="display:none;">Replace Image</button>
+                <button type="button" class="btn-remove-bg" id="chest-num-btn-remove-${t.id}" style="display:none;">Remove Image</button>
+            </div>
+        `;
+        grid.appendChild(card);
+        
+        const fileInput = card.querySelector(`#chest-num-file-${t.id}`);
+        const btnChoose = card.querySelector(`#chest-num-btn-choose-${t.id}`);
+        const btnReplace = card.querySelector(`#chest-num-btn-replace-${t.id}`);
+        const btnRemove = card.querySelector(`#chest-num-btn-remove-${t.id}`);
+
+        btnChoose.onclick = () => fileInput.click();
+        btnReplace.onclick = () => fileInput.click();
+
+        btnRemove.onclick = () => {
+            if (confirm(`Are you sure you want to remove the custom background for team "${t.name}"?`)) {
+                delete chestNumTeamBackgroundsCache[t.id];
+                localStorage.setItem('milad_chest_num_team_backgrounds', JSON.stringify(chestNumTeamBackgroundsCache));
+                updateChestNumTeamCardUI(t.id, index);
+                window.showToast(`Custom background for team "${t.name}" removed.`);
+            }
+        };
+
+        fileInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                window.showToast('Unsupported format.', 'error');
+                return;
+            }
+            window.showToast('Processing image...', 'info');
+            try {
+                const base64Str = await resizeImageIfNeeded(file);
+                chestNumTeamBackgroundsCache[t.id] = base64Str;
+                localStorage.setItem('milad_chest_num_team_backgrounds', JSON.stringify(chestNumTeamBackgroundsCache));
+                updateChestNumTeamCardUI(t.id, index);
+                window.showToast(`Custom background for team "${t.name}" uploaded successfully.`);
+            } catch (err) {
+                console.error(err);
+                window.showToast('Failed to process image.', 'error');
+            }
+        };
+
+        updateChestNumTeamCardUI(t.id, index);
     });
 }
 
@@ -1337,6 +1443,7 @@ async function refreshAwardTypesConfig() {
 
 async function openExportDrawer() {
     loadTeamBackgrounds();
+    loadChestNumTeamBackgrounds();
     await refreshAwardTypesConfig();
     const drawer = ensureExportDrawerExists();
     renderDrawerContent();
@@ -1440,6 +1547,7 @@ function renderDrawerContent() {
                     <div id="chestExportModeSelector" style="display:none; margin-top:0.75rem; margin-bottom:0.75rem; border:1px solid #cbd5e1; padding:2px; border-radius:10px; background:#f1f5f9; display:flex;">
                         <button type="button" class="exp-submode-btn active" data-submode="list" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:#fff; color:#1e1b4b; box-shadow:0 1px 3px rgba(0,0,0,0.05); transition:all 0.2s;">Chest Number List</button>
                         <button type="button" class="exp-submode-btn" data-submode="card" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Chest Number & Program Card</button>
+                        <button type="button" class="exp-submode-btn" data-submode="chest_number_only" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Chest Number Card</button>
                     </div>
 
                     <!-- Program Participation Register Submode Selector (Three-Tab Layout) -->
@@ -1645,6 +1753,17 @@ function renderDrawerContent() {
                         </div>
                     </div>
 
+                    <!-- Chest Number Card Background Container -->
+                    <div id="chestNumBgContainer" style="display:none; flex-direction:column; gap:0.75rem; background:#fff; border:1px solid #cbd5e1; padding:0.75rem 1rem; border-radius:10px;">
+                        <span style="font-size:0.75rem; font-weight:700; color:#1e1b4b; display:block; text-transform:uppercase; letter-spacing:0.04em;">🖼️ Team-Wise Chest Number Card Backgrounds</span>
+                        <div style="display:flex; justify-content:flex-end;">
+                            <button type="button" id="btnResetAllChestNumBgs" class="btn btn-danger" style="background:#ef4444; color:#fff; border:none; padding:0.4rem 0.8rem; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem;">
+                                🔄 Reset All Backgrounds
+                            </button>
+                        </div>
+                        <div id="chestNumTeamBgGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; width: 100%;"></div>
+                    </div>
+
                     <!-- Format & Layout -->
                     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; border-top:1px solid #cbd5e1; padding-top:0.75rem; width:100%; margin-top:auto;">
                         <div style="flex:1; min-width:140px;">
@@ -1653,6 +1772,7 @@ function renderDrawerContent() {
                                 <option value="portrait">A4 Portrait (Vertical)</option>
                                 <option value="landscape">A4 Landscape (Horizontal)</option>
                                 <option value="a3_portrait">A3 Portrait (Vertical)</option>
+                                <option value="a3_landscape" style="display:none;">A3 Landscape (Horizontal)</option>
                             </select>
                         </div>
                         <div style="flex:1; min-width:140px;">
@@ -1700,11 +1820,22 @@ function renderDrawerContent() {
         const selType = activeCard ? activeCard.getAttribute('data-type') : '';
         const activeSubmode = chestExportModeSelector?.querySelector('.exp-submode-btn.active')?.getAttribute('data-submode') || 'list';
 
+        const teamBgContainer = document.getElementById('teamBgContainer');
+        const chestNumBgContainer = document.getElementById('chestNumBgContainer');
+
         if (teamBgContainer) {
             if (selType === 'Chest Number List' && activeSubmode === 'card') {
                 teamBgContainer.style.display = 'flex';
             } else {
                 teamBgContainer.style.display = 'none';
+            }
+        }
+        
+        if (chestNumBgContainer) {
+            if (selType === 'Chest Number List' && activeSubmode === 'chest_number_only') {
+                chestNumBgContainer.style.display = 'flex';
+            } else {
+                chestNumBgContainer.style.display = 'none';
             }
         }
     }
@@ -1732,6 +1863,20 @@ function renderDrawerContent() {
             }
         };
     }
+
+    const btnResetAllChestNumBgs = document.getElementById('btnResetAllChestNumBgs');
+    if (btnResetAllChestNumBgs) {
+        btnResetAllChestNumBgs.onclick = () => {
+            if (confirm('Are you sure you want to reset all team backgrounds for Chest Number Cards?')) {
+                chestNumTeamBackgroundsCache = {};
+                localStorage.removeItem('milad_chest_num_team_backgrounds');
+                renderChestNumTeamBgs();
+                window.showToast('All chest number team backgrounds reset to default.');
+            }
+        };
+    }
+    
+    renderChestNumTeamBgs();
 
     renderTeamBgCards();
 
@@ -1793,6 +1938,7 @@ function renderDrawerContent() {
                     expProgFilterContainer.style.display = 'none';
                 } else {
                     expProgFilterContainer.style.display = 'block';
+                    
                 }
             }
         }
@@ -1842,12 +1988,21 @@ function renderDrawerContent() {
                 }
                 if (expOrientation) {
                     expOrientation.value = 'portrait';
-                    if (expOrientation.options[1]) {
-                        expOrientation.options[1].style.display = 'none'; // hide A4 Landscape
-                    }
-                    if (expOrientation.options[2]) {
-                        expOrientation.options[2].style.display = 'block'; // show A3 Portrait
-                    }
+                    if (expOrientation.options[1]) expOrientation.options[1].style.display = 'none'; // hide A4 Landscape
+                    if (expOrientation.options[2]) expOrientation.options[2].style.display = 'block'; // show A3 Portrait
+                    if (expOrientation.options[3]) expOrientation.options[3].style.display = 'none'; // hide A3 Landscape
+                }
+            } else if (activeSubmode === 'chest_number_only') {
+                chestListModeContainer.style.display = 'none';
+                if (expFormat) {
+                    expFormat.value = 'pdf';
+                    expFormat.options[1].disabled = true; // disable CSV
+                }
+                if (expOrientation) {
+                    expOrientation.value = 'landscape';
+                    if (expOrientation.options[1]) expOrientation.options[1].style.display = 'block'; // show A4 Landscape
+                    if (expOrientation.options[2]) expOrientation.options[2].style.display = 'none'; // hide A3 Portrait
+                    if (expOrientation.options[3]) expOrientation.options[3].style.display = 'block'; // show A3 Landscape
                 }
             } else {
                 chestListModeContainer.style.display = 'flex';
@@ -1855,12 +2010,9 @@ function renderDrawerContent() {
                     expFormat.options[1].disabled = false;
                 }
                 if (expOrientation) {
-                    if (expOrientation.options[1]) {
-                        expOrientation.options[1].style.display = 'block'; // show A4 Landscape
-                    }
-                    if (expOrientation.options[2]) {
-                        expOrientation.options[2].style.display = 'none'; // hide A3 Portrait
-                    }
+                    if (expOrientation.options[1]) expOrientation.options[1].style.display = 'block'; // show A4 Landscape
+                    if (expOrientation.options[2]) expOrientation.options[2].style.display = 'none'; // hide A3 Portrait
+                    if (expOrientation.options[3]) expOrientation.options[3].style.display = 'none'; // hide A3 Landscape
                 }
             }
             updateClassFilterState();
@@ -2009,12 +2161,22 @@ function renderDrawerContent() {
                         const expOrientation = document.getElementById('expOrientation');
                         if (expOrientation) {
                             expOrientation.value = 'portrait';
-                            if (expOrientation.options[1]) {
-                                expOrientation.options[1].style.display = 'none'; // hide landscape
-                            }
-                            if (expOrientation.options[2]) {
-                                expOrientation.options[2].style.display = 'block'; // show A3 Portrait
-                            }
+                            if (expOrientation.options[1]) expOrientation.options[1].style.display = 'none'; // hide A4 Landscape
+                            if (expOrientation.options[2]) expOrientation.options[2].style.display = 'block'; // show A3 Portrait
+                            if (expOrientation.options[3]) expOrientation.options[3].style.display = 'none'; // hide A3 Landscape
+                        }
+                    } else if (activeSubmode === 'chest_number_only') {
+                        chestListModeContainer.style.display = 'none';
+                        if (expFormat) {
+                            expFormat.value = 'pdf';
+                            expFormat.options[1].disabled = true;
+                        }
+                        const expOrientation = document.getElementById('expOrientation');
+                        if (expOrientation) {
+                            expOrientation.value = 'landscape';
+                            if (expOrientation.options[1]) expOrientation.options[1].style.display = 'block'; // show A4 Landscape
+                            if (expOrientation.options[2]) expOrientation.options[2].style.display = 'none'; // hide A3 Portrait
+                            if (expOrientation.options[3]) expOrientation.options[3].style.display = 'block'; // show A3 Landscape
                         }
                     } else {
                         chestListModeContainer.style.display = 'flex';
@@ -2022,6 +2184,7 @@ function renderDrawerContent() {
                         if (expOrientation) {
                             if (expOrientation.options[1]) expOrientation.options[1].style.display = 'block';
                             if (expOrientation.options[2]) expOrientation.options[2].style.display = 'none';
+                            if (expOrientation.options[3]) expOrientation.options[3].style.display = 'none';
                         }
                     }
                 } else {
@@ -3908,6 +4071,209 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 document.body.removeChild(testContainer);
 
                 htmlContent = pagesHTML;
+            } else if (f.chestSubmode === 'chest_number_only') {
+                const eventDetails = window.currentEventDetails || {};
+                const eventName = getEventName();
+                const madrasaName = eventDetails.madrasaName || 'INSTITUTION NAME';
+                const eventLogo = eventDetails.eventLogo || null;
+
+                // Safely load images with a global cache to prevent duplicate fetching
+                window.miladImagePreloadCache = window.miladImagePreloadCache || {};
+                
+                const preloadImageAsBase64 = (url) => {
+                    return new Promise((resolve) => {
+                        if (!url || url === 'undefined' || url === 'null') return resolve('');
+                        if (url.startsWith('data:')) return resolve(url);
+                        if (window.miladImagePreloadCache[url]) return resolve(window.miladImagePreloadCache[url]);
+                        
+                        const img = new Image();
+                        img.crossOrigin = 'Anonymous';
+                        
+                        img.onload = () => {
+                            try {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = img.width;
+                                canvas.height = img.height;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0);
+                                const b64 = canvas.toDataURL('image/png');
+                                window.miladImagePreloadCache[url] = b64;
+                                resolve(b64);
+                            } catch (e) {
+                                // If canvas is tainted (e.g., local file:// protocol), fallback to absolute URL
+                                // Using relative URLs in an about:blank iframe causes Chrome print to hang
+                                try {
+                                    const absoluteUrl = new URL(url, window.location.href).href;
+                                    resolve(absoluteUrl);
+                                } catch (urlErr) {
+                                    resolve(url);
+                                }
+                            }
+                        };
+                        
+                        img.onerror = () => {
+                            console.warn("Image preload failed for:", url);
+                            resolve(''); // Safe fallback, prevents hanging
+                        };
+                        
+                        img.src = url;
+                    });
+                };
+
+                const defaultBgs = ['../assets/chest_number_bg_2.png', '../assets/chest_number_card.png'];
+                let teamBgUrls = {}; // teamId -> URL or base64
+                let localUniqueTeams = [];
+                studentsList.forEach(stu => {
+                    const key = String(stu.teamId);
+                    if (key && !localUniqueTeams.includes(key)) localUniqueTeams.push(key);
+                });
+
+                localUniqueTeams.forEach(tId => {
+                    const cachedVal = chestNumTeamBackgroundsCache[tId];
+                    if (cachedVal && cachedVal !== 'undefined' && cachedVal !== 'null') {
+                        teamBgUrls[tId] = cachedVal;
+                    } else {
+                        const globalIndex = allTeams.findIndex(t => String(t.id) === String(tId));
+                        const idx = globalIndex >= 0 ? globalIndex : 0;
+                        teamBgUrls[tId] = defaultBgs[idx % 2];
+                    }
+                });
+
+                const promises = [preloadImageAsBase64(eventLogo)];
+                localUniqueTeams.forEach(tId => {
+                    promises.push(preloadImageAsBase64(teamBgUrls[tId]));
+                });
+                
+                const results = await Promise.all(promises);
+                const resolvedLogo = results[0];
+                const resolvedTeamBgs = {};
+                localUniqueTeams.forEach((tId, idx) => {
+                    resolvedTeamBgs[tId] = results[idx + 1];
+                });
+
+                const isA3 = orientation === 'a3_portrait' || orientation === 'a3_landscape';
+                const cols = isA3 ? 4 : 2;
+                const rows = 2;
+                const cardsPerPage = cols * rows;
+                
+                const cardWidthNum = 95; // 9.5 cm
+                const cardHeightNum = 140; // 14 cm
+                
+                const pageWidthNum = isA3 ? 420 : 210;
+                const pageHeightNum = 297;
+                
+                const leftOffset = isA3 ? 20 : 10;
+                const topOffset = 8.5;
+                
+                let pagesHTML = '';
+                
+                for (let i = 0; i < studentsList.length; i += cardsPerPage) {
+                    const pageStudents = studentsList.slice(i, i + cardsPerPage);
+                    
+                    let pageCardsHTML = '';
+                    for (let j = 0; j < cardsPerPage; j++) {
+                        const stu = pageStudents[j];
+                        
+                        const colIndex = j % cols;
+                        const rowIndex = Math.floor(j / cols);
+                        const leftPos = leftOffset + (colIndex * cardWidthNum);
+                        const topPos = topOffset + (rowIndex * cardHeightNum);
+                        
+                        if (stu) {
+                            const teamName = teamNamesMap[String(stu.teamId)] || stu.teamName || '';
+                            const teamVal = teamName && teamName.trim() !== '' && teamName !== '—' ? teamName : 'NO TEAM';
+                            const classVal = stu.className || stu.classId || '—';
+                            const catVal = stu.categoryName || stu.categoryId || '—';
+                            
+                            const tId = String(stu.teamId);
+                            const hasBg = resolvedTeamBgs[tId] ? true : false;
+
+                            // Use absolute positioning to completely eliminate print layout/pagination loops
+                            pageCardsHTML += `
+                                <div class="chest-number-card-export-item" style="position: absolute; left: ${leftPos}mm; top: ${topPos}mm; width: ${cardWidthNum}mm; height: ${cardHeightNum}mm; box-sizing: border-box; border: 1px dashed #cbd5e1; overflow: hidden; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 10mm 5mm 15mm 5mm; justify-content: flex-start;">
+                                    ${hasBg ? `<div class="chest-card-bg-team-${tId}" style="position: absolute; inset: 0; z-index: 0;" aria-hidden="true"></div>` : ''}
+                                    
+                                    <div style="position: relative; z-index: 1; width: 100%; display: flex; flex-direction: column; align-items: center; flex-grow: 1; margin-bottom: 8mm;">
+                                        <div style="font-family: 'Poppins', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #014a15; line-height: 1.2; text-align: center; margin-bottom: 4px;">
+                                            ${window.escapeHTML(madrasaName)}
+                                        </div>
+                                        <div style="width: 100%; flex-grow: 1; display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 4px 0;">
+                                            ${resolvedLogo ? `<div class="chest-card-logo-img"></div>` : `<div style="height: 100%;"></div>`}
+                                        </div>
+                                        <div style="font-family: 'Poppins', sans-serif; font-size: 20px; font-weight: 800; text-transform: uppercase; color: #043806; line-height: 1.1; margin-top: 4px; text-align: center;">
+                                            ${window.escapeHTML(eventName)}
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="position: relative; z-index: 1; width: 84%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ffffff; border-radius: 12px; padding: 12px 6px 14px 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
+                                        
+                                        <div style="font-family: 'Oswald', 'Impact', 'Arial Narrow', sans-serif; font-size: 100px; font-weight: 900; color: #000000; line-height: 0.95; letter-spacing: 0.9px; margin-bottom: 6px;">
+                                            ${window.escapeHTML(stu.chestNumber || '—')}
+                                        </div>
+                                        
+                                        <div style="font-family: 'Poppins', sans-serif; font-size: 17px; font-weight: 700; text-transform: uppercase; color: #0f172a; line-height: 1.2; word-wrap: break-word; overflow-wrap: break-word; text-align: center; margin-bottom: 5px;">
+                                            ${window.escapeHTML(stu.name)}
+                                        </div>
+                                        
+                                        <div style="font-family: 'Poppins', sans-serif; font-size: 10px; font-weight: 600; color: #2f363f; text-transform: uppercase; line-height: 1.2; letter-spacing: 0.5px;">
+                                            ${window.escapeHTML(classVal)} • ${window.escapeHTML(teamVal)}
+                                        </div>
+                                        
+                                        <div style="font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-top: 4px;">
+                                            ${window.escapeHTML(catVal)}
+                                        </div>
+                                        
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                    
+                    pagesHTML += `
+                        <div class="chest-number-card-export-page" style="position: relative; width: ${pageWidthNum}mm; height: ${pageHeightNum}mm; margin: 0; padding: 0; box-sizing: border-box; page-break-after: always; overflow: hidden; background: #fff;">
+                            ${pageCardsHTML}
+                        </div>
+                    `;
+                }
+                
+                let printStyle = isA3 
+                    ? `<style>@page { size: A3 landscape; margin: 0mm; } body { margin: 0; padding: 0; background: #fff; }</style>` 
+                    : `<style>@page { size: A4 portrait; margin: 0mm; } body { margin: 0; padding: 0; background: #fff; }</style>`;
+                
+                Object.keys(resolvedTeamBgs).forEach(tId => {
+                    if (resolvedTeamBgs[tId]) {
+                        printStyle += `
+                            <style>
+                            .chest-card-bg-team-${tId} {
+                                background-image: url('${resolvedTeamBgs[tId]}');
+                                background-size: cover;
+                                background-position: center;
+                                -webkit-print-color-adjust: exact !important;
+                                print-color-adjust: exact !important;
+                            }
+                            </style>
+                        `;
+                    }
+                });
+                
+                if (resolvedLogo) {
+                    printStyle += `
+                        <style>
+                        .chest-card-logo-img {
+                            background-image: url('${resolvedLogo}');
+                            background-size: contain;
+                            background-repeat: no-repeat;
+                            background-position: center;
+                            height: 100%;
+                            width: 100%;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+                        </style>
+                    `;
+                }
+                
+                htmlContent = printStyle + pagesHTML;
             } else if (f.chestMode === 'category-wise') {
                 const groups = {};
                 studentsList.forEach(stu => {
