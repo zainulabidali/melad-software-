@@ -822,7 +822,7 @@ async function init() {
                     cardBgMap[r.id] = 1;
                 }
                 if (!cardTemplateMap[r.id]) {
-                    cardTemplateMap[r.id] = 1;
+                    cardTemplateMap[r.id] = 2;
                 }
             });
 
@@ -1326,7 +1326,7 @@ function setupFilters() {
                 cardBgMap[targetResult.id] = savedBg ? (savedBg === 'custom' ? 'custom' : (parseInt(savedBg, 10) || 1)) : 1;
             }
             if (!cardTemplateMap[targetResult.id]) {
-                cardTemplateMap[targetResult.id] = 1;
+                cardTemplateMap[targetResult.id] = 2;
             }
 
             currentDisplayedResult = targetResult;
@@ -1434,7 +1434,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
                 <!-- 1st Place Card -->
                 <div style="background: rgba(255, 255, 255, 0.05); border: 0.5px solid rgba(255, 255, 255, 0.1); border-left: 2px solid #fbbf24; border-radius: 8px; padding: 4px 6px; display: flex; align-items: center; justify-content: space-between; position: relative;">
                     <div style="display: flex; flex-direction: column; text-align: left; overflow: hidden; max-width: 90px;">
-                        <span style="font-size: 6px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(name1)}</span>
+                        <span style="font-size: 6px; font-weight: 700; color: white; white-space: normal; overflow: visible; word-wrap: break-word; text-transform: uppercase;">${escapeHTML(name1)}</span>
                         <span style="font-size: 4px; color: rgba(255,255,255,0.4); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(team1)}</span>
                     </div>
                     <span style="font-size: 10px; font-weight: 900; color: rgba(251, 191, 36, 0.15); line-height: 1;">${w1 ? String(w1.rank).padStart(2, '0') : '01'}</span>
@@ -1446,7 +1446,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
                     <div style="background: rgba(255, 255, 255, 0.05); border: 0.5px solid rgba(255, 255, 255, 0.1); border-top: 1.5px solid #cbd5e1; border-radius: 8px; padding: 4px 6px; width: calc(50% - 2px); display: flex; flex-direction: column; justify-content: space-between; position: relative; min-height: 28px; box-sizing: border-box;">
                         <span style="font-size: 9px; font-weight: 900; color: rgba(203, 213, 225, 0.15); position: absolute; right: 4px; top: 2px; line-height: 1;">${w2 ? String(w2.rank).padStart(2, '0') : '02'}</span>
                         <div style="display: flex; flex-direction: column; text-align: left; overflow: hidden; margin-top: auto; z-index: 2;">
-                            <span style="font-size: 5px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(name2)}</span>
+                            <span style="font-size: 5px; font-weight: 700; color: white; white-space: normal; overflow: visible; word-wrap: break-word; text-transform: uppercase;">${escapeHTML(name2)}</span>
                             <span style="font-size: 3.5px; color: rgba(255,255,255,0.4); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(team2)}</span>
                         </div>
                     </div>
@@ -1455,7 +1455,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
                     <div style="background: rgba(255, 255, 255, 0.05); border: 0.5px solid rgba(255, 255, 255, 0.1); border-top: 1.5px solid #d97706; border-radius: 8px; padding: 4px 6px; width: calc(50% - 2px); display: flex; flex-direction: column; justify-content: space-between; position: relative; min-height: 28px; box-sizing: border-box;">
                         <span style="font-size: 9px; font-weight: 900; color: rgba(217, 119, 6, 0.15); position: absolute; right: 4px; top: 2px; line-height: 1;">${w3 ? String(w3.rank).padStart(2, '0') : '03'}</span>
                         <div style="display: flex; flex-direction: column; text-align: left; overflow: hidden; margin-top: auto; z-index: 2;">
-                            <span style="font-size: 5px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(name3)}</span>
+                            <span style="font-size: 5px; font-weight: 700; color: white; white-space: normal; overflow: visible; word-wrap: break-word; text-transform: uppercase;">${escapeHTML(name3)}</span>
                             <span style="font-size: 3.5px; color: rgba(255,255,255,0.4); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(team3)}</span>
                         </div>
                     </div>
@@ -1505,7 +1505,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
                         <span style="font-size: 3px; font-weight: 700; color: rgba(255,255,255,0.4); letter-spacing: 0.2px;">${rankLabel}</span>
                     </div>
                     <div style="display: flex; flex-direction: column; text-align: right; overflow: hidden; max-width: 60px; line-height: 1;">
-                        <span style="font-size: 4.5px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(nameText)}</span>
+                        <span style="font-size: 4.5px; font-weight: 700; color: white; white-space: normal; overflow: visible; word-wrap: break-word; text-transform: uppercase;">${escapeHTML(nameText)}</span>
                         <span style="font-size: 3px; color: rgba(255,255,255,0.4); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(teamText)}</span>
                     </div>
                 </div>
@@ -1569,7 +1569,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
                         <span style="font-size: 3px; font-weight: 700; color: rgba(255,255,255,0.45);">${rankLabel}</span>
                     </div>
                     <div style="display: flex; flex-direction: column; text-align: right; overflow: hidden; max-width: 50px; line-height: 1;">
-                        <span style="font-size: 4.5px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;">${escapeHTML(nameText)}</span>
+                        <span style="font-size: 4.5px; font-weight: 700; color: white; white-space: normal; overflow: visible; word-wrap: break-word; text-transform: uppercase;">${escapeHTML(nameText)}</span>
                         <span style="font-size: 3px; color: rgba(255,255,255,0.4); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(teamText)}</span>
                     </div>
                 </div>
@@ -1634,7 +1634,7 @@ function getMiniPosterHTML(r, bgId, templateId, resultNumber, madrasaName) {
                 <div style="display: flex; align-items: center; gap: 4px; padding: 4px 6px; background: rgba(255, 255, 255, 0.04); border: 0.5px solid rgba(255, 255, 255, 0.08); border-left: 2px solid ${accentColor}; border-radius: 5px; color: white; font-size: 5px; line-height: 1; text-align: left;">
                     <span style="font-weight: 800; color: ${accentColor}; font-size: 6px; min-width: 8px; text-align: center;">#${rank}</span>
                     <div style="display: flex; flex-direction: column; overflow: hidden;">
-                        <span style="font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; text-transform: uppercase;">${escapeHTML(nameText.toUpperCase())}</span>
+                        <span style="font-weight: 700; white-space: normal; overflow: visible; word-wrap: break-word; max-width: 90px; text-transform: uppercase;">${escapeHTML(nameText.toUpperCase())}</span>
                         <span style="font-size: 4px; color: rgba(255,255,255,0.4); text-transform: uppercase;">${escapeHTML(teamText.toUpperCase())}</span>
                     </div>
                 </div>
@@ -1679,14 +1679,15 @@ function getPosterInnerHTML(r, bgId, templateId, resultNumber, madrasaName) {
     const isGroup = r.programType === 'group' || (r.programType === 'general' && r.registrationType === 'group');
 
     const getAdaptiveNameStyle = (name) => {
-        if (!name) return '';
+        let base = 'white-space: normal !important; overflow: visible !important; word-wrap: break-word !important; text-overflow: clip !important;';
+        if (!name) return base;
         const len = name.length;
         if (len > 35) {
-            return `font-size: 65% !important; line-height: 1.1 !important;`;
+            return `${base} font-size: 65% !important; line-height: 1.1 !important;`;
         } else if (len > 22) {
-            return `font-size: 80% !important; line-height: 1.15 !important;`;
+            return `${base} font-size: 80% !important; line-height: 1.15 !important;`;
         }
-        return '';
+        return base;
     };
 
 
