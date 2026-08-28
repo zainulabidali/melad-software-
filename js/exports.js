@@ -1462,6 +1462,790 @@ function closeExportDrawer() {
     document.body.style.overflow = '';
 }
 
+// =========================================================================
+// CERTIFICATE GENERATION & EXPORT ENGINE (A4 LANDSCAPE ACHIEVEMENT SYSTEM)
+// =========================================================================
+let certState = {
+    matchingCertificates: [],
+    currentIndex: 0,
+    initialized: false
+};
+let cachedStudentsMap = null;
+let cachedResultsList = null;
+let cachedParticipantsMap = {};
+
+function getCategoryThemeClass(catId) {
+    if (!catId || catId === 'general_programs') return 'cat-theme-general';
+    const idx = (allCategories || []).findIndex(c => c.id === catId);
+    if (idx !== -1) {
+        return `cat-theme-${(idx % 10) + 1}`;
+    }
+    return 'cat-theme-1';
+}
+
+function getCategoryBgUrl(catId) {
+    if (!catId || catId === 'general_programs') return '';
+    const idx = (allCategories || []).findIndex(c => c.id === catId);
+    if (idx !== -1) {
+        const bgNum = (idx % 10) + 1;
+        return `../assets/poster-backgrounds/bg${bgNum}.jpg`;
+    }
+    return '';
+}
+
+function renderCertificateSheetHTML(cert, isPrintMode = false) {
+    const studentName = cert.studentName || '';
+    const studentNameScale = studentName.length > 40
+        ? 'font-size:6.8mm; letter-spacing:-0.01em;'
+        : (studentName.length > 30 
+            ? 'font-size:8.2mm; letter-spacing:-0.01em;' 
+            : (studentName.length > 22 ? 'font-size:9.5mm; letter-spacing:-0.02em;' : 'font-size:11mm; letter-spacing:-0.01em;'));
+    const madrasaNameScale = (cert.madrasaName || '').length > 40 ? 'font-size:3.8mm;' : '';
+
+    const catThemeClass = cert.catThemeClass || (cert.categoryId ? getCategoryThemeClass(cert.categoryId) : 'cat-theme-general');
+
+    const badgeTopText = cert.position === 'First' ? 'BEST' : (cert.position === 'Second' ? '2ND' : (cert.position === 'Third' ? '3RD' : 'MERIT'));
+    const badgeBottomText = 'AWARD';
+
+    return `
+    <article class="certificate-sheet ${cert.positionClass || 'pos-first'} ${catThemeClass}" style="${isPrintMode ? 'page-break-after:always; page-break-inside:avoid; break-inside:avoid;' : ''}">
+        <!-- SVG Vector Waves & Shapes Layer -->
+        <div class="cert-bg-vector-layer">
+            <svg viewBox="0 0 297 210" class="cert-bg-svg" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="trGradWave1_${cert.certId}" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="var(--cert-wave-4)" stop-opacity="0.35"/>
+                        <stop offset="100%" stop-color="var(--cert-wave-3)" stop-opacity="0.2"/>
+                    </linearGradient>
+                    <linearGradient id="trGradWave2_${cert.certId}" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="var(--cert-wave-3)" stop-opacity="0.5"/>
+                        <stop offset="100%" stop-color="var(--cert-wave-2)" stop-opacity="0.3"/>
+                    </linearGradient>
+                    <linearGradient id="trGradWave3_${cert.certId}" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="var(--cert-wave-2)" stop-opacity="0.85"/>
+                        <stop offset="100%" stop-color="var(--cert-wave-1)" stop-opacity="0.95"/>
+                    </linearGradient>
+                </defs>
+                
+                <!-- Top Right Layered Curves & Diagonal Bands -->
+                <path d="M 165 0 C 205 22, 245 40, 297 48 L 297 0 Z" fill="url(#trGradWave1_${cert.certId})" />
+                <path d="M 195 0 C 230 25, 260 45, 297 80 L 297 25 C 270 12, 235 4, 195 0 Z" fill="url(#trGradWave2_${cert.certId})" />
+                <path d="M 245 0 C 265 18, 280 32, 297 50 L 297 0 Z" fill="url(#trGradWave3_${cert.certId})" />
+
+                <!-- Bottom Left Fluid Waves (Gracefully framed away from text alignment) -->
+                <path d="M 0 135 C 25 155, 50 180, 75 210 L 0 210 Z" fill="var(--cert-wave-4)" fill-opacity="0.35" />
+                <path d="M 0 158 C 18 170, 36 190, 50 210 L 0 210 Z" fill="var(--cert-wave-2)" fill-opacity="0.75" />
+                <path d="M 0 182 C 10 190, 18 200, 28 210 L 0 210 Z" fill="var(--cert-wave-1)" />
+            </svg>
+        </div>
+
+        <!-- Scalloped Rosette Award Badge (Top Right) -->
+        <div class="cert-badge-container">
+            <div class="cert-rosette-badge-wrap">
+                <svg viewBox="0 0 100 125" class="cert-rosette-svg">
+                    <defs>
+                        <linearGradient id="ribbonGrad_${cert.certId}" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="var(--cert-badge-ribbon)"/>
+                            <stop offset="100%" stop-color="var(--cert-wave-1)"/>
+                        </linearGradient>
+                        <linearGradient id="discGrad_${cert.certId}" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="var(--cert-badge-bg)"/>
+                            <stop offset="100%" stop-color="var(--cert-wave-1)"/>
+                        </linearGradient>
+                    </defs>
+                    <!-- Hanging Ribbon Tails -->
+                    <path d="M 32 60 L 22 115 L 35 105 L 48 115 L 44 60 Z" fill="url(#ribbonGrad_${cert.certId})" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.2))" />
+                    <path d="M 56 60 L 52 115 L 65 105 L 78 115 L 68 60 Z" fill="url(#ribbonGrad_${cert.certId})" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.2))" />
+                    
+                    <!-- Scalloped Outer Rosette Disc -->
+                    <path d="M50 7 C53 7 55 9 58 10 C61 11 64 10 67 12 C70 14 71 16 74 19 C77 22 79 23 81 26 C83 29 82 32 84 35 C86 38 88 40 88 43 C88 46 86 49 85 52 C84 55 85 58 83 61 C81 64 78 66 76 68 C74 70 73 73 70 75 C67 77 64 77 61 78 C58 79 56 81 53 82 C50 83 47 83 44 82 C41 81 39 79 36 78 C33 77 30 77 27 75 C24 73 23 70 21 68 C19 66 16 64 14 61 C12 58 13 55 12 52 C11 49 9 46 9 43 C9 40 11 38 13 35 C15 32 14 29 16 26 C18 23 20 22 23 19 C26 16 27 14 30 12 C33 10 36 11 39 10 C42 9 44 7 47 7 Z" fill="url(#discGrad_${cert.certId})"/>
+                    
+                    <!-- White Inner Disc -->
+                    <circle cx="50" cy="45" r="30" fill="#FFFFFF"/>
+                    <circle cx="50" cy="45" r="27" fill="none" stroke="var(--cert-badge-bg)" stroke-width="1.2"/>
+                    <circle cx="50" cy="45" r="24.5" fill="none" stroke="var(--cert-badge-bg)" stroke-width="0.8" stroke-dasharray="1.5, 1.2"/>
+                    
+                    <!-- 3 Top Stars -->
+                    <g fill="var(--cert-badge-bg)">
+                        <polygon points="41,29 42,32 45,32 43,34 44,37 41,35 38,37 39,34 37,32 40,32" transform="scale(0.7) translate(18, 12)"/>
+                        <polygon points="50,26 51.5,29.5 55,29.5 52.2,31.7 53.3,35 50,33 46.7,35 47.8,31.7 45,29.5 48.5,29.5" transform="scale(0.85) translate(8.8, 4.5)"/>
+                        <polygon points="59,29 60,32 63,32 61,34 62,37 59,35 56,37 57,34 55,32 58,32" transform="scale(0.7) translate(25.5, 12)"/>
+                    </g>
+
+                    <!-- Badge Center Text -->
+                    <text x="50" y="44" font-family="'Plus Jakarta Sans', sans-serif" font-size="7.5" font-weight="900" fill="var(--cert-badge-bg)" text-anchor="middle" letter-spacing="0.5">${badgeTopText}</text>
+                    <text x="50" y="52" font-family="'Plus Jakarta Sans', sans-serif" font-size="7" font-weight="900" fill="var(--cert-badge-bg)" text-anchor="middle" letter-spacing="0.5">${badgeBottomText}</text>
+
+                    <!-- 3 Bottom Stars -->
+                    <g fill="var(--cert-badge-bg)">
+                        <polygon points="41,58 42,60.5 44.5,60.5 42.5,62 43.5,64.5 41,63 38.5,64.5 39.5,62 37.5,60.5 40,60.5" transform="scale(0.7) translate(18, 17)"/>
+                        <polygon points="50,58 51.5,61 54.5,61 52,63 53,66 50,64.5 47,66 48,63 45.5,61 48.5,61" transform="scale(0.75) translate(16.5, 14.5)"/>
+                        <polygon points="59,58 60,60.5 62.5,60.5 60.5,62 61.5,64.5 59,63 56.5,64.5 57.5,62 55.5,60.5 58,60.5" transform="scale(0.7) translate(25.5, 17)"/>
+                    </g>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Certificate Dynamic Content Core -->
+        <div class="cert-content-inner">
+            <!-- 1. TOP-LEFT BRANDING & LOGO -->
+            <header class="cert-top-header">
+                <div class="cert-brand-group">
+                    <div class="cert-brand-logo-wrap">
+                        ${cert.logoUrl ? `<img src="${cert.logoUrl}" alt="Institution Logo" class="cert-brand-logo-img">` : `
+                        <div class="cert-brand-logo-default">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M6 2L12 8L6 14L0 8L6 2Z" fill="currentColor"/>
+                                <path d="M18 2L24 8L18 14L12 8L18 2Z" fill="currentColor" fill-opacity="0.75"/>
+                            </svg>
+                        </div>`}
+                    </div>
+                    <div class="cert-brand-text-wrap">
+                        <h2 class="cert-brand-name" style="${madrasaNameScale}">${window.escapeHTML(cert.madrasaName || 'COMPANY NAME')}</h2>
+                        <div class="cert-brand-sub">${window.escapeHTML(cert.institutionSub || 'DEPARTMENT OF ISLAMIC EDUCATION & CULTURAL AFFAIRS')}</div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 2. MAIN TITLE ZONE -->
+            <section class="cert-title-block">
+                <h1 class="cert-main-word">Certificate</h1>
+                <div class="cert-of-achievement">OF ACHIEVEMENT</div>
+                <div class="cert-presented-lead">THIS CERTIFICATE IS PRESENTED TO</div>
+            </section>
+
+            <!-- 3. RECIPIENT NAME ZONE -->
+            <section class="cert-recipient-block">
+                <div class="cert-recipient-name" style="${studentNameScale}">${window.escapeHTML(cert.studentName || 'Name Surname')}</div>
+            </section>
+
+            <!-- 4. ACHIEVEMENT & PROGRAM CONTEXT ZONE -->
+            <section class="cert-body-block">
+                <div class="cert-headline-lead">
+                    For securing <span class="highlight">${window.escapeHTML(cert.positionTitle || 'FIRST POSITION')}</span> in the competition of <span class="highlight">${window.escapeHTML(cert.programName || '[PROGRAM NAME]')}</span>
+                </div>
+                <p class="cert-description-para">
+                    In recognition of exceptional talent, distinguished academic merit, and exemplary performance during <strong>${window.escapeHTML(cert.eventName || getEventName())}</strong>.${cert.teamName && cert.teamName !== '—' && cert.teamName !== 'No Team' && cert.teamName !== 'teamless' ? ` Team representation: <strong>${window.escapeHTML(cert.teamName)}</strong>.` : ''} This certificate honours the recipient's dedication and outstanding achievement.
+                </p>
+            </section>
+
+            <!-- 5. BOTTOM SECTION: DATE & SIGNATURE -->
+            <footer class="cert-bottom-section">
+                <!-- Date Block (Left) -->
+                <div class="cert-date-col">
+                    <div class="cert-date-val">${window.escapeHTML(cert.dateStr || 'JANUARY 2ND 2025')}</div>
+                    <div class="cert-date-line"></div>
+                    <div class="cert-date-lbl">DATE</div>
+                    <div class="cert-sub-meta">ID: ${window.escapeHTML(cert.certId)} &bull; ${window.escapeHTML(cert.eventName || getEventName())}</div>
+                </div>
+
+                <!-- Signature Block (Right) -->
+                <div class="cert-sign-col">
+                    <div class="cert-sign-space">
+                        ${cert.signImg ? `<img src="${cert.signImg}" alt="Signature" class="cert-sign-img">` : `
+                        <svg viewBox="0 0 100 30" class="cert-sign-vector">
+                            <path d="M10 22 C20 8, 25 28, 35 12 C40 2, 45 25, 55 18 C65 12, 70 24, 90 15" stroke="#1E293B" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+                            <path d="M42 24 L52 8" stroke="#1E293B" stroke-width="1.8" stroke-linecap="round"/>
+                        </svg>`}
+                    </div>
+                    <div class="cert-sign-line"></div>
+                    <div class="cert-sign-lbl">SIGNATURE</div>
+                    <div class="cert-sign-title">${window.escapeHTML(cert.signTitle || 'PRINCIPAL / GENERAL SECRETARY')}</div>
+                </div>
+            </footer>
+        </div>
+    </article>
+    `;
+}
+
+function setupCertificateExportModule() {
+    const madrasaNameInput = document.getElementById('expCertMadrasaName');
+    const institutionSubInput = document.getElementById('expCertInstitutionSub');
+    const logoFileInput = document.getElementById('expCertLogoFile');
+    const logoPreview = document.getElementById('expCertLogoPreview');
+    const clearLogoBtn = document.getElementById('expCertClearLogoBtn');
+    
+    const signNameInput = document.getElementById('expCertSignName');
+    const signTitleInput = document.getElementById('expCertSignTitle');
+    const signFileInput = document.getElementById('expCertSignFile');
+    const signPreview = document.getElementById('expCertSignPreview');
+    const clearSignBtn = document.getElementById('expCertClearSignBtn');
+    
+    const dateInput = document.getElementById('expCertDate');
+
+    // 1. Load saved branding from localStorage
+    const savedMadrasaName = localStorage.getItem('meelad_cert_madrasa_name') || (window.currentInstituteDetails?.name || getEventName());
+    const savedSub = localStorage.getItem('meelad_cert_institution_sub') || 'DEPARTMENT OF ISLAMIC EDUCATION & CULTURAL AFFAIRS';
+    const savedLogo = localStorage.getItem('meelad_cert_logo') || (window.currentInstituteDetails?.logoUrl || '');
+    const savedSignName = localStorage.getItem('meelad_cert_sign_name') || localStorage.getItem('meelad_cert_sign1_name') || '';
+    const savedSignTitle = localStorage.getItem('meelad_cert_sign_title') || localStorage.getItem('meelad_cert_sign1_title') || 'PRINCIPAL / GENERAL SECRETARY';
+    const savedSignImg = localStorage.getItem('meelad_cert_sign_img') || localStorage.getItem('meelad_cert_sign1_img') || '';
+    const savedDate = localStorage.getItem('meelad_cert_date') || new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    if (madrasaNameInput && !madrasaNameInput.value) madrasaNameInput.value = savedMadrasaName;
+    if (institutionSubInput && !institutionSubInput.value) institutionSubInput.value = savedSub;
+    if (signNameInput && !signNameInput.value) signNameInput.value = savedSignName;
+    if (signTitleInput && !signTitleInput.value) signTitleInput.value = savedSignTitle;
+    if (dateInput && !dateInput.value) dateInput.value = savedDate;
+
+    if (savedLogo && logoPreview) {
+        logoPreview.innerHTML = `<img src="${savedLogo}" style="width:100%; height:100%; object-fit:contain;" alt="Logo" />`;
+        if (clearLogoBtn) clearLogoBtn.style.display = 'inline';
+    }
+    if (savedSignImg && signPreview) {
+        signPreview.innerHTML = `<img src="${savedSignImg}" style="max-height:26px; max-width:90px; object-fit:contain;" alt="Sign" />`;
+        if (clearSignBtn) clearSignBtn.style.display = 'inline';
+    }
+
+    // Persist branding on change
+    const persistBranding = () => {
+        if (madrasaNameInput) localStorage.setItem('meelad_cert_madrasa_name', madrasaNameInput.value.trim());
+        if (institutionSubInput) localStorage.setItem('meelad_cert_institution_sub', institutionSubInput.value.trim());
+        if (signNameInput) localStorage.setItem('meelad_cert_sign_name', signNameInput.value.trim());
+        if (signTitleInput) localStorage.setItem('meelad_cert_sign_title', signTitleInput.value.trim());
+        if (dateInput) localStorage.setItem('meelad_cert_date', dateInput.value.trim());
+        updateLiveCertificatePreview();
+    };
+
+    [madrasaNameInput, institutionSubInput, signNameInput, signTitleInput, dateInput].forEach(inp => {
+        if (inp) inp.oninput = persistBranding;
+    });
+
+    if (logoFileInput) {
+        logoFileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (re) => {
+                const dataUrl = re.target.result;
+                localStorage.setItem('meelad_cert_logo', dataUrl);
+                if (logoPreview) logoPreview.innerHTML = `<img src="${dataUrl}" style="width:100%; height:100%; object-fit:contain;" alt="Logo" />`;
+                if (clearLogoBtn) clearLogoBtn.style.display = 'inline';
+                updateLiveCertificatePreview();
+            };
+            reader.readAsDataURL(file);
+        };
+    }
+
+    if (clearLogoBtn) {
+        clearLogoBtn.onclick = () => {
+            localStorage.removeItem('meelad_cert_logo');
+            if (logoPreview) logoPreview.innerHTML = `<span style="font-size:0.65rem; color:#94A3B8; font-weight:700;">Logo</span>`;
+            clearLogoBtn.style.display = 'none';
+            if (logoFileInput) logoFileInput.value = '';
+            updateLiveCertificatePreview();
+        };
+    }
+
+    if (signFileInput) {
+        signFileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (re) => {
+                const dataUrl = re.target.result;
+                localStorage.setItem('meelad_cert_sign_img', dataUrl);
+                if (signPreview) {
+                    signPreview.innerHTML = `<img src="${dataUrl}" style="max-height:26px; max-width:90px; object-fit:contain;" alt="Sign" />`;
+                }
+                if (clearSignBtn) clearSignBtn.style.display = 'inline';
+                updateLiveCertificatePreview();
+            };
+            reader.readAsDataURL(file);
+        };
+    }
+
+    if (clearSignBtn) {
+        clearSignBtn.onclick = () => {
+            localStorage.removeItem('meelad_cert_sign_img');
+            localStorage.removeItem('meelad_cert_sign1_img');
+            if (signPreview) signPreview.innerHTML = '';
+            clearSignBtn.style.display = 'none';
+            if (signFileInput) signFileInput.value = '';
+            updateLiveCertificatePreview();
+        };
+    }
+
+    // 2. Populate dynamic program types & cascading program dropdowns
+    const expCertProgType = document.getElementById('expCertProgType');
+    const expCertProg = document.getElementById('expCertProg');
+    const expCertCat = document.getElementById('expCertCat');
+    const expCertGender = document.getElementById('expCertGender');
+
+    // Populate distinct dynamic program types from allPrograms
+    if (expCertProgType) {
+        const standardTypes = new Set(['stage', 'off stage', 'general', 'group', 'individual']);
+        const customTypes = new Set();
+        (allPrograms || []).forEach(p => {
+            if (p.programType && !standardTypes.has(p.programType.toLowerCase())) {
+                customTypes.add(p.programType);
+            }
+        });
+        customTypes.forEach(ct => {
+            if (!Array.from(expCertProgType.options).some(o => o.value === ct.toLowerCase())) {
+                const opt = document.createElement('option');
+                opt.value = ct.toLowerCase();
+                opt.textContent = `${ct} Programs`;
+                expCertProgType.appendChild(opt);
+            }
+        });
+    }
+
+    const updateCertificateProgramsList = () => {
+        if (!expCertProg) return;
+        const selCatId = expCertCat ? expCertCat.value : '';
+        const selType = expCertProgType ? expCertProgType.value.toLowerCase() : '';
+        const selGender = expCertGender ? expCertGender.value : '';
+
+        let progs = allPrograms || [];
+        if (selCatId) {
+            if (selCatId === 'general_programs') {
+                progs = progs.filter(p => p.isGeneral || (p.categoryName || '').toLowerCase().includes('general') || (p.programType || '').toLowerCase() === 'general');
+            } else {
+                progs = progs.filter(p => p.categoryId === selCatId);
+            }
+        }
+        if (selGender) {
+            progs = progs.filter(p => !p.genderCategory || p.genderCategory === selGender || p.gender === selGender || p.genderCategory === 'Mixed');
+        }
+        if (selType) {
+            if (selType === 'stage') {
+                progs = progs.filter(p => (p.programLocation || p.location || 'stage').toLowerCase() === 'stage');
+            } else if (selType === 'off stage') {
+                progs = progs.filter(p => (p.programLocation || p.location || '').toLowerCase() === 'off stage');
+            } else if (selType === 'general') {
+                progs = progs.filter(p => p.isGeneral || (p.categoryName || '').toLowerCase().includes('general') || (p.programType || '').toLowerCase() === 'general');
+            } else if (selType === 'group') {
+                progs = progs.filter(p => (p.programType || p.type || '').toLowerCase() === 'group');
+            } else if (selType === 'individual') {
+                progs = progs.filter(p => (p.programType || p.type || '').toLowerCase() === 'individual' || !(p.programType || p.type || '').toLowerCase().includes('group'));
+            } else {
+                progs = progs.filter(p => (p.programType || '').toLowerCase() === selType);
+            }
+        }
+
+        const currentProgVal = expCertProg.value;
+        expCertProg.innerHTML = '<option value="">All Matching Programs (' + progs.length + ')</option>';
+        progs.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = `${p.programNumber ? `[#${p.programNumber}] ` : ''}${p.programName} (${formatLabel(p.categoryName || '')})`;
+            expCertProg.appendChild(opt);
+        });
+        if (currentProgVal && progs.some(p => p.id === currentProgVal)) {
+            expCertProg.value = currentProgVal;
+        } else {
+            expCertProg.value = "";
+        }
+    };
+
+    if (expCertCat) {
+        expCertCat.onchange = () => {
+            updateCertificateProgramsList();
+            computeAndRenderCertificates(false);
+        };
+    }
+    if (expCertProgType) {
+        expCertProgType.onchange = () => {
+            updateCertificateProgramsList();
+            computeAndRenderCertificates(false);
+        };
+    }
+    if (expCertProg) {
+        expCertProg.onchange = () => computeAndRenderCertificates(false);
+    }
+    if (expCertGender) {
+        expCertGender.onchange = () => computeAndRenderCertificates(false);
+    }
+
+    const posSelect = document.getElementById('expCertPosSelect');
+    if (posSelect) {
+        posSelect.onchange = () => computeAndRenderCertificates(false);
+    }
+
+    const posCheckboxes = document.querySelectorAll('.exp-cert-pos-chk');
+    posCheckboxes.forEach(chk => {
+        chk.onchange = () => computeAndRenderCertificates(false);
+    });
+
+    // Preview navigation buttons
+    const btnPrev = document.getElementById('btnCertPrev');
+    const btnNext = document.getElementById('btnCertNext');
+    if (btnPrev) {
+        btnPrev.onclick = () => {
+            if (certState.currentIndex > 0) {
+                certState.currentIndex--;
+                updateLiveCertificatePreview();
+            }
+        };
+    }
+    if (btnNext) {
+        btnNext.onclick = () => {
+            if (certState.currentIndex < certState.matchingCertificates.length - 1) {
+                certState.currentIndex++;
+                updateLiveCertificatePreview();
+            }
+        };
+    }
+
+    // Print all (Combined A4 Landscape PDF)
+    const btnPrintAll = document.getElementById('btnCertPrintAll');
+    if (btnPrintAll) {
+        btnPrintAll.onclick = () => printAllCertificates();
+    }
+
+    window.addEventListener('resize', scalePreviewToFit);
+
+    updateCertificateProgramsList();
+    computeAndRenderCertificates(false);
+}
+
+async function computeAndRenderCertificates(forceRefresh = false) {
+    const instId = window.currentInstituteId;
+    if (!instId) return;
+
+    try {
+        if (!cachedStudentsMap || forceRefresh) {
+            cachedStudentsMap = {};
+            const studentsSnap = await getDocs(collection(db, "institutes", instId, "students"));
+            studentsSnap.docs.forEach(d => {
+                cachedStudentsMap[d.id] = { id: d.id, ...d.data() };
+            });
+        }
+
+        if (!cachedResultsList || forceRefresh) {
+            const resultsSnap = await getDocs(collection(db, "institutes", instId, "results"));
+            cachedResultsList = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        }
+
+        const resultsList = cachedResultsList || [];
+
+        const selProgType = (document.getElementById('expCertProgType')?.value || '').toLowerCase();
+        const selProgId = document.getElementById('expCertProg')?.value || '';
+        const selCatId = document.getElementById('expCertCat')?.value || '';
+        const selGender = document.getElementById('expCertGender')?.value || '';
+
+        const selectedPositions = new Set();
+        const posSelect = document.getElementById('expCertPosSelect');
+        if (posSelect) {
+            const val = posSelect.value;
+            if (val === 'all' || val === 'First + Second + Third') {
+                selectedPositions.add('First');
+                selectedPositions.add('Second');
+                selectedPositions.add('Third');
+            } else {
+                selectedPositions.add(val);
+            }
+        } else {
+            document.querySelectorAll('.exp-cert-pos-chk:checked').forEach(chk => selectedPositions.add(chk.value));
+        }
+
+        let targetPrograms = allPrograms || [];
+        if (selProgId) {
+            targetPrograms = targetPrograms.filter(p => p.id === selProgId);
+        } else {
+            if (selCatId) {
+                if (selCatId === 'general_programs') {
+                    targetPrograms = targetPrograms.filter(p => p.isGeneral || (p.categoryName || '').toLowerCase().includes('general') || (p.programType || '').toLowerCase() === 'general');
+                } else {
+                    targetPrograms = targetPrograms.filter(p => p.categoryId === selCatId);
+                }
+            }
+            if (selProgType) {
+                if (selProgType === 'stage') {
+                    targetPrograms = targetPrograms.filter(p => (p.programLocation || p.location || 'stage').toLowerCase() === 'stage');
+                } else if (selProgType === 'off stage') {
+                    targetPrograms = targetPrograms.filter(p => (p.programLocation || p.location || '').toLowerCase() === 'off stage');
+                } else if (selProgType === 'general') {
+                    targetPrograms = targetPrograms.filter(p => p.isGeneral || (p.categoryName || '').toLowerCase().includes('general') || (p.programType || '').toLowerCase() === 'general');
+                } else if (selProgType === 'group') {
+                    targetPrograms = targetPrograms.filter(p => (p.programType || p.type || '').toLowerCase() === 'group');
+                } else if (selProgType === 'individual') {
+                    targetPrograms = targetPrograms.filter(p => (p.programType || p.type || '').toLowerCase() === 'individual' || !(p.programType || p.type || '').toLowerCase().includes('group'));
+                } else {
+                    targetPrograms = targetPrograms.filter(p => (p.programType || '').toLowerCase() === selProgType);
+                }
+            }
+        }
+
+        const madrasaName = document.getElementById('expCertMadrasaName')?.value.trim() || localStorage.getItem('meelad_cert_madrasa_name') || (window.currentInstituteDetails?.name || getEventName());
+        const institutionSub = document.getElementById('expCertInstitutionSub')?.value.trim() || localStorage.getItem('meelad_cert_institution_sub') || 'DEPARTMENT OF ISLAMIC EDUCATION & CULTURAL AFFAIRS';
+        const logoUrl = localStorage.getItem('meelad_cert_logo') || (window.currentInstituteDetails?.logoUrl || '');
+        const signName = document.getElementById('expCertSignName')?.value.trim() || localStorage.getItem('meelad_cert_sign_name') || localStorage.getItem('meelad_cert_sign1_name') || '';
+        const signTitle = document.getElementById('expCertSignTitle')?.value.trim() || localStorage.getItem('meelad_cert_sign_title') || localStorage.getItem('meelad_cert_sign1_title') || 'PRINCIPAL / GENERAL SECRETARY';
+        const signImg = localStorage.getItem('meelad_cert_sign_img') || localStorage.getItem('meelad_cert_sign1_img') || '';
+        const dateStr = document.getElementById('expCertDate')?.value.trim() || localStorage.getItem('meelad_cert_date') || new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+        let countFirst = 0;
+        let countSecond = 0;
+        let countThird = 0;
+        const certList = [];
+        let certSerial = 1;
+
+        for (const prog of targetPrograms) {
+            const res = resultsList.find(r => r.programId === prog.id || r.id === prog.id);
+            if (!res || !Array.isArray(res.winners) || res.winners.length === 0) continue;
+
+            let parts = cachedParticipantsMap[prog.id];
+            if (!parts || forceRefresh) {
+                parts = await loadParticipants(prog, '', cachedStudentsMap);
+                cachedParticipantsMap[prog.id] = parts;
+            }
+
+            const catId = prog.categoryId || '';
+            const catThemeClass = getCategoryThemeClass(catId);
+            const catBgUrl = getCategoryBgUrl(catId);
+
+            for (const w of res.winners) {
+                if (!w.position || !selectedPositions.has(w.position)) continue;
+
+                const posClass = w.position === 'First' ? 'pos-first' : (w.position === 'Second' ? 'pos-second' : 'pos-third');
+                const posTitle = `${w.position.toUpperCase()} POSITION`;
+
+                const resolved = resolveWinnerParticipant(prog, w, parts, cachedStudentsMap);
+
+                if (resolved.isGroup && Array.isArray(resolved.memberStudents) && resolved.memberStudents.length > 0) {
+                    // Group Program: Generate an individual certificate for each team member!
+                    resolved.memberStudents.forEach(m => {
+                        if (selGender) {
+                            const gLower = (m.gender || '').toLowerCase();
+                            const filterLower = selGender.toLowerCase();
+                            if (filterLower === 'boys' && !gLower.includes('boy') && !gLower.includes('male')) return;
+                            if (filterLower === 'girls' && !gLower.includes('girl') && !gLower.includes('female')) return;
+                        }
+
+                        if (w.position === 'First') countFirst++;
+                        else if (w.position === 'Second') countSecond++;
+                        else if (w.position === 'Third') countThird++;
+
+                        certList.push({
+                            certId: `MLS-${new Date().getFullYear()}-${String(certSerial++).padStart(4, '0')}`,
+                            studentName: m.name || '—',
+                            chestNumber: m.chestNumber || '—',
+                            className: m.className || '—',
+                            teamName: m.teamName || resolved.teamName || '—',
+                            programName: prog.programName || '',
+                            categoryId: catId,
+                            catThemeClass: catThemeClass,
+                            catBgUrl: catBgUrl,
+                            programType: 'Group',
+                            position: w.position,
+                            positionTitle: posTitle,
+                            positionClass: posClass,
+                            dateStr: dateStr,
+                            eventName: getEventName(),
+                            madrasaName: madrasaName,
+                            institutionSub: institutionSub,
+                            logoUrl: logoUrl,
+                            signName: signName,
+                            signTitle: signTitle,
+                            signImg: signImg
+                        });
+                    });
+                } else {
+                    // Individual Program Winner
+                    if (selGender) {
+                        const gLower = (resolved.gender || '').toLowerCase();
+                        const filterLower = selGender.toLowerCase();
+                        if (filterLower === 'boys' && !gLower.includes('boy') && !gLower.includes('male')) return;
+                        if (filterLower === 'girls' && !gLower.includes('girl') && !gLower.includes('female')) return;
+                    }
+
+                    if (w.position === 'First') countFirst++;
+                    else if (w.position === 'Second') countSecond++;
+                    else if (w.position === 'Third') countThird++;
+
+                    certList.push({
+                        certId: `MLS-${new Date().getFullYear()}-${String(certSerial++).padStart(4, '0')}`,
+                        studentName: resolved.displayName || w.studentName || '—',
+                        chestNumber: resolved.chestNumbers || w.chestNumber || '—',
+                        className: resolved.className || '—',
+                        teamName: resolved.teamName || w.teamName || '—',
+                        programName: prog.programName || '',
+                        categoryId: catId,
+                        catThemeClass: catThemeClass,
+                        catBgUrl: catBgUrl,
+                        programType: 'Individual',
+                        position: w.position,
+                        positionTitle: posTitle,
+                        positionClass: posClass,
+                        dateStr: dateStr,
+                        eventName: getEventName(),
+                        madrasaName: madrasaName,
+                        institutionSub: institutionSub,
+                        logoUrl: logoUrl,
+                        signName: signName,
+                        signTitle: signTitle,
+                        signImg: signImg
+                    });
+                }
+            }
+        }
+
+        certState.matchingCertificates = certList;
+        if (certState.currentIndex >= certList.length) {
+            certState.currentIndex = Math.max(0, certList.length - 1);
+        }
+
+        const countTotalEl = document.getElementById('certCountTotal');
+        const countFirstEl = document.getElementById('certCountFirst');
+        const countSecondEl = document.getElementById('certCountSecond');
+        const countThirdEl = document.getElementById('certCountThird');
+
+        if (countTotalEl) countTotalEl.textContent = certList.length;
+        if (countFirstEl) countFirstEl.textContent = countFirst;
+        if (countSecondEl) countSecondEl.textContent = countSecond;
+        if (countThirdEl) countThirdEl.textContent = countThird;
+
+        const btnPrintAll = document.getElementById('btnCertPrintAll');
+        if (btnPrintAll) {
+            btnPrintAll.disabled = certList.length === 0;
+            btnPrintAll.innerHTML = certList.length > 0 
+                ? `🖨️ Print All (${certList.length} Certificates)` 
+                : `🖨️ Print All (0 Certificates)`;
+        }
+
+        updateLiveCertificatePreview();
+
+    } catch (err) {
+        console.error("Error computing certificates:", err);
+    }
+}
+
+function updateLiveCertificatePreview() {
+    const scaleWrapper = document.getElementById('certPreviewInnerScale');
+    const indexText = document.getElementById('certPreviewIndexText');
+    const total = certState.matchingCertificates.length;
+
+    if (!scaleWrapper) return;
+
+    if (total === 0) {
+        scaleWrapper.innerHTML = `
+            <div style="background:#fff; border-radius:12px; width:297mm; height:210mm; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#64748b; font-family:sans-serif; text-align:center; padding:2rem; box-sizing:border-box; box-shadow:0 10px 25px rgba(0,0,0,0.1);">
+                <div style="font-size:3.5rem; margin-bottom:1rem;">🎖️</div>
+                <h3 style="margin:0; color:#1e1b4b; font-size:1.6rem; font-weight:800;">No Matching Certificate Recipients Found</h3>
+                <p style="margin-top:0.6rem; font-size:1.1rem; max-width:500px;">Publish program results or adjust your filters above to preview certificates.</p>
+            </div>
+        `;
+        if (indexText) indexText.textContent = '0 of 0';
+        scalePreviewToFit();
+        return;
+    }
+
+    const cert = { ...certState.matchingCertificates[certState.currentIndex] };
+    cert.madrasaName = document.getElementById('expCertMadrasaName')?.value.trim() || cert.madrasaName;
+    cert.institutionSub = document.getElementById('expCertInstitutionSub')?.value.trim() || cert.institutionSub;
+    cert.signName = document.getElementById('expCertSignName')?.value.trim() || cert.signName;
+    cert.signTitle = document.getElementById('expCertSignTitle')?.value.trim() || cert.signTitle;
+    cert.dateStr = document.getElementById('expCertDate')?.value.trim() || cert.dateStr;
+    cert.logoUrl = localStorage.getItem('meelad_cert_logo') || cert.logoUrl;
+    cert.signImg = localStorage.getItem('meelad_cert_sign_img') || localStorage.getItem('meelad_cert_sign1_img') || cert.signImg;
+
+    scaleWrapper.innerHTML = renderCertificateSheetHTML(cert, false);
+
+    if (indexText) {
+        indexText.textContent = `${certState.currentIndex + 1} of ${total}`;
+    }
+
+    scalePreviewToFit();
+}
+
+function scalePreviewToFit() {
+    const wrapper = document.getElementById('certLivePreviewWrapper');
+    const scaleInner = document.getElementById('certPreviewInnerScale');
+    if (!wrapper || !scaleInner) return;
+
+    const certWidthPx = 1122.5;
+    const certHeightPx = 793.7;
+    const availWidth = wrapper.clientWidth - 20;
+    const availHeight = wrapper.clientHeight - 20;
+
+    const scaleX = availWidth / certWidthPx;
+    const scaleY = availHeight / certHeightPx;
+    const scale = Math.min(scaleX, scaleY, 0.35);
+
+    scaleInner.style.transform = `scale(${scale})`;
+}
+
+function printAllCertificates() {
+    const certs = certState.matchingCertificates;
+    if (!certs || certs.length === 0) {
+        window.showToast("No matching certificate recipients to print.", "warning");
+        return;
+    }
+
+    window.showToast(`Preparing print document for ${certs.length} certificates...`, "info");
+
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'fixed';
+    printFrame.style.right = '0';
+    printFrame.style.bottom = '0';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    printFrame.style.border = '0';
+    document.body.appendChild(printFrame);
+
+    const doc = printFrame.contentWindow.document;
+    doc.open();
+    doc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Certificates Batch Print - ${window.escapeHTML(getEventName())}</title>
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,400;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+            <link rel="stylesheet" href="../css/certificate.css">
+            <style>
+                @page {
+                    size: 297mm 210mm landscape;
+                    margin: 0 !important;
+                }
+                html, body {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: #fff !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+                .cert-print-container {
+                    width: 297mm;
+                    margin: 0 auto;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="cert-print-container">
+                ${certs.map(c => renderCertificateSheetHTML(c, true)).join('')}
+            </div>
+        </body>
+        </html>
+    `);
+    doc.close();
+
+    const waitForImages = () => {
+        const imgs = Array.from(doc.images);
+        const promises = imgs.map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(resolve => {
+                img.onload = resolve;
+                img.onerror = resolve;
+            });
+        });
+        return Promise.all(promises);
+    };
+
+    waitForImages().then(() => {
+        setTimeout(() => {
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+            setTimeout(() => {
+                if (printFrame.parentNode) document.body.removeChild(printFrame);
+            }, 4000);
+        }, 500);
+    });
+}
+
 function renderDrawerContent() {
     const body = document.getElementById('exportDrawerBody');
     if (!body) return;
@@ -1535,6 +2319,14 @@ function renderDrawerContent() {
                             <span style="font-size:0.7rem; color:#64748b; font-weight:600;">Standings, category champs, podiums</span>
                         </div>
                     </div>
+
+                    <div class="exp-type-card" data-type="Certificate">
+                        <span style="font-size:2rem; background:#fef9c3; border-radius:10px; width:48px; height:48px; display:flex; align-items:center; justify-content:center; border:1px solid #ddd;">🎖️</span>
+                        <div style="display:flex; flex-direction:column; gap:0.1rem;">
+                            <strong style="color:#1e1b4b; font-size:0.9rem;">Certificate</strong>
+                            <span style="font-size:0.7rem; color:#64748b; font-weight:600;">Official A4 Achievement Awards</span>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Right: Spaced Configurations Parameter Forms (Phase 2) -->
@@ -1543,255 +2335,414 @@ function renderDrawerContent() {
                         2. Scope Filters & Print Format
                     </span>
 
-                    <!-- Chest Number Export Submode Selector -->
-                    <div id="chestExportModeSelector" style="display:none; margin-top:0.75rem; margin-bottom:0.75rem; border:1px solid #cbd5e1; padding:2px; border-radius:10px; background:#f1f5f9; display:flex;">
-                        <button type="button" class="exp-submode-btn active" data-submode="list" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:#fff; color:#1e1b4b; box-shadow:0 1px 3px rgba(0,0,0,0.05); transition:all 0.2s;">Chest Number List</button>
-                        <button type="button" class="exp-submode-btn" data-submode="card" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Chest Number & Program Card</button>
-                        <button type="button" class="exp-submode-btn" data-submode="chest_number_only" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Chest Number Card</button>
-                    </div>
+                    <!-- Container for Certificate Specific Parameters -->
+                    <div id="expCertificateContainer" style="display:none; flex-direction:column; gap:1rem; width:100%;">
+                        <!-- Compact Certificate Recipient Summary Badge -->
+                        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <span style="font-size:1.2rem;">🎖️</span>
+                                <span style="font-size:0.85rem; font-weight:800; color:#1e1b4b;">Matching Recipients: <span id="certCountTotal" style="color:#4f46e5; font-size:1rem;">0</span></span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:0.75rem; font-size:0.75rem; font-weight:700;">
+                                <span style="background:#fef3c7; color:#92400e; padding:3px 8px; border-radius:6px;">🥇 1st: <strong id="certCountFirst">0</strong></span>
+                                <span style="background:#f1f5f9; color:#475569; padding:3px 8px; border-radius:6px;">🥈 2nd: <strong id="certCountSecond">0</strong></span>
+                                <span style="background:#ffedd5; color:#9a3412; padding:3px 8px; border-radius:6px;">🥉 3rd: <strong id="certCountThird">0</strong></span>
+                            </div>
+                        </div>
 
-                    <!-- Program Participation Register Submode Selector (Three-Tab Layout) -->
-                    <div id="progRegExportModeSelector" style="display:none; margin-top:0.75rem; margin-bottom:0.75rem; border:1px solid #cbd5e1; padding:2px; border-radius:10px; background:#f1f5f9; display:flex;">
-                        <button type="button" class="prog-reg-submode-btn active" data-submode="register" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:#fff; color:#1e1b4b; box-shadow:0 1px 3px rgba(0,0,0,0.05); transition:all 0.2s;">Program Participation Register</button>
-                        <button type="button" class="prog-reg-submode-btn" data-submode="list" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Program List</button>
-                        <button type="button" class="prog-reg-submode-btn" data-submode="student_summary" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Student-wise Participation Summary</button>
-                    </div>
+                        <!-- Scope & Program Filters (Clean 2-Column / 3-Row Grid) -->
+                        <div style="background:#fff; border:1px solid #cbd5e1; border-radius:12px; padding:1rem; display:flex; flex-direction:column; gap:0.75rem;">
+                            <span style="font-size:0.75rem; font-weight:800; color:#1e1b4b; text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid #e2e8f0; padding-bottom:0.4rem;">
+                                🔍 Scope & Filter Options
+                            </span>
 
-                    <!-- Sub Options (Only visible for Results) -->
-                    <div id="expResultSub" style="display:none; flex-direction:column; gap:0.45rem;">
-                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">RESULTS SUB-OPTION *</label>
-                        <select id="expResultSubVal" class="exp-input" style="background:#fff;">
-                            <option value="Team Wise">Team Wise Standings & Roster</option>
-                            <option value="Program Wise">Program Wise Podiums</option>
-                            <option value="Student Prize Distribution">Student Prize Distribution Register</option>
-                            <option value="Prize Distribution Register">Position Wise Winners</option>
-                            <option value="Participants Without Major Prizes">Participants Without Major Prizes</option>
-                            <option value="Class Wise Academic & Attendance">Class Wise Academic & Attendance Awards</option>
-                        </select>
-                    </div>
+                            <!-- ROW 1: Program Type | Specific Program -->
+                            <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                                <div style="flex:1; min-width:140px;">
+                                    <label style="font-weight:700; color:#475569; font-size:0.78rem;">PROGRAM TYPE</label>
+                                    <select id="expCertProgType" class="exp-input" style="background:#fff;">
+                                        <option value="">All Program Types</option>
+                                        <option value="stage">Stage Programs</option>
+                                        <option value="off stage">Off-Stage Programs</option>
+                                        <option value="general">General Programs</option>
+                                        <option value="group">Group Programs</option>
+                                        <option value="individual">Individual Programs</option>
+                                    </select>
+                                </div>
+                                <div style="flex:1; min-width:140px;">
+                                    <label style="font-weight:700; color:#475569; font-size:0.78rem;">SPECIFIC PROGRAM</label>
+                                    <select id="expCertProg" class="exp-input" style="background:#fff;">
+                                        <option value="">All Matching Programs</option>
+                                    </select>
+                                </div>
+                            </div>
 
-                    <!-- Award Type filter (Only visible for Class Wise Academic & Attendance Results) -->
-                    <div id="expAwardTypeContainer" style="display:none; flex-direction:column; gap:0.45rem;">
-                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">AWARD TYPE</label>
-                        <div id="expAwardTypeMultiSelect" style="position:relative; width:100%;">
-                            <button type="button" id="expAwardTypeBtn" class="exp-input" style="background:#fff; text-align:left; display:flex; justify-content:space-between; align-items:center; cursor:pointer; width:100%; min-height:38px; padding:0.45rem 0.75rem; box-sizing:border-box;">
-                                <span id="expAwardTypeBtnText" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.85rem; font-weight:600; color:#1e1b4b;">All Awards</span>
-                                <span style="font-size:0.7rem; color:#64748b; margin-left:0.5rem;">▼</span>
-                            </button>
-                            <div id="expAwardTypeDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1050; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); margin-top:4px; max-height:260px; overflow-y:auto; padding:0.5rem; box-sizing:border-box;">
-                                <input type="text" id="expAwardTypeSearch" placeholder="Search Award Types..." style="width:100%; padding:0.35rem 0.5rem; font-size:0.82rem; border:1px solid #cbd5e1; border-radius:6px; margin-bottom:0.5rem; box-sizing:border-box;" />
-                                <div id="expAwardTypeList" style="display:flex; flex-direction:column; gap:0.25rem;">
-                                    <label class="exp-award-opt" style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; color:#1e1b4b; cursor:pointer; padding:0.3rem 0.4rem; border-radius:4px; transition:background 0.15s;">
-                                        <input type="checkbox" class="exp-award-chk" value="All" checked style="accent-color:#4f46e5; cursor:pointer; width:15px; height:15px;" />
-                                        <strong style="font-weight:700;">All Awards</strong>
-                                    </label>
-                                    ${allAwardTypes.map(t => `
-                                        <label class="exp-award-opt" style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; color:#334155; cursor:pointer; padding:0.3rem 0.4rem; border-radius:4px; transition:background 0.15s;">
-                                            <input type="checkbox" class="exp-award-chk" value="${t.id}" data-name="${window.escapeHTML(t.name)}" style="accent-color:#4f46e5; cursor:pointer; width:15px; height:15px;" />
-                                            <span>${window.escapeHTML(t.name)}</span>
-                                        </label>
-                                    `).join('')}
+                            <!-- ROW 2: Category | Gender -->
+                            <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                                <div style="flex:1; min-width:140px;">
+                                    <label style="font-weight:700; color:#475569; font-size:0.78rem;">CATEGORY</label>
+                                    <select id="expCertCat" class="exp-input" style="background:#fff;">${catOptions}</select>
+                                </div>
+                                <div style="flex:1; min-width:140px;">
+                                    <label style="font-weight:700; color:#475569; font-size:0.78rem;">GENDER</label>
+                                    <select id="expCertGender" class="exp-input" style="background:#fff;">
+                                        <option value="">All Genders</option>
+                                        <option value="Boys">Boys</option>
+                                        <option value="Girls">Girls</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- ROW 3: Position Filter -->
+                            <div>
+                                <label style="font-weight:700; color:#475569; font-size:0.78rem; display:block; margin-bottom:0.3rem;">POSITION</label>
+                                <select id="expCertPosSelect" class="exp-input" style="background:#fff;">
+                                    <option value="First + Second + Third" selected>First + Second + Third</option>
+                                    <option value="First">First Only</option>
+                                    <option value="Second">Second Only</option>
+                                    <option value="Third">Third Only</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Madrasa Branding & Single Signatory Setup (Persistent Card) -->
+                        <details id="certBrandingDetails" style="background:#fff; border:1px solid #cbd5e1; border-radius:12px; padding:0.85rem; cursor:pointer;">
+                            <summary style="font-size:0.8rem; font-weight:800; color:#1e1b4b; text-transform:uppercase; letter-spacing:0.04em; display:flex; justify-content:space-between; align-items:center;">
+                                <span>🏛️ Madrasa Branding & Signatory Setup</span>
+                                <span style="font-size:0.7rem; color:#64748b; font-weight:600; text-transform:none;">(Auto-saved locally)</span>
+                            </summary>
+                            <div style="display:flex; flex-direction:column; gap:0.75rem; margin-top:0.85rem; border-top:1px solid #e2e8f0; padding-top:0.75rem; cursor:default;">
+                                <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                                    <div style="flex:1; min-width:160px;">
+                                        <label style="font-weight:700; color:#475569; font-size:0.75rem;">MADRASA / INSTITUTION NAME</label>
+                                        <input type="text" id="expCertMadrasaName" class="exp-input" placeholder="Enter Madrasa Name" />
+                                    </div>
+                                    <div style="flex:1; min-width:160px;">
+                                        <label style="font-weight:700; color:#475569; font-size:0.75rem;">DEPARTMENT / TAGLINE</label>
+                                        <input type="text" id="expCertInstitutionSub" class="exp-input" placeholder="DEPARTMENT OF ISLAMIC EDUCATION & CULTURAL AFFAIRS" />
+                                    </div>
+                                </div>
+
+                                <div style="display:flex; align-items:center; gap:0.75rem; background:#f8fafc; padding:0.5rem 0.75rem; border-radius:8px; border:1px dashed #cbd5e1;">
+                                    <div id="expCertLogoPreview" style="width:38px; height:38px; border-radius:50%; background:#fff; border:1px solid #cbd5e1; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                                        <span style="font-size:0.65rem; color:#94A3B8; font-weight:700;">Logo</span>
+                                    </div>
+                                    <div style="flex:1;">
+                                        <label for="expCertLogoFile" style="font-size:0.75rem; font-weight:700; color:#4f46e5; cursor:pointer;">📁 Upload Madrasa Logo</label>
+                                        <input type="file" id="expCertLogoFile" accept="image/*" style="display:none;" />
+                                        <div style="font-size:0.65rem; color:#64748b;">PNG or JPG (auto-saved & embedded into all certificates)</div>
+                                    </div>
+                                    <button type="button" id="expCertClearLogoBtn" style="display:none; background:none; border:none; color:#ef4444; font-size:0.75rem; font-weight:700; cursor:pointer;">Remove</button>
+                                </div>
+
+                                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.65rem; display:flex; flex-direction:column; gap:0.5rem;">
+                                    <span style="font-size:0.72rem; font-weight:800; color:#475569; text-transform:uppercase;">Authorized Signatory</span>
+                                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                                        <div style="flex:1; min-width:140px;">
+                                            <label style="font-weight:700; color:#475569; font-size:0.75rem;">SIGNATORY NAME</label>
+                                            <input type="text" id="expCertSignName" class="exp-input" placeholder="e.g. Mr. Muhammad Rashid" />
+                                        </div>
+                                        <div style="flex:1; min-width:140px;">
+                                            <label style="font-weight:700; color:#475569; font-size:0.75rem;">DESIGNATION</label>
+                                            <input type="text" id="expCertSignTitle" class="exp-input" placeholder="e.g. Principal / General Secretary" />
+                                        </div>
+                                    </div>
+                                    <div style="display:flex; align-items:center; gap:0.75rem; background:#fff; padding:0.4rem 0.6rem; border-radius:6px; border:1px dashed #cbd5e1;">
+                                        <div id="expCertSignPreview" style="display:inline-flex; align-items:center;"></div>
+                                        <label for="expCertSignFile" style="font-size:0.72rem; font-weight:700; color:#4f46e5; cursor:pointer;">✍️ Upload Signature Image</label>
+                                        <input type="file" id="expCertSignFile" accept="image/*" style="display:none;" />
+                                        <button type="button" id="expCertClearSignBtn" style="display:none; margin-left:auto; background:none; border:none; color:#ef4444; font-size:0.72rem; font-weight:700; cursor:pointer;">Remove Sign</button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label style="font-weight:700; color:#475569; font-size:0.75rem;">DATE OF ISSUE</label>
+                                    <input type="text" id="expCertDate" class="exp-input" placeholder="e.g. 15 September 2026" />
+                                </div>
+                            </div>
+                        </details>
+
+                        <!-- Live Interactive Certificate Preview -->
+                        <div style="background:#fff; border:1px solid #cbd5e1; border-radius:12px; padding:1rem; display:flex; flex-direction:column; gap:0.75rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <span style="font-size:0.75rem; font-weight:800; color:#1e1b4b; text-transform:uppercase; letter-spacing:0.04em;">
+                                    👁️ Live Certificate Preview
+                                </span>
+                                <div id="certPreviewNav" style="display:flex; align-items:center; gap:0.4rem;">
+                                    <button type="button" id="btnCertPrev" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:700; cursor:pointer;">◀</button>
+                                    <span id="certPreviewIndexText" style="font-size:0.75rem; font-weight:700; color:#475569;">1 of 0</span>
+                                    <button type="button" id="btnCertNext" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:700; cursor:pointer;">▶</button>
+                                </div>
+                            </div>
+
+                            <!-- Live Scaled Container -->
+                            <div id="certLivePreviewWrapper" style="width:100%; height:260px; overflow:hidden; background:#0b1322; border-radius:10px; padding:10px; display:flex; justify-content:center; align-items:center; box-sizing:border-box;">
+                                <div id="certPreviewInnerScale" style="transform-origin:center center; width:297mm; height:210mm; display:flex; align-items:center; justify-content:center;">
+                                    <!-- Scaled Certificate Sheet -->
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Position Filter (Only visible for specific Results Reports) -->
-                    <div id="expPositionFilterContainer" style="display:none; flex-direction:column; gap:0.45rem; background:#f8fafc; border:1px solid #cbd5e1; padding:0.75rem; border-radius:10px;">
-                        <label style="font-weight:800; color:#475569; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.04em;">POSITIONS FILTER</label>
-                        <div style="display:flex; gap:1.25rem; align-items:center;">
-                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
-                                <input type="checkbox" class="exp-pos-chk" value="First" checked style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> First
-                            </label>
-                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
-                                <input type="checkbox" class="exp-pos-chk" value="Second" checked style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Second
-                            </label>
-                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
-                                <input type="checkbox" class="exp-pos-chk" value="Third" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Third
-                            </label>
-                            <label id="expPosGeneralProgramLabel" style="display:none; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
-                                <input type="checkbox" class="exp-pos-chk" value="General Programs" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> General Programs
-                            </label>
+                    <!-- Container for Standard Export Parameters (Green Room, Call List, Valuation, Results, etc.) -->
+                    <div id="standardExportParams" style="display:flex; flex-direction:column; gap:1.25rem; width:100%;">
+                        <!-- Chest Number Export Submode Selector -->
+                        <div id="chestExportModeSelector" style="display:none; margin-top:0.75rem; margin-bottom:0.75rem; border:1px solid #cbd5e1; padding:2px; border-radius:10px; background:#f1f5f9; display:flex;">
+                            <button type="button" class="exp-submode-btn active" data-submode="list" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:#fff; color:#1e1b4b; box-shadow:0 1px 3px rgba(0,0,0,0.05); transition:all 0.2s;">Chest Number List</button>
+                            <button type="button" class="exp-submode-btn" data-submode="card" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Chest Number & Program Card</button>
+                            <button type="button" class="exp-submode-btn" data-submode="chest_number_only" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Chest Number Card</button>
                         </div>
-                    </div>
 
-                    <!-- Program Order Filter (Only for Program Wise Podiums) -->
-                    <div id="expProgramOrderContainer" style="display:none; flex-direction:column; gap:0.45rem; width:100%; margin-bottom:0.75rem;">
-                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">PROGRAM ORDER</label>
-                        <div style="display:flex; flex-direction:column; gap:0.45rem; background:#f8fafc; border:1px solid #cbd5e1; padding:0.75rem; border-radius:10px;">
-                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
-                                <input type="radio" name="expProgramOrderFilter" value="default" checked style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Default Order
-                            </label>
-                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
-                                <input type="radio" name="expProgramOrderFilter" value="result_number" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Result Number Wise
-                            </label>
-                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
-                                <input type="radio" name="expProgramOrderFilter" value="category_order" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Category Order
-                            </label>
+                        <!-- Program Participation Register Submode Selector (Three-Tab Layout) -->
+                        <div id="progRegExportModeSelector" style="display:none; margin-top:0.75rem; margin-bottom:0.75rem; border:1px solid #cbd5e1; padding:2px; border-radius:10px; background:#f1f5f9; display:flex;">
+                            <button type="button" class="prog-reg-submode-btn active" data-submode="register" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:#fff; color:#1e1b4b; box-shadow:0 1px 3px rgba(0,0,0,0.05); transition:all 0.2s;">Program Participation Register</button>
+                            <button type="button" class="prog-reg-submode-btn" data-submode="list" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Program List</button>
+                            <button type="button" class="prog-reg-submode-btn" data-submode="student_summary" style="flex:1; text-align:center; padding:0.5rem; font-size:0.78rem; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:transparent; color:#64748b; transition:all 0.2s;">Student-wise Participation Summary</button>
                         </div>
-                    </div>
 
-                    <!-- Category / Class filters -->
-                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; width:100%;">
-                        <div id="expCatFilterContainer" style="flex:1; min-width:140px;">
-                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">CATEGORY</label>
-                            <select id="expCatFilter" class="exp-input" style="background:#fff;">${catOptions}</select>
-                        </div>
-                        <div style="flex:1; min-width:140px;">
-                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">CLASS / STANDARD</label>
-                            <select id="expClassFilter" class="exp-input" style="background:#fff;" disabled>
-                                <option value="">All Classes</option>
+                        <!-- Sub Options (Only visible for Results) -->
+                        <div id="expResultSub" style="display:none; flex-direction:column; gap:0.45rem;">
+                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">RESULTS SUB-OPTION *</label>
+                            <select id="expResultSubVal" class="exp-input" style="background:#fff;">
+                                <option value="Team Wise">Team Wise Standings & Roster</option>
+                                <option value="Program Wise">Program Wise Podiums</option>
+                                <option value="Student Prize Distribution">Student Prize Distribution Register</option>
+                                <option value="Prize Distribution Register">Position Wise Winners</option>
+                                <option value="Participants Without Major Prizes">Participants Without Major Prizes</option>
+                                <option value="Class Wise Academic & Attendance">Class Wise Academic & Attendance Awards</option>
                             </select>
                         </div>
-                    </div>
 
-                    <!-- Program Location (Stage / Off Stage) filter -->
-                    <div id="expLocationFilterContainer" style="display:none; flex-direction:column; gap:0.45rem;">
-                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">PROGRAM LOCATION</label>
-                        <select id="expLocationFilter" class="exp-input" style="background:#fff;">
-                            <option value="">All Programs</option>
-                            <option value="Stage">Stage</option>
-                            <option value="Off Stage">Off Stage</option>
-                        </select>
-                    </div>
+                        <!-- Award Type filter (Only visible for Class Wise Academic & Attendance Results) -->
+                        <div id="expAwardTypeContainer" style="display:none; flex-direction:column; gap:0.45rem;">
+                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">AWARD TYPE</label>
+                            <div id="expAwardTypeMultiSelect" style="position:relative; width:100%;">
+                                <button type="button" id="expAwardTypeBtn" class="exp-input" style="background:#fff; text-align:left; display:flex; justify-content:space-between; align-items:center; cursor:pointer; width:100%; min-height:38px; padding:0.45rem 0.75rem; box-sizing:border-box;">
+                                    <span id="expAwardTypeBtnText" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.85rem; font-weight:600; color:#1e1b4b;">All Awards</span>
+                                    <span style="font-size:0.7rem; color:#64748b; margin-left:0.5rem;">▼</span>
+                                </button>
+                                <div id="expAwardTypeDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1050; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); margin-top:4px; max-height:260px; overflow-y:auto; padding:0.5rem; box-sizing:border-box;">
+                                    <input type="text" id="expAwardTypeSearch" placeholder="Search Award Types..." style="width:100%; padding:0.35rem 0.5rem; font-size:0.82rem; border:1px solid #cbd5e1; border-radius:6px; margin-bottom:0.5rem; box-sizing:border-box;" />
+                                    <div id="expAwardTypeList" style="display:flex; flex-direction:column; gap:0.25rem;">
+                                        <label class="exp-award-opt" style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; color:#1e1b4b; cursor:pointer; padding:0.3rem 0.4rem; border-radius:4px; transition:background 0.15s;">
+                                            <input type="checkbox" class="exp-award-chk" value="All" checked style="accent-color:#4f46e5; cursor:pointer; width:15px; height:15px;" />
+                                            <strong style="font-weight:700;">All Awards</strong>
+                                        </label>
+                                        ${allAwardTypes.map(t => `
+                                            <label class="exp-award-opt" style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; color:#334155; cursor:pointer; padding:0.3rem 0.4rem; border-radius:4px; transition:background 0.15s;">
+                                                <input type="checkbox" class="exp-award-chk" value="${t.id}" data-name="${window.escapeHTML(t.name)}" style="accent-color:#4f46e5; cursor:pointer; width:15px; height:15px;" />
+                                                <span>${window.escapeHTML(t.name)}</span>
+                                            </label>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-                    <!-- Program Type (Individual / Group / General) filter -->
-                    <div id="expParticipationFilterContainer" style="display:none; flex-direction:column; gap:0.45rem;">
-                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">PROGRAM TYPE / PARTICIPATION</label>
-                        <select id="expParticipationFilter" class="exp-input" style="background:#fff;">
-                            <option value="">All Program Types</option>
-                            <option value="individual">Individual Programs</option>
-                            <option value="group">Group Programs</option>
-                            <option value="general">General Programs</option>
-                        </select>
-                    </div>
+                        <!-- Position Filter (Only visible for specific Results Reports) -->
+                        <div id="expPositionFilterContainer" style="display:none; flex-direction:column; gap:0.45rem; background:#f8fafc; border:1px solid #cbd5e1; padding:0.75rem; border-radius:10px;">
+                            <label style="font-weight:800; color:#475569; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.04em;">POSITIONS FILTER</label>
+                            <div style="display:flex; gap:1.25rem; align-items:center;">
+                                <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                    <input type="checkbox" class="exp-pos-chk" value="First" checked style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> First
+                                </label>
+                                <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                    <input type="checkbox" class="exp-pos-chk" value="Second" checked style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Second
+                                </label>
+                                <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                    <input type="checkbox" class="exp-pos-chk" value="Third" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Third
+                                </label>
+                                <label id="expPosGeneralProgramLabel" style="display:none; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                    <input type="checkbox" class="exp-pos-chk" value="General Programs" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> General Programs
+                                </label>
+                            </div>
+                        </div>
 
-                    <!-- Register Format/Mode selector -->
-                    <div id="expRegisterModeContainer" style="display:none; flex-direction:column; gap:0.45rem;">
-                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">REGISTER FORMAT / MODE</label>
-                        <select id="expRegisterMode" class="exp-input" style="background:#fff;">
-                            <option value="class-wise">Class-wise Register</option>
-                            <option value="category-wise">Category-wise Register</option>
-                        </select>
-                    </div>
+                        <!-- Program Order Filter (Only for Program Wise Podiums) -->
+                        <div id="expProgramOrderContainer" style="display:none; flex-direction:column; gap:0.45rem; width:100%; margin-bottom:0.75rem;">
+                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">PROGRAM ORDER</label>
+                            <div style="display:flex; flex-direction:column; gap:0.45rem; background:#f8fafc; border:1px solid #cbd5e1; padding:0.75rem; border-radius:10px;">
+                                <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                    <input type="radio" name="expProgramOrderFilter" value="default" checked style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Default Order
+                                </label>
+                                <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                    <input type="radio" name="expProgramOrderFilter" value="result_number" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Result Number Wise
+                                </label>
+                                <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                    <input type="radio" name="expProgramOrderFilter" value="category_order" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Category Order
+                                </label>
+                            </div>
+                        </div>
 
-                    <!-- Program selection (Cascading) -->
-                    <div id="expProgFilterContainer">
-                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">SPECIFIC PROGRAM (OPTIONAL)</label>
-                        <select id="expProgFilter" class="exp-input" style="background:#fff;">
-                            <option value="">All Matching Programs</option>
-                        </select>
-                    </div>
+                        <!-- Category / Class filters -->
+                        <div style="display:flex; gap:0.75rem; flex-wrap:wrap; width:100%;">
+                            <div id="expCatFilterContainer" style="flex:1; min-width:140px;">
+                                <label style="font-weight:700; color:#475569; font-size:0.78rem;">CATEGORY</label>
+                                <select id="expCatFilter" class="exp-input" style="background:#fff;">${catOptions}</select>
+                            </div>
+                            <div style="flex:1; min-width:140px;">
+                                <label style="font-weight:700; color:#475569; font-size:0.78rem;">CLASS / STANDARD</label>
+                                <select id="expClassFilter" class="exp-input" style="background:#fff;" disabled>
+                                    <option value="">All Classes</option>
+                                </select>
+                            </div>
+                        </div>
 
-                    <!-- Chest Number List specific Mode Controls -->
-                    <div id="chestListModeContainer" style="display:none; flex-direction:column; gap:0.45rem;">
-                        <label style="font-weight:700; color:#475569; font-size:0.78rem;">CHEST NUMBER LIST FORMAT</label>
-                        <select id="expChestMode" class="exp-input" style="background:#fff;">
-                            <option value="class-wise">Class-wise Chest Number List</option>
-                            <option value="category-wise">Category-wise Chest Number List</option>
-                        </select>
-                    </div>
-
-                    <!-- Gender & Teams -->
-                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; width:100%;">
-                        <div style="flex:1; min-width:140px;">
-                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">GENDER FILTER</label>
-                            <select id="expGenderFilter" class="exp-input" style="background:#fff;">
-                                <option value="">All Genders</option>
-                                <option value="Boys">Boys</option>
-                                <option value="Girls">Girls</option>
-                                <option value="Mixed">Mixed</option>
+                        <!-- Program Location (Stage / Off Stage) filter -->
+                        <div id="expLocationFilterContainer" style="display:none; flex-direction:column; gap:0.45rem;">
+                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">PROGRAM LOCATION</label>
+                            <select id="expLocationFilter" class="exp-input" style="background:#fff;">
+                                <option value="">All Programs</option>
+                                <option value="Stage">Stage</option>
+                                <option value="Off Stage">Off Stage</option>
                             </select>
                         </div>
-                        <div id="expTeamFilterContainer" style="flex:1; min-width:140px;">
-                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">TEAM / INSTITUTE FILTER</label>
-                            <select id="expTeamFilter" class="exp-input" style="background:#fff;">${teamOptions}</select>
-                        </div>
-                    </div>
 
-                    <!-- Results specific Filters -->
-                    <div id="resultsSourceContainer" style="display:none; flex-direction:column; gap:0.5rem; background:#fff; border:1px solid #cbd5e1; padding:0.75rem 1rem; border-radius:10px;">
-                        <span style="font-size:0.75rem; font-weight:700; color:#475569; display:block;">RESULTS SOURCE CONTROLS</span>
-                        <div style="display:flex; gap:1.25rem;">
-                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.78rem; font-weight:600; color:#475569; cursor:pointer;">
-                                <input type="checkbox" id="srcIncludeSubmitted" style="cursor:pointer;" /> Include Submitted Marks
-                            </label>
-                            <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.78rem; font-weight:600; color:#475569; cursor:pointer;">
-                                <input type="checkbox" id="srcIncludeDraft" style="cursor:pointer;" /> Include Draft Scores
-                            </label>
+                        <!-- Program Type (Individual / Group / General) filter -->
+                        <div id="expParticipationFilterContainer" style="display:none; flex-direction:column; gap:0.45rem;">
+                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">PROGRAM TYPE / PARTICIPATION</label>
+                            <select id="expParticipationFilter" class="exp-input" style="background:#fff;">
+                                <option value="">All Program Types</option>
+                                <option value="individual">Individual Programs</option>
+                                <option value="group">Group Programs</option>
+                                <option value="general">General Programs</option>
+                            </select>
                         </div>
-                    </div>
 
-                    <!-- Paper Packing Configuration (Phase 3 & 4) -->
-                    <div id="paperPackingContainer" style="display:flex; flex-direction:column; gap:0.5rem; background:#fff; border:1px solid #cbd5e1; padding:0.75rem 1rem; border-radius:10px;">
-                        <span style="font-size:0.75rem; font-weight:700; color:#1e1b4b; display:block; text-transform:uppercase; letter-spacing:0.04em;">🌳 ECO-PRINT PAPER OPTIMIZATION</span>
-                        <div style="display:flex; align-items:center; gap:0.5rem;">
-                            <input type="checkbox" id="expCompactPacking" checked style="width:1.2rem; height:1.2rem; cursor:pointer;" />
-                            <label for="expCompactPacking" style="font-size:0.8rem; font-weight:700; color:#475569; cursor:pointer; user-select:none;">
-                                Enable Compact A4 Packing Mode (Conserve Paper & Combine sheets)
-                            </label>
+                        <!-- Register Format/Mode selector -->
+                        <div id="expRegisterModeContainer" style="display:none; flex-direction:column; gap:0.45rem;">
+                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">REGISTER FORMAT / MODE</label>
+                            <select id="expRegisterMode" class="exp-input" style="background:#fff;">
+                                <option value="class-wise">Class-wise Register</option>
+                                <option value="category-wise">Category-wise Register</option>
+                            </select>
                         </div>
-                        <span id="packingHint" style="font-size:0.68rem; color:#64748b; display:block;">Combine multiple programs continuously to avoid wasting paper on blank space.</span>
-                    </div>
 
-                    <!-- Team Background Manager Container -->
-                    <div id="teamBgContainer" style="display:none; flex-direction:column; gap:0.75rem; background:#fff; border:1px solid #cbd5e1; padding:0.75rem 1rem; border-radius:10px;">
-                        <span style="font-size:0.75rem; font-weight:700; color:#1e1b4b; display:block; text-transform:uppercase; letter-spacing:0.04em;">🖼️ Team Background Manager</span>
-                        <div style="display:flex; align-items:center; gap:0.5rem;">
-                            <input type="checkbox" id="expEnableTeamBg" style="width:1.2rem; height:1.2rem; cursor:pointer;" />
-                            <label for="expEnableTeamBg" style="font-size:0.8rem; font-weight:700; color:#475569; cursor:pointer; user-select:none;">
-                                Enable Team Background Images
-                            </label>
+                        <!-- Program selection (Cascading) -->
+                        <div id="expProgFilterContainer">
+                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">SPECIFIC PROGRAM (OPTIONAL)</label>
+                            <select id="expProgFilter" class="exp-input" style="background:#fff;">
+                                <option value="">All Matching Programs</option>
+                            </select>
                         </div>
-                        <div id="teamBgManagerContent" style="display:none; flex-direction:column; gap:0.75rem; width:100%; border-top:1.5px dashed #cbd5e1; padding-top:0.75rem;">
+
+                        <!-- Chest Number List specific Mode Controls -->
+                        <div id="chestListModeContainer" style="display:none; flex-direction:column; gap:0.45rem;">
+                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">CHEST NUMBER LIST FORMAT</label>
+                            <select id="expChestMode" class="exp-input" style="background:#fff;">
+                                <option value="class-wise">Class-wise Chest Number List</option>
+                                <option value="category-wise">Category-wise Chest Number List</option>
+                            </select>
+                        </div>
+
+                        <!-- Gender & Teams -->
+                        <div style="display:flex; gap:0.75rem; flex-wrap:wrap; width:100%;">
+                            <div style="flex:1; min-width:140px;">
+                                <label style="font-weight:700; color:#475569; font-size:0.78rem;">GENDER FILTER</label>
+                                <select id="expGenderFilter" class="exp-input" style="background:#fff;">
+                                    <option value="">All Genders</option>
+                                    <option value="Boys">Boys</option>
+                                    <option value="Girls">Girls</option>
+                                    <option value="Mixed">Mixed</option>
+                                </select>
+                            </div>
+                            <div id="expTeamFilterContainer" style="flex:1; min-width:140px;">
+                                <label style="font-weight:700; color:#475569; font-size:0.78rem;">TEAM / INSTITUTE FILTER</label>
+                                <select id="expTeamFilter" class="exp-input" style="background:#fff;">${teamOptions}</select>
+                            </div>
+                        </div>
+
+                        <!-- Results specific Filters -->
+                        <div id="resultsSourceContainer" style="display:none; flex-direction:column; gap:0.5rem; background:#fff; border:1px solid #cbd5e1; padding:0.75rem 1rem; border-radius:10px;">
+                            <span style="font-size:0.75rem; font-weight:700; color:#475569; display:block;">RESULTS SOURCE CONTROLS</span>
+                            <div style="display:flex; gap:1.25rem;">
+                                <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.78rem; font-weight:600; color:#475569; cursor:pointer;">
+                                    <input type="checkbox" id="srcIncludeSubmitted" style="cursor:pointer;" /> Include Submitted Marks
+                                </label>
+                                <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.78rem; font-weight:600; color:#475569; cursor:pointer;">
+                                    <input type="checkbox" id="srcIncludeDraft" style="cursor:pointer;" /> Include Draft Scores
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Paper Packing Configuration (Phase 3 & 4) -->
+                        <div id="paperPackingContainer" style="display:flex; flex-direction:column; gap:0.5rem; background:#fff; border:1px solid #cbd5e1; padding:0.75rem 1rem; border-radius:10px;">
+                            <span style="font-size:0.75rem; font-weight:700; color:#1e1b4b; display:block; text-transform:uppercase; letter-spacing:0.04em;">🌳 ECO-PRINT PAPER OPTIMIZATION</span>
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <input type="checkbox" id="expCompactPacking" checked style="width:1.2rem; height:1.2rem; cursor:pointer;" />
+                                <label for="expCompactPacking" style="font-size:0.8rem; font-weight:700; color:#475569; cursor:pointer; user-select:none;">
+                                    Enable Compact A4 Packing Mode (Conserve Paper & Combine sheets)
+                                </label>
+                            </div>
+                            <span id="packingHint" style="font-size:0.68rem; color:#64748b; display:block;">Combine multiple programs continuously to avoid wasting paper on blank space.</span>
+                        </div>
+
+                        <!-- Team Background Manager Container -->
+                        <div id="teamBgContainer" style="display:none; flex-direction:column; gap:0.75rem; background:#fff; border:1px solid #cbd5e1; padding:0.75rem 1rem; border-radius:10px;">
+                            <span style="font-size:0.75rem; font-weight:700; color:#1e1b4b; display:block; text-transform:uppercase; letter-spacing:0.04em;">🖼️ Team Background Manager</span>
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <input type="checkbox" id="expEnableTeamBg" style="width:1.2rem; height:1.2rem; cursor:pointer;" />
+                                <label for="expEnableTeamBg" style="font-size:0.8rem; font-weight:700; color:#475569; cursor:pointer; user-select:none;">
+                                    Enable Team Background Images
+                                </label>
+                            </div>
+                            <div id="teamBgManagerContent" style="display:none; flex-direction:column; gap:0.75rem; width:100%; border-top:1.5px dashed #cbd5e1; padding-top:0.75rem;">
+                                <div style="display:flex; justify-content:flex-end;">
+                                    <button type="button" id="btnResetAllTeamBgs" class="btn btn-danger" style="background:#ef4444; color:#fff; border:none; padding:0.4rem 0.8rem; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem;">
+                                        🔄 Reset All Team Backgrounds
+                                    </button>
+                                </div>
+                                <div id="teamBgGrid"></div>
+                            </div>
+                        </div>
+
+                        <!-- Chest Number Card Background Container -->
+                        <div id="chestNumBgContainer" style="display:none; flex-direction:column; gap:0.75rem; background:#fff; border:1px solid #cbd5e1; padding:0.75rem 1rem; border-radius:10px;">
+                            <span style="font-size:0.75rem; font-weight:700; color:#1e1b4b; display:block; text-transform:uppercase; letter-spacing:0.04em;">🖼️ Team-Wise Chest Number Card Backgrounds</span>
                             <div style="display:flex; justify-content:flex-end;">
-                                <button type="button" id="btnResetAllTeamBgs" class="btn btn-danger" style="background:#ef4444; color:#fff; border:none; padding:0.4rem 0.8rem; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem;">
-                                    🔄 Reset All Team Backgrounds
+                                <button type="button" id="btnResetAllChestNumBgs" class="btn btn-danger" style="background:#ef4444; color:#fff; border:none; padding:0.4rem 0.8rem; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem;">
+                                    🔄 Reset All Backgrounds
                                 </button>
                             </div>
-                            <div id="teamBgGrid"></div>
+                            <div id="chestNumTeamBgGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; width: 100%;"></div>
                         </div>
-                    </div>
 
-                    <!-- Chest Number Card Background Container -->
-                    <div id="chestNumBgContainer" style="display:none; flex-direction:column; gap:0.75rem; background:#fff; border:1px solid #cbd5e1; padding:0.75rem 1rem; border-radius:10px;">
-                        <span style="font-size:0.75rem; font-weight:700; color:#1e1b4b; display:block; text-transform:uppercase; letter-spacing:0.04em;">🖼️ Team-Wise Chest Number Card Backgrounds</span>
-                        <div style="display:flex; justify-content:flex-end;">
-                            <button type="button" id="btnResetAllChestNumBgs" class="btn btn-danger" style="background:#ef4444; color:#fff; border:none; padding:0.4rem 0.8rem; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem;">
-                                🔄 Reset All Backgrounds
-                            </button>
-                        </div>
-                        <div id="chestNumTeamBgGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; width: 100%;"></div>
-                    </div>
-
-                    <!-- Format & Layout -->
-                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; border-top:1px solid #cbd5e1; padding-top:0.75rem; width:100%; margin-top:auto;">
-                        <div style="flex:1; min-width:140px;">
-                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">LAYOUT ORIENTATION</label>
-                            <select id="expOrientation" class="exp-input" style="background:#fff;">
-                                <option value="portrait">A4 Portrait (Vertical)</option>
-                                <option value="landscape">A4 Landscape (Horizontal)</option>
-                                <option value="a3_portrait">A3 Portrait (Vertical)</option>
-                                <option value="a3_landscape" style="display:none;">A3 Landscape (Horizontal)</option>
-                            </select>
-                        </div>
-                        <div style="flex:1; min-width:140px;">
-                            <label style="font-weight:700; color:#475569; font-size:0.78rem;">DOWNLOAD FORMAT</label>
-                            <select id="expFormat" class="exp-input" style="background:#fff;">
-                                <option value="pdf">PDF Printable Sheet</option>
-                                <option value="csv">CSV Spreadsheet</option>
-                            </select>
+                        <!-- Format & Layout -->
+                        <div style="display:flex; gap:0.75rem; flex-wrap:wrap; border-top:1px solid #cbd5e1; padding-top:0.75rem; width:100%; margin-top:auto;">
+                            <div style="flex:1; min-width:140px;">
+                                <label style="font-weight:700; color:#475569; font-size:0.78rem;">LAYOUT ORIENTATION</label>
+                                <select id="expOrientation" class="exp-input" style="background:#fff;">
+                                    <option value="portrait">A4 Portrait (Vertical)</option>
+                                    <option value="landscape">A4 Landscape (Horizontal)</option>
+                                    <option value="a3_portrait">A3 Portrait (Vertical)</option>
+                                    <option value="a3_landscape" style="display:none;">A3 Landscape (Horizontal)</option>
+                                </select>
+                            </div>
+                            <div style="flex:1; min-width:140px;">
+                                <label style="font-weight:700; color:#475569; font-size:0.78rem;">DOWNLOAD FORMAT</label>
+                                <select id="expFormat" class="exp-input" style="background:#fff;">
+                                    <option value="pdf">PDF Printable Sheet</option>
+                                    <option value="csv">CSV Spreadsheet</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- Footer Action Panel -->
-            <div class="modal-actions" style="margin-top:0.25rem; border-top:1px solid #e2e8f0; padding-top:0.75rem; display:flex;">
+            <div class="modal-actions" style="margin-top:0.25rem; border-top:1px solid #e2e8f0; padding-top:0.75rem; display:flex; align-items:center;">
                 <button type="button" class="btn btn-secondary" id="btnNewExpCancel" style="min-height:44px; padding:0.5rem 1.5rem;">Cancel</button>
-                <button type="button" class="btn btn-primary" id="btnNewExpGenerate" style="margin-left:auto; font-weight:800; min-width:180px; min-height:44px; padding:0.5rem 1.5rem; font-size:0.9rem;">
-                    ⚡ Generate Export
-                </button>
+                <div id="standardExportActions" style="margin-left:auto; display:flex;">
+                    <button type="button" class="btn btn-primary" id="btnNewExpGenerate" style="font-weight:800; min-width:180px; min-height:44px; padding:0.5rem 1.5rem; font-size:0.9rem;">
+                        ⚡ Generate Export
+                    </button>
+                </div>
+                <div id="certificateExportActions" style="margin-left:auto; display:none; gap:0.75rem; flex-wrap:wrap;">
+                    <button type="button" class="btn btn-primary" id="btnCertPrintAll" style="font-weight:800; min-width:200px; min-height:44px; padding:0.5rem 1.75rem; font-size:0.9rem; background:linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);">
+                        🖨️ Print All Certificates
+                    </button>
+                </div>
             </div>
         </div>
     `;
@@ -2082,6 +3033,25 @@ function renderDrawerContent() {
             card.classList.add('active');
 
             selectedType = card.getAttribute('data-type');
+
+            const expCertContainer = document.getElementById('expCertificateContainer');
+            const standardExportParams = document.getElementById('standardExportParams');
+            const standardExportActions = document.getElementById('standardExportActions');
+            const certificateExportActions = document.getElementById('certificateExportActions');
+
+            if (selectedType === 'Certificate') {
+                if (expCertContainer) expCertContainer.style.display = 'flex';
+                if (standardExportParams) standardExportParams.style.display = 'none';
+                if (standardExportActions) standardExportActions.style.display = 'none';
+                if (certificateExportActions) certificateExportActions.style.display = 'flex';
+                setupCertificateExportModule();
+                return;
+            } else {
+                if (expCertContainer) expCertContainer.style.display = 'none';
+                if (standardExportParams) standardExportParams.style.display = 'flex';
+                if (standardExportActions) standardExportActions.style.display = 'flex';
+                if (certificateExportActions) certificateExportActions.style.display = 'none';
+            }
 
             const locCont = document.getElementById('expLocationFilterContainer');
             const partCont = document.getElementById('expParticipationFilterContainer');
@@ -2948,6 +3918,7 @@ function resolveWinnerParticipant(prog, w, participantsList, studentMap) {
             const chestNumbersStr = validChestNos.length > 0 ? validChestNos.join(' · ') : '—';
 
             return {
+                isGroup: true,
                 displayName: matchedPart.name || w.studentName || w.teamName || '—',
                 chestNumbers: chestNumbersStr,
                 memberStudents: memberStudents,
@@ -2991,6 +3962,7 @@ function resolveWinnerParticipant(prog, w, participantsList, studentMap) {
             };
 
             return {
+                isGroup: false,
                 displayName: studentInfo.name,
                 chestNumbers: studentInfo.chestNumber,
                 memberStudents: [studentInfo],

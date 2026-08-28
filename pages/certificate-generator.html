@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Official Certificate Studio — Madrasa & Meelad Management</title>
+    
+    <!-- Favicon Package -->
+    <link rel="icon" type="image/x-icon" href="../favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet">
+
+    <!-- Certificate Stylesheet & Print Engine -->
+    <link rel="stylesheet" href="../css/certificate.css">
+
+    <!-- html2canvas for High-Res Image Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        /* ==========================================================
+           STUDIO CONTROLLER LAYOUT & MODERN UI STYLES
+           ========================================================== */
+        body {
+            background-color: #070B14;
+            color: #E2E8F0;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* Top Action / Navigation Bar */
+        .studio-navbar {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .studio-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .back-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #94A3B8;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.2s;
+        }
+
+        .back-link:hover {
+            color: #FFF;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .brand-badge {
+            background: linear-gradient(135deg, #C5A059, #8A651E);
+            color: #0A192F;
+            font-weight: 800;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            letter-spacing: 1px;
+        }
+
+        .brand-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #F8FAFC;
+            letter-spacing: 0.3px;
+        }
+
+        .studio-nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #C5A059 0%, #D4AF37 50%, #996515 100%);
+            color: #0A192F;
+            box-shadow: 0 4px 14px rgba(212, 175, 55, 0.35);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(212, 175, 55, 0.45);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: #E2E8F0;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.14);
+            color: #FFF;
+        }
+
+        /* Workspace Grid */
+        .studio-workspace {
+            display: grid;
+            grid-template-columns: 370px 1fr;
+            min-height: calc(100vh - 64px);
+        }
+
+        /* Control Sidebar */
+        .control-sidebar {
+            background: #0B1322;
+            border-right: 1px solid rgba(255, 255, 255, 0.07);
+            padding: 20px 18px 80px 18px;
+            overflow-y: auto;
+            max-height: calc(100vh - 64px);
+        }
+
+        .control-sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .control-sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+
+        .sidebar-section {
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.025);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            padding: 14px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12.5px;
+            font-weight: 700;
+            color: #C5A059;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #94A3B8;
+            margin-bottom: 4px;
+        }
+
+        .form-control {
+            width: 100%;
+            background: #060D17;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #F8FAFC;
+            padding: 8px 10px;
+            border-radius: 7px;
+            font-size: 12.5px;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #C5A059;
+            box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.15);
+        }
+
+        .btn-group-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .btn-preset {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #CBD5E1;
+            padding: 7px 8px;
+            border-radius: 6px;
+            font-size: 11.5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            text-align: center;
+        }
+
+        .btn-preset:hover {
+            background: rgba(197, 160, 89, 0.15);
+            border-color: #C5A059;
+            color: #FFF;
+        }
+
+        .file-upload-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+            font-size: 11px;
+            color: #94A3B8;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .file-upload-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #C5A059;
+            color: #F8FAFC;
+        }
+
+        /* Certificate Stage Area */
+        .stage-area {
+            background: #040711;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 20px 20px 80px 20px;
+            overflow: auto;
+            position: relative;
+        }
+
+        .stage-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 1150px;
+            margin-bottom: 14px;
+        }
+
+        .stage-header-hint {
+            color: #64748B;
+            font-size: 12.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stage-header-hint span {
+            background: rgba(255, 255, 255, 0.06);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            color: #C5A059;
+        }
+
+        .zoom-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 3px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .zoom-btn {
+            background: transparent;
+            border: none;
+            color: #94A3B8;
+            font-size: 11.5px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .zoom-btn:hover {
+            color: #FFF;
+        }
+
+        .zoom-btn.active {
+            background: #C5A059;
+            color: #0A192F;
+        }
+
+        /* Scale Wrapper for Desktop Screen */
+        .cert-zoom-container {
+            transform-origin: top center;
+            transform: scale(0.8);
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Action Bar (Hidden on Print) -->
+    <header class="studio-navbar no-print">
+        <div class="studio-brand">
+            <a href="admin-dashboard.html" class="back-link" title="Return to Admin Dashboard">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                Dashboard
+            </a>
+            <span class="brand-badge">A4 LANDSCAPE</span>
+            <div class="brand-title">Meelad Certificate Studio</div>
+        </div>
+
+        <div class="studio-nav-actions">
+            <button class="btn-action btn-secondary" id="btnDownloadSvg" title="Download pure vector master template">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Master SVG
+            </button>
+            <button class="btn-action btn-secondary" id="btnDownloadImg" title="Export as 300 DPI PNG image">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                Download PNG
+            </button>
+            <button class="btn-action btn-primary" id="btnPrintCert" title="Direct print to standard A4 paper or Save as PDF">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Print / Save PDF (A4)
+            </button>
+        </div>
+    </header>
+
+    <!-- Studio Grid Workspace -->
+    <main class="studio-workspace">
+        
+        <!-- Left Controller Panel (Hidden on Print) -->
+        <aside class="control-sidebar no-print">
+            
+            <!-- Quick Presets -->
+            <div class="sidebar-section">
+                <div class="section-header">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    Quick Presets
+                </div>
+                <div class="btn-group-grid">
+                    <button type="button" class="btn-preset" id="btnLoadSample">Sample Meelad</button>
+                    <button type="button" class="btn-preset" id="btnStressTest">Stress Long Names</button>
+                </div>
+                <button type="button" class="btn-preset" id="btnReset" style="width: 100%; margin-top: 8px; background: transparent; border-color: rgba(239, 68, 68, 0.3); color: #F87171;">
+                    Reset to Blank Placeholders
+                </button>
+            </div>
+
+            <!-- Category Theme Selector -->
+            <div class="sidebar-section">
+                <div class="section-header">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20v-20z"/></svg>
+                    Category Background Theme
+                </div>
+                <div class="form-group">
+                    <label for="selectCatTheme">Certificate Theme Variant</label>
+                    <select id="selectCatTheme" class="form-control">
+                        <option value="cat-theme-general" selected>Default Institutional Classic</option>
+                        <option value="cat-theme-1">Theme 1 (Emerald Accent)</option>
+                        <option value="cat-theme-2">Theme 2 (Rose Crimson Accent)</option>
+                        <option value="cat-theme-3">Theme 3 (Sapphire Blue Accent)</option>
+                        <option value="cat-theme-4">Theme 4 (Regal Gold / Amber Accent)</option>
+                        <option value="cat-theme-5">Theme 5 (Royal Violet Accent)</option>
+                        <option value="cat-theme-6">Theme 6 (Warm Ochre Accent)</option>
+                        <option value="cat-theme-7">Theme 7 (Cerulean Sky Accent)</option>
+                        <option value="cat-theme-8">Theme 8 (Mint Forest Accent)</option>
+                        <option value="cat-theme-9">Theme 9 (Ruby Plum Accent)</option>
+                        <option value="cat-theme-10">Theme 10 (Sleek Slate Accent)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Position Selector -->
+            <div class="sidebar-section">
+                <div class="section-header">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
+                    Award Position
+                </div>
+                <div class="form-group">
+                    <label for="selectPosition">Select Position Tier</label>
+                    <select id="selectPosition" class="form-control">
+                        <option value="FIRST" selected>🥇 FIRST POSITION (Regal Gold)</option>
+                        <option value="SECOND">🥈 SECOND POSITION (Sterling Silver)</option>
+                        <option value="THIRD">🥉 THIRD POSITION (Antique Bronze)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Institution Details -->
+            <div class="sidebar-section">
+                <div class="section-header">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    Institution Branding
+                </div>
+                <div class="form-group">
+                    <label for="inputMadrasaName">Madrasa / Institution Name</label>
+                    <input type="text" id="inputMadrasaName" class="form-control" placeholder="[MADRASA / INSTITUTION NAME]">
+                </div>
+                <div class="form-group">
+                    <label for="inputInstitutionSub">Department / Tagline</label>
+                    <input type="text" id="inputInstitutionSub" class="form-control" placeholder="DEPARTMENT OF ISLAMIC EDUCATION & CULTURAL AFFAIRS">
+                </div>
+                <div class="form-group">
+                    <label>Institution Logo (Optional)</label>
+                    <label for="logoUpload" class="file-upload-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Upload Custom Logo
+                    </label>
+                    <input type="file" id="logoUpload" accept="image/*" style="display:none;">
+                </div>
+            </div>
+
+            <!-- Student & Achievement Details -->
+            <div class="sidebar-section">
+                <div class="section-header">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    Student & Event Details
+                </div>
+                <div class="form-group">
+                    <label for="inputStudentName">Student Full Name</label>
+                    <input type="text" id="inputStudentName" class="form-control" placeholder="[STUDENT FULL NAME]">
+                </div>
+                <div class="form-group">
+                    <label for="inputProgramName">Program / Competition Name</label>
+                    <input type="text" id="inputProgramName" class="form-control" placeholder="[PROGRAM / COMPETITION NAME]">
+                </div>
+                <div class="form-group">
+                    <label for="inputEventName">Event / Meelad Fest Name</label>
+                    <input type="text" id="inputEventName" class="form-control" placeholder="[EVENT / MEELAD FESTIVAL NAME]">
+                </div>
+            </div>
+
+            <!-- Verification & Metadata -->
+            <div class="sidebar-section">
+                <div class="section-header">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    Dates & Verification
+                </div>
+                <div class="form-group">
+                    <label for="inputDate">Date of Issue</label>
+                    <input type="text" id="inputDate" class="form-control" placeholder="[DD MONTH YYYY]">
+                </div>
+                <div class="form-group">
+                    <label for="inputAcademicYear">Academic / Event Year</label>
+                    <input type="text" id="inputAcademicYear" class="form-control" placeholder="[2026 – 2027]">
+                </div>
+                <div class="form-group">
+                    <label for="inputCertNumber">Certificate ID Number</label>
+                    <input type="text" id="inputCertNumber" class="form-control" placeholder="MLS-2026-[0000]">
+                </div>
+            </div>
+
+            <!-- Signatory -->
+            <div class="sidebar-section">
+                <div class="section-header">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                    Authorized Signatory
+                </div>
+                <div class="form-group">
+                    <label for="inputSign1Name">Signatory Name</label>
+                    <input type="text" id="inputSign1Name" class="form-control" placeholder="[AUTHORIZED SIGNATORY]">
+                </div>
+                <div class="form-group">
+                    <label for="inputSign1Title">Signatory Designation</label>
+                    <input type="text" id="inputSign1Title" class="form-control" placeholder="PRINCIPAL / GENERAL SECRETARY">
+                </div>
+                <div class="form-group">
+                    <label for="sign1Upload" class="file-upload-btn">Upload Signature Image</label>
+                    <input type="file" id="sign1Upload" accept="image/*" style="display:none;">
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- Right Certificate Live Preview Stage -->
+        <section class="stage-area">
+            <div class="stage-toolbar no-print">
+                <div class="stage-header-hint">
+                    <span>PRINT-READY MASTER</span> Exact A4 Landscape (297 × 210 mm) • Clean Institutional Layout
+                </div>
+                <div class="zoom-toolbar">
+                    <button class="zoom-btn" data-scale="0.65">65%</button>
+                    <button class="zoom-btn active" data-scale="0.8">80% (Fit)</button>
+                    <button class="zoom-btn" data-scale="1.0">100% (A4)</button>
+                </div>
+            </div>
+
+            <div class="cert-zoom-container" id="certZoomWrap">
+                <div class="cert-page-wrapper">
+                    
+                    <!-- MASTER A4 LANDSCAPE CERTIFICATE SHEET -->
+                    <article class="certificate-sheet pos-first cat-theme-general" id="certSheet">
+                        
+                        <!-- SVG Vector Waves & Shapes Layer -->
+                        <div class="cert-bg-vector-layer">
+                            <svg viewBox="0 0 297 210" class="cert-bg-svg" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                                <defs>
+                                    <linearGradient id="trGradWave1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="var(--cert-wave-4)" stop-opacity="0.35"/>
+                                        <stop offset="100%" stop-color="var(--cert-wave-3)" stop-opacity="0.2"/>
+                                    </linearGradient>
+                                    <linearGradient id="trGradWave2" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="var(--cert-wave-3)" stop-opacity="0.5"/>
+                                        <stop offset="100%" stop-color="var(--cert-wave-2)" stop-opacity="0.3"/>
+                                    </linearGradient>
+                                    <linearGradient id="trGradWave3" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="var(--cert-wave-2)" stop-opacity="0.85"/>
+                                        <stop offset="100%" stop-color="var(--cert-wave-1)" stop-opacity="0.95"/>
+                                    </linearGradient>
+                                </defs>
+                                
+                                <!-- Top Right Layered Curves & Diagonal Bands -->
+                                <path d="M 165 0 C 205 22, 245 40, 297 48 L 297 0 Z" fill="url(#trGradWave1)" />
+                                <path d="M 195 0 C 230 25, 260 45, 297 80 L 297 25 C 270 12, 235 4, 195 0 Z" fill="url(#trGradWave2)" />
+                                <path d="M 245 0 C 265 18, 280 32, 297 50 L 297 0 Z" fill="url(#trGradWave3)" />
+
+                                <!-- Bottom Left Fluid Waves (Gracefully framed away from text alignment) -->
+                                <path d="M 0 135 C 25 155, 50 180, 75 210 L 0 210 Z" fill="var(--cert-wave-4)" fill-opacity="0.35" />
+                                <path d="M 0 158 C 18 170, 36 190, 50 210 L 0 210 Z" fill="var(--cert-wave-2)" fill-opacity="0.75" />
+                                <path d="M 0 182 C 10 190, 18 200, 28 210 L 0 210 Z" fill="var(--cert-wave-1)" />
+                            </svg>
+                        </div>
+
+                        <!-- Scalloped Rosette Award Badge (Top Right) -->
+                        <div class="cert-badge-container">
+                            <div class="cert-rosette-badge-wrap">
+                                <svg viewBox="0 0 100 125" class="cert-rosette-svg">
+                                    <defs>
+                                        <linearGradient id="ribbonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stop-color="var(--cert-badge-ribbon)"/>
+                                            <stop offset="100%" stop-color="var(--cert-wave-1)"/>
+                                        </linearGradient>
+                                        <linearGradient id="discGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stop-color="var(--cert-badge-bg)"/>
+                                            <stop offset="100%" stop-color="var(--cert-wave-1)"/>
+                                        </linearGradient>
+                                    </defs>
+                                    <!-- Hanging Ribbon Tails -->
+                                    <path d="M 32 60 L 22 115 L 35 105 L 48 115 L 44 60 Z" fill="url(#ribbonGrad)" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.2))" />
+                                    <path d="M 56 60 L 52 115 L 65 105 L 78 115 L 68 60 Z" fill="url(#ribbonGrad)" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.2))" />
+                                    
+                                    <!-- Scalloped Outer Rosette Disc -->
+                                    <path d="M50 7 C53 7 55 9 58 10 C61 11 64 10 67 12 C70 14 71 16 74 19 C77 22 79 23 81 26 C83 29 82 32 84 35 C86 38 88 40 88 43 C88 46 86 49 85 52 C84 55 85 58 83 61 C81 64 78 66 76 68 C74 70 73 73 70 75 C67 77 64 77 61 78 C58 79 56 81 53 82 C50 83 47 83 44 82 C41 81 39 79 36 78 C33 77 30 77 27 75 C24 73 23 70 21 68 C19 66 16 64 14 61 C12 58 13 55 12 52 C11 49 9 46 9 43 C9 40 11 38 13 35 C15 32 14 29 16 26 C18 23 20 22 23 19 C26 16 27 14 30 12 C33 10 36 11 39 10 C42 9 44 7 47 7 Z" fill="url(#discGrad)"/>
+                                    
+                                    <!-- White Inner Disc -->
+                                    <circle cx="50" cy="45" r="30" fill="#FFFFFF"/>
+                                    <circle cx="50" cy="45" r="27" fill="none" stroke="var(--cert-badge-bg)" stroke-width="1.2"/>
+                                    <circle cx="50" cy="45" r="24.5" fill="none" stroke="var(--cert-badge-bg)" stroke-width="0.8" stroke-dasharray="1.5, 1.2"/>
+                                    
+                                    <!-- 3 Top Stars -->
+                                    <g fill="var(--cert-badge-bg)">
+                                        <polygon points="41,29 42,32 45,32 43,34 44,37 41,35 38,37 39,34 37,32 40,32" transform="scale(0.7) translate(18, 12)"/>
+                                        <polygon points="50,26 51.5,29.5 55,29.5 52.2,31.7 53.3,35 50,33 46.7,35 47.8,31.7 45,29.5 48.5,29.5" transform="scale(0.85) translate(8.8, 4.5)"/>
+                                        <polygon points="59,29 60,32 63,32 61,34 62,37 59,35 56,37 57,34 55,32 58,32" transform="scale(0.7) translate(25.5, 12)"/>
+                                    </g>
+
+                                    <!-- Badge Center Text -->
+                                    <text x="50" y="44" font-family="'Plus Jakarta Sans', sans-serif" font-size="7.5" font-weight="900" fill="var(--cert-badge-bg)" text-anchor="middle" letter-spacing="0.5" id="dispBadgeTop">BEST</text>
+                                    <text x="50" y="52" font-family="'Plus Jakarta Sans', sans-serif" font-size="7" font-weight="900" fill="var(--cert-badge-bg)" text-anchor="middle" letter-spacing="0.5" id="dispBadgeBottom">AWARD</text>
+
+                                    <!-- 3 Bottom Stars -->
+                                    <g fill="var(--cert-badge-bg)">
+                                        <polygon points="41,58 42,60.5 44.5,60.5 42.5,62 43.5,64.5 41,63 38.5,64.5 39.5,62 37.5,60.5 40,60.5" transform="scale(0.7) translate(18, 17)"/>
+                                        <polygon points="50,58 51.5,61 54.5,61 52,63 53,66 50,64.5 47,66 48,63 45.5,61 48.5,61" transform="scale(0.75) translate(16.5, 14.5)"/>
+                                        <polygon points="59,58 60,60.5 62.5,60.5 60.5,62 61.5,64.5 59,63 56.5,64.5 57.5,62 55.5,60.5 58,60.5" transform="scale(0.7) translate(25.5, 17)"/>
+                                    </g>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <!-- Certificate Dynamic Content Core -->
+                        <div class="cert-content-inner">
+                            
+                            <!-- 1. TOP-LEFT BRANDING & LOGO -->
+                            <header class="cert-top-header">
+                                <div class="cert-brand-group">
+                                    <div class="cert-brand-logo-wrap">
+                                        <img src="" alt="Institution Logo" class="cert-brand-logo-img" id="dispLogoImg" style="display:none;" onerror="this.style.display='none'">
+                                        <div class="cert-brand-logo-default" id="dispLogoPlaceholder">
+                                            <svg viewBox="0 0 24 24">
+                                                <path d="M6 2L12 8L6 14L0 8L6 2Z" fill="currentColor"/>
+                                                <path d="M18 2L24 8L18 14L12 8L18 2Z" fill="currentColor" fill-opacity="0.75"/>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div class="cert-brand-text-wrap">
+                                        <h2 class="cert-brand-name" id="dispMadrasaName">[MADRASA / INSTITUTION NAME]</h2>
+                                        <div class="cert-brand-sub" id="dispInstitutionSub">DEPARTMENT OF ISLAMIC EDUCATION & CULTURAL AFFAIRS</div>
+                                    </div>
+                                </div>
+                            </header>
+
+                            <!-- 2. MAIN TITLE ZONE -->
+                            <section class="cert-title-block">
+                                <h1 class="cert-main-word">Certificate</h1>
+                                <div class="cert-of-achievement">OF ACHIEVEMENT</div>
+                                <div class="cert-presented-lead">THIS CERTIFICATE IS PRESENTED TO</div>
+                            </section>
+
+                            <!-- 3. RECIPIENT / STUDENT NAME ZONE -->
+                            <section class="cert-recipient-block">
+                                <div class="cert-recipient-name" id="dispStudentName">[STUDENT FULL NAME]</div>
+                            </section>
+
+                            <!-- 4. ACHIEVEMENT HEADLINE & DESCRIPTION PARAGRAPH -->
+                            <section class="cert-body-block">
+                                <div class="cert-headline-lead" id="dispAchievementHeadline">
+                                    For securing <span class="highlight" id="dispPositionText">FIRST POSITION</span> in the competition of <span class="highlight" id="dispProgramName">[PROGRAM / COMPETITION NAME]</span>
+                                </div>
+                                <p class="cert-description-para" id="dispEventSentence">
+                                    In recognition of exceptional talent, dedication, and exemplary performance during <strong id="dispEventName">[EVENT / MEELAD FESTIVAL NAME]</strong>. This certificate honours the recipient's dedication and outstanding academic merit.
+                                </p>
+                            </section>
+
+                            <!-- 5. BOTTOM SECTION: DATE & SIGNATURE -->
+                            <footer class="cert-bottom-section">
+                                <!-- Date Block (Left) -->
+                                <div class="cert-date-col">
+                                    <div class="cert-date-val" id="dispDate">[JANUARY 2ND 2025]</div>
+                                    <div class="cert-date-line"></div>
+                                    <div class="cert-date-lbl">DATE</div>
+                                    <div class="cert-sub-meta" id="dispSubMeta">ID: <span id="dispCertNumber">MLS-2026-0000</span> • <span id="dispAcademicYear">2026 – 2027</span></div>
+                                </div>
+
+                                <!-- Signature Block (Right) -->
+                                <div class="cert-sign-col">
+                                    <div class="cert-sign-space">
+                                        <img src="" alt="Signature" class="cert-sign-img" id="dispSign1Img" style="display:none;">
+                                        <svg viewBox="0 0 100 30" class="cert-sign-vector" id="dispSignPlaceholder">
+                                            <path d="M10 22 C20 8, 25 28, 35 12 C40 2, 45 25, 55 18 C65 12, 70 24, 90 15" stroke="#1E293B" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+                                            <path d="M42 24 L52 8" stroke="#1E293B" stroke-width="1.8" stroke-linecap="round"/>
+                                        </svg>
+                                    </div>
+                                    <div class="cert-sign-line"></div>
+                                    <div class="cert-sign-lbl">SIGNATURE</div>
+                                    <div class="cert-sign-title" id="dispSign1Title">PRINCIPAL / GENERAL SECRETARY</div>
+                                </div>
+                            </footer>
+
+                        </div>
+                    </article>
+
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Certificate Generator Logic -->
+    <script src="../js/certificate-generator.js"></script>
+</body>
+</html>

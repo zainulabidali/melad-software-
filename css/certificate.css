@@ -1,0 +1,683 @@
+/**
+ * ==============================================================================
+ * MODERN BLUE WAVE & ROSETTE BADGE CERTIFICATE STYLESHEET
+ * Strict Precision Alignment Grid based on Reference Template
+ * ISO A4 Landscape Standard (297mm × 210mm) - Meelad Management System
+ * ==============================================================================
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+    /* Color Palette - Default Theme (Royal Blue / Cobalt) */
+    --cert-primary: #1D4ED8;
+    --cert-primary-light: #3B82F6;
+    --cert-primary-dark: #1E3A8A;
+    --cert-accent: #60A5FA;
+    --cert-accent-soft: rgba(59, 130, 246, 0.12);
+    --cert-accent-glow: rgba(219, 234, 254, 0.7);
+    --cert-wave-1: #1D4ED8;
+    --cert-wave-2: #2563EB;
+    --cert-wave-3: #60A5FA;
+    --cert-wave-4: #93C5FD;
+    
+    --cert-badge-bg: #2563EB;
+    --cert-badge-ribbon: #1D4ED8;
+    --cert-badge-text: #FFFFFF;
+    
+    --cert-text-dark: #0F172A;
+    --cert-text-sub: #1E293B;
+    --cert-text-body: #475569;
+    --cert-text-muted: #64748B;
+    --cert-line-color: #94A3B8;
+
+    --cert-paper-bg: #FFFFFF;
+}
+
+/* ==============================================================================
+ * CATEGORY THEME COLORWAYS (Automatic Instant Sync on Category Dropdown Change)
+ * ============================================================================== */
+
+/* Theme 1: Emerald Ivory */
+.cat-theme-1, .cat-theme-emerald {
+    --cert-primary: #059669;
+    --cert-primary-light: #10B981;
+    --cert-primary-dark: #064E3B;
+    --cert-accent: #34D399;
+    --cert-accent-soft: rgba(16, 185, 129, 0.12);
+    --cert-accent-glow: rgba(209, 250, 229, 0.7);
+    --cert-wave-1: #059669;
+    --cert-wave-2: #10B981;
+    --cert-wave-3: #34D399;
+    --cert-wave-4: #A7F3D0;
+    --cert-badge-bg: #059669;
+    --cert-badge-ribbon: #047857;
+}
+
+/* Theme 2: Ruby Crimson */
+.cat-theme-2, .cat-theme-ruby {
+    --cert-primary: #E11D48;
+    --cert-primary-light: #F43F5E;
+    --cert-primary-dark: #881337;
+    --cert-accent: #FB7185;
+    --cert-accent-soft: rgba(244, 63, 94, 0.12);
+    --cert-accent-glow: rgba(255, 228, 230, 0.7);
+    --cert-wave-1: #E11D48;
+    --cert-wave-2: #F43F5E;
+    --cert-wave-3: #FB7185;
+    --cert-wave-4: #FECDD3;
+    --cert-badge-bg: #E11D48;
+    --cert-badge-ribbon: #BE123C;
+}
+
+/* Theme 3: Sapphire Cerulean */
+.cat-theme-3, .cat-theme-sapphire {
+    --cert-primary: #0284C7;
+    --cert-primary-light: #38BDF8;
+    --cert-primary-dark: #0C4A6E;
+    --cert-accent: #7DD3FC;
+    --cert-accent-soft: rgba(56, 189, 248, 0.12);
+    --cert-accent-glow: rgba(224, 242, 254, 0.7);
+    --cert-wave-1: #0284C7;
+    --cert-wave-2: #0EA5E9;
+    --cert-wave-3: #38BDF8;
+    --cert-wave-4: #BAE6FD;
+    --cert-badge-bg: #0284C7;
+    --cert-badge-ribbon: #0369A1;
+}
+
+/* Theme 4: Regal Gold / Amber */
+.cat-theme-4, .cat-theme-gold {
+    --cert-primary: #D97706;
+    --cert-primary-light: #F59E0B;
+    --cert-primary-dark: #78350F;
+    --cert-accent: #FBBF24;
+    --cert-accent-soft: rgba(245, 158, 11, 0.12);
+    --cert-accent-glow: rgba(254, 243, 199, 0.7);
+    --cert-wave-1: #D97706;
+    --cert-wave-2: #F59E0B;
+    --cert-wave-3: #FBBF24;
+    --cert-wave-4: #FDE68A;
+    --cert-badge-bg: #D97706;
+    --cert-badge-ribbon: #B45309;
+}
+
+/* Theme 5: Royal Violet */
+.cat-theme-5, .cat-theme-purple {
+    --cert-primary: #7C3AED;
+    --cert-primary-light: #8B5CF6;
+    --cert-primary-dark: #4C1D95;
+    --cert-accent: #A78BFA;
+    --cert-accent-soft: rgba(139, 92, 246, 0.12);
+    --cert-accent-glow: rgba(237, 233, 254, 0.7);
+    --cert-wave-1: #7C3AED;
+    --cert-wave-2: #8B5CF6;
+    --cert-wave-3: #A78BFA;
+    --cert-wave-4: #DDD6FE;
+    --cert-badge-bg: #7C3AED;
+    --cert-badge-ribbon: #6D28D9;
+}
+
+/* Theme 6: Sunset Ochre */
+.cat-theme-6, .cat-theme-ochre {
+    --cert-primary: #EA580C;
+    --cert-primary-light: #F97316;
+    --cert-primary-dark: #7C2D12;
+    --cert-accent: #FB923C;
+    --cert-accent-soft: rgba(249, 115, 22, 0.12);
+    --cert-accent-glow: rgba(255, 237, 213, 0.7);
+    --cert-wave-1: #EA580C;
+    --cert-wave-2: #F97316;
+    --cert-wave-3: #FB923C;
+    --cert-wave-4: #FED7AA;
+    --cert-badge-bg: #EA580C;
+    --cert-badge-ribbon: #C2410C;
+}
+
+/* Theme 7: Cyan Aqua */
+.cat-theme-7, .cat-theme-cyan {
+    --cert-primary: #0891B2;
+    --cert-primary-light: #06B6D4;
+    --cert-primary-dark: #164E63;
+    --cert-accent: #22D3EE;
+    --cert-accent-soft: rgba(6, 182, 212, 0.12);
+    --cert-accent-glow: rgba(207, 250, 254, 0.7);
+    --cert-wave-1: #0891B2;
+    --cert-wave-2: #06B6D4;
+    --cert-wave-3: #22D3EE;
+    --cert-wave-4: #A5F3FC;
+    --cert-badge-bg: #0891B2;
+    --cert-badge-ribbon: #0E7490;
+}
+
+/* Theme 8: Forest Mint */
+.cat-theme-8, .cat-theme-forest {
+    --cert-primary: #15803D;
+    --cert-primary-light: #22C55E;
+    --cert-primary-dark: #14532D;
+    --cert-accent: #4ADE80;
+    --cert-accent-soft: rgba(34, 197, 94, 0.12);
+    --cert-accent-glow: rgba(220, 252, 231, 0.7);
+    --cert-wave-1: #15803D;
+    --cert-wave-2: #22C55E;
+    --cert-wave-3: #4ADE80;
+    --cert-wave-4: #BBF7D0;
+    --cert-badge-bg: #15803D;
+    --cert-badge-ribbon: #166534;
+}
+
+/* Theme 9: Plum Berry */
+.cat-theme-9, .cat-theme-plum {
+    --cert-primary: #9333EA;
+    --cert-primary-light: #A855F7;
+    --cert-primary-dark: #581C87;
+    --cert-accent: #C084FC;
+    --cert-accent-soft: rgba(168, 85, 247, 0.12);
+    --cert-accent-glow: rgba(243, 232, 255, 0.7);
+    --cert-wave-1: #9333EA;
+    --cert-wave-2: #A855F7;
+    --cert-wave-3: #C084FC;
+    --cert-wave-4: #E9D5FF;
+    --cert-badge-bg: #9333EA;
+    --cert-badge-ribbon: #7E22CE;
+}
+
+/* Theme 10: Slate Charcoal */
+.cat-theme-10, .cat-theme-slate {
+    --cert-primary: #334155;
+    --cert-primary-light: #475569;
+    --cert-primary-dark: #0F172A;
+    --cert-accent: #64748B;
+    --cert-accent-soft: rgba(71, 85, 105, 0.12);
+    --cert-accent-glow: rgba(241, 245, 249, 0.7);
+    --cert-wave-1: #334155;
+    --cert-wave-2: #475569;
+    --cert-wave-3: #64748B;
+    --cert-wave-4: #CBD5E1;
+    --cert-badge-bg: #334155;
+    --cert-badge-ribbon: #1E293B;
+}
+
+/* ==============================================================================
+ * A4 LANDSCAPE CERTIFICATE MASTER CONTAINER
+ * ============================================================================== */
+
+.certificate-sheet {
+    position: relative;
+    width: 297mm;
+    height: 210mm;
+    min-width: 297mm;
+    min-height: 210mm;
+    max-width: 297mm;
+    max-height: 210mm;
+    box-sizing: border-box;
+    background-color: var(--cert-paper-bg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 22mm 32mm 18mm 32mm;
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+    color: var(--cert-text-dark);
+    margin: 0 auto;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+}
+
+/* Base top-left radial glow */
+.certificate-sheet::before {
+    content: '';
+    position: absolute;
+    top: -50mm;
+    left: -50mm;
+    width: 140mm;
+    height: 140mm;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--cert-accent-glow) 0%, rgba(255, 255, 255, 0) 70%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* ==============================================================================
+ * ABSTRACT GEOMETRIC & FLUID BACKGROUND WAVES (SVG Layer)
+ * ============================================================================== */
+
+.cert-bg-vector-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+    overflow: hidden;
+}
+
+.cert-bg-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* ==============================================================================
+ * CERTIFICATE INNER CONTENT STRUCTURE (Z-INDEX 5)
+ * ============================================================================== */
+
+.cert-content-inner {
+    position: relative;
+    z-index: 5;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    box-sizing: border-box;
+}
+
+/* ==============================================================================
+ * 1. TOP HEADER: LOGO & INSTITUTION BRANDING (TOP-LEFT)
+ * ============================================================================== */
+
+.cert-top-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    width: 100%;
+    height: 15mm;
+    margin-bottom: 12mm;
+}
+
+.cert-brand-group {
+    display: flex;
+    align-items: center;
+    gap: 4.5mm;
+    text-align: left;
+}
+
+.cert-brand-logo-wrap {
+    width: 14mm;
+    height: 14mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.cert-brand-logo-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+/* Default geometric double-diamond logo emblem */
+.cert-brand-logo-default {
+    width: 13.5mm;
+    height: 13.5mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--cert-text-dark);
+}
+
+.cert-brand-logo-default svg {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
+}
+
+.cert-brand-text-wrap {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: left;
+}
+
+.cert-brand-name {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-size: 4.5mm;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: 0.05em;
+    color: var(--cert-text-dark);
+    text-transform: uppercase;
+    margin: 0;
+}
+
+.cert-brand-sub {
+    font-size: 2.6mm;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--cert-text-muted);
+    text-transform: uppercase;
+    margin-top: 0.8mm;
+}
+
+/* ==============================================================================
+ * 2. TOP-RIGHT SCALLOPED ROSETTE AWARD BADGE WITH HANGING RIBBONS
+ * Positioned downward & to the left matching the exact reference composition
+ * ============================================================================== */
+
+.cert-badge-container {
+    position: absolute;
+    top: 46mm;
+    right: 68mm;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.cert-rosette-badge-wrap {
+    position: relative;
+    width: 32mm;
+    height: 38mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.cert-rosette-svg {
+    width: 32mm;
+    height: 38mm;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.12));
+}
+
+/* Position-specific rosette styles */
+.certificate-sheet.pos-first .cert-rosette-badge-wrap {
+    --badge-color-main: var(--cert-badge-bg);
+}
+
+.certificate-sheet.pos-second .cert-rosette-badge-wrap {
+    --badge-color-main: #64748B;
+}
+
+.certificate-sheet.pos-third .cert-rosette-badge-wrap {
+    --badge-color-main: #B45309;
+}
+
+/* ==============================================================================
+ * 3. MAIN TITLE ZONE: "Certificate", "OF ACHIEVEMENT", "THIS CERTIFICATE..."
+ * ============================================================================== */
+
+.cert-title-block {
+    margin-top: 0;
+    margin-bottom: 7mm;
+    text-align: left;
+}
+
+.cert-main-word {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-size: 16.5mm;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--cert-primary);
+    letter-spacing: -0.02em;
+    margin: 0 0 3.5mm 0;
+    display: block;
+}
+
+.cert-of-achievement {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-size: 4.2mm;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: var(--cert-text-dark);
+    text-transform: uppercase;
+    margin: 0 0 2.5mm 0;
+    display: block;
+}
+
+.cert-presented-lead {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-size: 3.0mm;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--cert-text-muted);
+    text-transform: uppercase;
+    margin: 0;
+    display: block;
+}
+
+/* ==============================================================================
+ * 4. RECIPIENT NAME ZONE (DEDICATED VISUAL FOCUS LINE)
+ * ============================================================================== */
+
+.cert-recipient-block {
+    min-height: 15mm;
+    display: flex;
+    align-items: center;
+    margin-top: 2mm;
+    margin-bottom: 7mm;
+    text-align: left;
+}
+
+.cert-recipient-name {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-size: 11mm;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    color: var(--cert-primary);
+    display: block;
+    word-break: break-word;
+    max-width: 230mm;
+    margin: 0;
+}
+
+/* ==============================================================================
+ * 5. ACHIEVEMENT & DESCRIPTION ZONE
+ * ============================================================================== */
+
+.cert-body-block {
+    max-width: 180mm;
+    margin-bottom: auto;
+    text-align: left;
+}
+
+.cert-headline-lead {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-size: 3.8mm;
+    font-weight: 800;
+    line-height: 1.35;
+    color: var(--cert-text-dark);
+    margin: 0 0 2.5mm 0;
+    display: block;
+}
+
+.cert-description-para {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-size: 3.0mm;
+    font-weight: 400;
+    line-height: 1.6;
+    color: var(--cert-text-body);
+    margin: 0;
+    max-width: 175mm;
+}
+
+.cert-description-para strong,
+.cert-description-para .highlight {
+    font-weight: 700;
+    color: var(--cert-text-dark);
+}
+
+/* ==============================================================================
+ * 6. BOTTOM ROW: DATE (LEFT) & AUTHORIZED SIGNATURE (RIGHT)
+ * ============================================================================== */
+
+.cert-bottom-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    width: 100%;
+    margin-top: auto;
+    padding-top: 4mm;
+    position: relative;
+    z-index: 10;
+}
+
+/* Date Block (Left) - Shared Vertical Axis with Main Content */
+.cert-date-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    min-width: 50mm;
+}
+
+.cert-date-val {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-size: 3.5mm;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--cert-text-dark);
+    text-transform: uppercase;
+    margin-bottom: 2mm;
+}
+
+.cert-date-line {
+    width: 44mm;
+    height: 1.2px;
+    background-color: var(--cert-line-color);
+    margin-bottom: 2mm;
+}
+
+.cert-date-lbl {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-size: 2.7mm;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--cert-text-muted);
+    text-transform: uppercase;
+}
+
+.cert-sub-meta {
+    font-size: 2.3mm;
+    font-weight: 600;
+    color: var(--cert-text-muted);
+    margin-top: 1.5mm;
+    letter-spacing: 0.04em;
+}
+
+/* Signature Block (Right) - Fixed Centered Geometry */
+.cert-sign-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    min-width: 55mm;
+    margin-right: 0;
+}
+
+.cert-sign-space {
+    width: 50mm;
+    height: 14mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.cert-sign-img {
+    max-width: 48mm;
+    max-height: 13mm;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Default clean vector signature stroke */
+.cert-sign-vector {
+    width: 44mm;
+    height: 12mm;
+    stroke: #1E293B;
+    fill: none;
+    margin: 0 auto;
+}
+
+.cert-sign-line {
+    width: 52mm;
+    height: 1.2px;
+    background-color: var(--cert-line-color);
+    margin-top: 1mm;
+    margin-bottom: 2mm;
+}
+
+.cert-sign-lbl {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-size: 2.7mm;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--cert-text-muted);
+    text-transform: uppercase;
+    text-align: center;
+}
+
+.cert-sign-title {
+    font-size: 2.2mm;
+    font-weight: 600;
+    color: var(--cert-text-muted);
+    margin-top: 0.6mm;
+    letter-spacing: 0.04em;
+    text-align: center;
+}
+
+/* ==============================================================================
+ * PRINT ENGINE OPTIMIZATION - STRICT ZERO-MARGIN A4 LANDSCAPE
+ * ============================================================================== */
+
+@page {
+    size: 297mm 210mm landscape;
+    margin: 0mm;
+}
+
+@media print {
+    html, body {
+        width: 297mm !important;
+        height: 210mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #FFFFFF !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    .no-print,
+    .control-sidebar,
+    .stage-toolbar,
+    .admin-navbar,
+    .sidebar,
+    .modal-actions {
+        display: none !important;
+    }
+
+    .certificate-sheet {
+        position: relative !important;
+        width: 297mm !important;
+        height: 210mm !important;
+        min-width: 297mm !important;
+        min-height: 210mm !important;
+        max-width: 297mm !important;
+        max-height: 210mm !important;
+        margin: 0 !important;
+        padding: 22mm 32mm 18mm 32mm !important;
+        box-shadow: none !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    .cert-zoom-container,
+    .cert-page-wrapper {
+        transform: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 297mm !important;
+        height: 210mm !important;
+    }
+}
