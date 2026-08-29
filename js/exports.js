@@ -9219,88 +9219,142 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         if (t.id) teamNamesMap[String(t.id)] = t.name;
                     });
 
-                    const studentDataList = [];
-                    Object.entries(studentMap).forEach(([studentId, stu]) => {
-                        if (f.categoryId && stu.categoryId !== f.categoryId) return;
-                        if (f.classId && stu.classId !== f.classId) return;
-                        if (f.teamId && stu.teamId !== f.teamId) return;
-                        if (f.gender === 'Boys' && stu.gender !== 'Male') return;
-                        if (f.gender === 'Girls' && stu.gender !== 'Female') return;
-
-                        const participations = [];
-                        const prizes = [];
-
-                        programs.forEach(p => {
-                            const pList = participantsMap[p.id] || [];
-                            const isPart = pList.some(part => {
-                                if (part.isGroup === true || Array.isArray(part.members)) {
-                                    if (part.members && part.members.length > 0) {
-                                        return part.members.some(m => m.studentId === studentId || m.name === stu.name);
-                                    } else {
-                                        return stu.teamId && String(stu.teamId) === String(part.teamId);
-                                    }
-                                } else {
-                                    return part.studentId === studentId || part.name === stu.name;
-                                }
-                            });
-                            if (isPart) {
-                                participations.push(p.programName);
-                            }
-                        });
-
-                        filteredResults.forEach(r => {
-                            const prog = allPrograms.find(p => p.id === r.programId);
-                            if (!prog) return;
-
-                            const winners = Array.isArray(r.winners) ? r.winners : [];
-                            winners.forEach(w => {
-                                const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
-                                const isMember = resolved.memberStudents.some(mst => mst.studentId === studentId || mst.name === stu.name);
-                                if (isMember) {
-                                    prizes.push({
-                                        position: w.position,
-                                        isGeneral: (prog.categoryId === 'general_programs' || prog.programType === 'general' || r.categoryId === 'general_programs' || r.programType === 'general')
+                    const eligibleStudentsMap = new Map();
+                    programs.forEach(p => {
+                        const pList = participantsMap[p.id] || [];
+                        pList.forEach(part => {
+                            let members = [];
+                            if (part.isGroup === true || Array.isArray(part.members)) {
+                                members = part.members && part.members.length > 0 ? part.members : [];
+                                if (members.length === 0 && part.teamId) {
+                                    Object.values(studentMap).forEach(stu => {
+                                        if (String(stu.teamId) === String(part.teamId)) {
+                                            members.push(stu);
+                                        }
                                     });
                                 }
+                            } else {
+                                members = [part];
+                            }
+
+                            members.forEach(m => {
+                                let studentId = m.studentId;
+                                let stu = studentMap[studentId];
+                                if (!stu && m.name) {
+                                    const matched = Object.values(studentMap).find(s => s.name === m.name && (s.chestNumber === m.chestNumber || m.chestNumber == null));
+                                    if (matched) {
+                                        studentId = matched.id;
+                                        stu = matched;
+                                    }
+                                }
+                                if (!stu) return;
+
+                                if (f.categoryId && stu.categoryId !== f.categoryId) return;
+                                if (f.classId && stu.classId !== f.classId) return;
+                                if (f.teamId && stu.teamId !== f.teamId) return;
+                                if (f.gender === 'Boys' && stu.gender !== 'Male') return;
+                                if (f.gender === 'Girls' && stu.gender !== 'Female') return;
+
+                                if (!eligibleStudentsMap.has(studentId)) {
+                                    eligibleStudentsMap.set(studentId, {
+                                        studentId: studentId,
+                                        chestNumber: stu.chestNumber || '—',
+                                        name: stu.name,
+                                        classId: stu.classId || 'standard',
+                                        className: stu.className || 'Standard',
+                                        categoryId: stu.categoryId || 'general',
+                                        categoryName: stu.categoryName || 'General',
+                                        teamName: teamNamesMap[String(stu.teamId)] || stu.teamName || 'Independent',
+                                        gender: stu.gender || 'Unknown',
+                                        participations: new Set()
+                                    });
+                                }
+                                eligibleStudentsMap.get(studentId).participations.add(p.programName);
                             });
                         });
+                    });
 
-                        const hasExcludedPrize = prizes.some(p => {
-                            const excludedByPosition = f.includedPositions
-                                ? f.includedPositions.includes(p.position)
-                                : (p.position === 'First' || p.position === 'Second');
-                            if (!excludedByPosition) return false;
+                    const majorPrizeWinnerStudentIds = new Set();
+                    const studentsWithAnyPrize = new Map();
 
-                            if (p.isGeneral) {
-                                return f.includedPositions && f.includedPositions.includes('General Programs');
+                    filteredResults.forEach(r => {
+                        const prog = allPrograms.find(p => p.id === r.programId);
+                        if (!prog) return;
+
+                        const isGeneral = (prog.categoryId === 'general_programs' || prog.programType === 'general' || r.categoryId === 'general_programs' || r.programType === 'general');
+                        const winners = Array.isArray(r.winners) ? r.winners : [];
+                        winners.forEach(w => {
+                            let countAsMajor = false;
+                            if (f.includedPositions) {
+                                if (f.includedPositions.includes(w.position)) {
+                                    if (isGeneral) {
+                                        if (f.includedPositions.includes('General Programs')) countAsMajor = true;
+                                    } else {
+                                        countAsMajor = true;
+                                    }
+                                }
+                            } else {
+                                if (w.position === 'First' || w.position === 'Second') {
+                                    if (!isGeneral) countAsMajor = true;
+                                }
                             }
-                            return true;
-                        });
-                        if (hasExcludedPrize) return;
 
-                        let statusLabel = '';
-                        if (participations.length === 0) {
-                            statusLabel = 'No Participation';
-                        } else {
-                            const hasThirdPrize = prizes.some(p => p.position === 'Third');
-                            statusLabel = hasThirdPrize ? 'Third Prize Only' : 'No Prize';
-                        }
+                            const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                            resolved.memberStudents.forEach(mst => {
+                                let studentId = mst.studentId;
+                                if (!studentId && mst.name) {
+                                    const matched = Object.values(studentMap).find(s => s.name === mst.name);
+                                    if (matched) studentId = matched.id;
+                                }
+                                if (!studentId) return;
 
-                        studentDataList.push({
-                            studentId: studentId,
-                            chestNumber: stu.chestNumber || '—',
-                            name: stu.name,
-                            classId: stu.classId || 'standard',
-                            className: stu.className || 'Standard',
-                            categoryId: stu.categoryId || 'general',
-                            categoryName: stu.categoryName || 'General',
-                            teamName: teamNamesMap[String(stu.teamId)] || stu.teamName || 'Independent',
-                            participationsCount: participations.length,
-                            participationsList: participations,
-                            status: statusLabel,
-                            gender: stu.gender || 'Unknown'
+                                if (!studentsWithAnyPrize.has(studentId)) studentsWithAnyPrize.set(studentId, []);
+                                studentsWithAnyPrize.get(studentId).push(w.position);
+
+                                if (countAsMajor) {
+                                    majorPrizeWinnerStudentIds.add(studentId);
+                                }
+                            });
                         });
                     });
+
+                    const studentDataList = [];
+                    eligibleStudentsMap.forEach((data, studentId) => {
+                        if (!majorPrizeWinnerStudentIds.has(studentId)) {
+                            let statusLabel = 'No Prize';
+                            if (studentsWithAnyPrize.has(studentId)) {
+                                const theirPrizes = studentsWithAnyPrize.get(studentId);
+                                if (theirPrizes.includes('Third')) {
+                                    statusLabel = 'Third Prize Only';
+                                } else if (theirPrizes.length > 0) {
+                                    statusLabel = 'Minor Prize Only';
+                                }
+                            }
+
+                            studentDataList.push({
+                                studentId: data.studentId,
+                                chestNumber: data.chestNumber,
+                                name: data.name,
+                                classId: data.classId,
+                                className: data.className,
+                                categoryId: data.categoryId,
+                                categoryName: data.categoryName,
+                                teamName: data.teamName,
+                                participationsCount: data.participations.size,
+                                participationsList: Array.from(data.participations),
+                                status: statusLabel,
+                                gender: data.gender
+                            });
+                        }
+                    });
+
+                    // TEMPORARY AUDIT LOGS
+                    console.group("AUDIT: Participants Without Major Prizes (PDF)");
+                    console.log("eligibleStudentCount", eligibleStudentsMap.size);
+                    console.log("majorPrizeWinnerCount (total prize entries)", Array.from(studentsWithAnyPrize.values()).flat().length);
+                    console.log("uniqueMajorPrizeWinnerCount", majorPrizeWinnerStudentIds.size);
+                    console.log("participantsWithoutMajorPrizeCount", studentDataList.length);
+                    console.groupEnd();
 
                     if (studentDataList.length === 0) {
                         htmlContent = `
@@ -10655,76 +10709,140 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                 if (t.id) teamNamesMap[String(t.id)] = t.name;
             });
 
-            const studentDataList = [];
-            Object.entries(studentMap).forEach(([studentId, stu]) => {
-                if (f.categoryId && stu.categoryId !== f.categoryId) return;
-                if (f.classId && stu.classId !== f.classId) return;
-                if (f.teamId && stu.teamId !== f.teamId) return;
-                if (f.gender === 'Boys' && stu.gender !== 'Male') return;
-                if (f.gender === 'Girls' && stu.gender !== 'Female') return;
-
-                const participations = [];
-                const prizes = [];
-
-                programs.forEach(p => {
-                    const pList = participantsMap[p.id] || [];
-                    const isPart = pList.some(part => {
-                        if (part.isGroup === true || Array.isArray(part.members)) {
-                            if (part.members && part.members.length > 0) {
-                                return part.members.some(m => m.studentId === studentId || m.name === stu.name);
-                            } else {
-                                return stu.teamId && String(stu.teamId) === String(part.teamId);
-                            }
-                        } else {
-                            return part.studentId === studentId || part.name === stu.name;
+            const eligibleStudentsMap = new Map();
+            programs.forEach(p => {
+                const pList = participantsMap[p.id] || [];
+                pList.forEach(part => {
+                    let members = [];
+                    if (part.isGroup === true || Array.isArray(part.members)) {
+                        members = part.members && part.members.length > 0 ? part.members : [];
+                        if (members.length === 0 && part.teamId) {
+                            Object.values(studentMap).forEach(stu => {
+                                if (String(stu.teamId) === String(part.teamId)) {
+                                    members.push(stu);
+                                }
+                            });
                         }
-                    });
-                    if (isPart) {
-                        participations.push(p.programName);
+                    } else {
+                        members = [part];
                     }
-                });
 
-                filteredResults.forEach(r => {
-                    const prog = allPrograms.find(p => p.id === r.programId);
-                    if (!prog) return;
-
-                    const winners = Array.isArray(r.winners) ? r.winners : [];
-                    winners.forEach(w => {
-                        const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
-                        const isMember = resolved.memberStudents.some(mst => mst.studentId === studentId || mst.name === stu.name);
-                        if (isMember) {
-                            prizes.push(w.position);
+                    members.forEach(m => {
+                        let studentId = m.studentId;
+                        let stu = studentMap[studentId];
+                        if (!stu && m.name) {
+                            const matched = Object.values(studentMap).find(s => s.name === m.name && (s.chestNumber === m.chestNumber || m.chestNumber == null));
+                            if (matched) {
+                                studentId = matched.id;
+                                stu = matched;
+                            }
                         }
+                        if (!stu) return;
+
+                        if (f.categoryId && stu.categoryId !== f.categoryId) return;
+                        if (f.classId && stu.classId !== f.classId) return;
+                        if (f.teamId && stu.teamId !== f.teamId) return;
+                        if (f.gender === 'Boys' && stu.gender !== 'Male') return;
+                        if (f.gender === 'Girls' && stu.gender !== 'Female') return;
+
+                        if (!eligibleStudentsMap.has(studentId)) {
+                            eligibleStudentsMap.set(studentId, {
+                                studentId: studentId,
+                                chestNumber: stu.chestNumber || '—',
+                                name: stu.name,
+                                classId: stu.classId || 'standard',
+                                className: stu.className || 'Standard',
+                                categoryId: stu.categoryId || 'general',
+                                categoryName: stu.categoryName || 'General',
+                                teamName: teamNamesMap[String(stu.teamId)] || stu.teamName || 'Independent',
+                                participations: new Set()
+                            });
+                        }
+                        eligibleStudentsMap.get(studentId).participations.add(p.programName);
                     });
-                });
-
-                const hasExcludedPrize = f.includedPositions
-                    ? prizes.some(p => f.includedPositions.includes(p))
-                    : prizes.some(p => p === 'First' || p === 'Second');
-                if (hasExcludedPrize) return;
-
-                let statusLabel = '';
-                if (participations.length === 0) {
-                    statusLabel = 'No Participation';
-                } else {
-                    const hasThirdPrize = prizes.some(p => p === 'Third');
-                    statusLabel = hasThirdPrize ? 'Third Prize Only' : 'No Prize';
-                }
-
-                studentDataList.push({
-                    studentId: studentId,
-                    chestNumber: stu.chestNumber || '—',
-                    name: stu.name,
-                    classId: stu.classId || 'standard',
-                    className: stu.className || 'Standard',
-                    categoryId: stu.categoryId || 'general',
-                    categoryName: stu.categoryName || 'General',
-                    teamName: teamNamesMap[String(stu.teamId)] || stu.teamName || 'Independent',
-                    participationsCount: participations.length,
-                    participationsList: participations,
-                    status: statusLabel
                 });
             });
+
+            const majorPrizeWinnerStudentIds = new Set();
+            const studentsWithAnyPrize = new Map();
+
+            filteredResults.forEach(r => {
+                const prog = allPrograms.find(p => p.id === r.programId);
+                if (!prog) return;
+
+                const isGeneral = (prog.categoryId === 'general_programs' || prog.programType === 'general' || r.categoryId === 'general_programs' || r.programType === 'general');
+                const winners = Array.isArray(r.winners) ? r.winners : [];
+                winners.forEach(w => {
+                    let countAsMajor = false;
+                    if (f.includedPositions) {
+                        if (f.includedPositions.includes(w.position)) {
+                            if (isGeneral) {
+                                if (f.includedPositions.includes('General Programs')) countAsMajor = true;
+                            } else {
+                                countAsMajor = true;
+                            }
+                        }
+                    } else {
+                        if (w.position === 'First' || w.position === 'Second') {
+                            if (!isGeneral) countAsMajor = true;
+                        }
+                    }
+
+                    const resolved = resolveWinnerParticipant(prog, w, participantsMap[r.programId || r.id], studentMap);
+                    resolved.memberStudents.forEach(mst => {
+                        let studentId = mst.studentId;
+                        if (!studentId && mst.name) {
+                            const matched = Object.values(studentMap).find(s => s.name === mst.name);
+                            if (matched) studentId = matched.id;
+                        }
+                        if (!studentId) return;
+
+                        if (!studentsWithAnyPrize.has(studentId)) studentsWithAnyPrize.set(studentId, []);
+                        studentsWithAnyPrize.get(studentId).push(w.position);
+
+                        if (countAsMajor) {
+                            majorPrizeWinnerStudentIds.add(studentId);
+                        }
+                    });
+                });
+            });
+
+            const studentDataList = [];
+            eligibleStudentsMap.forEach((data, studentId) => {
+                if (!majorPrizeWinnerStudentIds.has(studentId)) {
+                    let statusLabel = 'No Prize';
+                    if (studentsWithAnyPrize.has(studentId)) {
+                        const theirPrizes = studentsWithAnyPrize.get(studentId);
+                        if (theirPrizes.includes('Third')) {
+                            statusLabel = 'Third Prize Only';
+                        } else if (theirPrizes.length > 0) {
+                            statusLabel = 'Minor Prize Only';
+                        }
+                    }
+
+                    studentDataList.push({
+                        studentId: data.studentId,
+                        chestNumber: data.chestNumber,
+                        name: data.name,
+                        classId: data.classId,
+                        className: data.className,
+                        categoryId: data.categoryId,
+                        categoryName: data.categoryName,
+                        teamName: data.teamName,
+                        participationsCount: data.participations.size,
+                        participationsList: Array.from(data.participations),
+                        status: statusLabel
+                    });
+                }
+            });
+
+            // TEMPORARY AUDIT LOGS
+            console.group("AUDIT: Participants Without Major Prizes (Excel)");
+            console.log("eligibleStudentCount", eligibleStudentsMap.size);
+            console.log("majorPrizeWinnerCount (total prize entries)", Array.from(studentsWithAnyPrize.values()).flat().length);
+            console.log("uniqueMajorPrizeWinnerCount", majorPrizeWinnerStudentIds.size);
+            console.log("participantsWithoutMajorPrizeCount", studentDataList.length);
+            console.groupEnd();
 
             // Sorting: Category ➔ Class ➔ Status Priority ➔ Student Name
             studentDataList.sort((a, b) => {
