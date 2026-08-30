@@ -40,6 +40,62 @@ let selectedCategory = '';
 let selectedGender = '';
 let selectedProgramId = '';
 
+// Helper: Normalize category names
+function normalizeCategoryName(name) {
+    if (!name) return "";
+    const cleaned = name.replace(/-/g, ' ').trim().replace(/\s+/g, ' ');
+    return cleaned.split(' ').map(word => {
+        if (!word) return "";
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(' ');
+}
+
+// Helper: Merge category performance duplicates
+function mergeCategoryPerformanceData(data) {
+    if (!data || !Array.isArray(data)) return [];
+    
+    const mergedMap = {};
+    
+    data.forEach(cat => {
+        const normName = normalizeCategoryName(cat.categoryName);
+        if (!mergedMap[normName]) {
+            mergedMap[normName] = {};
+        }
+        
+        if (cat.teams && Array.isArray(cat.teams)) {
+            cat.teams.forEach(t => {
+                if (t.name) {
+                    mergedMap[normName][t.name] = (mergedMap[normName][t.name] || 0) + (t.points || 0);
+                }
+            });
+        }
+    });
+    
+    const result = Object.keys(mergedMap).map(catName => {
+        const teamObj = mergedMap[catName];
+        const teamList = Object.keys(teamObj).map(teamName => ({
+            name: teamName,
+            points: teamObj[teamName]
+        }));
+        
+        teamList.sort((a, b) => b.points - a.points);
+        
+        const maxPoints = Math.max(...teamList.map(t => t.points), 1);
+        const processedTeams = teamList.map(t => ({
+            ...t,
+            pct: t.points > 0 ? Math.min(Math.round((t.points / maxPoints) * 100), 100) : 0
+        }));
+        
+        return {
+            categoryName: catName,
+            teams: processedTeams
+        };
+    });
+    
+    result.sort((a, b) => a.categoryName.localeCompare(b.categoryName));
+    return result;
+}
+
 // Helper: Escape HTML
 function escapeHTML(str) {
     if (!str) return '';
@@ -50,8 +106,8 @@ function escapeHTML(str) {
 
 // Helper: Safely compare categories (case-insensitive, trimmed)
 function isSameCategory(catA, catB) {
-    const a = catA ? String(catA).trim().toLowerCase() : '';
-    const b = catB ? String(catB).trim().toLowerCase() : '';
+    const a = catA ? normalizeCategoryName(catA) : '';
+    const b = catB ? normalizeCategoryName(catB) : '';
     return a === b;
 }
 
@@ -204,13 +260,13 @@ function populateCategorySelect() {
     // Primary Source: All categories in the event
     if (categoryPerformanceData && categoryPerformanceData.length > 0) {
         categoryPerformanceData.forEach(c => {
-            if (c.categoryName) catSet.add(String(c.categoryName).trim());
+            if (c.categoryName) catSet.add(normalizeCategoryName(c.categoryName));
         });
     }
     
     // Fallback: Published results
     publishedResultsList.forEach(r => {
-        if (r.categoryName) catSet.add(String(r.categoryName).trim());
+        if (r.categoryName) catSet.add(normalizeCategoryName(r.categoryName));
     });
 
     categoriesList = Array.from(catSet).sort();
@@ -461,7 +517,9 @@ function renderCategoryStandings() {
     const container = document.getElementById('hubCategoryAccordionContent');
     if (!container) return;
 
-    if (!categoryPerformanceData || categoryPerformanceData.length === 0) {
+    const mergedData = mergeCategoryPerformanceData(categoryPerformanceData);
+
+    if (!mergedData || mergedData.length === 0) {
         container.innerHTML = `
             <div class="empty-state-box">
                 <div>No category standings available yet.</div>
@@ -470,7 +528,7 @@ function renderCategoryStandings() {
         return;
     }
 
-    container.innerHTML = categoryPerformanceData.map((cat, catIdx) => {
+    container.innerHTML = mergedData.map((cat, catIdx) => {
         const catName = cat.categoryName || 'Category';
         const teams = cat.teams || [];
         if (teams.length === 0) return '';

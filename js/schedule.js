@@ -1,4 +1,4 @@
-import { db, getCachedCategories } from './firebase.js';
+import { db, getCachedCategories, normalizeCategoryName } from './firebase.js';
 import {
     collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc,
     writeBatch, serverTimestamp
@@ -2098,11 +2098,17 @@ async function openAddProgramRowModal() {
     // Build unique list of category names for filter dropdown
     const categoryNamesList = [];
     categories.forEach(c => {
-        if (c.name && !categoryNamesList.includes(c.name)) categoryNamesList.push(c.name);
+        if (c.name) {
+            const n = normalizeCategoryName(c.name);
+            if (!categoryNamesList.includes(n)) categoryNamesList.push(n);
+        }
     });
     availablePrograms.forEach(p => {
         const cName = getProgramCategoryName(p) || 'General';
-        if (cName && !categoryNamesList.includes(cName)) categoryNamesList.push(cName);
+        if (cName) {
+            const n = normalizeCategoryName(cName);
+            if (!categoryNamesList.includes(n)) categoryNamesList.push(n);
+        }
     });
 
     const categoryOptionsHtml = categoryNamesList.map(cName => 
@@ -2321,7 +2327,7 @@ async function openAddProgramRowModal() {
         filteredPrograms = sortedPrograms.filter(p => {
             // 1. Category Filter
             if (selectedCat) {
-                const pCat = getProgramCategoryName(p) || 'General';
+                const pCat = normalizeCategoryName(getProgramCategoryName(p) || 'General');
                 if (pCat !== selectedCat) return false;
             }
 

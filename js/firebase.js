@@ -45,6 +45,46 @@ try {
 }
 export const db = dbInstance;
 
+export function normalizeCategoryName(name) {
+    if (!name) return "";
+    const cleaned = name.replace(/-/g, ' ').trim().replace(/\s+/g, ' ');
+    return cleaned.split(' ').map(word => {
+        if (!word) return "";
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(' ');
+}
+
+// Shared helper to generate canonical category filter options with raw ID mapping
+export function getNormalizedCategoryFilterOptions(categories) {
+    if (!categories || !Array.isArray(categories)) return [];
+    
+    const map = new Map();
+    categories.forEach(c => {
+        if (!c.name) return;
+        const norm = normalizeCategoryName(c.name);
+        if (!map.has(norm)) {
+            map.set(norm, { 
+                key: norm, 
+                label: norm, 
+                rawIds: [String(c.id)],
+                rawNames: [c.name]
+            });
+        } else {
+            const existing = map.get(norm);
+            if (!existing.rawIds.includes(String(c.id))) {
+                existing.rawIds.push(String(c.id));
+            }
+            if (!existing.rawNames.includes(c.name)) {
+                existing.rawNames.push(c.name);
+            }
+        }
+    });
+    
+    const arr = Array.from(map.values());
+    arr.sort((a, b) => a.label.localeCompare(b.label));
+    return arr;
+}
+
 // ─────────────────────────────────────────────
 // SCHEMA MIGRATION: Flatten nested categories/students to institute level
 // ─────────────────────────────────────────────
@@ -384,7 +424,7 @@ async function _performUpdateDashboardMetadata(instituteId) {
             if (processedProgramIds.has(progKey)) return;
             processedProgramIds.add(progKey);
 
-            const catName = r.categoryName ? r.categoryName.trim() : '';
+            const catName = r.categoryName ? normalizeCategoryName(r.categoryName) : '';
             if (!catName) return;
 
             if (!categoryMap[catName]) categoryMap[catName] = {};

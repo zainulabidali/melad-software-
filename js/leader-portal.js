@@ -1,4 +1,4 @@
-import { auth, db, classifyProgram, resolveEffectiveParticipationLimits, checkStudentParticipationEligibility } from './firebase.js';
+import { auth, db, classifyProgram, resolveEffectiveParticipationLimits, checkStudentParticipationEligibility, normalizeCategoryName } from './firebase.js';
 import {
     signInAnonymously,
     onAuthStateChanged
@@ -274,7 +274,7 @@ async function loadPortalData() {
 
 function initDashboardFilters(eligiblePrograms) {
     // 1. Categories
-    const categories = [...new Set(eligiblePrograms.map(p => p.categoryName || p.categoryId || 'General').filter(Boolean))].sort();
+    const categories = [...new Set(eligiblePrograms.map(p => normalizeCategoryName(p.categoryName || p.categoryId || 'General')).filter(Boolean))].sort();
     const catSelect = document.getElementById("dashFilterCategory");
     if (catSelect) {
         catSelect.innerHTML = '<option value="">All Categories</option>' +
@@ -389,7 +389,7 @@ function renderDashboard() {
         });
     }
     if (filterCat) {
-        displayedPrograms = displayedPrograms.filter(p => (p.categoryName || p.categoryId || 'General') === filterCat);
+        displayedPrograms = displayedPrograms.filter(p => normalizeCategoryName(p.categoryName || p.categoryId || 'General') === filterCat);
     }
     if (filterGender) {
         displayedPrograms = displayedPrograms.filter(p => {

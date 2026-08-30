@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, computeDenseRanking, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams } from './firebase.js';
+import { db, updateDashboardMetadata, computeDenseRanking, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams, getNormalizedCategoryFilterOptions } from './firebase.js';
 import {
     collection, doc, getDocs, onSnapshot, serverTimestamp, updateDoc, deleteDoc, writeBatch, setDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -46,8 +46,9 @@ export async function initResultsView(container, topActions) {
     let catOptions = '<option value="">All Categories</option>';
     try {
         const cats = await getCachedCategories();
-        cats.forEach(c => {
-            catOptions += `<option value="${c.id}">${window.escapeHTML(c.name)}</option>`;
+        const normCats = getNormalizedCategoryFilterOptions(cats);
+        normCats.forEach(fc => {
+            catOptions += `<option value="${fc.rawIds.join(',')}">${window.escapeHTML(fc.label)}</option>`;
         });
         catOptions += `<option value="general_programs">GENERAL</option>`;
     } catch (e) { console.error(e); }
@@ -423,7 +424,8 @@ function renderResultsView() {
             if (resultsFilter.categoryId === 'general_programs') {
                 if (r.categoryId !== 'general_programs' && r.programType !== 'general') return false;
             } else {
-                if (r.categoryId !== resultsFilter.categoryId) return false;
+                const acceptedIds = resultsFilter.categoryId.split(',');
+                if (!acceptedIds.includes(String(r.categoryId))) return false;
             }
         }
         // Gender filter

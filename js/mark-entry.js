@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades, calculateResultData } from './firebase.js';
+import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades, calculateResultData, getNormalizedCategoryFilterOptions } from './firebase.js';
 import {
     collection, getDocs, doc, getDoc, setDoc, onSnapshot, serverTimestamp, writeBatch, runTransaction
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -181,8 +181,9 @@ export async function initMarkEntryView(container, topActions) {
     let catOptions = '<option value="">All Categories</option>';
     try {
         const categories = await getCachedCategories(window.currentInstituteId);
-        categories.forEach(c => {
-            catOptions += `<option value="${c.id}">${window.escapeHTML(c.name)}</option>`;
+        const normCats = getNormalizedCategoryFilterOptions(categories);
+        normCats.forEach(fc => {
+            catOptions += `<option value="${fc.rawIds.join(',')}">${window.escapeHTML(fc.label)}</option>`;
         });
         catOptions += `<option value="general_programs">General Programs</option>`;
     } catch (e) { console.error(e); }
@@ -651,7 +652,14 @@ function renderMarkEntryGrid() {
             if (!nameMatch && !numberMatch) return false;
         }
         // Filters
-        if (markEntryFilter.categoryId && p.categoryId !== markEntryFilter.categoryId) return false;
+        if (markEntryFilter.categoryId) {
+            if (markEntryFilter.categoryId === 'general_programs') {
+                if (p.categoryId !== 'general_programs') return false;
+            } else {
+                const acceptedIds = markEntryFilter.categoryId.split(',');
+                if (!acceptedIds.includes(String(p.categoryId))) return false;
+            }
+        }
         if (markEntryFilter.gender && p.genderCategory !== markEntryFilter.gender) return false;
         if (markEntryFilter.stage && p.programLocation !== markEntryFilter.stage) return false;
 

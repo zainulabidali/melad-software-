@@ -1,4 +1,4 @@
-import { db, computeDenseRanking, getCachedCategories } from './firebase.js';
+import { db, computeDenseRanking, getCachedCategories, getNormalizedCategoryFilterOptions } from './firebase.js';
 import {
     collection, getDocs, onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -66,8 +66,9 @@ export async function initTopScorersView(container, topActions) {
 
     // Render Scaffolding
     let catOptions = '<option value="">All Categories</option>';
-    allCategories.forEach(c => {
-        catOptions += `<option value="${c.id}">${window.escapeHTML(c.name)}</option>`;
+    const normCats = getNormalizedCategoryFilterOptions(allCategories);
+    normCats.forEach(fc => {
+        catOptions += `<option value="${fc.rawIds.join(',')}">${window.escapeHTML(fc.label)}</option>`;
     });
 
     let teamOptions = '<option value="">All Teams</option>';
@@ -438,7 +439,10 @@ function renderContendersList() {
         }
 
         // 2. Category
-        if (filters.categoryId && c.categoryId !== filters.categoryId) return false;
+        if (filters.categoryId) {
+            const acceptedIds = filters.categoryId.split(',');
+            if (!acceptedIds.includes(String(c.categoryId))) return false;
+        }
 
         // 3. Gender
         if (filters.gender) {
