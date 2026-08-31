@@ -1798,19 +1798,22 @@ function setupCertificateExportModule() {
         if (clearSignBtn) clearSignBtn.style.display = 'inline';
     }
 
-    // Persist branding on change
-    const persistBranding = () => {
-        if (madrasaNameInput) localStorage.setItem('meelad_cert_madrasa_name', madrasaNameInput.value.trim());
-        if (institutionSubInput) localStorage.setItem('meelad_cert_institution_sub', institutionSubInput.value.trim());
-        if (signNameInput) localStorage.setItem('meelad_cert_sign_name', signNameInput.value.trim());
-        if (signTitleInput) localStorage.setItem('meelad_cert_sign_title', signTitleInput.value.trim());
-        if (dateInput) localStorage.setItem('meelad_cert_date', dateInput.value.trim());
-        updateLiveCertificatePreview();
-    };
-
-    [madrasaNameInput, institutionSubInput, signNameInput, signTitleInput, dateInput].forEach(inp => {
-        if (inp) inp.oninput = persistBranding;
-    });
+    const saveBtn = document.getElementById('expCertSaveBrandingBtn');
+    if (saveBtn) {
+        saveBtn.onclick = () => {
+            if (madrasaNameInput) localStorage.setItem('meelad_cert_madrasa_name', madrasaNameInput.value.trim());
+            if (institutionSubInput) localStorage.setItem('meelad_cert_institution_sub', institutionSubInput.value.trim());
+            if (signNameInput) localStorage.setItem('meelad_cert_sign_name', signNameInput.value.trim());
+            if (signTitleInput) localStorage.setItem('meelad_cert_sign_title', signTitleInput.value.trim());
+            if (dateInput) localStorage.setItem('meelad_cert_date', dateInput.value.trim());
+            computeAndRenderCertificates(false);
+            const toast = document.getElementById('expCertSaveToast');
+            if (toast) {
+                toast.style.display = 'inline';
+                setTimeout(() => { toast.style.display = 'none'; }, 2000);
+            }
+        };
+    }
 
     if (logoFileInput) {
         logoFileInput.onchange = (e) => {
@@ -1940,34 +1943,24 @@ function setupCertificateExportModule() {
         }
     };
 
-    if (expCertCat) {
-        expCertCat.onchange = () => {
-            updateCertificateProgramsList();
-            computeAndRenderCertificates(false);
-        };
-    }
-    if (expCertProgType) {
-        expCertProgType.onchange = () => {
-            updateCertificateProgramsList();
-            computeAndRenderCertificates(false);
-        };
-    }
+    const onCertificateFilterChange = () => {
+        updateCertificateProgramsList();
+        computeAndRenderCertificates(false);
+    };
+
+    if (expCertCat) expCertCat.onchange = onCertificateFilterChange;
+    if (expCertProgType) expCertProgType.onchange = onCertificateFilterChange;
+    if (expCertGender) expCertGender.onchange = onCertificateFilterChange;
+    
     if (expCertProg) {
         expCertProg.onchange = () => computeAndRenderCertificates(false);
     }
-    if (expCertGender) {
-        expCertGender.onchange = () => computeAndRenderCertificates(false);
-    }
 
     const posSelect = document.getElementById('expCertPosSelect');
-    if (posSelect) {
-        posSelect.onchange = () => computeAndRenderCertificates(false);
-    }
+    if (posSelect) posSelect.onchange = onCertificateFilterChange;
 
     const posCheckboxes = document.querySelectorAll('.exp-cert-pos-chk');
-    posCheckboxes.forEach(chk => {
-        chk.onchange = () => computeAndRenderCertificates(false);
-    });
+    posCheckboxes.forEach(chk => chk.onchange = onCertificateFilterChange);
 
     // Preview navigation buttons
     const btnPrev = document.getElementById('btnCertPrev');
@@ -1997,8 +1990,114 @@ function setupCertificateExportModule() {
 
     window.addEventListener('resize', scalePreviewToFit);
 
+    if (typeof allPrograms !== 'undefined' && Array.isArray(allPrograms)) {
+        let autoThemes = {};
+        try {
+            autoThemes = JSON.parse(localStorage.getItem('meelad_cert_auto_themes') || '{}');
+        } catch (e) {}
+        let lastNum = parseInt(localStorage.getItem('meelad_cert_last_auto_theme') || '0', 10);
+        let changed = false;
+        allPrograms.forEach(p => {
+            if (!autoThemes[p.id]) {
+                lastNum = (lastNum % 10) + 1;
+                autoThemes[p.id] = `cat-theme-${lastNum}`;
+                changed = true;
+            }
+        });
+        if (changed) {
+            try {
+                localStorage.setItem('meelad_cert_auto_themes', JSON.stringify(autoThemes));
+                localStorage.setItem('meelad_cert_last_auto_theme', lastNum.toString());
+            } catch(e) {}
+        }
+    }
+
     updateCertificateProgramsList();
     computeAndRenderCertificates(false);
+}
+
+function getStableProgramTheme(progId) {
+    if (!progId) return 'cat-theme-1';
+    let autoThemes = {};
+    try {
+        const stored = localStorage.getItem('meelad_cert_auto_themes');
+        if (stored) autoThemes = JSON.parse(stored);
+    } catch (e) {}
+
+    if (autoThemes[progId]) return autoThemes[progId];
+    
+    let lastNum = parseInt(localStorage.getItem('meelad_cert_last_auto_theme') || '0', 10);
+    lastNum = (lastNum % 10) + 1;
+    const newTheme = `cat-theme-${lastNum}`;
+    autoThemes[progId] = newTheme;
+    
+    try {
+        localStorage.setItem('meelad_cert_auto_themes', JSON.stringify(autoThemes));
+        localStorage.setItem('meelad_cert_last_auto_theme', lastNum.toString());
+    } catch (e) {}
+    
+    return newTheme;
+}
+
+function renderProgramColorsUI(programs) {
+    const listEl = document.getElementById('expCertProgramColorsList');
+    if (!listEl) return;
+    
+    const currentProgIds = programs.map(p => p.id).join(',');
+    if (listEl.dataset.progIds === currentProgIds) {
+        return;
+    }
+    listEl.dataset.progIds = currentProgIds;
+    
+    if (!programs || programs.length === 0) {
+        listEl.innerHTML = '<div style="font-size:0.75rem; color:#64748b; padding:0.5rem;">No programs matched by current filters.</div>';
+        return;
+    }
+    
+    const themeOptions = `
+        <option value="default">Use Auto-Assigned Program Default</option>
+        <option value="cat-theme-general">Default Institutional Classic</option>
+        <option value="cat-theme-1">Theme 1 (Emerald Accent)</option>
+        <option value="cat-theme-2">Theme 2 (Rose Crimson Accent)</option>
+        <option value="cat-theme-3">Theme 3 (Sapphire Blue Accent)</option>
+        <option value="cat-theme-4">Theme 4 (Regal Gold / Amber Accent)</option>
+        <option value="cat-theme-5">Theme 5 (Royal Violet Accent)</option>
+        <option value="cat-theme-6">Theme 6 (Warm Ochre Accent)</option>
+        <option value="cat-theme-7">Theme 7 (Cerulean Sky Accent)</option>
+        <option value="cat-theme-8">Theme 8 (Mint Forest Accent)</option>
+        <option value="cat-theme-9">Theme 9 (Ruby Plum Accent)</option>
+        <option value="cat-theme-10">Theme 10 (Sleek Slate Accent)</option>
+    `;
+    
+    let html = '';
+    programs.forEach(p => {
+        const savedColor = localStorage.getItem('meelad_cert_prog_color_' + p.id) || 'default';
+        html += `
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:0.4rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px;">
+            <div style="font-size:0.75rem; font-weight:700; color:#1e1b4b; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${window.escapeHTML(p.programName)}">
+                ${p.programNumber ? `[#${p.programNumber}] ` : ''}${window.escapeHTML(p.programName)}
+            </div>
+            <select class="exp-input cert-prog-color-sel" data-prog-id="${p.id}" style="width:160px; padding:0.25rem; font-size:0.7rem; margin:0 0 0 10px;">
+                ${themeOptions.replace('value="' + savedColor + '"', 'value="' + savedColor + '" selected')}
+            </select>
+        </div>
+        `;
+    });
+    
+    listEl.innerHTML = html;
+    
+    listEl.querySelectorAll('.cert-prog-color-sel').forEach(sel => {
+        sel.onchange = (e) => {
+            const val = e.target.value;
+            const progId = e.target.getAttribute('data-prog-id');
+            if (val === 'default') {
+                localStorage.removeItem('meelad_cert_prog_color_' + progId);
+            } else {
+                localStorage.setItem('meelad_cert_prog_color_' + progId, val);
+            }
+            computeAndRenderCertificates(false);
+        };
+    });
 }
 
 async function computeAndRenderCertificates(forceRefresh = false) {
@@ -2027,18 +2126,26 @@ async function computeAndRenderCertificates(forceRefresh = false) {
         const selGender = document.getElementById('expCertGender')?.value || '';
 
         const selectedPositions = new Set();
-        const posSelect = document.getElementById('expCertPosSelect');
-        if (posSelect) {
-            const val = posSelect.value;
-            if (val === 'all' || val === 'First + Second + Third') {
-                selectedPositions.add('First');
-                selectedPositions.add('Second');
-                selectedPositions.add('Third');
-            } else {
-                selectedPositions.add(val);
-            }
+        document.querySelectorAll('.exp-cert-pos-chk:checked').forEach(chk => selectedPositions.add(chk.value));
+
+        const posError = document.getElementById('expCertPosError');
+        if (selectedPositions.size === 0) {
+            if (posError) posError.style.display = 'block';
+            certState.matchingCertificates = [];
+            updateLiveCertificatePreview();
+            
+            const countTotalEl = document.getElementById('certCountTotal');
+            const countFirstEl = document.getElementById('certCountFirst');
+            const countSecondEl = document.getElementById('certCountSecond');
+            const countThirdEl = document.getElementById('certCountThird');
+            if (countTotalEl) countTotalEl.textContent = '0';
+            if (countFirstEl) countFirstEl.textContent = '0';
+            if (countSecondEl) countSecondEl.textContent = '0';
+            if (countThirdEl) countThirdEl.textContent = '0';
+            
+            return;
         } else {
-            document.querySelectorAll('.exp-cert-pos-chk:checked').forEach(chk => selectedPositions.add(chk.value));
+            if (posError) posError.style.display = 'none';
         }
 
         let targetPrograms = allPrograms || [];
@@ -2069,6 +2176,10 @@ async function computeAndRenderCertificates(forceRefresh = false) {
             }
         }
 
+        if (typeof renderProgramColorsUI === 'function') {
+            renderProgramColorsUI(targetPrograms);
+        }
+
         const madrasaName = document.getElementById('expCertMadrasaName')?.value.trim() || localStorage.getItem('meelad_cert_madrasa_name') || (window.currentInstituteDetails?.name || getEventName());
         const institutionSub = document.getElementById('expCertInstitutionSub')?.value.trim() || localStorage.getItem('meelad_cert_institution_sub') || 'DEPARTMENT OF ISLAMIC EDUCATION & CULTURAL AFFAIRS';
         const logoUrl = localStorage.getItem('meelad_cert_logo') || (window.currentInstituteDetails?.logoUrl || '');
@@ -2094,8 +2205,27 @@ async function computeAndRenderCertificates(forceRefresh = false) {
             }
 
             const catId = prog.categoryId || '';
-            const catThemeClass = getCategoryThemeClass(catId);
-            const catBgUrl = getCategoryBgUrl(catId);
+            const customTheme = localStorage.getItem('meelad_cert_prog_color_' + prog.id);
+            let catThemeClass = '';
+            let catBgUrl = '';
+            
+            if (customTheme && customTheme !== 'default') {
+                catThemeClass = customTheme;
+                const themeNum = customTheme.replace('cat-theme-', '');
+                if (themeNum !== 'general') {
+                    catBgUrl = `../assets/poster-backgrounds/bg${themeNum}.jpg`;
+                }
+            } else {
+                const autoTheme = getStableProgramTheme(prog.id);
+                catThemeClass = autoTheme;
+                const themeNum = autoTheme.replace('cat-theme-', '');
+                if (themeNum !== 'general') {
+                    catBgUrl = `../assets/poster-backgrounds/bg${themeNum}.jpg`;
+                } else {
+                    catThemeClass = getCategoryThemeClass(catId);
+                    catBgUrl = getCategoryBgUrl(catId);
+                }
+            }
 
             for (const w of res.winners) {
                 if (!w.position || !selectedPositions.has(w.position)) continue;
@@ -2497,12 +2627,18 @@ function renderDrawerContent() {
                             <!-- ROW 3: Position Filter -->
                             <div>
                                 <label style="font-weight:700; color:#475569; font-size:0.78rem; display:block; margin-bottom:0.3rem;">POSITION</label>
-                                <select id="expCertPosSelect" class="exp-input" style="background:#fff;">
-                                    <option value="First + Second + Third" selected>First + Second + Third</option>
-                                    <option value="First">First Only</option>
-                                    <option value="Second">Second Only</option>
-                                    <option value="Third">Third Only</option>
-                                </select>
+                                <div id="expCertPosCheckboxes" style="display:flex; gap:10px; margin-top:5px; background:#fff; padding:0.4rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px;">
+                                    <label style="display:flex; align-items:center; gap:4px; font-size:0.8rem; cursor:pointer;">
+                                        <input type="checkbox" class="exp-cert-pos-chk" value="First" checked> First
+                                    </label>
+                                    <label style="display:flex; align-items:center; gap:4px; font-size:0.8rem; cursor:pointer;">
+                                        <input type="checkbox" class="exp-cert-pos-chk" value="Second" checked> Second
+                                    </label>
+                                    <label style="display:flex; align-items:center; gap:4px; font-size:0.8rem; cursor:pointer;">
+                                        <input type="checkbox" class="exp-cert-pos-chk" value="Third" checked> Third
+                                    </label>
+                                </div>
+                                <div id="expCertPosError" style="color:#ef4444; font-size:0.75rem; margin-top:4px; display:none; font-weight:700;">Please select at least one position.</div>
                             </div>
                         </div>
 
@@ -2559,6 +2695,23 @@ function renderDrawerContent() {
                                 <div>
                                     <label style="font-weight:700; color:#475569; font-size:0.75rem;">DATE OF ISSUE</label>
                                     <input type="text" id="expCertDate" class="exp-input" placeholder="e.g. 15 September 2026" />
+                                </div>
+                                <div style="display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:0.75rem; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
+                                    <span id="expCertSaveToast" style="color:#10b981; font-size:0.75rem; font-weight:700; display:none;">Saved successfully</span>
+                                    <button type="button" id="expCertSaveBrandingBtn" style="background:#10b981; color:#fff; font-weight:700; padding:0.4rem 1rem; border:none; border-radius:6px; font-size:0.75rem; cursor:pointer;">💾 SAVE SETTINGS</button>
+                                </div>
+                            </div>
+                        </details>
+
+                        <details id="certProgramColorsDetails" style="background:#fff; border:1px solid #cbd5e1; border-radius:12px; padding:0.85rem; cursor:pointer; margin-top:0.75rem;">
+                            <summary style="font-size:0.8rem; font-weight:800; color:#1e1b4b; text-transform:uppercase; letter-spacing:0.04em; display:flex; justify-content:space-between; align-items:center;">
+                                <span>🎨 Program-Wise Certificate Colors</span>
+                                <span style="font-size:0.7rem; color:#64748b; font-weight:600; text-transform:none;">(Overrides default colors)</span>
+                            </summary>
+                            <div style="display:flex; flex-direction:column; gap:0.75rem; margin-top:0.85rem; border-top:1px solid #e2e8f0; padding-top:0.75rem; cursor:default;">
+                                <div style="font-size:0.75rem; color:#475569; font-weight:600; margin-bottom:0.5rem;">Configure specific certificate color themes for the filtered programs below. Assigned colors are saved automatically.</div>
+                                <div id="expCertProgramColorsList" style="display:flex; flex-direction:column; gap:0.5rem; max-height:250px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:6px; padding:0.5rem; background:#f8fafc;">
+                                    <!-- Rendered by JS -->
                                 </div>
                             </div>
                         </details>
