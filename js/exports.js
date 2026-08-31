@@ -31,6 +31,7 @@ let sortByVal = 'newest';
 // Team Background Manager state
 let teamBackgroundsCache = {};
 let chestNumTeamBackgroundsCache = {};
+let defaultChestNumBgCache = null;
 let isTeamBgEnabled = false;
 
 async function ensureEventDetailsLoaded(force = false) {
@@ -78,6 +79,17 @@ function loadChestNumTeamBackgrounds() {
         }
     } catch (e) {
         chestNumTeamBackgroundsCache = {};
+    }
+    
+    try {
+        const storedDefault = localStorage.getItem('milad_default_chest_num_bg');
+        if (storedDefault) {
+            defaultChestNumBgCache = storedDefault;
+        } else {
+            defaultChestNumBgCache = null;
+        }
+    } catch (e) {
+        defaultChestNumBgCache = null;
     }
 }
 
@@ -223,6 +235,95 @@ function renderTeamBgCards() {
 
         updateTeamCardUI(t.id);
     });
+}
+
+function updateDefaultChestNumCardUI() {
+    const previewDiv = document.getElementById('chest-num-preview-default');
+    const btnChoose = document.getElementById('chest-num-btn-choose-default');
+    const btnReplace = document.getElementById('chest-num-btn-replace-default');
+    const btnRemove = document.getElementById('chest-num-btn-remove-default');
+    const defaultBgImg = '../assets/chest_number_bg_2.png';
+
+    const base64 = defaultChestNumBgCache;
+    if (base64 && base64 !== 'undefined' && base64 !== 'null') {
+        if (previewDiv) {
+            previewDiv.innerHTML = `<img src="${base64}" alt="Default Background" style="width:100%; height:100%; object-fit:contain;" />`;
+            previewDiv.style.borderStyle = 'solid';
+        }
+        if (btnChoose) btnChoose.style.display = 'none';
+        if (btnReplace) btnReplace.style.display = 'block';
+        if (btnRemove) btnRemove.style.display = 'block';
+    } else {
+        if (previewDiv) {
+            previewDiv.innerHTML = `<img src="${defaultBgImg}" alt="Fallback Background" style="width:100%; height:100%; object-fit:contain; opacity:0.7;" />`;
+            previewDiv.style.borderStyle = 'dashed';
+        }
+        if (btnChoose) btnChoose.style.display = 'block';
+        if (btnReplace) btnReplace.style.display = 'none';
+        if (btnRemove) btnRemove.style.display = 'none';
+    }
+}
+
+function renderDefaultChestNumBg() {
+    const grid = document.getElementById('defaultChestNumBgGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    
+    const card = document.createElement('div');
+    card.className = 'team-bg-card'; 
+    card.innerHTML = `
+        <div style="font-weight: 700; color: #1e1b4b; font-size: 0.85rem;">Global Default Background (No Team / No Team Bg)</div>
+        <div class="team-bg-preview" id="chest-num-preview-default" style="height: 120px;">
+            <span>No Custom Background</span>
+        </div>
+        <div class="team-bg-actions">
+            <input type="file" id="chest-num-file-default" accept="image/png, image/jpeg, image/jpg, image/webp" style="display:none;" />
+            <button type="button" class="btn-choose-bg" id="chest-num-btn-choose-default">Choose Image</button>
+            <button type="button" class="btn-replace-bg" id="chest-num-btn-replace-default" style="display:none;">Replace Image</button>
+            <button type="button" class="btn-remove-bg" id="chest-num-btn-remove-default" style="display:none;">Remove Image</button>
+        </div>
+    `;
+    grid.appendChild(card);
+    
+    const fileInput = card.querySelector('#chest-num-file-default');
+    const btnChoose = card.querySelector('#chest-num-btn-choose-default');
+    const btnReplace = card.querySelector('#chest-num-btn-replace-default');
+    const btnRemove = card.querySelector('#chest-num-btn-remove-default');
+
+    btnChoose.onclick = () => fileInput.click();
+    btnReplace.onclick = () => fileInput.click();
+
+    btnRemove.onclick = () => {
+        if (confirm('Are you sure you want to remove the global default background?')) {
+            defaultChestNumBgCache = null;
+            localStorage.removeItem('milad_default_chest_num_bg');
+            updateDefaultChestNumCardUI();
+            window.showToast('Global default background removed.');
+        }
+    };
+
+    fileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) {
+            window.showToast('Unsupported format.', 'error');
+            return;
+        }
+        window.showToast('Processing image...', 'info');
+        try {
+            const base64Str = await resizeImageIfNeeded(file);
+            defaultChestNumBgCache = base64Str;
+            localStorage.setItem('milad_default_chest_num_bg', base64Str);
+            updateDefaultChestNumCardUI();
+            window.showToast('Global default background uploaded successfully.');
+        } catch (err) {
+            console.error(err);
+            window.showToast('Failed to process image.', 'error');
+        }
+    };
+
+    updateDefaultChestNumCardUI();
 }
 
 function updateChestNumTeamCardUI(teamId, tIndex) {
@@ -2698,7 +2799,10 @@ function renderDrawerContent() {
 
                         <!-- Chest Number Card Background Container -->
                         <div id="chestNumBgContainer" style="display:none; flex-direction:column; gap:0.75rem; background:#fff; border:1px solid #cbd5e1; padding:0.75rem 1rem; border-radius:10px;">
-                            <span style="font-size:0.75rem; font-weight:700; color:#1e1b4b; display:block; text-transform:uppercase; letter-spacing:0.04em;">🖼️ Team-Wise Chest Number Card Backgrounds</span>
+                            <span style="font-size:0.75rem; font-weight:700; color:#1e1b4b; display:block; text-transform:uppercase; letter-spacing:0.04em;">🖼️ DEFAULT CHEST NUMBER CARD BACKGROUND</span>
+                            <div id="defaultChestNumBgGrid" style="display: grid; grid-template-columns: 1fr; gap: 1rem; width: 100%; border-bottom:1px solid #e2e8f0; padding-bottom: 0.75rem;"></div>
+
+                            <span style="font-size:0.75rem; font-weight:700; color:#1e1b4b; display:block; text-transform:uppercase; letter-spacing:0.04em; margin-top:0.75rem;">🖼️ Team-Wise Chest Number Card Backgrounds</span>
                             <div style="display:flex; justify-content:flex-end;">
                                 <button type="button" id="btnResetAllChestNumBgs" class="btn btn-danger" style="background:#ef4444; color:#fff; border:none; padding:0.4rem 0.8rem; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem;">
                                     🔄 Reset All Backgrounds
@@ -2827,6 +2931,7 @@ function renderDrawerContent() {
         };
     }
     
+    renderDefaultChestNumBg();
     renderChestNumTeamBgs();
 
     renderTeamBgCards();
@@ -5096,14 +5201,21 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 let teamBgUrls = {}; // teamId -> URL or base64
                 let localUniqueTeams = [];
                 studentsList.forEach(stu => {
-                    const key = String(stu.teamId);
-                    if (key && !localUniqueTeams.includes(key)) localUniqueTeams.push(key);
+                    let key = stu.teamId;
+                    if (!key || key === 'undefined' || key === 'null') {
+                        key = 'no-team';
+                    } else {
+                        key = String(key);
+                    }
+                    if (!localUniqueTeams.includes(key)) localUniqueTeams.push(key);
                 });
 
                 localUniqueTeams.forEach(tId => {
                     const cachedVal = chestNumTeamBackgroundsCache[tId];
                     if (cachedVal && cachedVal !== 'undefined' && cachedVal !== 'null') {
                         teamBgUrls[tId] = cachedVal;
+                    } else if (defaultChestNumBgCache && defaultChestNumBgCache !== 'undefined' && defaultChestNumBgCache !== 'null') {
+                        teamBgUrls[tId] = defaultChestNumBgCache;
                     } else {
                         const globalIndex = allTeams.findIndex(t => String(t.id) === String(tId));
                         const idx = globalIndex >= 0 ? globalIndex : 0;
@@ -5157,7 +5269,12 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             const classVal = stu.className || stu.classId || '—';
                             const catVal = stu.categoryName || stu.categoryId || '—';
                             
-                            const tId = String(stu.teamId);
+                            let tId = stu.teamId;
+                            if (!tId || tId === 'undefined' || tId === 'null') {
+                                tId = 'no-team';
+                            } else {
+                                tId = String(tId);
+                            }
                             const hasBg = resolvedTeamBgs[tId] ? true : false;
 
                             // Use absolute positioning to completely eliminate print layout/pagination loops
