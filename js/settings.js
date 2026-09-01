@@ -490,19 +490,19 @@ async function openPointManageModal() {
                             display: inline-flex !important;
                             flex-direction: column !important;
                             align-items: center !important;
-                            width: 32% !important;
+                            width: 24% !important;
                             box-sizing: border-box !important;
                             margin-top: 0.25rem !important;
                         }
                         .points-mobile-label {
                             display: block !important;
-                            font-size: 11px !important;
+                            font-size: 10px !important;
                             font-weight: 600 !important;
                             color: #64748b !important;
                             margin-bottom: 0.25rem !important;
                             text-align: center !important;
                         }
-                        .pt-input { width: 100% !important; max-width: 80px !important; }
+                        .pt-input { width: 100% !important; max-width: 60px !important; padding: 0.2rem !important; }
                     }
                 </style>
 
@@ -521,55 +521,68 @@ async function openPointManageModal() {
                                 <thead>
                                     <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
                                         <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155;">Point Rule</th>
-                                        <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155; text-align:center;">Individual</th>
-                                        <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155; text-align:center;">Group</th>
-                                        <th style="padding: 0.75rem 1rem; font-weight: 700; color: #334155; text-align:center;">General</th>
+                                        <th style="padding: 0.75rem 0.5rem; font-weight: 700; color: #334155; text-align:center;">Individual</th>
+                                        <th style="padding: 0.75rem 0.5rem; font-weight: 700; color: #334155; text-align:center;">Group</th>
+                                        <th style="padding: 0.75rem 0.5rem; font-weight: 700; color: #334155; text-align:center;">Gen. Individual</th>
+                                        <th style="padding: 0.75rem 0.5rem; font-weight: 700; color: #334155; text-align:center;">Gen. Group</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">🥇 1st Place Points</td>
-                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">🥇 1st Place</td>
+                                        <td style="padding: 0.5rem 0.5rem; text-align:center;">
                                             <span class="points-mobile-label">Individual</span>
-                                            <input type="number" min="0" class="form-input pt-input" id="pt_ind_first" value="${points.individual?.first ?? 10}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_ind_first" value="${points.individual?.first ?? 10}" style="width:65px; text-align:center; padding:0.35rem;" />
                                         </td>
-                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                        <td style="padding: 0.5rem 0.5rem; text-align:center;">
                                             <span class="points-mobile-label">Group</span>
-                                            <input type="number" min="0" class="form-input pt-input" id="pt_grp_first" value="${points.group?.first ?? 10}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_grp_first" value="${points.group?.first ?? 10}" style="width:65px; text-align:center; padding:0.35rem;" />
                                         </td>
-                                        <td style="padding: 0.5rem 1rem; text-align:center;">
-                                            <span class="points-mobile-label">General</span>
-                                            <input type="number" min="0" class="form-input pt-input" id="pt_gen_first" value="${points.general?.first ?? 10}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                        <td style="padding: 0.5rem 0.5rem; text-align:center;">
+                                            <span class="points-mobile-label">Gen. Ind.</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_genInd_first" value="${points.generalIndividual?.first ?? points.general?.first ?? 15}" style="width:65px; text-align:center; padding:0.35rem;" />
+                                        </td>
+                                        <td style="padding: 0.5rem 0.5rem; text-align:center;">
+                                            <span class="points-mobile-label">Gen. Grp.</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_genGrp_first" value="${points.generalGroup?.first ?? points.general?.first ?? 15}" style="width:65px; text-align:center; padding:0.35rem;" />
                                         </td>
                                     </tr>
                                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">🥈 2nd Place Points</td>
-                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">🥈 2nd Place</td>
+                                        <td style="padding: 0.5rem 0.5rem; text-align:center;">
                                             <span class="points-mobile-label">Individual</span>
-                                            <input type="number" min="0" class="form-input pt-input" id="pt_ind_second" value="${points.individual?.second ?? 8}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_ind_second" value="${points.individual?.second ?? 8}" style="width:65px; text-align:center; padding:0.35rem;" />
                                         </td>
-                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                        <td style="padding: 0.5rem 0.5rem; text-align:center;">
                                             <span class="points-mobile-label">Group</span>
-                                            <input type="number" min="0" class="form-input pt-input" id="pt_grp_second" value="${points.group?.second ?? 8}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_grp_second" value="${points.group?.second ?? 8}" style="width:65px; text-align:center; padding:0.35rem;" />
                                         </td>
-                                        <td style="padding: 0.5rem 1rem; text-align:center;">
-                                            <span class="points-mobile-label">General</span>
-                                            <input type="number" min="0" class="form-input pt-input" id="pt_gen_second" value="${points.general?.second ?? 8}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                        <td style="padding: 0.5rem 0.5rem; text-align:center;">
+                                            <span class="points-mobile-label">Gen. Ind.</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_genInd_second" value="${points.generalIndividual?.second ?? points.general?.second ?? 10}" style="width:65px; text-align:center; padding:0.35rem;" />
+                                        </td>
+                                        <td style="padding: 0.5rem 0.5rem; text-align:center;">
+                                            <span class="points-mobile-label">Gen. Grp.</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_genGrp_second" value="${points.generalGroup?.second ?? points.general?.second ?? 10}" style="width:65px; text-align:center; padding:0.35rem;" />
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">🥉 3rd Place Points</td>
-                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #475569;">🥉 3rd Place</td>
+                                        <td style="padding: 0.5rem 0.5rem; text-align:center;">
                                             <span class="points-mobile-label">Individual</span>
-                                            <input type="number" min="0" class="form-input pt-input" id="pt_ind_third" value="${points.individual?.third ?? 6}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_ind_third" value="${points.individual?.third ?? 6}" style="width:65px; text-align:center; padding:0.35rem;" />
                                         </td>
-                                        <td style="padding: 0.5rem 1rem; text-align:center;">
+                                        <td style="padding: 0.5rem 0.5rem; text-align:center;">
                                             <span class="points-mobile-label">Group</span>
-                                            <input type="number" min="0" class="form-input pt-input" id="pt_grp_third" value="${points.group?.third ?? 6}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_grp_third" value="${points.group?.third ?? 6}" style="width:65px; text-align:center; padding:0.35rem;" />
                                         </td>
-                                        <td style="padding: 0.5rem 1rem; text-align:center;">
-                                            <span class="points-mobile-label">General</span>
-                                            <input type="number" min="0" class="form-input pt-input" id="pt_gen_third" value="${points.general?.third ?? 6}" style="width:75px; text-align:center; padding:0.35rem;" />
+                                        <td style="padding: 0.5rem 0.5rem; text-align:center;">
+                                            <span class="points-mobile-label">Gen. Ind.</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_genInd_third" value="${points.generalIndividual?.third ?? points.general?.third ?? 8}" style="width:65px; text-align:center; padding:0.35rem;" />
+                                        </td>
+                                        <td style="padding: 0.5rem 0.5rem; text-align:center;">
+                                            <span class="points-mobile-label">Gen. Grp.</span>
+                                            <input type="number" min="0" class="form-input pt-input" id="pt_genGrp_third" value="${points.generalGroup?.third ?? points.general?.third ?? 8}" style="width:65px; text-align:center; padding:0.35rem;" />
                                         </td>
                                     </tr>
                                 </tbody>
@@ -708,10 +721,15 @@ async function openPointManageModal() {
                         second: parsePoint('pt_grp_second', 8),
                         third: parsePoint('pt_grp_third', 6)
                     },
-                    general: {
-                        first: parseInt(document.getElementById('pt_gen_first').value, 10) || 0,
-                        second: parseInt(document.getElementById('pt_gen_second').value, 10) || 0,
-                        third: parseInt(document.getElementById('pt_gen_third').value, 10) || 0
+                    generalIndividual: {
+                        first: parsePoint('pt_genInd_first', 15),
+                        second: parsePoint('pt_genInd_second', 10),
+                        third: parsePoint('pt_genInd_third', 8)
+                    },
+                    generalGroup: {
+                        first: parsePoint('pt_genGrp_first', 15),
+                        second: parsePoint('pt_genGrp_second', 10),
+                        third: parsePoint('pt_genGrp_third', 8)
                     },
                     grades: currentGrades
                 };

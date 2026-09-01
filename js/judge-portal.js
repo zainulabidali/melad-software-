@@ -1,4 +1,4 @@
-import { db, computeDenseRanking, getCachedStudentsMap, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades, calculateResultData } from './firebase.js';
+import { db, computeDenseRanking, getCachedStudentsMap, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades, calculateResultData, resolveProgramScoringType } from './firebase.js';
 import {
     collection, doc, getDoc, getDocs, setDoc, onSnapshot, serverTimestamp, writeBatch, runTransaction
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -595,10 +595,7 @@ async function saveMarks(prog, participants, judgesList, judgeIdx, existingResDo
                 });
             });
 
-            const pType = (prog.programType || prog.type || 'individual').toLowerCase();
-            let classType = 'individual';
-            if (pType === 'general') classType = 'general';
-            else if (pType === 'group') classType = 'group';
+            const classType = resolveProgramScoringType(prog);
 
             const gradeModeSelect = document.getElementById('jpGradeModeSelect');
             const gradeMode = gradeModeSelect ? gradeModeSelect.value : (latestResDoc?.gradeMode || 'auto');

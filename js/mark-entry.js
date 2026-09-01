@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades, calculateResultData, getNormalizedCategoryFilterOptions } from './firebase.js';
+import { db, updateDashboardMetadata, getCachedCategories, getCachedPrograms, getCachedStudentsMap, getCachedTeams, computeDenseRanking, getCachedPointsConfig, DEFAULT_POINTS, getGradeAndPoints, getGradePointsForGrade, isValidManualGrade, resolveEffectiveGrade, aggregateManualGrades, calculateResultData, getNormalizedCategoryFilterOptions, resolveProgramScoringType } from './firebase.js';
 import {
     collection, getDocs, doc, getDoc, setDoc, onSnapshot, serverTimestamp, writeBatch, runTransaction
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -1997,10 +1997,7 @@ async function autoSaveParticipantLetter(prog, studentId, codeLetter, existingRe
 function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _legacyResultDoc = null) {
     const existingResult = getLatestResultDocSync(prog.id) || _legacyResultDoc;
     const isGroup = prog.programType === 'group' || prog.registrationType === 'group' || prog.type === 'Group';
-    const pType = (prog.programType || prog.registrationType || prog.type || 'individual').toLowerCase();
-    let classType = 'individual';
-    if (pType === 'general') classType = 'general';
-    else if (pType === 'group') classType = 'group';
+    const classType = resolveProgramScoringType(prog);
     const savedMarksMap = new Map();
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -2721,10 +2718,7 @@ async function persistMarks(prog, judges, isSubmit) {
                     return jId && (dbJudgeSubmissionStatus[jId] === 'submitted' || dbJudgeSubmissionStatus[jId] === true);
                 });
 
-                const pType = (prog.programType || prog.type || 'individual').toLowerCase();
-                let classType = 'individual';
-                if (pType === 'general') classType = 'general';
-                else if (pType === 'group') classType = 'group';
+                const classType = resolveProgramScoringType(prog);
 
                 const calcRes = calculateResultData({
                     marksData: updatedMarksData,
@@ -2840,10 +2834,7 @@ async function persistMarks(prog, judges, isSubmit) {
                     });
                 });
 
-                const pType = (prog.programType || prog.type || 'individual').toLowerCase();
-                let classType = 'individual';
-                if (pType === 'general') classType = 'general';
-                else if (pType === 'group') classType = 'group';
+                const classType = resolveProgramScoringType(prog);
 
                 const calcRes = calculateResultData({
                     marksData: updatedMarksData,

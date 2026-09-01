@@ -1579,8 +1579,31 @@ export const DEFAULT_POINTS = {
         second: 8,
         third: 6
     },
+    generalIndividual: {
+        first: 15,
+        second: 10,
+        third: 8
+    },
+    generalGroup: {
+        first: 15,
+        second: 10,
+        third: 8
+    },
     grades: DEFAULT_GRADES
 };
+
+export function resolveProgramScoringType(program) {
+    if (!program) return 'individual';
+    const pType = (program.programType || program.type || 'individual').toLowerCase();
+    const regType = (program.registrationType || pType).toLowerCase();
+
+    if (pType === 'general') {
+        return regType === 'group' ? 'generalGroup' : 'generalIndividual';
+    }
+    if (pType === 'group') return 'group';
+    return 'individual';
+}
+
 
 /**
  * Normalizes point configuration data loaded from Firestore or fallback.
@@ -1597,8 +1620,27 @@ export function normalizePointsConfig(data) {
     if (!config.group) config.group = { ...DEFAULT_POINTS.group };
     else config.group = { ...DEFAULT_POINTS.group, ...config.group };
     
-    if (!config.general) config.general = { ...DEFAULT_POINTS.general };
-    else config.general = { ...DEFAULT_POINTS.general, ...config.general };
+    // Maintain legacy general if it exists
+    if (config.general) {
+        config.general = { ...DEFAULT_POINTS.general, ...config.general };
+    }
+
+    // Explicit activation check
+    if (config.generalIndividual || config.generalGroup) {
+        if (!config.generalIndividual) config.generalIndividual = { ...DEFAULT_POINTS.generalIndividual };
+        else config.generalIndividual = { ...DEFAULT_POINTS.generalIndividual, ...config.generalIndividual };
+        
+        if (!config.generalGroup) config.generalGroup = { ...DEFAULT_POINTS.generalGroup };
+        else config.generalGroup = { ...DEFAULT_POINTS.generalGroup, ...config.generalGroup };
+    } else if (config.general) {
+        // Fallback to legacy
+        config.generalIndividual = { ...config.general };
+        config.generalGroup = { ...config.general };
+    } else {
+        // Fallback to default
+        config.generalIndividual = { ...DEFAULT_POINTS.generalIndividual };
+        config.generalGroup = { ...DEFAULT_POINTS.generalGroup };
+    }
 
     if (!Array.isArray(config.grades) || config.grades.length === 0) {
         config.grades = JSON.parse(JSON.stringify(DEFAULT_GRADES));
@@ -1750,7 +1792,7 @@ export function calculateResultData({
     const allSubmitted = requiredJudgesCount > 0 && submittedJudgesCount >= requiredJudgesCount;
 
     const activePointsConfig = normalizePointsConfig(pointsConfig);
-    const config = activePointsConfig[classType] || DEFAULT_POINTS[classType];
+    const config = activePointsConfig[classType] || DEFAULT_POINTS[classType] || DEFAULT_POINTS.individual;
     const positionPointsMap = {
         'First': config.first !== undefined ? Number(config.first) : 10,
         'Second': config.second !== undefined ? Number(config.second) : 8,
@@ -1928,11 +1970,8 @@ export async function recalculateAllResultsPoints(instituteId) {
         const prog = programsMap.get(res.programId);
         if (!prog) continue;
 
-        // Determine program class type: general, group, individual
-        const pType = (prog.programType || prog.type || 'individual').toLowerCase();
-        let classType = 'individual';
-        if (pType === 'general') classType = 'general';
-        else if (pType === 'group') classType = 'group';
+        // Determine program class type using the new centralized resolver
+        const classType = resolveProgramScoringType(prog);
 
         let changed = false;
 
@@ -1944,7 +1983,7 @@ export async function recalculateAllResultsPoints(instituteId) {
             gradeMode: res.gradeMode || prog.gradeMode || 'auto',
             pointsConfig: pointsConfig,
             classType: classType,
-            isGroup: (classType === 'group')
+            isGroup: (classType === 'group' || classType === 'generalGroup')
         });
 
         if (JSON.stringify(res.marksData) !== JSON.stringify(newMarksData) || JSON.stringify(res.winners) !== JSON.stringify(newWinners)) {

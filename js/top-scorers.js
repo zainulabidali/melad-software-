@@ -1,4 +1,4 @@
-import { db, computeDenseRanking, getCachedCategories, getNormalizedCategoryFilterOptions } from './firebase.js';
+import { db, computeDenseRanking, getCachedCategories, getNormalizedCategoryFilterOptions, resolveProgramScoringType } from './firebase.js';
 import {
     collection, getDocs, onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -259,9 +259,9 @@ function recalculateScorers(publishedResults) {
     const scorersMap = new Map(); // studentId -> computedContenderObj
 
     publishedResults.forEach(r => {
-        const pType = (r.programType || r.type || 'individual').toLowerCase();
-        // Enforce strict scoring isolation rules: ONLY count individual programs
-        if (pType !== 'individual') return;
+        const classType = resolveProgramScoringType(r);
+        // Enforce strict scoring isolation rules: ONLY count individual and generalIndividual programs
+        if (classType !== 'individual' && classType !== 'generalIndividual') return;
 
         const isStage = r.programLocation === 'Stage';
         const marksList = Array.isArray(r.marksData) ? r.marksData : [];
@@ -316,6 +316,7 @@ function recalculateScorers(publishedResults) {
                     ...stu,
                     stagePoints: 0,
                     offStagePoints: 0,
+                    generalPoints: 0,
                     totalPoints: 0
                 });
             }
@@ -323,7 +324,9 @@ function recalculateScorers(publishedResults) {
             const contender = scorersMap.get(stuId);
             contender.totalPoints += pts;
             
-            if (isStage) {
+            if (classType === 'generalIndividual') {
+                contender.generalPoints += pts;
+            } else if (isStage) {
                 contender.stagePoints += pts;
             } else {
                 contender.offStagePoints += pts;
@@ -502,7 +505,7 @@ function renderContendersList() {
                     <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700; width:90px;">Gender</th>
                     <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700; width:150px;">Team Name</th>
                     <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700; width:120px;">Category</th>
-                    <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700; width:130px; text-align:center;">Stage (Points)</th>
+                    <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700; width:130px; text-align:center;">Points Breakdown</th>
                     <th style="padding:0.5rem 0.75rem; color:#475569; font-weight:700; width:100px; text-align:center;">Total Points</th>
                 </tr>
             </thead>
@@ -531,6 +534,7 @@ function renderContendersList() {
                                 <div style="display:flex; flex-direction:column; gap:0.05rem; font-size:0.72rem;">
                                     <span>Stage: <strong>${c.stagePoints}</strong></span>
                                     <span>Off-stage: <strong>${c.offStagePoints}</strong></span>
+                                    <span>Gen Indi: <strong>${c.generalPoints}</strong></span>
                                 </div>
                             </td>
                             <td style="padding:0.5rem 0.75rem; text-align:center; font-weight:850; color:#4338ca; font-size:0.9rem;">
