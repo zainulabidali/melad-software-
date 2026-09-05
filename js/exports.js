@@ -2828,6 +2828,16 @@ function renderDrawerContent() {
                             </div>
                         </div>
 
+                        <!-- Grades Filter (Only visible for Program Wise Podiums) -->
+                        <div id="expGradesFilterContainer" style="display:none; flex-direction:column; gap:0.45rem; background:#f8fafc; border:1px solid #cbd5e1; padding:0.75rem; border-radius:10px; margin-bottom:0.75rem;">
+                            <label style="font-weight:800; color:#475569; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.04em;">GRADES</label>
+                            <div style="display:flex; gap:1.25rem; align-items:center;">
+                                <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; font-weight:700; color:#1e293b; cursor:pointer;">
+                                    <input type="checkbox" id="expIncludeGrades" style="accent-color:#4f46e5; cursor:pointer; width:16px; height:16px;" /> Include Grade Results
+                                </label>
+                            </div>
+                        </div>
+
                         <!-- Category / Class filters -->
                         <div style="display:flex; gap:0.75rem; flex-wrap:wrap; width:100%;">
                             <div id="expCatFilterContainer" style="flex:1; min-width:140px;">
@@ -3121,13 +3131,16 @@ function renderDrawerContent() {
             }
         }
 
-        // 2.75 Program Order Container
+        // 2.75 Program Order Container & Grades Container
         const expProgramOrderContainer = document.getElementById('expProgramOrderContainer');
+        const expGradesFilterContainer = document.getElementById('expGradesFilterContainer');
         if (expProgramOrderContainer) {
             if (selType === 'Results' && expResultSubVal && expResultSubVal.value === 'Program Wise') {
                 expProgramOrderContainer.style.display = 'flex';
+                if (expGradesFilterContainer) expGradesFilterContainer.style.display = 'flex';
             } else {
                 expProgramOrderContainer.style.display = 'none';
+                if (expGradesFilterContainer) expGradesFilterContainer.style.display = 'none';
             }
         }
 
@@ -3744,6 +3757,9 @@ function renderDrawerContent() {
         const expProgramOrderRadio = document.querySelector('input[name="expProgramOrderFilter"]:checked');
         const programOrder = expProgramOrderRadio ? expProgramOrderRadio.value : 'default';
 
+        const expIncludeGradesCheckbox = document.getElementById('expIncludeGrades');
+        const includeGrades = expIncludeGradesCheckbox ? expIncludeGradesCheckbox.checked : false;
+
         const chestSort = 'chest';
         const chestMode = selectedType === 'Chest Number List' ? document.getElementById('expChestMode').value : 'class-wise';
         const programLocation = ['Green Room Sign', 'Valuation Sheet', 'Call List', 'Results', 'Program Participation Register'].includes(selectedType) ? document.getElementById('expLocationFilter').value : '';
@@ -3860,6 +3876,7 @@ function renderDrawerContent() {
                     progRegSubmode,
                     resultSubOption,
                     includedPositions,
+                    includeGrades,
                     awardTypeFilter,
                     categoryId,
                     classId,
@@ -8909,7 +8926,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         if (f.includedPositions) winnersList = winnersList.filter(w => f.includedPositions.includes(w.position));
                         const combinedWinners = [...winnersList];
 
-                        if (r.gradeMode !== 'none' && Array.isArray(r.marksData)) {
+                        if (f.includeGrades && r.gradeMode !== 'none' && Array.isArray(r.marksData)) {
                             r.marksData.forEach(m => {
                                 if (!m.grade || m.grade === 'none' || String(m.grade).trim() === '') return;
                                 const isWinner = winnersList.some(w => {

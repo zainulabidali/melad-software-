@@ -548,7 +548,7 @@ function openCategoryModal(catId = null, currentName = '', currentDesc = '', cur
                 }
 
                 await Promise.all(batchPromises);
-                
+
                 // Perform multi-collection cascade sync across participants, results, and metadata collections
                 await syncAllParticipantAndResultChestNumbers(instId);
                 invalidateStudentsCache(instId);
@@ -629,10 +629,10 @@ async function deleteCategory(catId) {
                         if (wasAssigned && comps.includes(progName)) {
                             const newComps = comps.filter(c => c !== progName);
                             const newCompIds = compIds.filter(cid => cid !== r.programId);
-                            batch.update(jDoc.ref, { 
-                                competitions: newComps, 
-                                competitionIds: newCompIds, 
-                                updatedAt: serverTimestamp() 
+                            batch.update(jDoc.ref, {
+                                competitions: newComps,
+                                competitionIds: newCompIds,
+                                updatedAt: serverTimestamp()
                             });
                         }
                     });
@@ -664,7 +664,7 @@ function openCategoryDropdown(btn) {
     // 2. Create the dropdown element
     const dropdown = document.createElement('div');
     dropdown.className = 'actions-dropdown-menu active-body-dropdown';
-    
+
     // Get datasets
     const id = btn.dataset.id;
     const name = btn.dataset.name;
@@ -724,7 +724,7 @@ function openCategoryDropdown(btn) {
     dropdown.querySelector('.btn-edit-cat').addEventListener('click', () => {
         dropdown.remove();
         let parsedClasses = [];
-        try { parsedClasses = JSON.parse(classesStr); } catch (_) {}
+        try { parsedClasses = JSON.parse(classesStr); } catch (_) { }
         openCategoryModal(id, name, desc, parsedClasses, chestStart, chestEnd);
     });
 
