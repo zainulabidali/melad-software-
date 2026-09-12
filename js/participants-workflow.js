@@ -1230,9 +1230,8 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         const canonicalDoc = matchingContainerDocs.find(d => isCategoryMatching(d.data().categoryId, selectedCategoryId, inheritedCategoryId, pType)) || matchingContainerDocs[0];
         groupContainerRef = canonicalDoc.ref;
 
-        // STEP 1 & 4: Merge ALL groups[] arrays across all matching containers, deduplicating by group.id / unique signature
+        // STEP 1 & 4: Merge ALL groups[] arrays across all matching containers, deduplicating by group.id
         const mergedGroupsMap = new Map();
-        const groupSeenSignatures = new Set();
 
         matchingContainerDocs.forEach(docSnap => {
             const docData = docSnap.data();
@@ -1243,19 +1242,16 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     studentId: m.studentId || '',
                     studentName: m.studentName || ''
                 }));
-                const memberSig = groupMembers.map(m => m.studentId).sort().join('_');
-                const sigKey = `${(g.name || '').trim().toLowerCase()}::${memberSig}`;
 
                 const gId = g.id || `grp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-                if (!mergedGroupsMap.has(gId) && !groupSeenSignatures.has(sigKey)) {
-                    groupSeenSignatures.add(sigKey);
+                if (!mergedGroupsMap.has(gId)) {
                     mergedGroupsMap.set(gId, {
                         id: gId,
                         name: g.name || 'Unnamed Group',
                         members: groupMembers
                     });
-                } else if (mergedGroupsMap.has(gId)) {
+                } else {
                     // Merge members if group ID already tracked
                     const existingGroup = mergedGroupsMap.get(gId);
                     const existingMemberIds = new Set(existingGroup.members.map(m => m.studentId));
@@ -2350,6 +2346,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
         if (!selectedTeamId || isGroupEvent) {
             panel.style.display = 'none';
+            if (isGroupEvent) updateProgramHeaderBadges();
             return;
         }
 

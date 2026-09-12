@@ -19,7 +19,32 @@ let participantUnsubs = [];
 
 // Protection & Mutex Guards against Duplicate Save / Delete Execution
 let isProgramSaveInProgress = false;
+let isProgramDeleteInProgress = false;
 let activeDeleteProgramIds = new Set();
+
+// Async function to dynamically count actual groups across all teams
+async function loadActualGroupCount(progId, elementId) {
+    try {
+        const partRef = collection(db, "institutes", window.currentInstituteId, "programs", progId, "participants");
+        const snap = await getDocs(partRef);
+        let totalGroups = 0;
+        snap.forEach(d => {
+            const data = d.data();
+            if (Array.isArray(data.groups)) {
+                totalGroups += data.groups.length;
+            } else if (data.type === 'group' || (data.type === 'general')) {
+                totalGroups++;
+            }
+        });
+        const el = document.getElementById(elementId);
+        if (el) {
+            el.innerHTML = `👥 ${totalGroups} ${totalGroups === 1 ? 'Group' : 'Groups'}`;
+        }
+    } catch (e) {
+        console.error("Error fetching group count for program", progId, e);
+    }
+}
+
 let isBackfillingProgramNumbers = false;
 let containerClickHandlerRef = null;
 
@@ -434,17 +459,23 @@ function renderProgramsUI() {
 
         let partHTML = '';
         let showActiveStatus = false;
-        if (prog.participantCount !== undefined) {
-            const count = prog.participantCount;
-            const text = isGroup ? `${count} ${count === 1 ? 'Team' : 'Teams'}` : `${count} Participant${count === 1 ? '' : 's'}`;
-            partHTML = `<span class="program-participants-text">👥 ${text}</span>`;
-            if (count > 0) showActiveStatus = true;
+        
+        if (isGroup) {
+            const countId = `prog-count-${progId}`;
+            partHTML = `<span class="program-participants-text" id="${countId}">👥 <span class="spinner-small" style="display:inline-block; width:10px; height:10px; border:2px solid #ccc; border-top:2px solid #000; border-radius:50%; animation:spin 1s linear infinite; margin-right:4px; vertical-align:middle;"></span> Loading...</span>`;
+            // Trigger async fetch for actual group counts across all containers
+            loadActualGroupCount(progId, countId);
         } else {
-
-
-            partHTML = `<span class="program-participants-text">👥 <span class="spinner-small" style="display:inline-block; width:10px; height:10px; border:2px solid #ccc; border-top:2px solid #000; border-radius:50%; animation:spin 1s linear infinite; margin-right:4px; vertical-align:middle;"></span> Migrating...</span>`;
-            // Trigger self-healing background migration
-            migrateParticipantCounts(window.currentInstituteId);
+            if (prog.participantCount !== undefined) {
+                const count = prog.participantCount;
+                const text = `${count} Participant${count === 1 ? '' : 's'}`;
+                partHTML = `<span class="program-participants-text">👥 ${text}</span>`;
+                if (count > 0) showActiveStatus = true;
+            } else {
+                partHTML = `<span class="program-participants-text">👥 <span class="spinner-small" style="display:inline-block; width:10px; height:10px; border:2px solid #ccc; border-top:2px solid #000; border-radius:50%; animation:spin 1s linear infinite; margin-right:4px; vertical-align:middle;"></span> Migrating...</span>`;
+                // Trigger self-healing background migration for individuals
+                migrateParticipantCounts(window.currentInstituteId);
+            }
         }
 
         let status = 'Pending';

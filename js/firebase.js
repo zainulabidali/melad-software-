@@ -649,21 +649,15 @@ export async function migrateParticipantCounts(instituteId) {
             let count = 0;
 
             if (isGroup) {
-                const uniqueTeams = new Set();
                 partSnap.forEach(d => {
                     const data = d.data();
-                    if (data.teamId && activeTeamIds.has(data.teamId)) {
-                        uniqueTeams.add(data.teamId);
-                    }
+                    if (data.teamId && !activeTeamIds.has(data.teamId)) return;
                     if (Array.isArray(data.groups)) {
-                        data.groups.forEach(g => {
-                            if (g.teamId && activeTeamIds.has(g.teamId)) {
-                                uniqueTeams.add(g.teamId);
-                            }
-                        });
+                        count += data.groups.length;
+                    } else if (data.type === 'group' || (data.type === 'general' && regType === 'group')) {
+                        count++;
                     }
                 });
-                count = uniqueTeams.size;
             } else {
                 partSnap.forEach(d => {
                     const data = d.data();
