@@ -9507,6 +9507,33 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     });
 
                     const eligibleStudentsMap = new Map();
+
+                    // 1. Pre-fill eligible students from studentMap
+                    Object.values(studentMap).forEach(stu => {
+                        const studentId = String(stu.id);
+                        if (!studentId || studentId === 'undefined') return;
+
+                        if (f.categoryId && stu.categoryId !== f.categoryId) return;
+                        if (f.classId && stu.classId !== f.classId) return;
+                        if (f.teamId && stu.teamId !== f.teamId) return;
+                        if (f.gender === 'Boys' && stu.gender !== 'Male') return;
+                        if (f.gender === 'Girls' && stu.gender !== 'Female') return;
+
+                        eligibleStudentsMap.set(studentId, {
+                            studentId: stu.id,
+                            chestNumber: stu.chestNumber || '—',
+                            name: stu.name,
+                            classId: stu.classId || 'standard',
+                            className: stu.className || 'Standard',
+                            categoryId: stu.categoryId || 'general',
+                            categoryName: stu.categoryName || 'General',
+                            teamName: teamNamesMap[String(stu.teamId)] || stu.teamName || 'Independent',
+                            gender: stu.gender || 'Unknown',
+                            participations: new Set()
+                        });
+                    });
+
+                    // 2. Map participations for eligible students
                     programs.forEach(p => {
                         const pList = participantsMap[p.id] || [];
                         pList.forEach(part => {
@@ -9536,27 +9563,10 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 }
                                 if (!stu) return;
 
-                                if (f.categoryId && stu.categoryId !== f.categoryId) return;
-                                if (f.classId && stu.classId !== f.classId) return;
-                                if (f.teamId && stu.teamId !== f.teamId) return;
-                                if (f.gender === 'Boys' && stu.gender !== 'Male') return;
-                                if (f.gender === 'Girls' && stu.gender !== 'Female') return;
-
-                                if (!eligibleStudentsMap.has(studentId)) {
-                                    eligibleStudentsMap.set(studentId, {
-                                        studentId: studentId,
-                                        chestNumber: stu.chestNumber || '—',
-                                        name: stu.name,
-                                        classId: stu.classId || 'standard',
-                                        className: stu.className || 'Standard',
-                                        categoryId: stu.categoryId || 'general',
-                                        categoryName: stu.categoryName || 'General',
-                                        teamName: teamNamesMap[String(stu.teamId)] || stu.teamName || 'Independent',
-                                        gender: stu.gender || 'Unknown',
-                                        participations: new Set()
-                                    });
+                                const sidStr = String(studentId);
+                                if (eligibleStudentsMap.has(sidStr)) {
+                                    eligibleStudentsMap.get(sidStr).participations.add(p.programName);
                                 }
-                                eligibleStudentsMap.get(studentId).participations.add(p.programName);
                             });
                         });
                     });
@@ -9595,11 +9605,13 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                 }
                                 if (!studentId) return;
 
-                                if (!studentsWithAnyPrize.has(studentId)) studentsWithAnyPrize.set(studentId, []);
-                                studentsWithAnyPrize.get(studentId).push(w.position);
+                                const sidStr = String(studentId);
+
+                                if (!studentsWithAnyPrize.has(sidStr)) studentsWithAnyPrize.set(sidStr, []);
+                                studentsWithAnyPrize.get(sidStr).push(w.position);
 
                                 if (countAsMajor) {
-                                    majorPrizeWinnerStudentIds.add(studentId);
+                                    majorPrizeWinnerStudentIds.add(sidStr);
                                 }
                             });
                         });
@@ -10997,6 +11009,32 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
             });
 
             const eligibleStudentsMap = new Map();
+
+            // 1. Pre-fill eligible students from studentMap
+            Object.values(studentMap).forEach(stu => {
+                const studentId = String(stu.id);
+                if (!studentId || studentId === 'undefined') return;
+
+                if (f.categoryId && stu.categoryId !== f.categoryId) return;
+                if (f.classId && stu.classId !== f.classId) return;
+                if (f.teamId && stu.teamId !== f.teamId) return;
+                if (f.gender === 'Boys' && stu.gender !== 'Male') return;
+                if (f.gender === 'Girls' && stu.gender !== 'Female') return;
+
+                eligibleStudentsMap.set(studentId, {
+                    studentId: stu.id,
+                    chestNumber: stu.chestNumber || '—',
+                    name: stu.name,
+                    classId: stu.classId || 'standard',
+                    className: stu.className || 'Standard',
+                    categoryId: stu.categoryId || 'general',
+                    categoryName: stu.categoryName || 'General',
+                    teamName: teamNamesMap[String(stu.teamId)] || stu.teamName || 'Independent',
+                    participations: new Set()
+                });
+            });
+
+            // 2. Map participations for eligible students
             programs.forEach(p => {
                 const pList = participantsMap[p.id] || [];
                 pList.forEach(part => {
@@ -11026,26 +11064,10 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                         }
                         if (!stu) return;
 
-                        if (f.categoryId && stu.categoryId !== f.categoryId) return;
-                        if (f.classId && stu.classId !== f.classId) return;
-                        if (f.teamId && stu.teamId !== f.teamId) return;
-                        if (f.gender === 'Boys' && stu.gender !== 'Male') return;
-                        if (f.gender === 'Girls' && stu.gender !== 'Female') return;
-
-                        if (!eligibleStudentsMap.has(studentId)) {
-                            eligibleStudentsMap.set(studentId, {
-                                studentId: studentId,
-                                chestNumber: stu.chestNumber || '—',
-                                name: stu.name,
-                                classId: stu.classId || 'standard',
-                                className: stu.className || 'Standard',
-                                categoryId: stu.categoryId || 'general',
-                                categoryName: stu.categoryName || 'General',
-                                teamName: teamNamesMap[String(stu.teamId)] || stu.teamName || 'Independent',
-                                participations: new Set()
-                            });
+                        const sidStr = String(studentId);
+                        if (eligibleStudentsMap.has(sidStr)) {
+                            eligibleStudentsMap.get(sidStr).participations.add(p.programName);
                         }
-                        eligibleStudentsMap.get(studentId).participations.add(p.programName);
                     });
                 });
             });
@@ -11084,11 +11106,13 @@ async function compileCSV(exp, f, programs, resultsList, participantsMap, studen
                         }
                         if (!studentId) return;
 
-                        if (!studentsWithAnyPrize.has(studentId)) studentsWithAnyPrize.set(studentId, []);
-                        studentsWithAnyPrize.get(studentId).push(w.position);
+                        const sidStr = String(studentId);
+
+                        if (!studentsWithAnyPrize.has(sidStr)) studentsWithAnyPrize.set(sidStr, []);
+                        studentsWithAnyPrize.get(sidStr).push(w.position);
 
                         if (countAsMajor) {
-                            majorPrizeWinnerStudentIds.add(studentId);
+                            majorPrizeWinnerStudentIds.add(sidStr);
                         }
                     });
                 });
