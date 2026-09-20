@@ -694,7 +694,6 @@ export async function initScheduleView(container, topActions) {
                 </div>
                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                     <button class="btn btn-secondary btn-sm" id="btnBulkDuration">⏳ Duration</button>
-                    <button class="btn btn-secondary btn-sm" id="btnBulkStatus">🚦 Status</button>
                     <button class="btn btn-secondary btn-sm" id="btnBulkMove">🎪 Move Stage</button>
                     <button class="btn btn-secondary btn-sm text-danger" id="btnBulkDelete">🗑️ Delete</button>
                 </div>
@@ -713,12 +712,11 @@ export async function initScheduleView(container, topActions) {
                                 <th style="width:125px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">DATE</th>
                                 <th style="width:100px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">START TIME</th>
                                 <th style="width:100px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">END TIME</th>
-                                <th style="width:110px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">STATUS</th>
                                 <th style="width:80px; text-align:center; padding:0.65rem 0.5rem; font-size:0.75rem; font-weight:800; color:#475569; letter-spacing:0.04em;">ACTIONS</th>
                             </tr>
                         </thead>
                         <tbody id="schedTableBody">
-                            <tr><td colspan="9" style="text-align:center; padding:2rem; color:#64748b;">Loading Stage Schedule...</td></tr>
+                            <tr><td colspan="8" style="text-align:center; padding:2rem; color:#64748b;">Loading Stage Schedule...</td></tr>
                         </tbody>
                     </table>
                     <div id="schedTableFooter" style="display:flex; justify-content:space-between; align-items:center; padding:0.75rem 1rem; border-top:1px solid #e2e8f0; font-size:0.8rem; font-weight:600; color:#64748b; background:#ffffff; border-radius:0 0 12px 12px; margin-top: -1px;">
@@ -757,7 +755,6 @@ function bindHeaderEvents() {
     });
 
     document.getElementById('btnBulkDuration')?.addEventListener('click', executeBulkDuration);
-    document.getElementById('btnBulkStatus')?.addEventListener('click', executeBulkStatus);
     document.getElementById('btnBulkMove')?.addEventListener('click', executeBulkMove);
     document.getElementById('btnBulkDelete')?.addEventListener('click', executeBulkDelete);
 }
@@ -1547,7 +1544,7 @@ function refreshScheduleTable() {
     if (activeItems.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="9" style="text-align:center; padding:3rem 1.5rem;">
+                <td colspan="8" style="text-align:center; padding:3rem 1.5rem;">
                     <div style="font-size:2rem; margin-bottom:0.5rem;">📝</div>
                     <h4 style="margin:0; font-weight:800; color:#1e293b;">No Programs Scheduled in ${window.escapeHTML(activeStage)}</h4>
                     <p style="margin:0.25rem 0 1rem 0; color:#64748b; font-size:0.85rem;">Add a competition program slot or insert a break slot below.</p>
@@ -1618,18 +1615,9 @@ function refreshScheduleTable() {
                     <td style="text-align:center; padding:0.5rem 0.4rem; vertical-align:middle; white-space:nowrap;">
                         <input type="time" class="sched-tbl-input row-end-in" data-id="${item.id}" value="${defaultEnd}" style="width:85px; font-size:0.78rem; font-weight:700; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.35rem; text-align:center;">
                     </td>
-                    <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle;">
-                        <select class="sched-tbl-select row-status-sel" data-id="${item.id}" style="${statusColors[item.status] || ''} border-radius:20px; padding:4px 10px; font-size:0.775rem; font-weight:800; cursor:pointer; outline:none;">
-                            <option value="Pending" ${item.status === 'Pending' || item.status === 'Not Scheduled' ? 'selected' : ''}>🟡 Pending</option>
-                            <option value="Scheduled" ${item.status === 'Scheduled' ? 'selected' : ''}>🟢 Scheduled</option>
-                            <option value="Running" ${item.status === 'Running' ? 'selected' : ''}>🔵 Running</option>
-                            <option value="Completed" ${item.status === 'Completed' ? 'selected' : ''}>🟢 Completed</option>
-                            <option value="Delayed" ${item.status === 'Delayed' ? 'selected' : ''}>🟠 Delayed</option>
-                            <option value="Cancelled" ${item.status === 'Cancelled' ? 'selected' : ''}>🔴 Cancelled</option>
-                        </select>
-                    </td>
                     <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap;">
                         <div style="display:inline-flex; align-items:center; gap:0.6rem; justify-content:center;">
+                            <button class="btn-tbl-act btn-copy-row" data-id="${item.id}" title="Copy Program" style="background:none; border:none; cursor:pointer; font-size:1.05rem; color:#3b82f6;">📋</button>
                             <button class="btn-tbl-act btn-toggle-lock" data-id="${item.id}" title="${item.isLocked ? 'Unlock Slot (Allows moving)' : 'Lock Slot (Prevents moving)'}" style="background:none; border:none; cursor:pointer; font-size:1.05rem; opacity:${item.isLocked ? '1' : '0.65'};">${item.isLocked ? '🔒' : '🔓'}</button>
                             <button class="btn-tbl-act btn-del-row text-danger" data-id="${item.id}" title="Delete Slot" style="background:none; border:none; cursor:pointer; font-size:1.05rem; color:#ef4444;">🗑️</button>
                         </div>
@@ -1677,19 +1665,10 @@ function refreshScheduleTable() {
                 <td style="text-align:center; padding:0.5rem 0.4rem; vertical-align:middle; white-space:nowrap;">
                     <input type="time" class="sched-tbl-input row-end-in" data-id="${item.id}" value="${defaultEnd}" style="width:85px; font-size:0.78rem; font-weight:700; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.35rem; text-align:center;">
                 </td>
-                <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle;">
-                    <select class="sched-tbl-select row-status-sel" data-id="${item.id}" style="${statusColors[item.status] || ''} border-radius:20px; padding:4px 10px; font-size:0.775rem; font-weight:800; cursor:pointer; outline:none;">
-                        <option value="Pending" ${item.status === 'Pending' || item.status === 'Not Scheduled' ? 'selected' : ''}>🟡 Pending</option>
-                        <option value="Scheduled" ${item.status === 'Scheduled' ? 'selected' : ''}>🟢 Scheduled</option>
-                        <option value="Running" ${item.status === 'Running' ? 'selected' : ''}>🔵 Running</option>
-                        <option value="Completed" ${item.status === 'Completed' ? 'selected' : ''}>🟢 Completed</option>
-                        <option value="Delayed" ${item.status === 'Delayed' ? 'selected' : ''}>🟠 Delayed</option>
-                        <option value="Cancelled" ${item.status === 'Cancelled' ? 'selected' : ''}>🔴 Cancelled</option>
-                    </select>
-                </td>
                 <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap;">
                     <div style="display:inline-flex; align-items:center; gap:0.6rem; justify-content:center;">
-                        <button class="btn-tbl-act btn-toggle-lock" data-id="${item.id}" title="${item.isLocked ? 'Unlock Slot (Allows moving)' : 'Lock Slot (Prevents moving)'}" style="background:none; border:none; cursor:pointer; font-size:1.05rem; opacity:${item.isLocked ? '1' : '0.65'};">${item.isLocked ? '🔒' : '🔓'}</button>
+                        <button class="btn-tbl-act btn-copy-row" data-id="${item.id}" title="Copy Program" style="background:none; border:none; cursor:pointer; font-size:1.05rem; color:#3b82f6;">📋</button>
+                            <button class="btn-tbl-act btn-toggle-lock" data-id="${item.id}" title="${item.isLocked ? 'Unlock Slot (Allows moving)' : 'Lock Slot (Prevents moving)'}" style="background:none; border:none; cursor:pointer; font-size:1.05rem; opacity:${item.isLocked ? '1' : '0.65'};">${item.isLocked ? '🔒' : '🔓'}</button>
                         <button class="btn-tbl-act btn-del-row text-danger" data-id="${item.id}" title="Delete Slot" style="background:none; border:none; cursor:pointer; font-size:1.05rem; color:#ef4444;">🗑️</button>
                     </div>
                 </td>
@@ -1811,15 +1790,9 @@ function attachTableEvents(tbody, activeItems) {
         };
     });
 
-    tbody.querySelectorAll('.row-status-sel').forEach(sel => {
-        sel.onchange = async (e) => {
-            const id = e.target.dataset.id;
-            const newStatus = e.target.value;
-            await updateDoc(doc(db, "institutes", window.currentInstituteId, "schedules", id), {
-                status: newStatus, updatedAt: serverTimestamp()
-            });
-            window.showToast(`Status updated to ${newStatus}`);
-        };
+    
+    tbody.querySelectorAll('.btn-copy-row').forEach(btn => {
+        btn.onclick = () => openCopyScheduleModal(btn.dataset.id);
     });
 
     tbody.querySelectorAll('.btn-toggle-lock').forEach(btn => {
@@ -2517,24 +2490,6 @@ function executeBulkDuration() {
         updateBulkBar();
     });
 }
-
-function executeBulkStatus() {
-    const status = prompt("Enter new Status (Pending, Scheduled, Running, Completed, Delayed, Cancelled):", "Scheduled");
-    if (!status) return;
-
-    const batch = writeBatch(db);
-    selectedScheduleIds.forEach(id => {
-        batch.update(doc(db, "institutes", window.currentInstituteId, "schedules", id), {
-            status: status.trim(), updatedAt: serverTimestamp()
-        });
-    });
-    batch.commit().then(() => {
-        window.showToast("Bulk status updated.");
-        selectedScheduleIds.clear();
-        updateBulkBar();
-    });
-}
-
 function executeBulkMove() {
     if (localStages.length === 0) return;
 
@@ -2612,11 +2567,11 @@ function shareActiveStageWhatsApp() {
         if (item.isBreak) {
             const icon = getBreakIcon(item.programName);
             msg += `*${idx + 1}. ${icon} ${item.programName} [BREAK]${parallelTag}*\n`;
-            msg += `   ⏱️ ${formatTimeTo12Hour(item.startTime || 'TBD')} - ${formatTimeTo12Hour(item.endTime || 'TBD')} (${item.duration}m) | Status: ${item.status}\n\n`;
+            msg += `   ⏱️ ${formatTimeTo12Hour(item.startTime || 'TBD')} - ${formatTimeTo12Hour(item.endTime || 'TBD')} (${item.duration}m)\n\n`;
         } else {
             msg += `*${idx + 1}. ${item.programNumber ? `[#${item.programNumber}] ` : ''}${item.programName}${parallelTag}*\n`;
             msg += `   🏷️ Category: ${item.categoryName || 'Uncategorized'}\n`;
-            msg += `   ⏱️ ${formatTimeTo12Hour(item.startTime || 'TBD')} - ${formatTimeTo12Hour(item.endTime || 'TBD')} (${item.duration}m) | Status: ${item.status}\n\n`;
+            msg += `   ⏱️ ${formatTimeTo12Hour(item.startTime || 'TBD')} - ${formatTimeTo12Hour(item.endTime || 'TBD')} (${item.duration}m)\n\n`;
         }
     });
 
@@ -2903,4 +2858,118 @@ function executeSchedulePrint(mode = 'current') {
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
     }, 250);
+}
+
+
+async function openCopyScheduleModal(id) {
+    const item = mergedSchedules.find(s => s.id === id);
+    if (!item) return;
+
+    const modalTitle = document.getElementById('dynamicModalTitle');
+    const modalBody = document.getElementById('dynamicModalBody');
+    const modalOverlay = document.getElementById('dynamicModal');
+
+    modalTitle.textContent = item.isBreak ? "Copy Break Slot" : "Copy Program & Schedule";
+
+    const defaultDate = item.scheduleDate || stageConfigs[activeStage]?.date || new Date().toISOString().split('T')[0];
+    const defaultStart = item.startTime || '09:00';
+    const defaultEnd = item.endTime || '09:30';
+
+    modalBody.innerHTML = `
+        <form id="copyScheduleForm">
+            <div class="form-group">
+                <label class="form-label">${item.isBreak ? 'Break Title' : 'New Program Name'} *</label>
+                <input type="text" id="copyProgName" class="form-input" value="${window.escapeHTML(item.programName)} (Copy)" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Date</label>
+                <input type="date" id="copyProgDate" class="form-input" value="${defaultDate}" required>
+            </div>
+            <div class="form-group" style="display:flex; gap:10px;">
+                <div style="flex:1;">
+                    <label class="form-label">Start Time</label>
+                    <input type="time" id="copyProgStart" class="form-input" value="${defaultStart}" required>
+                </div>
+                <div style="flex:1;">
+                    <label class="form-label">End Time</label>
+                    <input type="time" id="copyProgEnd" class="form-input" value="${defaultEnd}" required>
+                </div>
+            </div>
+            <div class="modal-actions" style="margin-top:1.25rem;">
+                <button type="submit" class="btn btn-primary w-full" id="btnSaveCopy">Save as New Record</button>
+            </div>
+        </form>
+    `;
+
+    modalOverlay.classList.remove('hidden');
+    document.getElementById('closeDynamicModalBtn').onclick = () => modalOverlay.classList.add('hidden');
+
+    document.getElementById('copyScheduleForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('btnSaveCopy');
+        btn.disabled = true;
+        btn.textContent = "Saving...";
+
+        try {
+            const newName = document.getElementById('copyProgName').value.trim();
+            const newDate = document.getElementById('copyProgDate').value;
+            const newStart = document.getElementById('copyProgStart').value;
+            const newEnd = document.getElementById('copyProgEnd').value;
+            
+            const sMins = timeToMinutes(newStart);
+            const eMins = timeToMinutes(newEnd);
+            const calcDur = (eMins > sMins) ? (eMins - sMins) : 20;
+
+            const batch = writeBatch(db);
+            const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
+            let newProgramId = '';
+
+            if (!item.isBreak) {
+                const origProg = localPrograms.find(p => p.id === item.programId);
+                if (origProg) {
+                    const progRef = doc(collection(db, "institutes", window.currentInstituteId, "programs"));
+                    newProgramId = progRef.id;
+                    const progData = { ...origProg };
+                    delete progData.id;
+                    progData.programName = newName;
+                    progData.createdAt = serverTimestamp();
+                    progData.updatedAt = serverTimestamp();
+                    batch.set(progRef, progData);
+                } else {
+                    newProgramId = item.programId;
+                }
+            }
+
+            const schedRef = doc(collection(db, "institutes", window.currentInstituteId, "schedules"));
+            batch.set(schedRef, {
+                isBreak: !!item.isBreak,
+                breakTitle: item.isBreak ? newName : '',
+                programId: newProgramId,
+                programName: newName,
+                stage: item.stage,
+                scheduleDate: newDate,
+                startTime: newStart,
+                endTime: newEnd,
+                duration: calcDur,
+                isParallel: false,
+                parallelGroupId: null,
+                isLocked: false,
+                runningOrder: activeItems.length + 1,
+                isOffStage: item.isOffStage,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+
+            await batch.commit();
+            window.showToast("Record copied successfully!");
+            modalOverlay.classList.add('hidden');
+            
+        } catch (err) {
+            console.error("Error copying record:", err);
+            window.showToast("Failed to copy record.", "error");
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Save as New Record";
+        }
+    };
 }
