@@ -582,6 +582,65 @@ function saveSpecialCardsConfig() {
     localStorage.setItem('meelad_special_card_backgrounds', JSON.stringify(specialCardsCache));
 }
 
+// Compute dynamic auto-shrink font size and subtle letter-spacing for Special / Staff Card custom titles
+function computeSpecialCardTitleStyle(titleText, maxAvailableWidth = 260, maxAvailableHeight = 120) {
+    const rawTitle = (titleText || '').trim();
+    if (!rawTitle) return { fontSize: 75, letterSpacing: 2.6 };
+
+    const upperText = rawTitle.toUpperCase();
+    let fontSize = 75; // Starting max font size for short titles (e.g. GUEST, JUDGES)
+    const minFontSize = 10;
+
+    // Responsive subtle letter spacing:
+    // ~2.6px at 75px, ~1.8px at 52px, ~1.0px at 25px
+    const getLetterSpacing = (fSize) => Math.max(0.6, Math.round(fSize * 0.035 * 10) / 10);
+
+    let ctx = null;
+    try {
+        const canvas = document.createElement('canvas');
+        if (canvas && canvas.getContext) {
+            ctx = canvas.getContext('2d');
+        }
+    } catch (e) {
+        ctx = null;
+    }
+
+    while (fontSize > minFontSize) {
+        const spacing = getLetterSpacing(fontSize);
+        let measuredWidth = 0;
+
+        if (ctx) {
+            ctx.font = `900 ${fontSize}px 'Oswald', 'Impact', 'Arial Narrow', sans-serif`;
+            measuredWidth = ctx.measureText(upperText).width;
+            measuredWidth += Math.max(0, upperText.length - 1) * spacing;
+        }
+
+        // Conservative analytical estimation to guarantee safety across varied font renderers
+        let analyticalUnits = 0;
+        for (let i = 0; i < upperText.length; i++) {
+            const ch = upperText[i];
+            if (ch === ' ') analyticalUnits += 0.30;
+            else if ('IJ1'.includes(ch)) analyticalUnits += 0.32;
+            else if ('MW'.includes(ch)) analyticalUnits += 0.72;
+            else analyticalUnits += 0.53;
+        }
+        const analyticalWidth = (fontSize * analyticalUnits) + (Math.max(0, upperText.length - 1) * spacing);
+
+        const effectiveWidth = Math.max(measuredWidth, analyticalWidth);
+
+        if (effectiveWidth <= maxAvailableWidth && (fontSize * 1.15) <= maxAvailableHeight) {
+            break;
+        }
+        fontSize -= 1;
+    }
+
+    const finalSpacing = getLetterSpacing(fontSize);
+    return {
+        fontSize,
+        letterSpacing: finalSpacing
+    };
+}
+
 // ─────────────────────────────────────────────
 // Styles Injection (Localized SaaS CSS Grid)
 // ─────────────────────────────────────────────
@@ -5674,7 +5733,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                             if (stu.isSpecialCard) {
                                 const scDef = f.specialCards.find(c => c.id === stu.id);
                                 const hasBg = scDef && scDef.resolvedBg ? true : false;
-                                const titleFontSize = stu.title.length > 8 ? 60 : 75;
+                                const titleFit = computeSpecialCardTitleStyle(stu.title, 260, 120);
                                 
                                 pageCardsHTML += `
                                     <div class="chest-number-card-export-item" style="position: absolute; left: ${leftPos}mm; top: ${topPos}mm; width: ${cardWidthNum}mm; height: ${cardHeightNum}mm; box-sizing: border-box; border: 1px dashed #cbd5e1; overflow: hidden; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 10mm 5mm 15mm 5mm; justify-content: flex-start;">
@@ -5692,12 +5751,12 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                                             </div>
                                         </div>
                                         
-                                        <div style="position: relative; z-index: 1; width: 84%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ffffff; border-radius: 12px; padding: 12px 6px 14px 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
-                                            
-                                            <div style="font-family: 'Oswald', 'Impact', 'Arial Narrow', sans-serif; font-size: ${titleFontSize}px; font-weight: 900; color: #000000; line-height: 1.1; text-transform: uppercase; letter-spacing: 0.9px; margin: 12px 0; word-break: break-word;">
-                                                ${window.escapeHTML(stu.title)}
+                                        <div style="position: relative; z-index: 1; width: 84%; min-height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ffffff; border-radius: 12px; padding: 12px 10px 14px 10px; box-sizing: border-box; box-shadow: 0 4px 6px rgba(0,0,0,0.1); -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; text-align: center;">
+                                            <div style="width: 100%; max-width: 100%; display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden;">
+                                                <div class="chest-card-special-title" style="font-family: 'Oswald', 'Impact', 'Arial Narrow', sans-serif; font-size: ${titleFit.fontSize}px; font-weight: 900; color: #000000; line-height: 1.1; text-transform: uppercase; letter-spacing: ${titleFit.letterSpacing}px; margin-right: -${titleFit.letterSpacing}px; white-space: nowrap !important; word-break: keep-all !important; overflow-wrap: normal !important; text-align: center; display: inline-block; max-width: 100%;">
+                                                    ${window.escapeHTML(stu.title)}
+                                                </div>
                                             </div>
-                                            
                                         </div>
                                     </div>
                                 `;
@@ -5785,6 +5844,16 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 });
 
                 if (f.enableSpecialCards && f.specialCards && f.specialCards.length > 0) {
+                    printStyle += `
+                        <style>
+                        .chest-card-special-title {
+                            white-space: nowrap !important;
+                            word-break: keep-all !important;
+                            overflow-wrap: normal !important;
+                            text-overflow: clip;
+                        }
+                        </style>
+                    `;
                     f.specialCards.forEach(sc => {
                         if (sc.resolvedBg) {
                             printStyle += `
@@ -6576,6 +6645,29 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
         `);
         doc.close();
 
+        // Runtime check: auto-shrink Special Card titles if rendered text exceeds container width
+        const adjustSpecialTitles = () => {
+            try {
+                const specialTitles = doc.querySelectorAll('.chest-card-special-title');
+                specialTitles.forEach(el => {
+                    const container = el.parentElement;
+                    if (!container) return;
+                    const maxW = container.clientWidth || 260;
+                    let fs = parseFloat(window.getComputedStyle(el).fontSize) || 75;
+                    while (el.scrollWidth > maxW && fs > 10) {
+                        fs -= 1;
+                        el.style.fontSize = fs + 'px';
+                        const ls = Math.max(0.6, Math.round(fs * 0.035 * 10) / 10);
+                        el.style.letterSpacing = ls + 'px';
+                        el.style.marginRight = '-' + ls + 'px';
+                    }
+                });
+            } catch (e) {
+                console.warn('Special card title adjustment:', e);
+            }
+        };
+        adjustSpecialTitles();
+
         if (isDownload) {
             setTimeout(async () => {
                 try {
@@ -6594,6 +6686,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     printIframe.style.height = 'auto';
                     await new Promise(resolve => setTimeout(resolve, 150));
 
+                    adjustSpecialTitles();
+
                     const scrollHeight = Math.max(
                         doc.body.scrollHeight,
                         doc.documentElement.scrollHeight,
@@ -6602,6 +6696,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     );
                     printIframe.style.height = (scrollHeight + 100) + 'px';
                     await new Promise(resolve => setTimeout(resolve, 50));
+
+                    adjustSpecialTitles();
 
                     const html2pdf = await loadHtml2Pdf();
                     const pdfFormat = orientation === 'a3_portrait' ? 'a3' : 'a4';
@@ -6621,12 +6717,14 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     printIframe.style.height = prevHeight;
                 } catch (err) {
                     console.error("PDF generation failed, falling back to print dialog:", err);
+                    adjustSpecialTitles();
                     printIframe.contentWindow.focus();
                     printIframe.contentWindow.print();
                 }
             }, 500);
         } else {
             setTimeout(() => {
+                adjustSpecialTitles();
                 printIframe.contentWindow.focus();
                 printIframe.contentWindow.print();
             }, 300);
