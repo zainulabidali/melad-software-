@@ -2922,23 +2922,7 @@ async function openCopyScheduleModal(id) {
 
             const batch = writeBatch(db);
             const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
-            let newProgramId = '';
-
-            if (!item.isBreak) {
-                const origProg = localPrograms.find(p => p.id === item.programId);
-                if (origProg) {
-                    const progRef = doc(collection(db, "institutes", window.currentInstituteId, "programs"));
-                    newProgramId = progRef.id;
-                    const progData = { ...origProg };
-                    delete progData.id;
-                    progData.programName = newName;
-                    progData.createdAt = serverTimestamp();
-                    progData.updatedAt = serverTimestamp();
-                    batch.set(progRef, progData);
-                } else {
-                    newProgramId = item.programId;
-                }
-            }
+            const newProgramId = item.programId || '';
 
             const schedRef = doc(collection(db, "institutes", window.currentInstituteId, "schedules"));
             batch.set(schedRef, {
