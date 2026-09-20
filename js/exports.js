@@ -34,6 +34,10 @@ let chestNumTeamBackgroundsCache = {};
 let defaultChestNumBgCache = null;
 let isTeamBgEnabled = false;
 
+// Special Cards state
+let specialCardsCache = [];
+let isSpecialCardsEnabled = false;
+
 async function ensureEventDetailsLoaded(force = false) {
     if ((!window.currentEventDetails || force) && window.currentInstituteId) {
         try {
@@ -90,6 +94,19 @@ function loadChestNumTeamBackgrounds() {
         }
     } catch (e) {
         defaultChestNumBgCache = null;
+    }
+}
+
+function loadSpecialCardsConfig() {
+    try {
+        const stored = localStorage.getItem('meelad_special_card_backgrounds');
+        if (stored) {
+            specialCardsCache = JSON.parse(stored);
+        } else {
+            specialCardsCache = [];
+        }
+    } catch (e) {
+        specialCardsCache = [];
     }
 }
 
@@ -416,6 +433,153 @@ function renderChestNumTeamBgs() {
 
         updateChestNumTeamCardUI(t.id, index);
     });
+}
+
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+function updateSpecialCardUI(id) {
+    const card = document.getElementById(`special-card-${id}`);
+    if (!card) return;
+    const item = specialCardsCache.find(c => c.id === id);
+    if (!item) return;
+
+    const preview = card.querySelector(`#special-card-preview-${id}`);
+    const btnChoose = card.querySelector(`#special-card-btn-choose-${id}`);
+    const btnReplace = card.querySelector(`#special-card-btn-replace-${id}`);
+    const btnRemove = card.querySelector(`#special-card-btn-remove-${id}`);
+
+    if (item.bgImage && item.bgImage !== 'undefined' && item.bgImage !== 'null') {
+        preview.style.backgroundImage = `url('${item.bgImage}')`;
+        preview.innerHTML = '';
+        if (btnChoose) btnChoose.style.display = 'none';
+        if (btnReplace) btnReplace.style.display = 'block';
+        if (btnRemove) btnRemove.style.display = 'block';
+    } else {
+        preview.style.backgroundImage = 'none';
+        preview.innerHTML = '<span>No Background</span>';
+        if (btnChoose) btnChoose.style.display = 'block';
+        if (btnReplace) btnReplace.style.display = 'none';
+        if (btnRemove) btnRemove.style.display = 'none';
+    }
+}
+
+function renderSpecialCardsGrid() {
+    const grid = document.getElementById('specialCardsGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const btnAddSpecialCard = document.getElementById('btnAddSpecialCard');
+    if (btnAddSpecialCard) {
+        btnAddSpecialCard.onclick = () => {
+            specialCardsCache.push({
+                id: generateUUID(),
+                title: 'GUEST',
+                count: 1,
+                bgImage: null
+            });
+            saveSpecialCardsConfig();
+            renderSpecialCardsGrid();
+        };
+    }
+
+    specialCardsCache.forEach((item) => {
+        const card = document.createElement('div');
+        card.className = 'team-bg-card'; 
+        card.id = `special-card-${item.id}`;
+        card.style.position = 'relative';
+        
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <input type="text" class="exp-input special-card-title-input" value="${window.escapeHTML(item.title)}" style="font-weight: 700; font-size: 0.85rem; padding: 0.3rem; margin-right: 0.5rem;" placeholder="Card Title" />
+                <button type="button" class="btn-remove-special-card" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 1rem;">❌</button>
+            </div>
+            <div style="display: flex; align-items: center; margin-bottom: 0.5rem; gap: 0.5rem;">
+                <label style="font-size: 0.75rem; font-weight: 600; color: #475569;">Quantity:</label>
+                <input type="number" class="exp-input special-card-count-input" value="${item.count}" min="1" max="100" style="width: 60px; padding: 0.3rem;" />
+            </div>
+            <div class="team-bg-preview" id="special-card-preview-${item.id}" style="height: 120px;">
+                <span>No Background</span>
+            </div>
+            <div class="team-bg-actions">
+                <input type="file" id="special-card-file-${item.id}" accept="image/png, image/jpeg, image/jpg, image/webp" style="display:none;" />
+                <button type="button" class="btn-choose-bg" id="special-card-btn-choose-${item.id}">Choose Image</button>
+                <button type="button" class="btn-replace-bg" id="special-card-btn-replace-${item.id}" style="display:none;">Replace Image</button>
+                <button type="button" class="btn-remove-bg" id="special-card-btn-remove-${item.id}" style="display:none;">Remove Image</button>
+            </div>
+        `;
+        grid.appendChild(card);
+        
+        const fileInput = card.querySelector(`#special-card-file-${item.id}`);
+        const btnChoose = card.querySelector(`#special-card-btn-choose-${item.id}`);
+        const btnReplace = card.querySelector(`#special-card-btn-replace-${item.id}`);
+        const btnRemove = card.querySelector(`#special-card-btn-remove-${item.id}`);
+        const removeCardBtn = card.querySelector('.btn-remove-special-card');
+        const titleInput = card.querySelector('.special-card-title-input');
+        const countInput = card.querySelector('.special-card-count-input');
+
+        titleInput.oninput = (e) => {
+            item.title = e.target.value;
+            saveSpecialCardsConfig();
+        };
+
+        countInput.oninput = (e) => {
+            let val = parseInt(e.target.value, 10);
+            if (isNaN(val) || val < 1) val = 1;
+            item.count = val;
+            saveSpecialCardsConfig();
+        };
+
+        removeCardBtn.onclick = () => {
+            if (confirm('Are you sure you want to remove this Special Card type?')) {
+                specialCardsCache = specialCardsCache.filter(c => c.id !== item.id);
+                saveSpecialCardsConfig();
+                renderSpecialCardsGrid();
+            }
+        };
+
+        btnChoose.onclick = () => fileInput.click();
+        btnReplace.onclick = () => fileInput.click();
+
+        btnRemove.onclick = () => {
+            if (confirm('Are you sure you want to remove the custom background for this special card?')) {
+                item.bgImage = null;
+                saveSpecialCardsConfig();
+                updateSpecialCardUI(item.id);
+            }
+        };
+
+        fileInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                window.showToast('Unsupported format.', 'error');
+                return;
+            }
+            window.showToast('Processing image...', 'info');
+            try {
+                const base64Str = await resizeImageIfNeeded(file);
+                item.bgImage = base64Str;
+                saveSpecialCardsConfig();
+                updateSpecialCardUI(item.id);
+                window.showToast('Custom background uploaded successfully.');
+            } catch (err) {
+                console.error(err);
+                window.showToast('Failed to process image.', 'error');
+            }
+        };
+
+        updateSpecialCardUI(item.id);
+    });
+}
+
+function saveSpecialCardsConfig() {
+    localStorage.setItem('meelad_special_card_backgrounds', JSON.stringify(specialCardsCache));
 }
 
 // ─────────────────────────────────────────────
@@ -1545,6 +1709,7 @@ async function refreshAwardTypesConfig() {
 async function openExportDrawer() {
     loadTeamBackgrounds();
     loadChestNumTeamBackgrounds();
+    loadSpecialCardsConfig();
     await refreshAwardTypesConfig();
     const drawer = ensureExportDrawerExists();
     renderDrawerContent();
@@ -2974,6 +3139,25 @@ function renderDrawerContent() {
                             <div id="chestNumTeamBgGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; width: 100%;"></div>
                         </div>
 
+                        <!-- Special / Staff Cards Container -->
+                        <div id="specialCardsContainer" style="display:none; flex-direction:column; gap:0.75rem; background:#fff; border:1px solid #cbd5e1; padding:0.75rem 1rem; border-radius:10px; margin-top:0.75rem;">
+                            <span style="font-size:0.75rem; font-weight:700; color:#1e1b4b; display:block; text-transform:uppercase; letter-spacing:0.04em;">🎟️ Special / Staff Cards</span>
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <input type="checkbox" id="expEnableSpecialCards" style="width:1.2rem; height:1.2rem; cursor:pointer;" />
+                                <label for="expEnableSpecialCards" style="font-size:0.8rem; font-weight:700; color:#475569; cursor:pointer; user-select:none;">
+                                    Enable Special / Staff Cards
+                                </label>
+                            </div>
+                            <div id="specialCardsManagerContent" style="display:none; flex-direction:column; gap:0.75rem; width:100%; border-top:1.5px dashed #cbd5e1; padding-top:0.75rem;">
+                                <div style="display:flex; justify-content:flex-end;">
+                                    <button type="button" id="btnAddSpecialCard" class="btn btn-primary" style="background:#4f46e5; color:#fff; border:none; padding:0.4rem 0.8rem; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem;">
+                                        ➕ Add Card Type
+                                    </button>
+                                </div>
+                                <div id="specialCardsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; width: 100%;"></div>
+                            </div>
+                        </div>
+
                         <!-- Format & Layout -->
                         <div style="display:flex; gap:0.75rem; flex-wrap:wrap; border-top:1px solid #cbd5e1; padding-top:0.75rem; width:100%; margin-top:auto;">
                             <div style="flex:1; min-width:140px;">
@@ -3033,6 +3217,10 @@ function renderDrawerContent() {
     const btnResetAllTeamBgs = document.getElementById('btnResetAllTeamBgs');
     const teamBgContainer = document.getElementById('teamBgContainer');
 
+    const expEnableSpecialCards = document.getElementById('expEnableSpecialCards');
+    const specialCardsManagerContent = document.getElementById('specialCardsManagerContent');
+    const btnAddSpecialCard = document.getElementById('btnAddSpecialCard');
+
     function updateTeamBgVisibility() {
         const activeCard = body.querySelector('.exp-type-card.active');
         const selType = activeCard ? activeCard.getAttribute('data-type') : '';
@@ -3040,6 +3228,7 @@ function renderDrawerContent() {
 
         const teamBgContainer = document.getElementById('teamBgContainer');
         const chestNumBgContainer = document.getElementById('chestNumBgContainer');
+        const specialCardsContainer = document.getElementById('specialCardsContainer');
 
         if (teamBgContainer) {
             if (selType === 'Chest Number List' && activeSubmode === 'card') {
@@ -3056,16 +3245,33 @@ function renderDrawerContent() {
                 chestNumBgContainer.style.display = 'none';
             }
         }
+
+        if (specialCardsContainer) {
+            if (selType === 'Chest Number List' && activeSubmode === 'chest_number_only') {
+                specialCardsContainer.style.display = 'flex';
+            } else {
+                specialCardsContainer.style.display = 'none';
+            }
+        }
     }
 
     // Set initial toggle state (OFF by default)
     isTeamBgEnabled = false;
+    isSpecialCardsEnabled = false;
 
     if (expEnableTeamBg) {
         expEnableTeamBg.checked = isTeamBgEnabled;
         expEnableTeamBg.onchange = () => {
             isTeamBgEnabled = expEnableTeamBg.checked;
             teamBgManagerContent.style.display = isTeamBgEnabled ? 'flex' : 'none';
+        };
+    }
+    
+    if (expEnableSpecialCards) {
+        expEnableSpecialCards.checked = isSpecialCardsEnabled;
+        expEnableSpecialCards.onchange = () => {
+            isSpecialCardsEnabled = expEnableSpecialCards.checked;
+            specialCardsManagerContent.style.display = isSpecialCardsEnabled ? 'flex' : 'none';
         };
     }
 
@@ -3096,6 +3302,7 @@ function renderDrawerContent() {
     
     renderDefaultChestNumBg();
     renderChestNumTeamBgs();
+    renderSpecialCardsGrid();
 
     renderTeamBgCards();
 
@@ -3894,7 +4101,9 @@ function renderDrawerContent() {
                     registerMode,
                     chestMode,
                     programOrder,
-                    enableTeamBg: isTeamBgEnabled
+                    enableTeamBg: isTeamBgEnabled,
+                    enableSpecialCards: isSpecialCardsEnabled,
+                    specialCards: isSpecialCardsEnabled ? specialCardsCache : []
                 }
             };
 
@@ -4624,7 +4833,9 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
             studentsList = studentsList.filter(s => s.gender === 'Female');
         }
 
-        if (studentsList.length === 0) {
+        const hasSpecialCardsToRender = f.enableSpecialCards && f.specialCards && f.specialCards.length > 0 && f.chestSubmode === 'chest_number_only';
+
+        if (studentsList.length === 0 && !hasSpecialCardsToRender) {
             htmlContent = `
                 <div style="text-align:center; padding:4rem; color:#dc2626; border:1px solid #fecaca; border-radius:12px; background:#fef2f2;">
                     <h3 style="margin:0;">⚠️ No matching students found.</h3>
@@ -5370,7 +5581,33 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 const defaultBgs = ['../assets/chest_number_bg_2.png', '../assets/chest_number_card.png'];
                 let teamBgUrls = {}; // teamId -> URL or base64
                 let localUniqueTeams = [];
-                studentsList.forEach(stu => {
+                let specialCardBgPromises = [];
+                let combinedCardsList = [];
+                let isExclusiveSpecialMode = f.enableSpecialCards && f.specialCards && f.specialCards.length > 0;
+
+                if (isExclusiveSpecialMode) {
+                    f.specialCards.forEach(sc => {
+                        for (let k = 0; k < sc.count; k++) {
+                            combinedCardsList.push({
+                                isSpecialCard: true,
+                                title: sc.title,
+                                bgImage: sc.bgImage,
+                                id: sc.id
+                            });
+                        }
+                        if (sc.bgImage && sc.bgImage !== 'undefined' && sc.bgImage !== 'null') {
+                            specialCardBgPromises.push(preloadImageAsBase64(sc.bgImage).then(b64 => {
+                                sc.resolvedBg = b64;
+                            }));
+                        }
+                    });
+                } else {
+                    combinedCardsList = [...studentsList];
+                }
+
+                const studentsToProcessForTeams = isExclusiveSpecialMode ? [] : studentsList;
+
+                studentsToProcessForTeams.forEach(stu => {
                     let key = stu.teamId;
                     if (!key || key === 'undefined' || key === 'null') {
                         key = 'no-team';
@@ -5393,7 +5630,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     }
                 });
 
-                const promises = [preloadImageAsBase64(eventLogo)];
+                const promises = [preloadImageAsBase64(eventLogo), ...specialCardBgPromises];
                 localUniqueTeams.forEach(tId => {
                     promises.push(preloadImageAsBase64(teamBgUrls[tId]));
                 });
@@ -5402,7 +5639,7 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 const resolvedLogo = results[0];
                 const resolvedTeamBgs = {};
                 localUniqueTeams.forEach((tId, idx) => {
-                    resolvedTeamBgs[tId] = results[idx + 1];
+                    resolvedTeamBgs[tId] = results[1 + specialCardBgPromises.length + idx];
                 });
 
                 const isA3 = orientation === 'a3_portrait' || orientation === 'a3_landscape';
@@ -5421,8 +5658,8 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 
                 let pagesHTML = '';
                 
-                for (let i = 0; i < studentsList.length; i += cardsPerPage) {
-                    const pageStudents = studentsList.slice(i, i + cardsPerPage);
+                for (let i = 0; i < combinedCardsList.length; i += cardsPerPage) {
+                    const pageStudents = combinedCardsList.slice(i, i + cardsPerPage);
                     
                     let pageCardsHTML = '';
                     for (let j = 0; j < cardsPerPage; j++) {
@@ -5434,57 +5671,89 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         const topPos = topOffset + (rowIndex * cardHeightNum);
                         
                         if (stu) {
-                            const teamName = teamNamesMap[String(stu.teamId)] || stu.teamName || '';
-                            const teamVal = teamName && teamName.trim() !== '' && teamName !== '—' ? teamName : 'NO TEAM';
-                            const classVal = stu.className || stu.classId || '—';
-                            const catVal = stu.categoryName || stu.categoryId || '—';
-                            
-                            let tId = stu.teamId;
-                            if (!tId || tId === 'undefined' || tId === 'null') {
-                                tId = 'no-team';
+                            if (stu.isSpecialCard) {
+                                const scDef = f.specialCards.find(c => c.id === stu.id);
+                                const hasBg = scDef && scDef.resolvedBg ? true : false;
+                                const titleFontSize = stu.title.length > 8 ? 60 : 75;
+                                
+                                pageCardsHTML += `
+                                    <div class="chest-number-card-export-item" style="position: absolute; left: ${leftPos}mm; top: ${topPos}mm; width: ${cardWidthNum}mm; height: ${cardHeightNum}mm; box-sizing: border-box; border: 1px dashed #cbd5e1; overflow: hidden; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 10mm 5mm 15mm 5mm; justify-content: flex-start;">
+                                        ${hasBg ? `<div class="chest-card-bg-special-${stu.id}" style="position: absolute; inset: 0; z-index: 0;" aria-hidden="true"></div>` : ''}
+                                        
+                                        <div style="position: relative; z-index: 1; width: 100%; display: flex; flex-direction: column; align-items: center; flex-grow: 1; margin-bottom: 8mm;">
+                                            <div style="font-family: 'Poppins', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #014a15; line-height: 1.2; text-align: center; margin-bottom: 4px;">
+                                                ${window.escapeHTML(madrasaName)}
+                                            </div>
+                                            <div style="width: 100%; flex-grow: 1; display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 4px 0;">
+                                                ${resolvedLogo ? `<div class="chest-card-logo-img"></div>` : `<div style="height: 100%;"></div>`}
+                                            </div>
+                                            <div style="font-family: 'Poppins', sans-serif; font-size: 20px; font-weight: 800; text-transform: uppercase; color: #043806; line-height: 1.1; margin-top: 4px; text-align: center;">
+                                                ${window.escapeHTML(eventName)}
+                                            </div>
+                                        </div>
+                                        
+                                        <div style="position: relative; z-index: 1; width: 84%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ffffff; border-radius: 12px; padding: 12px 6px 14px 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
+                                            
+                                            <div style="font-family: 'Oswald', 'Impact', 'Arial Narrow', sans-serif; font-size: ${titleFontSize}px; font-weight: 900; color: #000000; line-height: 1.1; text-transform: uppercase; letter-spacing: 0.9px; margin: 12px 0; word-break: break-word;">
+                                                ${window.escapeHTML(stu.title)}
+                                            </div>
+                                            
+                                        </div>
+                                    </div>
+                                `;
                             } else {
-                                tId = String(tId);
-                            }
-                            const hasBg = resolvedTeamBgs[tId] ? true : false;
+                                const teamName = teamNamesMap[String(stu.teamId)] || stu.teamName || '';
+                                const teamVal = teamName && teamName.trim() !== '' && teamName !== '—' ? teamName : 'NO TEAM';
+                                const classVal = stu.className || stu.classId || '—';
+                                const catVal = stu.categoryName || stu.categoryId || '—';
+                                
+                                let tId = stu.teamId;
+                                if (!tId || tId === 'undefined' || tId === 'null') {
+                                    tId = 'no-team';
+                                } else {
+                                    tId = String(tId);
+                                }
+                                const hasBg = resolvedTeamBgs[tId] ? true : false;
 
-                            // Use absolute positioning to completely eliminate print layout/pagination loops
-                            pageCardsHTML += `
-                                <div class="chest-number-card-export-item" style="position: absolute; left: ${leftPos}mm; top: ${topPos}mm; width: ${cardWidthNum}mm; height: ${cardHeightNum}mm; box-sizing: border-box; border: 1px dashed #cbd5e1; overflow: hidden; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 10mm 5mm 15mm 5mm; justify-content: flex-start;">
-                                    ${hasBg ? `<div class="chest-card-bg-team-${tId}" style="position: absolute; inset: 0; z-index: 0;" aria-hidden="true"></div>` : ''}
-                                    
-                                    <div style="position: relative; z-index: 1; width: 100%; display: flex; flex-direction: column; align-items: center; flex-grow: 1; margin-bottom: 8mm;">
-                                        <div style="font-family: 'Poppins', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #014a15; line-height: 1.2; text-align: center; margin-bottom: 4px;">
-                                            ${window.escapeHTML(madrasaName)}
+                                // Use absolute positioning to completely eliminate print layout/pagination loops
+                                pageCardsHTML += `
+                                    <div class="chest-number-card-export-item" style="position: absolute; left: ${leftPos}mm; top: ${topPos}mm; width: ${cardWidthNum}mm; height: ${cardHeightNum}mm; box-sizing: border-box; border: 1px dashed #cbd5e1; overflow: hidden; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 10mm 5mm 15mm 5mm; justify-content: flex-start;">
+                                        ${hasBg ? `<div class="chest-card-bg-team-${tId}" style="position: absolute; inset: 0; z-index: 0;" aria-hidden="true"></div>` : ''}
+                                        
+                                        <div style="position: relative; z-index: 1; width: 100%; display: flex; flex-direction: column; align-items: center; flex-grow: 1; margin-bottom: 8mm;">
+                                            <div style="font-family: 'Poppins', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #014a15; line-height: 1.2; text-align: center; margin-bottom: 4px;">
+                                                ${window.escapeHTML(madrasaName)}
+                                            </div>
+                                            <div style="width: 100%; flex-grow: 1; display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 4px 0;">
+                                                ${resolvedLogo ? `<div class="chest-card-logo-img"></div>` : `<div style="height: 100%;"></div>`}
+                                            </div>
+                                            <div style="font-family: 'Poppins', sans-serif; font-size: 20px; font-weight: 800; text-transform: uppercase; color: #043806; line-height: 1.1; margin-top: 4px; text-align: center;">
+                                                ${window.escapeHTML(eventName)}
+                                            </div>
                                         </div>
-                                        <div style="width: 100%; flex-grow: 1; display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 4px 0;">
-                                            ${resolvedLogo ? `<div class="chest-card-logo-img"></div>` : `<div style="height: 100%;"></div>`}
-                                        </div>
-                                        <div style="font-family: 'Poppins', sans-serif; font-size: 20px; font-weight: 800; text-transform: uppercase; color: #043806; line-height: 1.1; margin-top: 4px; text-align: center;">
-                                            ${window.escapeHTML(eventName)}
+                                        
+                                        <div style="position: relative; z-index: 1; width: 84%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ffffff; border-radius: 12px; padding: 12px 6px 14px 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
+                                            
+                                            <div style="font-family: 'Oswald', 'Impact', 'Arial Narrow', sans-serif; font-size: 100px; font-weight: 900; color: #000000; line-height: 0.95; letter-spacing: 0.9px; margin-bottom: 6px;">
+                                                ${window.escapeHTML(stu.chestNumber || '—')}
+                                            </div>
+                                            
+                                            <div style="font-family: 'Poppins', sans-serif; font-size: 17px; font-weight: 700; text-transform: uppercase; color: #0f172a; line-height: 1.2; word-wrap: break-word; overflow-wrap: break-word; text-align: center; margin-bottom: 5px;">
+                                                ${window.escapeHTML(stu.name)}
+                                            </div>
+                                            
+                                            <div style="font-family: 'Poppins', sans-serif; font-size: 10px; font-weight: 600; color: #2f363f; text-transform: uppercase; line-height: 1.2; letter-spacing: 0.5px;">
+                                                ${window.escapeHTML(classVal)} • ${window.escapeHTML(teamVal)}
+                                            </div>
+                                            
+                                            <div style="font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-top: 4px;">
+                                                ${window.escapeHTML(catVal)}
+                                            </div>
+                                            
                                         </div>
                                     </div>
-                                    
-                                    <div style="position: relative; z-index: 1; width: 84%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ffffff; border-radius: 12px; padding: 12px 6px 14px 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
-                                        
-                                        <div style="font-family: 'Oswald', 'Impact', 'Arial Narrow', sans-serif; font-size: 100px; font-weight: 900; color: #000000; line-height: 0.95; letter-spacing: 0.9px; margin-bottom: 6px;">
-                                            ${window.escapeHTML(stu.chestNumber || '—')}
-                                        </div>
-                                        
-                                        <div style="font-family: 'Poppins', sans-serif; font-size: 17px; font-weight: 700; text-transform: uppercase; color: #0f172a; line-height: 1.2; word-wrap: break-word; overflow-wrap: break-word; text-align: center; margin-bottom: 5px;">
-                                            ${window.escapeHTML(stu.name)}
-                                        </div>
-                                        
-                                        <div style="font-family: 'Poppins', sans-serif; font-size: 10px; font-weight: 600; color: #2f363f; text-transform: uppercase; line-height: 1.2; letter-spacing: 0.5px;">
-                                            ${window.escapeHTML(classVal)} • ${window.escapeHTML(teamVal)}
-                                        </div>
-                                        
-                                        <div style="font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-top: 4px;">
-                                            ${window.escapeHTML(catVal)}
-                                        </div>
-                                        
-                                    </div>
-                                </div>
-                            `;
+                                `;
+                            }
                         }
                     }
                     
@@ -5514,6 +5783,24 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                         `;
                     }
                 });
+
+                if (f.enableSpecialCards && f.specialCards && f.specialCards.length > 0) {
+                    f.specialCards.forEach(sc => {
+                        if (sc.resolvedBg) {
+                            printStyle += `
+                                <style>
+                                .chest-card-bg-special-${sc.id} {
+                                    background-image: url('${sc.resolvedBg}');
+                                    background-size: cover;
+                                    background-position: center;
+                                    -webkit-print-color-adjust: exact !important;
+                                    print-color-adjust: exact !important;
+                                }
+                                </style>
+                            `;
+                        }
+                    });
+                }
                 
                 if (resolvedLogo) {
                     printStyle += `
