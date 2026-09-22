@@ -3226,6 +3226,7 @@ function renderDrawerContent() {
                                     <option value="landscape">A4 Landscape (Horizontal)</option>
                                     <option value="a3_portrait">A3 Portrait (Vertical)</option>
                                     <option value="a3_landscape" style="display:none;">A3 Landscape (Horizontal)</option>
+                                    <option value="sra3_landscape" style="display:none;">SRA3 Landscape (Horizontal)</option>
                                 </select>
                             </div>
                             <div style="flex:1; min-width:140px;">
@@ -3479,6 +3480,7 @@ function renderDrawerContent() {
                     if (expOrientation.options[1]) expOrientation.options[1].style.display = 'none'; // hide A4 Landscape
                     if (expOrientation.options[2]) expOrientation.options[2].style.display = 'block'; // show A3 Portrait
                     if (expOrientation.options[3]) expOrientation.options[3].style.display = 'none'; // hide A3 Landscape
+                    if (expOrientation.options[4]) expOrientation.options[4].style.display = 'none'; // hide SRA3 Landscape
                 }
             } else if (activeSubmode === 'chest_number_only') {
                 chestListModeContainer.style.display = 'none';
@@ -3491,6 +3493,7 @@ function renderDrawerContent() {
                     if (expOrientation.options[1]) expOrientation.options[1].style.display = 'block'; // show A4 Landscape
                     if (expOrientation.options[2]) expOrientation.options[2].style.display = 'none'; // hide A3 Portrait
                     if (expOrientation.options[3]) expOrientation.options[3].style.display = 'block'; // show A3 Landscape
+                    if (expOrientation.options[4]) expOrientation.options[4].style.display = 'block'; // show SRA3 Landscape
                 }
             } else {
                 chestListModeContainer.style.display = 'flex';
@@ -3501,6 +3504,7 @@ function renderDrawerContent() {
                     if (expOrientation.options[1]) expOrientation.options[1].style.display = 'block'; // show A4 Landscape
                     if (expOrientation.options[2]) expOrientation.options[2].style.display = 'none'; // hide A3 Portrait
                     if (expOrientation.options[3]) expOrientation.options[3].style.display = 'none'; // hide A3 Landscape
+                    if (expOrientation.options[4]) expOrientation.options[4].style.display = 'none'; // hide SRA3 Landscape
                 }
             }
             updateClassFilterState();
@@ -3671,6 +3675,7 @@ function renderDrawerContent() {
                             if (expOrientation.options[1]) expOrientation.options[1].style.display = 'none'; // hide A4 Landscape
                             if (expOrientation.options[2]) expOrientation.options[2].style.display = 'block'; // show A3 Portrait
                             if (expOrientation.options[3]) expOrientation.options[3].style.display = 'none'; // hide A3 Landscape
+                            if (expOrientation.options[4]) expOrientation.options[4].style.display = 'none'; // hide SRA3 Landscape
                         }
                     } else if (activeSubmode === 'chest_number_only') {
                         chestListModeContainer.style.display = 'none';
@@ -3684,6 +3689,7 @@ function renderDrawerContent() {
                             if (expOrientation.options[1]) expOrientation.options[1].style.display = 'block'; // show A4 Landscape
                             if (expOrientation.options[2]) expOrientation.options[2].style.display = 'none'; // hide A3 Portrait
                             if (expOrientation.options[3]) expOrientation.options[3].style.display = 'block'; // show A3 Landscape
+                            if (expOrientation.options[4]) expOrientation.options[4].style.display = 'block'; // show SRA3 Landscape
                         }
                     } else {
                         chestListModeContainer.style.display = 'flex';
@@ -3692,6 +3698,7 @@ function renderDrawerContent() {
                             if (expOrientation.options[1]) expOrientation.options[1].style.display = 'block';
                             if (expOrientation.options[2]) expOrientation.options[2].style.display = 'none';
                             if (expOrientation.options[3]) expOrientation.options[3].style.display = 'none';
+                            if (expOrientation.options[4]) expOrientation.options[4].style.display = 'none';
                         }
                     }
                 } else {
@@ -5702,18 +5709,19 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                 });
 
                 const isA3 = orientation === 'a3_portrait' || orientation === 'a3_landscape';
-                const cols = isA3 ? 4 : 2;
-                const rows = 2;
+                const isSRA3 = orientation === 'sra3_landscape';
+                const cols = isSRA3 ? 3 : (isA3 ? 4 : 2);
+                const rows = isSRA3 ? 3 : 2;
                 const cardsPerPage = cols * rows;
                 
                 const cardWidthNum = 95; // 9.5 cm
                 const cardHeightNum = 140; // 14 cm
                 
-                const pageWidthNum = isA3 ? 420 : 210;
-                const pageHeightNum = 297;
+                const pageWidthNum = isSRA3 ? 320 : (isA3 ? 420 : 210);
+                const pageHeightNum = isSRA3 ? 450 : 297;
                 
-                const leftOffset = isA3 ? 20 : 10;
-                const topOffset = 8.5;
+                const leftOffset = isSRA3 ? 17.5 : (isA3 ? 20 : 10);
+                const topOffset = isSRA3 ? 15 : 8.5;
                 
                 let pagesHTML = '';
                 
@@ -5823,9 +5831,11 @@ async function compilePDF(exp, f, programs, resultsList, participantsMap, studen
                     `;
                 }
                 
-                let printStyle = isA3 
-                    ? `<style>@page { size: A3 landscape; margin: 0mm; } body { margin: 0; padding: 0; background: #fff; }</style>` 
-                    : `<style>@page { size: A4 portrait; margin: 0mm; } body { margin: 0; padding: 0; background: #fff; }</style>`;
+                let printStyle = isSRA3 
+                    ? `<style>@page { size: 320mm 450mm; margin: 0mm; } body { margin: 0; padding: 0; background: #fff; }</style>` 
+                    : (isA3 
+                        ? `<style>@page { size: A3 landscape; margin: 0mm; } body { margin: 0; padding: 0; background: #fff; }</style>` 
+                        : `<style>@page { size: A4 portrait; margin: 0mm; } body { margin: 0; padding: 0; background: #fff; }</style>`);
                 
                 Object.keys(resolvedTeamBgs).forEach(tId => {
                     if (resolvedTeamBgs[tId]) {
