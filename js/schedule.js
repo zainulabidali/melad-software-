@@ -4,6 +4,49 @@ import {
     writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
+// --- TEMPORARY SCROLL DEBUGGER ---
+window._debugScrollTop = 0;
+window._debugScrollContainer = null;
+window._debugActiveSchedule = null;
+
+if (!window._scrollDebuggerActive) {
+    window._scrollDebuggerActive = true;
+    
+    // 1. Detect actual scroll container
+    document.addEventListener('scroll', (e) => {
+        let st = 0;
+        let container = e.target;
+        if (e.target === document || e.target === window) {
+            st = window.scrollY || document.documentElement.scrollTop;
+            container = 'window/document';
+        } else if (e.target.scrollTop !== undefined) {
+            st = e.target.scrollTop;
+        }
+        
+        if (st > 0) {
+            window._debugScrollTop = st;
+            window._debugScrollContainer = container;
+        }
+        if (!window._scrollLogTimeout) {
+            window._scrollLogTimeout = setTimeout(() => {
+                console.log(`[SCROLL DEBUG] event=scroll, container=`, container, `, scrollTop=`, window._debugScrollTop);
+                window._scrollLogTimeout = null;
+            }, 100);
+        }
+    }, true);
+
+    // 2. Wrap focus
+    document.addEventListener('focusin', (e) => {
+        if (e.target && e.target.closest) {
+            const row = e.target.closest('tr[data-id]');
+            if (row) {
+                window._debugActiveSchedule = row.dataset.id;
+                console.log(`[SCROLL DEBUG] event=focusin, activeSchedule=`, window._debugActiveSchedule);
+            }
+        }
+    }, true);
+}
+// ---------------------------------
 // ─────────────────────────────────────────────
 // Module State & Real-time Subscriptions
 // ─────────────────────────────────────────────
@@ -796,8 +839,12 @@ function startRealtimeListeners() {
 
     // 2. Listen to Schedule documents
     unsubSchedules = onSnapshot(collection(db, "institutes", instId, "schedules"), (snap) => {
+        console.log(`[SCROLL DEBUG] event=onSnapshot-schedules, currentScrollTop=`, window._debugScrollTop);
         localSchedules = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        console.log(`[SCROLL DEBUG] event=before-mergeAndRender, currentScrollTop=`, window._debugScrollTop);
         mergeAndRender();
+        console.log(`[SCROLL DEBUG] event=after-mergeAndRender, currentScrollTop=`, window._debugScrollTop);
     });
 
     // 3. Listen to Stages collection dynamically from database!
@@ -1004,6 +1051,96 @@ function closeDropdown(dropdown) {
     }, 180);
 }
 
+// Local Editing State
+let isTableEditing = false;
+let pendingTableRender = false;
+let lastEditedRowId = null;
+
+document.addEventListener('focusin', (e) => {
+    if (e.target.closest('#schedTableBody') && e.target.tagName === 'INPUT' && ['text', 'number', 'time', 'date'].includes(e.target.type)) {
+        isTableEditing = true;
+        const row = e.target.closest('tr[data-id]');
+        if (row) lastEditedRowId = row.dataset.id;
+    }
+});
+
+document.addEventListener('focusout', (e) => {
+    if (e.target.closest('#schedTableBody') && e.target.tagName === 'INPUT' && ['text', 'number', 'time', 'date'].includes(e.target.type)) {
+        setTimeout(() => {
+            const active = document.activeElement;
+            if (active && active.closest('#schedTableBody') && active.tagName === 'INPUT' && ['text', 'number', 'time', 'date'].includes(active.type)) {
+                const row = active.closest('tr[data-id]');
+                if (row) lastEditedRowId = row.dataset.id;
+                return;
+            }
+            isTableEditing = false;
+            if (pendingTableRender) {
+                pendingTableRender = false;
+                refreshScheduleTable();
+            }
+        }, 10);
+    }
+});
+
+function getOrCreateRowActionDropdown() {
+    let dropdown = document.getElementById('rowActionDropdown');
+    if (!dropdown) {
+        dropdown = document.createElement('div');
+        dropdown.id = 'rowActionDropdown';
+        dropdown.className = 'sched-tab-dropdown-menu';
+        dropdown.style.position = 'fixed';
+        dropdown.style.zIndex = '10000';
+        dropdown.style.display = 'none';
+        dropdown.innerHTML = `
+            <a class="sched-dropdown-item btn-copy-row-menu">📋 Copy</a>
+            <a class="sched-dropdown-item btn-toggle-lock-menu">🔒 Lock / Unlock</a>
+            <a class="sched-dropdown-item btn-del-row-menu text-danger">🗑️ Delete</a>
+        `;
+        document.body.appendChild(dropdown);
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.btn-row-menu-trigger') && !e.target.closest('#rowActionDropdown')) {
+                if (typeof closeDropdown === 'function') closeDropdown(dropdown);
+            }
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && typeof closeDropdown === 'function') closeDropdown(dropdown);
+        });
+
+        dropdown.querySelector('.btn-copy-row-menu').onclick = (e) => {
+            e.stopPropagation();
+            if (typeof closeDropdown === 'function') closeDropdown(dropdown);
+            if (dropdown.dataset.rowId) openCopyScheduleModal(dropdown.dataset.rowId);
+        };
+        dropdown.querySelector('.btn-toggle-lock-menu').onclick = async (e) => {
+            e.stopPropagation();
+            if (typeof closeDropdown === 'function') closeDropdown(dropdown);
+            const id = dropdown.dataset.rowId;
+            if (!id) return;
+            const item = mergedSchedules.find(x => x.id === id);
+            if (item) {
+                const newLockState = !item.isLocked;
+                try {
+                    await updateDoc(doc(db, "institutes", window.currentInstituteId, "schedules", id), {
+                        isLocked: newLockState, updatedAt: serverTimestamp()
+                    });
+                    item.isLocked = newLockState;
+                    window.showToast(newLockState ? '🔒 Slot locked (movement disabled)' : '🔓 Slot unlocked (movement enabled)');
+                    refreshScheduleTable();
+                } catch (err) {
+                    console.warn("lock update:", err);
+                }
+            }
+        };
+        dropdown.querySelector('.btn-del-row-menu').onclick = (e) => {
+            e.stopPropagation();
+            if (typeof closeDropdown === 'function') closeDropdown(dropdown);
+            if (dropdown.dataset.rowId) deleteRowSlot(dropdown.dataset.rowId);
+        };
+    }
+    return dropdown;
+}
+
 function getOrCreateDropdown() {
     let dropdown = document.getElementById('schedTabDropdown');
     if (!dropdown) {
@@ -1189,10 +1326,11 @@ function renderStageTabs() {
         }
     });
 
-    // Scroll active tab into view
-    const activeTab = bar.querySelector('.sched-tab-btn.active');
-    if (activeTab) {
-        activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    // Scroll active tab into view horizontally only
+    const activeWrapper = bar.querySelector('.sched-tab-wrapper.active');
+    if (activeWrapper) {
+        const scrollLeft = activeWrapper.offsetLeft - (bar.offsetWidth / 2) + (activeWrapper.offsetWidth / 2);
+        bar.scrollTo({ left: scrollLeft, behavior: 'smooth' });
     }
 }
 
@@ -1538,8 +1676,107 @@ function refreshScheduleTable() {
     const tbody = document.getElementById('schedTableBody');
     if (!tbody || !activeStage) return;
 
+    if (typeof isTableEditing !== 'undefined' && isTableEditing) {
+        pendingTableRender = true;
+        return;
+    }
+
     const activeItems = mergedSchedules.filter(s => s.stage === activeStage);
     activeItems.sort((a, b) => a.runningOrder - b.runningOrder);
+
+    console.log(`[SCROLL DEBUG] event=refreshScheduleTable-start, currentScrollTop=`, window._debugScrollTop);
+
+    // --- INCREMENTAL DOM UPDATE ---
+    // If the exact same items are present in the exact same order, update DOM directly.
+    // This entirely prevents the browser's scroll reset behavior caused by removing anchor nodes.
+    let canUpdateInPlace = false;
+    const existingRows = tbody.querySelectorAll('tr[data-id]');
+    
+    if (existingRows.length === activeItems.length && activeItems.length > 0) {
+        canUpdateInPlace = true;
+        for (let i = 0; i < activeItems.length; i++) {
+            if (existingRows[i].dataset.id !== activeItems[i].id) {
+                canUpdateInPlace = false;
+                break;
+            }
+        }
+    }
+
+    if (canUpdateInPlace) {
+        activeItems.forEach((item, idx) => {
+            const row = existingRows[idx];
+            const tds = row.querySelectorAll('td');
+            
+            // Checkbox
+            const chk = row.querySelector('.sched-row-chk');
+            if (chk) chk.checked = selectedScheduleIds.has(item.id);
+            
+            // Update non-input TDs (SL NO, Name, Category)
+            if (tds.length >= 4) {
+                tds[1].innerHTML = `${idx + 1}`;
+                
+                const progData = localPrograms.find(p => p.id === item.programId);
+                const genderVal = progData ? (progData.genderCategory || progData.gender || progData.Gender) : null;
+                const genderHtml = genderVal ? `<div style="font-size:0.75rem; color:#64748b; font-weight:600; margin-top:3px; line-height:1.2;">${window.escapeHTML(String(genderVal).trim())}</div>` : '';
+                
+                if (item.isBreak) {
+                    const icon = getBreakIcon(item.programName);
+                    tds[2].innerHTML = `
+                        <div style="display:inline-flex; align-items:center; gap:0.4rem;">
+                            <span style="font-size:1.05rem; color:#2563eb;">${icon}</span>
+                            ${item.isLocked ? '<span title="Locked Slot">🔒</span>' : ''}
+                            <span>${window.escapeHTML(item.programName)}</span>
+                        </div>
+                    `;
+                    tds[3].innerHTML = `<span style="background:#ffedd5; color:#c2410c; padding:3px 10px; border-radius:6px; font-weight:800; font-size:0.75rem; text-transform:uppercase; display:inline-block;">BREAK</span>`;
+                } else {
+                    tds[2].innerHTML = `
+                        <div style="line-height:1.2;">
+                            ${item.isLocked ? '<span title="Locked Slot" style="margin-right:4px;">🔒</span>' : ''}
+                            ${item.programNumber ? `<span style="color:#64748b; font-weight:700; margin-right:4px;">[#${item.programNumber}]</span>` : ''}<span>${window.escapeHTML(item.programName)}</span>
+                        </div>
+                        ${genderHtml}
+                    `;
+                    const catNameUpper = (item.categoryName || 'GENERAL').toUpperCase();
+                    const catBadgeBg = catNameUpper.includes('SUB') ? 'background:#dbeafe; color:#1d4ed8;' : (catNameUpper === 'GENERAL' ? 'background:#dcfce7; color:#15803d;' : 'background:#e0e7ff; color:#3730a3;');
+                    tds[3].innerHTML = `<span class="sched-cat-badge" style="${catBadgeBg} padding:3px 10px; border-radius:6px; font-weight:800; font-size:0.75rem; text-transform:uppercase; display:inline-block;">${window.escapeHTML(catNameUpper)}</span>`;
+                }
+            }
+
+            // Update inputs without replacing them
+            const dateIn = row.querySelector('.row-date-in');
+            const defaultDate = item.scheduleDate || stageConfigs[activeStage]?.date || new Date().toISOString().split('T')[0];
+            if (dateIn && document.activeElement !== dateIn) dateIn.value = defaultDate;
+            
+            const startIn = row.querySelector('.row-start-in');
+            const defaultStart = item.startTime || '09:00';
+            if (startIn && document.activeElement !== startIn) startIn.value = defaultStart;
+            
+            const endIn = row.querySelector('.row-end-in');
+            const defaultEnd = item.endTime || '09:30';
+            if (endIn && document.activeElement !== endIn) endIn.value = defaultEnd;
+            
+            // Update lock state UI
+            const lockMenu = row.querySelector('.btn-row-menu-trigger');
+            if (lockMenu) lockMenu.dataset.locked = item.isLocked;
+            
+            if (item.isLocked) {
+                row.classList.add('is-locked');
+                row.style.cursor = 'not-allowed';
+                row.setAttribute('draggable', 'false');
+                row.setAttribute('title', '🔒 Locked Slot - Cannot be moved or dragged');
+            } else {
+                row.classList.remove('is-locked');
+                row.style.cursor = 'grab';
+                row.setAttribute('draggable', 'true');
+                row.setAttribute('title', 'Drag to reorder slot');
+            }
+        });
+        
+        lastEditedRowId = null;
+        return; 
+    }
+
 
     if (activeItems.length === 0) {
         tbody.innerHTML = `
@@ -1616,11 +1853,7 @@ function refreshScheduleTable() {
                         <input type="time" class="sched-tbl-input row-end-in" data-id="${item.id}" value="${defaultEnd}" style="width:85px; font-size:0.78rem; font-weight:700; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.35rem; text-align:center;">
                     </td>
                     <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap;">
-                        <div style="display:inline-flex; align-items:center; gap:0.6rem; justify-content:center;">
-                            <button class="btn-tbl-act btn-copy-row" data-id="${item.id}" title="Copy Program" style="background:none; border:none; cursor:pointer; font-size:1.05rem; color:#3b82f6;">📋</button>
-                            <button class="btn-tbl-act btn-toggle-lock" data-id="${item.id}" title="${item.isLocked ? 'Unlock Slot (Allows moving)' : 'Lock Slot (Prevents moving)'}" style="background:none; border:none; cursor:pointer; font-size:1.05rem; opacity:${item.isLocked ? '1' : '0.65'};">${item.isLocked ? '🔒' : '🔓'}</button>
-                            <button class="btn-tbl-act btn-del-row text-danger" data-id="${item.id}" title="Delete Slot" style="background:none; border:none; cursor:pointer; font-size:1.05rem; color:#ef4444;">🗑️</button>
-                        </div>
+                        <button class="btn-tbl-act btn-row-menu-trigger" data-id="${item.id}" data-locked="${item.isLocked}" title="Row Actions" style="background:none; border:none; cursor:pointer; font-size:1.35rem; color:#64748b; font-weight:bold;">⋮</button>
                     </td>
                 </tr>
             `;
@@ -1666,17 +1899,16 @@ function refreshScheduleTable() {
                     <input type="time" class="sched-tbl-input row-end-in" data-id="${item.id}" value="${defaultEnd}" style="width:85px; font-size:0.78rem; font-weight:700; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.35rem; text-align:center;">
                 </td>
                 <td style="text-align:center; padding:0.65rem 0.5rem; vertical-align:middle; white-space:nowrap;">
-                    <div style="display:inline-flex; align-items:center; gap:0.6rem; justify-content:center;">
-                        <button class="btn-tbl-act btn-copy-row" data-id="${item.id}" title="Copy Program" style="background:none; border:none; cursor:pointer; font-size:1.05rem; color:#3b82f6;">📋</button>
-                            <button class="btn-tbl-act btn-toggle-lock" data-id="${item.id}" title="${item.isLocked ? 'Unlock Slot (Allows moving)' : 'Lock Slot (Prevents moving)'}" style="background:none; border:none; cursor:pointer; font-size:1.05rem; opacity:${item.isLocked ? '1' : '0.65'};">${item.isLocked ? '🔒' : '🔓'}</button>
-                        <button class="btn-tbl-act btn-del-row text-danger" data-id="${item.id}" title="Delete Slot" style="background:none; border:none; cursor:pointer; font-size:1.05rem; color:#ef4444;">🗑️</button>
-                    </div>
+                    <button class="btn-tbl-act btn-row-menu-trigger" data-id="${item.id}" data-locked="${item.isLocked}" title="Row Actions" style="background:none; border:none; cursor:pointer; font-size:1.35rem; color:#64748b; font-weight:bold;">⋮</button>
                 </td>
             </tr>
         `;
     }).join('');
 
     attachTableEvents(tbody, activeItems);
+    lastEditedRowId = null; 
+    
+    console.log(`[SCROLL DEBUG] event=refreshScheduleTable-end, currentScrollTop=`, window._debugScrollTop);
 }
 
 // ─────────────────────────────────────────────
@@ -1705,9 +1937,11 @@ function attachTableEvents(tbody, activeItems) {
 
             const instId = window.currentInstituteId;
             try {
+                console.log(`[SCROLL DEBUG] event=firestore-update-start-date, currentScrollTop=`, window._debugScrollTop);
                 await updateDoc(doc(db, "institutes", instId, "schedules", id), {
                     scheduleDate: newDate, updatedAt: serverTimestamp()
                 });
+                console.log(`[SCROLL DEBUG] event=firestore-update-complete-date, currentScrollTop=`, window._debugScrollTop);
             } catch (err) { console.warn("schedules update:", err); }
 
             window.showToast("Schedule Date updated");
@@ -1790,28 +2024,51 @@ function attachTableEvents(tbody, activeItems) {
         };
     });
 
-    
-    tbody.querySelectorAll('.btn-copy-row').forEach(btn => {
-        btn.onclick = () => openCopyScheduleModal(btn.dataset.id);
-    });
-
-    tbody.querySelectorAll('.btn-toggle-lock').forEach(btn => {
-        btn.onclick = async () => {
+    tbody.querySelectorAll('.btn-row-menu-trigger').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
             const id = btn.dataset.id;
-            const item = activeItems.find(x => x.id === id);
-            if (item) {
-                const newLockState = !item.isLocked;
-                await updateDoc(doc(db, "institutes", window.currentInstituteId, "schedules", id), {
-                    isLocked: newLockState, updatedAt: serverTimestamp()
-                });
-                item.isLocked = newLockState;
-                window.showToast(newLockState ? '🔒 Slot locked (movement disabled)' : '🔓 Slot unlocked (movement enabled)');
-                refreshScheduleTable();
+            const isLocked = btn.dataset.locked === 'true';
+            const dropdown = getOrCreateRowActionDropdown();
+            
+            if (dropdown.style.display === 'block' && dropdown.dataset.rowId === id) {
+                closeDropdown(dropdown);
+                return;
             }
+            
+            const tabDropdown = document.getElementById('schedTabDropdown');
+            if (tabDropdown) closeDropdown(tabDropdown);
+            
+            dropdown.dataset.rowId = id;
+            
+            const lockBtn = dropdown.querySelector('.btn-toggle-lock-menu');
+            if (lockBtn) {
+                lockBtn.innerHTML = isLocked ? '🔓 Unlock' : '🔒 Lock';
+            }
+
+            dropdown.style.display = 'block';
+            
+            const rect = btn.getBoundingClientRect();
+            const dropdownWidth = dropdown.offsetWidth || 120;
+            const dropdownHeight = dropdown.offsetHeight || 110;
+            
+            let left = rect.right - dropdownWidth;
+            let top = rect.bottom + 4;
+            
+            if (top + dropdownHeight > window.innerHeight) {
+                top = rect.top - dropdownHeight - 4;
+                dropdown.style.transformOrigin = 'bottom right';
+            } else {
+                dropdown.style.transformOrigin = 'top right';
+            }
+            if (left < 10) left = 10;
+            
+            dropdown.style.left = `${left}px`;
+            dropdown.style.top = `${top}px`;
+            
+            dropdown.offsetHeight; // force reflow
+            dropdown.classList.add('show');
         };
-    });
-    tbody.querySelectorAll('.btn-del-row').forEach(btn => {
-        btn.onclick = () => deleteRowSlot(btn.dataset.id);
     });
 
     // Table Drag and Drop (Enforces Lock Behavior)
