@@ -1263,7 +1263,7 @@ window.customConfirm = function (message, title = "Confirm Action", options = {}
             setTimeout(() => {
                 overlay.remove();
                 resolve(result);
-            }, 250);
+            }, 100);
         };
 
         overlay.querySelector('#customConfirmCancelBtn').onclick = () => close(false);

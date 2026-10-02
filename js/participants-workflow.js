@@ -74,6 +74,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
     let allEventGroups = []; // Array of groups from all teams in this program
     let savedIndividualStudentIds = new Set();
     let assignedParticipantsAll = []; // Stores detailed objects of assigned participants for current team
+    let assignedClassFilter = 'all'; // Local filter for Assigned Participants class dropdown
     let editingParticipantId = null; // Scoped variable for inline editing
     const selectedStudentIds = new Set(); // Holds selected checkbox buffer student IDs
     let groups = []; // For group event: list of created groups in the current team
@@ -955,6 +956,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         selectedStudentIds.clear();
         savedIndividualStudentIds = new Set();
         assignedParticipantsAll = [];
+        assignedClassFilter = 'all';
         participantDocIds.clear();
         refreshSelectedPreviews();
 
@@ -2352,12 +2354,49 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
         panel.style.display = 'block';
 
+        // Build class filter options from current assigned participants
+        const availableClasses = [...new Set(
+            assignedParticipantsAll
+                .map(p => p.className)
+                .filter(Boolean)
+        )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+        // If current filter is no longer valid (e.g. after delete removed the last of that class), reset
+        if (assignedClassFilter !== 'all' && !availableClasses.includes(assignedClassFilter)) {
+            assignedClassFilter = 'all';
+        }
+
+        // Apply filter
+        const filteredParticipants = assignedClassFilter === 'all'
+            ? assignedParticipantsAll
+            : assignedParticipantsAll.filter(p => p.className === assignedClassFilter);
+
+        // Class filter dropdown HTML (only show when there are assigned participants)
+        let filterHTML = '';
+        if (assignedParticipantsAll.length > 0) {
+            const classOptions = availableClasses.map(c =>
+                `<option value="${window.escapeHTML(c)}"${c === assignedClassFilter ? ' selected' : ''}>${window.escapeHTML(c)}</option>`
+            ).join('');
+            filterHTML = `
+                <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.5rem; font-size:0.75rem;">
+                    <label for="pwAssignedClassFilter" style="font-weight:600; color:var(--pw-slate-600); white-space:nowrap;">Class:</label>
+                    <select id="pwAssignedClassFilter" style="padding:0.25rem 0.5rem; border:1.5px solid var(--pw-border); border-radius:6px; font-size:0.72rem; color:var(--pw-slate-700); background:#fff; cursor:pointer; outline:none; min-width:100px;">
+                        <option value="all"${assignedClassFilter === 'all' ? ' selected' : ''}>All Classes</option>
+                        ${classOptions}
+                    </select>
+                </div>
+            `;
+        }
+
         let listHTML = '';
         if (assignedParticipantsAll.length === 0) {
             listHTML = `<div class="pw-empty" style="padding:2rem; text-align:center; color:var(--pw-slate-500); border: 1.5px dashed var(--pw-border); border-radius:var(--pw-radius-md); font-size:0.8rem;">No participants assigned.</div>`;
+        } else if (filteredParticipants.length === 0) {
+            listHTML = `<div class="pw-empty" style="padding:2rem; text-align:center; color:var(--pw-slate-500); border: 1.5px dashed var(--pw-border); border-radius:var(--pw-radius-md); font-size:0.8rem;">No participants found for ${window.escapeHTML(assignedClassFilter)}.</div>`;
         } else {
-            const tableRows = assignedParticipantsAll.map(p => `
-                <tr>
+            const tableRows = filteredParticipants.map((p, idx) => `
+                <tr data-participant-row="${p.studentId}">
+                    <td style="width:42px; text-align:center; color:var(--pw-slate-500); font-size:0.72rem;">${idx + 1}</td>
                     <td>#${window.escapeHTML(p.chestNumber || '—')}</td>
                     <td style="font-weight:700; color:var(--pw-slate-900);">${window.escapeHTML(p.studentName)}</td>
                     <td>${window.escapeHTML(p.className)}</td>
@@ -2377,6 +2416,7 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
                     <table class="pw-table">
                         <thead>
                             <tr>
+                                <th style="width:42px; text-align:center;">S.No.</th>
                                 <th>Chest No</th>
                                 <th>Student Name</th>
                                 <th>Class</th>
@@ -2393,9 +2433,19 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
 
         panel.innerHTML = `
             <div class="pw-assigned-list">
+                ${filterHTML}
                 ${listHTML}
             </div>
         `;
+
+        // Wire class filter dropdown
+        const filterSelect = panel.querySelector('#pwAssignedClassFilter');
+        if (filterSelect) {
+            filterSelect.onchange = () => {
+                assignedClassFilter = filterSelect.value;
+                renderAssignedManagement();
+            };
+        }
 
         panel.querySelectorAll('.pw-part-delete-btn').forEach(btn => {
             btn.onclick = async (e) => {
@@ -2408,14 +2458,26 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
         updateProgramHeaderBadges();
     }
 
+    // Guard against concurrent delete operations
+    let _deleteInProgress = false;
+
     async function deleteParticipant(id) {
+        if (_deleteInProgress) return;
+
         const student = assignedParticipantsAll.find(x => x.studentId === id);
         if (!student) return;
         const confirmed = await window.customConfirm(`Are you sure you want to delete ${student.studentName}?`);
         if (!confirmed) return;
 
-        const spinner = document.getElementById('pwStudentsSkeleton');
-        if (spinner) spinner.style.display = 'block';
+        _deleteInProgress = true;
+
+        // Disable the clicked button immediately to prevent double-click
+        const clickedBtn = document.querySelector(`.pw-part-delete-btn[data-id="${id}"]`);
+        if (clickedBtn) {
+            clickedBtn.disabled = true;
+            clickedBtn.style.opacity = '0.5';
+            clickedBtn.style.pointerEvents = 'none';
+        }
 
         try {
             const instId = window.currentInstituteId;
@@ -2423,43 +2485,129 @@ export async function initParticipantsWorkflowView(container, topActions, { prog
             let docId = participantDocIds.get(id) || `individual_${safeDocId(selectedTeamId)}_${safeDocId(id)}`;
             const docRef = doc(partRef, docId);
 
+            // === FAST PATH: Only delete participant doc + decrement count ===
+            // No blocking getDocs() on results — that's done in background below
             const batch = writeBatch(db);
             batch.delete(docRef);
 
-            // Clean result document for this program
-            const resultsSnap = await getDocs(query(
-                collection(db, "institutes", instId, "results"),
-                where("programId", "==", progId)
-            ));
-            resultsSnap.forEach(resDoc => {
-                const resData = resDoc.data();
-                if (Array.isArray(resData.marksData)) {
-                    const cleanMarks = resData.marksData.filter(m => m.studentId !== id);
-                    if (cleanMarks.length === 0) {
-                        batch.delete(resDoc.ref);
-                    } else if (cleanMarks.length !== resData.marksData.length) {
-                        batch.update(resDoc.ref, { marksData: cleanMarks, participantCount: cleanMarks.length, updatedAt: serverTimestamp() });
-                    }
-                }
-            });
+            const progRef = doc(db, "institutes", instId, "programs", progId);
+            batch.update(progRef, { participantCount: increment(-1) });
 
             await batch.commit();
 
-            await migrateParticipantCounts(instId);
-            await updateDashboardMetadata(instId);
-            programParticipantsCache = null;
-            registrationsByTeamCache.clear();
+            // === OPTIMISTIC UI: Update local state + DOM immediately ===
+            if (programParticipantsCache) {
+                programParticipantsCache = programParticipantsCache.filter(d => d.id !== docId);
+            }
 
+            const progNumberStr = progData.programNumber ? `[#${progData.programNumber}] ` : '';
+            const progName = progNumberStr + (progData.programName || 'Program');
+
+            if (registrationsMap.has(id)) {
+                registrationsMap.get(id).delete(progName);
+            }
+            if (registrationsProgramIdsMap.has(id)) {
+                registrationsProgramIdsMap.get(id).delete(progId);
+            }
+
+            assignedParticipantsAll = assignedParticipantsAll.filter(x => x.studentId !== id);
             savedIndividualStudentIds.delete(id);
             selectedStudentIds.delete(id);
 
+            // === TARGETED DOM UPDATE: Remove only the deleted row ===
+            const row = clickedBtn ? clickedBtn.closest('tr') : null;
+            if (row) {
+                row.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
+                row.style.opacity = '0';
+                row.style.transform = 'translateX(10px)';
+                setTimeout(() => {
+                    row.remove();
+                    // Re-render to update serial numbers, filter counts, and empty state
+                    renderAssignedManagement();
+                }, 150);
+            } else {
+                // Fallback: full rebuild only if we can't find the row
+                renderAssignedManagement();
+            }
+
+            // Update header badges and student card status (lightweight DOM ops)
+            updateProgramHeaderBadges();
+
+            // Update only the specific student card in the student list instead of full rebuild
+            const studentCard = document.querySelector(`#pwStudentList [data-stu-id="${id}"]`);
+            if (studentCard) {
+                // Update the status badge on this card to show "Eligible" or "Registered Elsewhere"
+                const hasOtherRegs = registrationsMap.has(id) && registrationsMap.get(id).size > 0;
+                const badgeEl = studentCard.querySelector('.pw-badge-registered, .pw-badge-eligible, .pw-badge-elsewhere');
+                if (badgeEl) {
+                    if (hasOtherRegs) {
+                        badgeEl.className = 'pw-badge-compact pw-badge-elsewhere';
+                        badgeEl.textContent = '🟡 Registered Elsewhere';
+                    } else {
+                        badgeEl.className = 'pw-badge-compact pw-badge-eligible';
+                        badgeEl.textContent = '🟢 Eligible';
+                    }
+                }
+                studentCard.classList.remove('is-assigned');
+
+                // Remove the program tag for this program from the student card
+                const tags = studentCard.querySelectorAll('.stu-tag');
+                tags.forEach(tag => {
+                    if (tag.textContent.includes(progData.programName) || tag.textContent.includes(`#${progData.programNumber}`)) {
+                        tag.remove();
+                    }
+                });
+            }
+
+            refreshSelectedPreviews();
+
             window.showToast("Participant deleted successfully!", "success");
-            await loadStudentsForSelection();
+
+            // === BACKGROUND CLEANUP: Results marks cleanup (non-blocking) ===
+            (async () => {
+                try {
+                    const resultsSnap = await getDocs(query(
+                        collection(db, "institutes", instId, "results"),
+                        where("programId", "==", progId)
+                    ));
+                    const cleanupBatch = writeBatch(db);
+                    let hasCleanupOps = false;
+                    resultsSnap.forEach(resDoc => {
+                        const resData = resDoc.data();
+                        if (Array.isArray(resData.marksData)) {
+                            const cleanMarks = resData.marksData.filter(m => m.studentId !== id);
+                            if (cleanMarks.length === 0) {
+                                cleanupBatch.delete(resDoc.ref);
+                                hasCleanupOps = true;
+                            } else if (cleanMarks.length !== resData.marksData.length) {
+                                cleanupBatch.update(resDoc.ref, { marksData: cleanMarks, participantCount: cleanMarks.length, updatedAt: serverTimestamp() });
+                                hasCleanupOps = true;
+                            }
+                        }
+                    });
+                    if (hasCleanupOps) await cleanupBatch.commit();
+                } catch (bgErr) {
+                    console.error("Background results cleanup error:", bgErr);
+                }
+            })();
+
+            // Non-blocking background sync operations
+            updateDashboardMetadata(instId).catch(console.error);
+            if (typeof invalidateProgramOverviewCache === 'function') {
+                invalidateProgramOverviewCache(instId);
+            }
+
         } catch (e) {
             console.error("Delete failure:", e);
             window.showToast("Failed to delete participant.", "error");
+            // Restore button if delete failed
+            if (clickedBtn) {
+                clickedBtn.disabled = false;
+                clickedBtn.style.opacity = '1';
+                clickedBtn.style.pointerEvents = '';
+            }
         } finally {
-            if (spinner) spinner.style.display = 'none';
+            _deleteInProgress = false;
         }
     }
 
