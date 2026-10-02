@@ -690,13 +690,16 @@ function renderMarkEntryGrid() {
         return;
     }
 
-    let rowsHTML = filtered.map(p => {
+    let rowsHTML = filtered.map((p, idx) => {
         const status = getProgramStatus(p.id);
         const badge = getStatusBadgeHTML(status);
         const displayType = p.programType === 'general' ? 'General' : p.type;
 
         return `
             <tr>
+                <td style="width: 42px; text-align: center; color: #64748b; font-size: 0.85rem; font-weight: 600;">
+                    ${idx + 1}
+                </td>
                 <td style="font-weight: 700; color: #1e293b;">
                     ${p.programNumber ? `[#${p.programNumber}] ` : ''}${window.escapeHTML(p.programName)}
                 </td>
@@ -722,7 +725,8 @@ function renderMarkEntryGrid() {
         <table class="me-table">
             <thead>
                 <tr>
-                    <th style="width: 40%;">Program Name</th>
+                    <th style="width: 50px; text-align: center;">S.NO.</th>
+                    <th style="width: 35%;">Program Name</th>
                     <th style="width: 15%;">Type</th>
                     <th style="width: 15%;" class="me-desktop-col">Category</th>
                     <th style="width: 15%;">Status</th>
