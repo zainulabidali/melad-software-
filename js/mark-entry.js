@@ -2021,19 +2021,34 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
     const isResultSubmitted = existingResult && existingResult.markEntryStatus === 'submitted';
     const showCalculations = !isStandalone || isResultSubmitted;
 
+    const displayJudgeName = isStandalone ? (sJudgeName || "JUDGE") : "ADMIN";
+    
+    // Inject judge name into modal header
+    const dynamicTitle = document.getElementById('dynamicModalTitle');
+    if (dynamicTitle) {
+        dynamicTitle.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; width:100%; padding-right:1rem;">
+                <span>✎ Judges List</span>
+                <span style="font-size:0.85rem; font-weight:700; color:#334155; background:#e2e8f0; padding:0.2rem 0.6rem; border-radius:6px; letter-spacing:0.5px;">
+                    ${window.escapeHTML(displayJudgeName)} · ${isStandalone ? 'Judge Panel' : 'Marking Panel'}
+                </span>
+            </div>
+        `;
+        dynamicTitle.style.display = 'flex';
+        dynamicTitle.style.width = '100%';
+    }
+
     // Dynamic Columns count
     let judgeHeadersHTML = '';
     if (isStandalone) {
         judgeHeadersHTML = `
-            <th style="padding:0.6rem 0.75rem; border:1px solid #cbd5e1; text-align:center; color:#1e293b; width:150px;">
-                <div style="font-size:0.85rem; font-weight:700; color:#0f172a; line-height:1.2;">${window.escapeHTML(sJudgeName)}</div>
-                <div style="font-size:0.72rem; font-weight:600; color:#64748b; margin-top:0.15rem; text-transform:uppercase; letter-spacing:0.3px;">Your Scores</div>
+            <th style="padding:0.5rem; text-align:center; color:#1e293b; width:15%;">
+                <div style="font-size:0.75rem; font-weight:800; color:#0f172a; line-height:1.2;">MARK</div>
             </th>`;
     } else {
         judgeHeadersHTML = judges.map((name, i) => `
-            <th style="padding:0.6rem 0.75rem; border:1px solid #cbd5e1; text-align:center; color:#1e293b;">
-                <div style="font-size:0.85rem; font-weight:700; color:#0f172a; line-height:1.2;">${window.escapeHTML(name)}</div>
-                <div style="font-size:0.72rem; font-weight:600; color:#64748b; margin-top:0.15rem; text-transform:uppercase; letter-spacing:0.3px;">Judge ${i + 1}</div>
+            <th style="padding:0.5rem; text-align:center; color:#1e293b; width:15%;">
+                <div style="font-size:0.75rem; font-weight:800; color:#0f172a; line-height:1.2;">${window.escapeHTML(name)}</div>
             </th>`).join('');
     }
 
@@ -2063,12 +2078,12 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
             const oldIdx = savedJudges.indexOf(sJudgeName);
             const val = (oldIdx !== -1 && savedMarks[oldIdx] !== undefined && savedMarks[oldIdx] !== null) ? savedMarks[oldIdx] : '';
             judgeInputsHTML = `
-                <td style="padding:0.5rem; border:1px solid #cbd5e1; text-align:center;">
+                <td style="padding:0.4rem 0.5rem; text-align:center;">
                     <input type="number" class="form-input judge-mark-input" 
                         data-judge-idx="${jIdx}" min="0" max="100" placeholder="0" 
                         value="${val}" 
                         data-initial-val="${val}"
-                        style="width:70px; text-align:center; font-size:0.85rem; padding:0.35rem 0.5rem; margin:0 auto; background:#fff; border-color:#cbd5e1;" />
+                        style="width:100%; max-width:85px; height:40px; text-align:center; font-size:1.1rem; font-weight:800; color:#0f172a; padding:0.2rem; margin:0 auto; background:#f8fafc; border:2px solid #cbd5e1; border-radius:8px; transition:all 0.15s;" />
                 </td>`;
         } else {
             judgeInputsHTML = judges.map((name, jIdx) => {
@@ -2076,46 +2091,46 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
                 const oldIdx = savedJudges.indexOf(name);
                 const val = (oldIdx !== -1 && savedMarks[oldIdx] !== undefined && savedMarks[oldIdx] !== null) ? savedMarks[oldIdx] : '';
                 return `
-                    <td style="padding:0.5rem; border:1px solid #cbd5e1; text-align:center;">
+                    <td style="padding:0.4rem 0.5rem; text-align:center;">
                         <input type="number" class="form-input judge-mark-input" 
                             data-judge-idx="${jIdx}" min="0" max="100" placeholder="0" 
                             value="${val}" 
                             data-initial-val="${val}"
-                            style="width:70px; text-align:center; font-size:0.85rem; padding:0.35rem 0.5rem; margin:0 auto; background:#fff; border-color:#cbd5e1;" />
+                            style="width:100%; max-width:85px; height:40px; text-align:center; font-size:1.1rem; font-weight:800; color:#0f172a; padding:0.2rem; margin:0 auto; background:#f8fafc; border:2px solid #cbd5e1; border-radius:8px; transition:all 0.15s;" />
                     </td>`;
             }).join('');
         }
 
         return `
             <tr class="mark-entry-row" data-student-id="${p.id}" data-student-name="${window.escapeHTML(p.name)}" data-team-id="${p.teamId}" data-team-name="${window.escapeHTML((teamsMapCache.get(String(p.teamId))?.name || p.teamName))}" data-manual-grade="${window.escapeHTML(screenManualGrade)}" data-judge-manual-grades="${window.escapeHTML(JSON.stringify(manualGrades))}">
-                <td style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; text-align:center; white-space:nowrap;">
+                <td style="padding:0.4rem 0.5rem; text-align:center; white-space:nowrap;">
                     <div style="display:inline-flex; align-items:center; gap:4px; justify-content:center;">
-                        <input type="text" class="form-input code-letter-input" 
+                        <input type="text" class="form-input code-letter-input" tabindex="-1" 
                             data-student-id="${p.id}"
                             placeholder="—" value="${window.escapeHTML(codeLetter)}" 
-                            style="width:48px; text-align:center; font-size:0.85rem; font-weight:800; padding:0.25rem 0.35rem; text-transform:uppercase;" />
-                        <button type="button" class="btn btn-sm btn-pw-generate-sp" data-student-id="${p.id}" title="Generate Unique Letter"
-                            style="padding:0.2rem 0.45rem; font-size:0.75rem; background:${codeLetter ? '#ecfdf5' : '#6366f1'}; color:${codeLetter ? '#059669' : '#fff'}; border:${codeLetter ? '1px solid #a7f3d0' : 'none'}; border-radius:4px; cursor:pointer; font-weight:700; transition:all 0.2s;"
+                            style="width:40px; height:32px; text-align:center; font-size:0.8rem; font-weight:800; padding:0.2rem; text-transform:uppercase;" />
+                        <button type="button" class="btn btn-sm btn-pw-generate-sp" data-student-id="${p.id}" title="Generate Unique Letter" tabindex="-1" 
+                            style="padding:0.15rem 0.4rem; height:32px; font-size:0.7rem; background:${codeLetter ? '#ecfdf5' : '#6366f1'}; color:${codeLetter ? '#059669' : '#fff'}; border:${codeLetter ? '1px solid #a7f3d0' : 'none'}; border-radius:4px; cursor:pointer; font-weight:700; transition:all 0.2s;"
                             ${codeLetter ? 'disabled' : ''}>
                             ${codeLetter ? '✓' : '🎲'}
                         </button>
                     </div>
                 </td>
                 ${!isGroup ? `
-                <td style="padding:0.75rem; border:1px solid #cbd5e1; font-weight:700; color:#475569;">
+                <td class="chest-no-col" style="padding:0.5rem 0.75rem; font-weight:800; color:#475569; white-space:nowrap;">
                     ${window.escapeHTML(p.chestNumber)}
                 </td>` : ''}
-                <td style="padding:0.75rem; border:1px solid #cbd5e1;">
-                    <div style="font-weight:700; color:#1e293b;">${window.escapeHTML(p.name)}</div>
+                <td style="padding:0.5rem 0.75rem;">
+                    <div style="font-weight:800; color:#0f172a; font-size:0.95rem; white-space:normal; line-height:1.2;">${window.escapeHTML(p.name)}</div>
                 </td>
                 ${judgeInputsHTML}
-                <td style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-weight:800; color:#1e293b; background:#f8fafc; ${!showCalculations ? 'display:none;' : ''}" class="cell-final-mark">
+                <td style="padding:0.5rem; text-align:center; font-weight:800; color:#1e293b; background:#f8fafc; ${!showCalculations ? 'display:none;' : ''}" class="cell-final-mark">
                     —
                 </td>
-                <td style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-weight:700; ${!showCalculations ? 'display:none;' : ''}" class="cell-grade">
+                <td style="padding:0.5rem; text-align:center; font-weight:700; ${!showCalculations ? 'display:none;' : ''}" class="cell-grade">
                     —
                 </td>
-                <td style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-weight:700; color:#64748b; ${!showCalculations ? 'display:none;' : ''}" class="cell-rank">
+                <td style="padding:0.5rem; text-align:center; font-weight:700; color:#64748b; ${!showCalculations ? 'display:none;' : ''}" class="cell-rank">
                     —
                 </td>
             </tr>
@@ -2127,13 +2142,13 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
         const submissionStatus = existingResult && existingResult.judgeSubmissionStatus ? existingResult.judgeSubmissionStatus[sJudgeId] : '';
         if (submissionStatus === 'submitted' || submissionStatus === true) {
             statusBannerHTML = `
-                <div style="background:#d1fae5; border:1px solid #10b981; color:#065f46; border-radius:8px; padding:0.75rem 1rem; font-size:0.85rem; font-weight:700; margin-bottom:0.75rem;">
+                <div style="background:#d1fae5; border:1px solid #10b981; color:#065f46; border-radius:6px; padding:0.4rem 0.75rem; font-size:0.75rem; font-weight:700;">
                     ✓ Your marks have been saved and submitted successfully.
                 </div>
             `;
         } else {
             statusBannerHTML = `
-                <div style="background:#fef3c7; border:1px solid #f59e0b; color:#92400e; border-radius:8px; padding:0.75rem 1rem; font-size:0.85rem; font-weight:700; margin-bottom:0.75rem;">
+                <div style="background:#fef3c7; border:1px solid #f59e0b; color:#92400e; border-radius:6px; padding:0.4rem 0.75rem; font-size:0.75rem; font-weight:700;">
                     ⏳ Your marks are currently in draft. Please submit them when completed.
                 </div>
             `;
@@ -2154,7 +2169,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
 
         if (otherPending) {
             statusBannerHTML += `
-                <div style="background:#eff6ff; border:1px solid #3b82f6; color:#1e40af; border-radius:8px; padding:0.75rem 1rem; font-size:0.85rem; font-weight:600; margin-bottom:0.75rem;">
+                <div style="background:#eff6ff; border:1px solid #3b82f6; color:#1e40af; border-radius:6px; padding:0.4rem 0.75rem; font-size:0.75rem; font-weight:600; margin-top:0.4rem;">
                     ℹ️ Waiting for the other assigned judge to complete marking.
                 </div>
             `;
@@ -2162,49 +2177,95 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
     }
 
     modalBody.innerHTML = `
-        <div style="display:flex; flex-direction:column; gap:1.25rem;">
-            <!-- Header bar -->
-            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:1.25rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-                <div>
-                    <h3 style="margin:0; font-size:1.3rem; font-weight:800; color:#0f172a;">${prog.programNumber ? `[#${prog.programNumber}] ` : ''}${window.escapeHTML(prog.programName)}</h3>
-                    <div style="font-size:0.82rem; color:#475569; font-weight:600; margin-top:0.25rem; display:flex; gap:0.8rem; align-items:center;">
-                        <span style="background:#e0e7ff; color:#4338ca; padding:0.15rem 0.6rem; border-radius:6px;">📋 ${window.escapeHTML(prog.categoryName)}</span>
-                        <span>Stage: <strong>${prog.programLocation}</strong></span>
-                        <span>Gender: <strong>${prog.genderCategory}</strong></span>
-                        <span>Total: <strong>${participants.length}</strong> participants</span>
+        <style>
+            /* Hide Spinner arrows */
+            input.judge-mark-input::-webkit-outer-spin-button,
+            input.judge-mark-input::-webkit-inner-spin-button {
+                -webkit-appearance: none;
+                margin: 0;
+            }
+            input.judge-mark-input[type=number] {
+                -moz-appearance: textfield;
+            }
+            /* Input styling */
+            input.judge-mark-input:focus {
+                outline: none !important;
+                border-color: #3b82f6 !important;
+                background: #fff !important;
+                box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+                transform: scale(1.03);
+            }
+            /* Row connection and hover */
+            .mark-entry-row {
+                border-bottom: 1px solid #e2e8f0;
+                transition: background-color 0.15s ease;
+            }
+            .mark-entry-row:hover {
+                background-color: #f8fafc;
+            }
+            .mark-entry-row:focus-within {
+                background-color: #f0fdf4 !important;
+                box-shadow: inset 4px 0 0 #22c55e;
+            }
+            /* Table Compact Layout */
+            .me-spreadsheet-table {
+                width: 100%;
+                border-collapse: collapse;
+                min-width: 700px;
+            }
+        </style>
+        <div style="display:flex; flex-direction:column; gap:0.75rem;">
+            
+            <!-- Competition Info & Controls Header -->
+            <!-- Competition Info & Controls Header -->
+            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:0.5rem 0.75rem; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
+                
+                <!-- Left: Program Name & Details -->
+                <div style="display:flex; flex-direction:column; gap:0.15rem;">
+                    <span style="font-size:1.05rem; font-weight:800; color:#0f172a; line-height:1.2;">
+                        ${prog.programNumber ? `[#${prog.programNumber}] ` : ''}${window.escapeHTML(prog.programName)}
+                    </span>
+                    <div style="font-size:0.75rem; color:#475569; font-weight:600; display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                        <span style="background:#e0e7ff; color:#4338ca; padding:0.05rem 0.35rem; border-radius:4px; font-weight:700;">${window.escapeHTML(prog.categoryName)}</span>
+                        <span>•</span>
+                        <span>${prog.genderCategory}</span>
+                        <span>•</span>
+                        <span>Stage: ${prog.programLocation}</span>
+                        <span>•</span>
+                        <span>${participants.length} Participants</span>
                     </div>
                 </div>
-                <div style="background:#fffbea; border:1px solid #fef08a; border-radius:8px; padding:0.5rem 0.8rem; font-size:0.75rem; color:#854d0e; font-weight:600;">
-                    💡 Maximum Mark per Judge: <strong>100</strong>. Enter numbers between <strong>0 and 100</strong> only.
+
+                <!-- Right: Grade Mode & Max Mark -->
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.25rem;">
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <label style="font-size:0.75rem; font-weight:700; color:#475569;">Grade Mode:</label>
+                        <select id="meGradeModeSelect" class="form-input" style="height:26px; padding:0.1rem 0.4rem; font-size:0.75rem; font-weight:700; border-radius:6px; width:130px; background:#fff; border:1px solid #cbd5e1; cursor:pointer; margin-top:0;">
+                            <option value="auto">Automatic</option>
+                            <option value="manual">Manual</option>
+                            <option value="none">None</option>
+                        </select>
+                    </div>
+                    <div style="font-size:0.7rem; color:#854d0e; font-weight:700; background:#fffbea; border:1px solid #fef08a; border-radius:4px; padding:0.1rem 0.4rem;">
+                        Max Mark: 100
+                    </div>
                 </div>
             </div>
 
-            ${statusBannerHTML}
-
-            <!-- Grade Mode Selector Dropdown -->
-            <div style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:-0.25rem; padding:0 0.25rem;">
-                <div style="display:flex; align-items:center; gap:0.5rem;">
-                    <label style="font-size:0.78rem; font-weight:700; color:#475569;">Grade Mode:</label>
-                    <select id="meGradeModeSelect" class="form-input" style="height:32px; padding:0.2rem 0.5rem; font-size:0.78rem; font-weight:700; border-radius:8px; width:150px; background:#fff; border:1px solid #cbd5e1; cursor:pointer; margin-top:0;">
-                        <option value="auto">Automatic Grade</option>
-                        <option value="manual">Manual Grade</option>
-                        <option value="none">Remove Grade</option>
-                    </select>
-                </div>
-            </div>
+            ${statusBannerHTML ? `<div style="margin-top:-0.25rem;">${statusBannerHTML}</div>` : ''}
 
             <!-- Spreadsheet Table Wrapper -->
-            <div style="overflow-x:auto; background:#fff; border:1px solid #cbd5e1; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                <table style="width:100%; border-collapse:collapse; min-width:800px;">
+            <div style="overflow-x:auto; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 1px 2px rgba(0,0,0,0.05); padding-bottom:0.5rem;">
+                <table class="me-spreadsheet-table">
                     <thead>
                         <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1;">
-                            <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:110px;">LETTER</th>
-                            ${!isGroup ? `<th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:left; font-size:0.78rem; font-weight:700; color:#475569; width:90px;">CHEST #</th>` : ''}
-                            <th style="padding:0.75rem; border:1px solid #cbd5e1; text-align:left; font-size:0.78rem; font-weight:700; color:#475569;">${isGroup ? 'TEAM NAME' : 'STUDENT NAME'}</th>
+                            <th style="padding:0.5rem; text-align:center; font-size:0.7rem; font-weight:800; color:#475569; width:8%; letter-spacing:0.3px;">LETTER</th>
+                            ${!isGroup ? `<th style="padding:0.5rem 0.75rem; text-align:left; font-size:0.7rem; font-weight:800; color:#475569; width:10%; letter-spacing:0.3px;">CHEST #</th>` : ''}
+                            <th style="padding:0.5rem 0.75rem; text-align:left; font-size:0.7rem; font-weight:800; color:#475569; width:${isGroup ? '45%' : '35%'}; letter-spacing:0.3px;">${isGroup ? 'TEAM NAME' : 'STUDENT NAME'}</th>
                             ${judgeHeadersHTML}
-                            <th class="cell-calc-header" style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:95px; ${!showCalculations ? 'display:none;' : ''}">FINAL MARK</th>
-                            <th class="cell-calc-header" style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:90px; ${!showCalculations ? 'display:none;' : ''}">GRADE</th>
-                            <th class="cell-calc-header" style="padding:0.75rem; border:1px solid #cbd5e1; text-align:center; font-size:0.78rem; font-weight:700; color:#475569; width:80px; ${!showCalculations ? 'display:none;' : ''}">RANK</th>
+                            <th class="cell-calc-header" style="padding:0.5rem; text-align:center; font-size:0.7rem; font-weight:800; color:#475569; width:12%; letter-spacing:0.3px; ${!showCalculations ? 'display:none;' : ''}">FINAL MARK</th>
+                            <th class="cell-calc-header" style="padding:0.5rem; text-align:center; font-size:0.7rem; font-weight:800; color:#475569; width:10%; letter-spacing:0.3px; ${!showCalculations ? 'display:none;' : ''}">GRADE</th>
+                            <th class="cell-calc-header" style="padding:0.5rem; text-align:center; font-size:0.7rem; font-weight:800; color:#475569; width:10%; letter-spacing:0.3px; ${!showCalculations ? 'display:none;' : ''}">RANK</th>
                         </tr>
                     </thead>
                     <tbody id="meSpreadsheetBody" data-is-standalone="${isStandalone}" data-judge-idx="${isStandalone ? judges.indexOf(sJudgeName) : -1}" data-grade-mode="${window.escapeHTML(existingResult?.gradeMode || 'auto')}" data-class-type="${classType}">
@@ -2217,7 +2278,7 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
             <div style="height:24px; min-height:24px; flex-shrink:0;"></div>
 
             <!-- Footer / Actions -->
-            <div class="modal-actions me-sticky-actions">
+            <div class="modal-actions me-sticky-actions" style="margin-top:0;">
                 <button type="button" class="btn btn-secondary" id="meCancelBtn">Cancel</button>
                 <div style="display:flex; gap:0.6rem; margin-left:auto;">
                     <button type="button" class="btn btn-secondary" id="meDraftBtn" style="font-weight:600;">
@@ -2381,7 +2442,46 @@ function renderSpreadsheetUI(modalBody, modal, prog, judges, participants, _lega
     }
 
     // Keystroke input validator and auto calculator
-    tbody.querySelectorAll('.judge-mark-input').forEach(input => {
+    const allMarkInputs = Array.from(tbody.querySelectorAll('.judge-mark-input'));
+    const numInputsPerRow = isStandalone ? 1 : judges.length;
+    tbody.querySelectorAll('.judge-mark-input').forEach((input, index) => {
+        // Keyboard Navigation
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown' || e.key === 'Enter') {
+                e.preventDefault();
+                const next = allMarkInputs[index + numInputsPerRow];
+                if (next) {
+                    next.focus();
+                    next.select();
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prev = allMarkInputs[index - numInputsPerRow];
+                if (prev) {
+                    prev.focus();
+                    prev.select();
+                }
+            } else if (e.key === 'ArrowRight') {
+                if (input.selectionStart === input.value.length) {
+                    const right = allMarkInputs[index + 1];
+                    if (right) {
+                        e.preventDefault();
+                        right.focus();
+                        right.select();
+                    }
+                }
+            } else if (e.key === 'ArrowLeft') {
+                if (input.selectionStart === 0) {
+                    const left = allMarkInputs[index - 1];
+                    if (left) {
+                        e.preventDefault();
+                        left.focus();
+                        left.select();
+                    }
+                }
+            }
+        });
+
         input.addEventListener('input', () => {
             let val = input.value.trim();
             if (val !== '') {

@@ -654,19 +654,25 @@ function injectExportStyles() {
         /* Dynamic Stats Grid */
         .exp-stats-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.25rem;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 1rem;
             margin-bottom: 1.5rem;
             width: 100%;
+        }
+        @media (max-width: 900px) {
+            .exp-stats-container {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0.75rem;
+            }
         }
         .exp-stat-card {
             background: #ffffff;
             border: 1px solid #cbd5e1;
-            border-radius: 16px;
-            padding: 1.25rem;
+            border-radius: 12px;
+            padding: 1rem;
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 0.75rem;
             box-shadow: 0 1px 3px rgba(0,0,0,0.02);
             transition: transform 0.2s, box-shadow 0.2s;
         }
@@ -675,24 +681,25 @@ function injectExportStyles() {
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
         }
         .exp-stat-icon {
-            font-size: 2.25rem;
-            padding: 0.5rem;
+            font-size: 1.75rem;
+            padding: 0.4rem;
             background: #e0e7ff;
-            border-radius: 12px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: #4338ca;
-            width: 48px;
-            height: 48px;
+            width: 40px;
+            height: 40px;
             box-sizing: border-box;
+            flex-shrink: 0;
         }
         .exp-stat-info {
             display: flex;
             flex-direction: column;
         }
         .exp-stat-val {
-            font-size: 1.75rem;
+            font-size: 1.4rem;
             font-weight: 800;
             color: #1e1b4b;
             line-height: 1.1;
@@ -710,23 +717,31 @@ function injectExportStyles() {
         .exp-controls-bar {
             background: #ffffff;
             border: 1px solid #cbd5e1;
-            border-radius: 16px;
-            padding: 1.25rem;
-            display: flex;
-            flex-wrap: wrap;
+            border-radius: 12px;
+            padding: 1rem;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
             gap: 1rem;
-            align-items: center;
+            align-items: end;
             box-shadow: 0 1px 2px rgba(0,0,0,0.01);
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
             width: 100%;
             box-sizing: border-box;
         }
+        @media (max-width: 900px) {
+            .exp-controls-bar {
+                grid-template-columns: 1fr 1fr;
+                gap: 0.75rem;
+            }
+            .exp-control-group:first-child {
+                grid-column: span 2;
+            }
+        }
         .exp-control-group {
-            flex: 1;
-            min-width: 180px;
             display: flex;
             flex-direction: column;
             gap: 0.4rem;
+            min-width: 0;
         }
         .exp-control-label {
             font-size: 0.72rem;
@@ -1050,22 +1065,9 @@ export async function initExportsView(container, topActions) {
     // Render Scaffolding with dynamic Statistics Grid and Filters Bar
     container.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:1.5rem; width:100%; box-sizing:border-box;">
-            <!-- Header banner -->
-            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:16px; padding:1rem 1.25rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-                <div>
-                    <h3 style="margin:0; font-size:1.15rem; font-weight:800; color:#1e1b4b;">📤 Event Exports Center</h3>
-                    <p style="margin:0.2rem 0 0 0; font-size:0.8rem; color:#64748b; font-weight:600;">SaaS-Grade Tournament Document Generation Center.</p>
-                </div>
-            </div>
-
-            <!-- Stats grid -->
-            <div class="exp-stats-container" id="exportStatsRow">
-                <!-- Injected dynamically -->
-            </div>
-
             <!-- Filters & Controls Bar -->
             <div class="exp-controls-bar">
-                <div class="exp-control-group" style="flex: 2;">
+                <div class="exp-control-group">
                     <label class="exp-control-label">Search Filename or Scope</label>
                     <input type="text" id="expSearchInput" class="exp-input" placeholder="Type here to search..." value="${window.escapeHTML(searchVal)}">
                 </div>
@@ -1098,6 +1100,11 @@ export async function initExportsView(container, topActions) {
                         <option value="oldest">Oldest First</option>
                     </select>
                 </div>
+            </div>
+
+            <!-- Stats grid -->
+            <div class="exp-stats-container" id="exportStatsRow">
+                <!-- Injected dynamically -->
             </div>
 
             <!-- History Logs Grid/List -->

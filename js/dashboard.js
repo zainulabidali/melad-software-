@@ -1024,8 +1024,6 @@ function recalculateDashboard() {
     const publishedCount = metadataCache.publishedResultsCount || 0;
     const hasPublished = publishedCount > 0;
     const statusEl = document.getElementById('portalStatus');
-    const copyBtn = document.getElementById('dashCopyLink');
-    const waBtn = document.getElementById('dashWhatsApp');
 
     if (statusEl) {
         const newStatusHTML = hasPublished 
@@ -1035,20 +1033,6 @@ function recalculateDashboard() {
         if (statusEl.dataset.lastHTML !== newStatusHTML) {
             statusEl.innerHTML = newStatusHTML;
             statusEl.dataset.lastHTML = newStatusHTML;
-            
-            if (hasPublished) {
-                if (copyBtn) copyBtn.disabled = false;
-                if (waBtn) {
-                    waBtn.style.pointerEvents = 'auto';
-                    waBtn.style.opacity = '1';
-                }
-            } else {
-                if (copyBtn) copyBtn.disabled = true;
-                if (waBtn) {
-                    waBtn.style.pointerEvents = 'none';
-                    waBtn.style.opacity = '0.5';
-                }
-            }
         }
     }
 
@@ -1234,13 +1218,13 @@ async function initDashboardOverview(container, topActions) {
                     <div style="flex: 1; min-width: 280px;">
                         <h3 class="card-title" style="color: #7C3AED; font-weight: 800; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem; margin-bottom: 0.5rem;">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 1.4rem; height: 1.4rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" /></svg>
-                            Official Poster Portal
+                            Result Poster Portal
                         </h3>
                         <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem; line-height: 1.5; font-weight: 500;">
-                            Share published standings instantly with parents and students. Results auto-sync in real-time.
+                            Create professional result posters for each competition and publish the latest results.
                         </p>
                         <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem; font-style: italic; opacity: 0.9;">
-                            Official posters are managed by the Administrator. Please do not modify or redistribute unofficial versions.
+                            Create a dedicated poster for each competition result from the Result Poster Portal.
                         </p>
                         <div id="portalStatus" style="font-size: 0.85rem; font-weight: 700; display: inline-flex; align-items: center;">
                             <span class="spinner-sm"></span> Checking status...
@@ -1249,13 +1233,6 @@ async function initDashboardOverview(container, topActions) {
                     
                     <!-- Right: Actions Grid -->
                     <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-                        <button class="btn btn-secondary" id="dashCopyLink" style="border-radius: 10px; font-weight: 600; padding: 0.75rem 1.25rem; display: flex; align-items: center; gap: 0.5rem;" disabled>
-                            📋 Copy Link
-                        </button>
-                        <a href="https://wa.me/?text=${waMessage}" target="_blank" class="btn btn-primary" id="dashWhatsApp" 
-                            style="background: #25D366; border-color: #25D366; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; pointer-events: none; opacity: 0.5; border-radius: 10px; font-weight: 600; padding: 0.75rem 1.25rem; gap: 0.5rem; color: white;">
-                            📲 WhatsApp
-                        </a>
                         <button class="btn btn-outline" id="dashOpenPortal" style="border-radius: 10px; font-weight: 700; padding: 0.75rem 1.5rem; display: flex; align-items: center; gap: 0.5rem; border-color: #7C3AED; color: #7C3AED;">
                             🌐 Open Portal
                         </button>
@@ -1329,11 +1306,6 @@ async function initDashboardOverview(container, topActions) {
     `;
 
     // Bind Portal Actions
-    document.getElementById('dashCopyLink').onclick = () => {
-        navigator.clipboard.writeText(publicUrl).then(() => {
-            window.showToast("Public result link copied!");
-        });
-    };
     document.getElementById('dashOpenPortal').onclick = () => window.open(publicUrl, '_blank');
 
     // Bind Public Results Hub Actions
