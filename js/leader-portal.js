@@ -15,7 +15,8 @@ import {
     writeBatch,
     serverTimestamp,
     increment,
-    collectionGroup
+    collectionGroup,
+    runTransaction
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
 // Helper utilities
@@ -91,6 +92,8 @@ let eventConfig = null;
 
 let allPrograms = [];
 let teamStudents = [];
+let allStudentsForManage = []; // All institute students for the manage-team view
+let allStudentsLoaded = false;  // lazy-load guard
 let allCategories = []; // Global categories array
 let teamParticipants = []; // all participants in the team
 let programParticipantsMap = new Map(); // programId -> Set of registered student IDs for current team
@@ -109,7 +112,7 @@ function normalizeClasses(classes) {
 }
 
 // Active View State
-let currentView = 'dashboard'; // 'dashboard' | 'assignment'
+let currentView = 'dashboard'; // 'dashboard' | 'assignment' | 'manageStudents'
 let activeProgram = null;
 
 // Assignment View Specific state
@@ -129,7 +132,10 @@ let resultPublished = false;
 // Initialize on DOM Load
 window.addEventListener('DOMContentLoaded', () => {
     initPortal();
+    // Expose manage students view opener to global scope (called from HTML inline onclick)
+    window.openManageStudentsView = openManageStudentsView;
 });
+
 
 async function initPortal() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -205,9 +211,16 @@ function showError(title, message) {
 
 async function loadPortalData() {
     try {
-        // Fetch Institute details
-        const instRef = doc(db, "institutes", instId);
-        const instSnap = await getDoc(instRef);
+        // --- PERFORMANCE: Run all independent initial fetches in parallel ---
+        const [instSnap, teamSnap, studentsSnap, categoriesSnap, programsSnap, configSnap] = await Promise.all([
+            getDoc(doc(db, "institutes", instId)),
+            getDoc(doc(db, "institutes", instId, "teams", teamId)),
+            getDocs(query(collection(db, "institutes", instId, "students"), where("teamId", "==", teamId))),
+            getDocs(collection(db, "institutes", instId, "categories")),
+            getDocs(collection(db, "institutes", instId, "programs")),
+            getDoc(doc(db, "institutes", instId, "metadata", "eventConfig")).catch(() => null)
+        ]);
+
         if (instSnap.exists()) {
             instituteDetails = instSnap.data();
             const instBadge = document.getElementById("headerInstituteName");
@@ -216,41 +229,21 @@ async function loadPortalData() {
             }
         }
 
-        // Fetch Event Config (for participation limits)
-        try {
-            const configSnap = await getDoc(doc(db, "institutes", instId, "metadata", "eventConfig"));
-            if (configSnap.exists()) {
-                eventConfig = configSnap.data();
-            }
-        } catch (e) {
-            console.error("Error loading event config on leader portal:", e);
+        if (configSnap && configSnap.exists()) {
+            eventConfig = configSnap.data();
         }
 
-        // Fetch Team Details (Rule verified)
-        const teamRef = doc(db, "institutes", instId, "teams", teamId);
-        const teamSnap = await getDoc(teamRef);
         if (!teamSnap.exists()) {
             showError("Team Not Found", "The team assigned to this link does not exist.");
             return;
         }
         teamDetails = teamSnap.data();
 
-        // Fetch team students
-        const studentsSnap = await getDocs(query(
-            collection(db, "institutes", instId, "students"),
-            where("teamId", "==", teamId)
-        ));
         teamStudents = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-        // Fetch all categories (Public Read)
-        const categoriesSnap = await getDocs(collection(db, "institutes", instId, "categories"));
-        allCategories = categoriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-        // Fetch all programs (Public Read)
-        const programsSnap = await getDocs(collection(db, "institutes", instId, "programs"));
+        allCategories = categoriesSnap.docs.map(d => ({ id: d.id, ...d.data(), classes: normalizeClasses(d.data().classes) }));
         allPrograms = programsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // Calculate and load all participant counts for this team
+        // Load participant counts (needed for dashboard stats)
         await refreshTeamParticipants();
 
         // Initialize dashboard filter options based on eligible programs
@@ -268,7 +261,7 @@ async function loadPortalData() {
         document.getElementById("portalContent").classList.remove("hidden");
     } catch (err) {
         console.error("Load portal data error:", err);
-        showError("Data Error", "Failed to fetch isolated team students and programs. Please refresh page.");
+        showError("Data Error", "Failed to fetch team data. Please refresh page.");
     }
 }
 
@@ -655,12 +648,542 @@ function goBackToDashboard() {
     currentView = 'dashboard';
     document.getElementById("viewDashboard").classList.remove("hidden");
     document.getElementById("viewAssignment").classList.add("hidden");
+    document.getElementById("viewManageStudents").classList.add("hidden");
     refreshTeamParticipants().then(() => renderDashboard());
 }
 
 document.getElementById("btnBackToDashboard").onclick = () => {
     goBackToDashboard();
 };
+
+// =============================================
+// REGISTER STUDENTS (BULK) / MANAGE TEAM STUDENTS VIEW
+// =============================================
+
+function findNextAvailableChestNumber(chestStart, chestEnd, excludeSet = new Set()) {
+    const startBound = parseInt(chestStart, 10) || 1;
+    const endBound = parseInt(chestEnd, 10) || Infinity;
+
+    let current = startBound;
+    while (current <= endBound) {
+        const currentStr = current.toString();
+        const isTaken = allStudentsForManage.some(s => String(s.chestNumber) === currentStr) || excludeSet.has(currentStr);
+        if (!isTaken) return current;
+        current++;
+    }
+    return null; // Truly full
+}
+
+async function openManageStudentsView() {
+    currentView = 'manageStudents';
+    document.getElementById("viewDashboard").classList.add("hidden");
+    document.getElementById("viewAssignment").classList.add("hidden");
+    document.getElementById("viewManageStudents").classList.remove("hidden");
+
+    // Pre-populate and lock Team field to leader's verified team
+    const seqTeamOption = document.getElementById('seqTeamOption');
+    const seqTeam = document.getElementById('seqTeam');
+    if (seqTeamOption) {
+        seqTeamOption.value = teamId;
+        seqTeamOption.textContent = teamDetails?.name || 'Your Team';
+    }
+    if (seqTeam) {
+        seqTeam.value = teamId;
+        seqTeam.disabled = true;
+    }
+
+    // Populate Category dropdown
+    const catSel = document.getElementById("seqCategory");
+    if (catSel) {
+        catSel.innerHTML = '<option value="">Select Category...</option>' +
+            allCategories.map(c => `<option value="${window.escapeHTML(c.id)}">${window.escapeHTML(c.name)}</option>`).join('');
+    }
+
+    // Reset flow inputs
+    const seqGender = document.getElementById('seqGender');
+    const seqClass = document.getElementById('seqClass');
+    const bulkNamesTextarea = document.getElementById('bulkNamesTextarea');
+    const chestPreviewPanel = document.getElementById('chestPreviewPanel');
+    const statsPanel = document.getElementById('statsPanel');
+    const warningCard = document.getElementById('duplicateWarningCard');
+    const btnSave = document.getElementById('btnSaveBulkStudents');
+    const backBtn = document.getElementById("btnBackFromManage");
+    const cancelBtn = document.getElementById("btnCancelRegistration");
+
+    if (seqGender) {
+        seqGender.value = "";
+        seqGender.disabled = true;
+        seqGender.innerHTML = `
+            <option value="">Select Gender (Disabled)...</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+        `;
+    }
+    if (seqClass) {
+        seqClass.value = "";
+        seqClass.disabled = true;
+        seqClass.innerHTML = '<option value="">Select Class (Disabled)...</option>';
+    }
+    if (bulkNamesTextarea) {
+        bulkNamesTextarea.value = "";
+        bulkNamesTextarea.disabled = true;
+    }
+    if (chestPreviewPanel) chestPreviewPanel.style.display = 'none';
+    if (statsPanel) statsPanel.style.display = 'none';
+    if (warningCard) warningCard.style.display = 'none';
+    if (btnSave) btnSave.disabled = true;
+
+    // Attach listeners idempotently
+    if (catSel) {
+        catSel.onchange = () => {
+            if (seqClass) seqClass.innerHTML = '<option value="">Select Class (Disabled)...</option>';
+            updateFlowState();
+        };
+    }
+    if (seqGender) seqGender.onchange = () => updateFlowState();
+    if (seqClass) seqClass.onchange = () => updateFlowState();
+    if (bulkNamesTextarea) bulkNamesTextarea.oninput = () => calculateChestPreviewAndStats();
+    if (btnSave) btnSave.onclick = (e) => saveBulkStudents(e);
+    if (backBtn) backBtn.onclick = () => goBackToDashboard();
+    if (cancelBtn) cancelBtn.onclick = () => goBackToDashboard();
+
+    // Lazy-load all institute students once per session
+    if (!allStudentsLoaded) {
+        try {
+            const snap = await getDocs(collection(db, "institutes", instId, "students"));
+            allStudentsForManage = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            allStudentsLoaded = true;
+        } catch (e) {
+            console.error("Failed to load all students:", e);
+        }
+    }
+
+    renderManageTeamMembersList();
+}
+
+function updateFlowState() {
+    const seqCategory = document.getElementById('seqCategory');
+    const seqGender = document.getElementById('seqGender');
+    const seqClass = document.getElementById('seqClass');
+    const bulkNamesTextarea = document.getElementById('bulkNamesTextarea');
+    const btnSave = document.getElementById('btnSaveBulkStudents');
+    const statsPanel = document.getElementById('statsPanel');
+    const chestPreviewPanel = document.getElementById('chestPreviewPanel');
+
+    if (!seqCategory || !seqGender || !seqClass || !bulkNamesTextarea) return;
+
+    const catId = seqCategory.value;
+    const gender = seqGender.value;
+    const classId = seqClass.value;
+
+    // Reset flow if no category
+    if (!catId) {
+        seqGender.value = "";
+        seqGender.disabled = true;
+        seqGender.innerHTML = `
+            <option value="">Select Gender (Disabled)...</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+        `;
+
+        seqClass.value = "";
+        seqClass.disabled = true;
+        seqClass.innerHTML = '<option value="">Select Class (Disabled)...</option>';
+
+        bulkNamesTextarea.value = "";
+        bulkNamesTextarea.disabled = true;
+        if (chestPreviewPanel) chestPreviewPanel.style.display = 'none';
+        if (statsPanel) statsPanel.style.display = 'none';
+        if (btnSave) btnSave.disabled = true;
+        return;
+    }
+
+    // Category selected -> Team is locked to leader's team. Enable Gender
+    seqGender.disabled = false;
+    if (seqGender.innerHTML.includes('(Disabled)')) {
+        seqGender.innerHTML = `
+            <option value="">Select Gender...</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+        `;
+        seqGender.value = gender;
+    }
+
+    if (!gender) {
+        seqClass.value = "";
+        seqClass.disabled = true;
+        seqClass.innerHTML = '<option value="">Select Class (Disabled)...</option>';
+
+        bulkNamesTextarea.value = "";
+        bulkNamesTextarea.disabled = true;
+        if (chestPreviewPanel) chestPreviewPanel.style.display = 'none';
+        if (statsPanel) statsPanel.style.display = 'none';
+        if (btnSave) btnSave.disabled = true;
+        return;
+    }
+
+    // Gender selected -> Enable Class
+    seqClass.disabled = false;
+    const cat = allCategories.find(c => c.id === catId);
+    if (seqClass.innerHTML.includes('(Disabled)') || seqClass.innerHTML === "") {
+        seqClass.innerHTML = '<option value="">Select Class...</option>';
+        if (cat && cat.classes) {
+            cat.classes.forEach(cls => {
+                const opt = document.createElement('option');
+                opt.value = cls.id;
+                opt.textContent = cls.name;
+                seqClass.appendChild(opt);
+            });
+        }
+        if (classId && cat?.classes.some(cls => cls.id === classId)) {
+            seqClass.value = classId;
+        }
+    }
+
+    if (!seqClass.value) {
+        bulkNamesTextarea.value = "";
+        bulkNamesTextarea.disabled = true;
+        if (chestPreviewPanel) chestPreviewPanel.style.display = 'none';
+        if (statsPanel) statsPanel.style.display = 'none';
+        if (btnSave) btnSave.disabled = true;
+        return;
+    }
+
+    // Enable Names Textarea
+    bulkNamesTextarea.disabled = false;
+    if (chestPreviewPanel) chestPreviewPanel.style.display = 'block';
+    calculateChestPreviewAndStats();
+}
+
+function calculateChestPreviewAndStats() {
+    const seqCategory = document.getElementById('seqCategory');
+    const seqClass = document.getElementById('seqClass');
+    const bulkNamesTextarea = document.getElementById('bulkNamesTextarea');
+    const btnSave = document.getElementById('btnSaveBulkStudents');
+    const statsPanel = document.getElementById('statsPanel');
+
+    if (!seqCategory || !seqClass || !bulkNamesTextarea) return;
+
+    const catId = seqCategory.value;
+    const classId = seqClass.value;
+    const rawNames = bulkNamesTextarea.value;
+
+    const cat = allCategories.find(c => c.id === catId);
+    if (!cat) return;
+
+    // 1. Calculate highest existing chest number
+    const catStudents = allStudentsForManage.filter(s => s.categoryId === catId);
+    const chestNums = catStudents.map(s => parseInt(s.chestNumber, 10)).filter(num => !isNaN(num));
+    const highestChest = chestNums.length > 0 ? Math.max(...chestNums) : 0;
+
+    const chestStart = parseInt(cat.chestStart, 10) || 1;
+    const chestEnd = parseInt(cat.chestEnd, 10) || Infinity;
+
+    const lblHighestChest = document.getElementById('lblHighestChest');
+    if (lblHighestChest) {
+        lblHighestChest.textContent = highestChest > 0 ? `#${highestChest}` : 'None';
+    }
+
+    // 2. Parse batch names
+    const lines = rawNames.split('\n');
+    const validNames = [];
+    const invalidLines = [];
+    const batchDuplicates = [];
+    const dbDuplicates = [];
+
+    const seenInBatch = new Set();
+
+    lines.forEach((line, idx) => {
+        const name = line.trim();
+        if (!name) return;
+
+        if (name.length < 2) {
+            invalidLines.push({ name, lineNum: idx + 1, reason: "Name too short" });
+            return;
+        }
+
+        const nameLower = name.toLowerCase();
+        if (seenInBatch.has(nameLower)) {
+            batchDuplicates.push({ name, lineNum: idx + 1 });
+            return;
+        }
+        seenInBatch.add(nameLower);
+
+        const isDbDup = allStudentsForManage.some(s =>
+            (s.name || '').trim().toLowerCase() === nameLower &&
+            s.categoryId === catId &&
+            String(s.teamId) === String(teamId) &&
+            s.classId === classId
+        );
+
+        if (isDbDup) {
+            dbDuplicates.push({ name, lineNum: idx + 1 });
+        }
+
+        validNames.push(name);
+    });
+
+    const totalCount = lines.filter(l => l.trim() !== "").length;
+    const validCount = validNames.length;
+    const dupCount = batchDuplicates.length + dbDuplicates.length;
+    const invalidCount = invalidLines.length;
+
+    const statTotal = document.getElementById('statTotal');
+    const statValid = document.getElementById('statValid');
+    const statDuplicate = document.getElementById('statDuplicate');
+    const statInvalid = document.getElementById('statInvalid');
+
+    if (statTotal) statTotal.textContent = totalCount;
+    if (statValid) statValid.textContent = validNames.length - dbDuplicates.length;
+    if (statDuplicate) statDuplicate.textContent = dupCount;
+    if (statInvalid) statInvalid.textContent = invalidCount;
+
+    if (statsPanel) {
+        statsPanel.style.display = totalCount > 0 ? 'flex' : 'none';
+    }
+
+    // Next Available and Range calculation
+    const lblNextChest = document.getElementById('lblNextChest');
+    const lblExpectedRange = document.getElementById('lblExpectedRange');
+
+    let tempExclude = new Set();
+    let rangeStart = null;
+    let rangeEnd = null;
+    let limitReached = false;
+
+    const studentsToAllocateCount = validNames.length;
+
+    for (let i = 0; i < studentsToAllocateCount; i++) {
+        const allocated = findNextAvailableChestNumber(chestStart, chestEnd, tempExclude);
+        if (allocated === null) {
+            limitReached = true;
+            break;
+        }
+        if (i === 0) rangeStart = allocated;
+        rangeEnd = allocated;
+        tempExclude.add(allocated.toString());
+    }
+
+    const firstAvailable = findNextAvailableChestNumber(chestStart, chestEnd, new Set());
+
+    if (lblNextChest) {
+        if (firstAvailable) {
+            lblNextChest.textContent = `#${firstAvailable}`;
+            lblNextChest.style.color = '#4f46e5';
+        } else {
+            lblNextChest.textContent = 'Limit reached';
+            lblNextChest.style.color = '#ef4444';
+        }
+    }
+
+    if (lblExpectedRange) {
+        if (studentsToAllocateCount === 0) {
+            lblExpectedRange.textContent = '—';
+            lblExpectedRange.style.color = '#475569';
+        } else if (limitReached) {
+            lblExpectedRange.textContent = 'Chest range limit exceeded!';
+            lblExpectedRange.style.color = '#ef4444';
+        } else {
+            lblExpectedRange.textContent = rangeStart === rangeEnd ? `#${rangeStart}` : `#${rangeStart} – #${rangeEnd}`;
+            lblExpectedRange.style.color = '#15803d';
+        }
+    }
+
+    // Smart Duplicate Warnings UI Panel
+    const warningCard = document.getElementById('duplicateWarningCard');
+    const warningListContainer = document.getElementById('duplicateListContainer');
+
+    if (warningCard && warningListContainer) {
+        if (dupCount > 0) {
+            warningCard.style.display = 'flex';
+            warningListContainer.innerHTML = '';
+
+            batchDuplicates.forEach(d => {
+                const div = document.createElement('div');
+                div.innerHTML = `⚠️ Line ${d.lineNum}: <strong>${window.escapeHTML(d.name)}</strong> (Duplicate in current batch)`;
+                warningListContainer.appendChild(div);
+            });
+
+            dbDuplicates.forEach(d => {
+                const div = document.createElement('div');
+                div.innerHTML = `👤 Line ${d.lineNum}: <strong>${window.escapeHTML(d.name)}</strong> (Already exists in same category/team/class)`;
+                warningListContainer.appendChild(div);
+            });
+        } else {
+            warningCard.style.display = 'none';
+        }
+    }
+
+    if (btnSave) {
+        btnSave.disabled = (validCount === 0 || limitReached || invalidCount > 0);
+    }
+}
+
+async function saveBulkStudents(e) {
+    if (e && e.preventDefault) e.preventDefault();
+
+    const seqCategory = document.getElementById('seqCategory');
+    const seqGender = document.getElementById('seqGender');
+    const seqClass = document.getElementById('seqClass');
+    const bulkNamesTextarea = document.getElementById('bulkNamesTextarea');
+    const btnSave = document.getElementById('btnSaveBulkStudents');
+
+    const catId = seqCategory?.value;
+    const classId = seqClass?.value;
+    const gender = seqGender?.value;
+
+    if (!catId || !classId || !gender || !bulkNamesTextarea) {
+        window.showToast("Please fill in all required fields.", "error");
+        return;
+    }
+
+    const lines = bulkNamesTextarea.value.split('\n');
+    const validNames = [];
+    const seen = new Set();
+
+    lines.forEach(line => {
+        const name = line.trim();
+        if (name && name.length >= 2 && !seen.has(name.toLowerCase())) {
+            validNames.push(name);
+            seen.add(name.toLowerCase());
+        }
+    });
+
+    if (validNames.length === 0) {
+        window.showToast("Please enter at least one valid student name.", "error");
+        return;
+    }
+
+    const warningCard = document.getElementById('duplicateWarningCard');
+    const hasDuplicates = warningCard && warningCard.style.display !== 'none';
+    if (hasDuplicates) {
+        const confirmSave = await window.customConfirm(
+            "Duplicate student names were detected. Are you sure you want to proceed and save?",
+            "Potential Duplicates Found"
+        );
+        if (!confirmSave) return;
+    }
+
+    btnSave.disabled = true;
+    const btnText = btnSave.querySelector('.btn-text');
+    const btnSpinner = btnSave.querySelector('.btn-spinner');
+    if (btnText) btnText.classList.add('hidden');
+    if (btnSpinner) btnSpinner.classList.remove('hidden');
+
+    try {
+        const catRef = doc(db, "institutes", instId, "categories", catId);
+
+        // Fetch fresh students snapshot before running transaction to ensure latest chest numbers
+        const freshSnap = await getDocs(collection(db, "institutes", instId, "students"));
+        allStudentsForManage = freshSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        await runTransaction(db, async (transaction) => {
+            const catSnap = await transaction.get(catRef);
+            if (!catSnap.exists()) {
+                throw new Error("Category configuration not found.");
+            }
+
+            const catData = catSnap.data();
+            const chestStart = parseInt(catData.chestStart, 10) || 1;
+            const chestEnd = parseInt(catData.chestEnd, 10) || Infinity;
+
+            const colRef = collection(db, "institutes", instId, "students");
+            const catObj = allCategories.find(c => c.id === catId);
+            const clsObj = catObj?.classes?.find(c => c.id === classId);
+
+            const allocatedStudents = [];
+            const tempExclude = new Set();
+            for (const name of validNames) {
+                const allocated = findNextAvailableChestNumber(chestStart, chestEnd, tempExclude);
+                if (allocated === null) {
+                    throw new Error("No available chest numbers remaining for this category.");
+                }
+                allocatedStudents.push({ name, chestNumber: allocated.toString() });
+                tempExclude.add(allocated.toString());
+            }
+
+            allocatedStudents.forEach(stu => {
+                const newStuRef = doc(colRef);
+                transaction.set(newStuRef, {
+                    chestNumber: stu.chestNumber,
+                    name: stu.name,
+                    gender: gender,
+                    categoryId: catId,
+                    categoryName: catObj?.name || '',
+                    classId: classId,
+                    className: clsObj?.name || '',
+                    teamId: teamId,
+                    isTeamParticipant: true,
+                    createdAt: serverTimestamp()
+                });
+            });
+
+            const finalNextAvailable = findNextAvailableChestNumber(chestStart, chestEnd, tempExclude) || (chestEnd + 1);
+            transaction.update(catRef, {
+                nextChestNumber: finalNextAvailable,
+                updatedAt: serverTimestamp()
+            });
+
+            if (teamId) {
+                const teamRef = doc(db, "institutes", instId, "teams", teamId);
+                transaction.update(teamRef, { memberCount: increment(validNames.length) });
+            }
+        });
+
+        // Re-fetch all institute students & team students from DB
+        const [freshAllSnap, freshTeamSnap] = await Promise.all([
+            getDocs(collection(db, "institutes", instId, "students")),
+            getDocs(query(collection(db, "institutes", instId, "students"), where("teamId", "==", teamId)))
+        ]);
+        allStudentsForManage = freshAllSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        teamStudents = freshTeamSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        window.showToast(`Successfully registered ${validNames.length} student${validNames.length !== 1 ? 's' : ''}!`, "success");
+        bulkNamesTextarea.value = '';
+        renderManageTeamMembersList();
+        renderDashboard();
+
+    } catch (err) {
+        console.error("Error registering students:", err);
+        let msg = "Failed to register students.";
+        if (err.code === "permission-denied" || (err.message || '').includes("permission")) {
+            msg = "Permission denied. You can only register students for your own team.";
+        } else if (err.message) {
+            msg = err.message;
+        }
+        window.showToast(msg, "error");
+    } finally {
+        if (btnText) btnText.classList.remove('hidden');
+        if (btnSpinner) btnSpinner.classList.add('hidden');
+        calculateChestPreviewAndStats();
+    }
+}
+
+function renderManageTeamMembersList() {
+    const el = document.getElementById("mgTeamMembersList");
+    if (!el) return;
+    const countEl = document.getElementById("mgTeamMemberCount");
+    if (countEl) countEl.textContent = `${teamStudents.length} member${teamStudents.length !== 1 ? 's' : ''}`;
+
+    if (teamStudents.length === 0) {
+        el.innerHTML = `<div class="pw-empty" style="padding:1.5rem;text-align:center;color:#94a3b8;font-size:0.8rem;">No students in team yet.</div>`;
+        return;
+    }
+
+    el.innerHTML = teamStudents.map(s => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.55rem 0.75rem;border:1px solid #e2e8f0;border-radius:8px;background:white;margin-bottom:0.4rem;">
+            <div>
+                <span style="font-weight:700;font-size:0.875rem;color:#1e293b;">${window.escapeHTML(s.name)}</span>
+                <span style="color:#64748b;font-size:0.75rem;margin-left:0.5rem;">#${window.escapeHTML(s.chestNumber || '—')} · ${window.escapeHTML(s.className || s.classId || '—')}</span>
+                <span class="pw-badge-compact ${s.gender === 'Female' ? 'pw-badge-female' : 'pw-badge-male'}" style="margin-left:0.4rem;font-size:0.65rem;">${window.escapeHTML(s.gender || '—')}</span>
+            </div>
+            <span class="pw-badge-compact pw-badge-registered" style="font-size:0.7rem; font-weight:700;">Enrolled</span>
+        </div>
+    `).join('');
+}
 
 function getStudentRegistrationsMap() {
     const map = new Map();

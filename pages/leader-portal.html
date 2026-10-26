@@ -265,6 +265,89 @@
                 grid-template-columns: 1fr 1fr !important;
             }
         }
+        /* Bulk Registration Styles (Matching Admin Dashboard) */
+        .premium-container {
+            font-family: 'Inter', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .premium-card {
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .flow-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+        @media (max-width: 600px) {
+            .flow-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .preview-panel {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: #475569;
+        }
+        .preview-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+        .stat-badge {
+            background: #f1f5f9;
+            color: #475569;
+            border-radius: 6px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        .stat-badge.valid {
+            background: #dcfce7;
+            color: #15803d;
+        }
+        .stat-badge.duplicate {
+            background: #fef3c7;
+            color: #b45309;
+        }
+        .stat-badge.invalid {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        .warning-card {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: #92400e;
+        }
     </style>
 </head>
 <body style="background: #f8fafc; min-height: 100vh; font-family: 'Inter', sans-serif;">
@@ -300,6 +383,11 @@
                             <span id="headerInstituteName" class="pw-badge-compact pw-badge-elsewhere" style="margin-bottom:0.5rem; display:inline-block; font-weight: 700; text-transform: uppercase; font-size: 0.7rem; padding: 3px 8px; border-radius: 4px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: #cbd5e1;">JK HIMAMI</span>
                             <h1 id="headerTeamName" class="portal-header-title">Team Loading...</h1>
                             <div class="portal-header-subtitle">Team Leader Access Portal · Registrations Dashboard</div>
+                        </div>
+                        <div style="display:flex; align-items:flex-start; padding-top:0.25rem;">
+                            <button id="btnOpenManageStudents" onclick="openManageStudentsView()" class="btn" style="background:rgba(255,255,255,0.12); border:1.5px solid rgba(255,255,255,0.25); color:white; font-weight:700; font-size:0.8rem; padding:0.45rem 0.9rem; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; transition:all 0.2s ease;">
+                                👥 Register Students (Bulk)
+                            </button>
                         </div>
                     </div>
                     
@@ -363,6 +451,116 @@
                         <!-- Programs injected dynamically -->
                     </div>
                 </section>
+            </div>
+
+            <!-- Manage Team Students / Register Students (Bulk) View -->
+            <div id="viewManageStudents" class="hidden">
+                <div class="premium-container" style="max-width: 850px; padding: 0;">
+                    <div class="premium-card">
+                        <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                            <div>
+                                <h2 style="margin:0; font-size:1.4rem; font-weight:800; color:#0f172a;">Student Registration</h2>
+                                <p style="margin:0.25rem 0 0 0; font-size:0.875rem; color:#64748b;">Enroll multiple students at once into a specific category, gender, and class for your team.</p>
+                            </div>
+                            <button class="btn btn-secondary" id="btnBackFromManage" style="min-height:38px; font-weight:700;">⬅ Back</button>
+                        </div>
+
+                        <!-- Sequence Dropdowns -->
+                        <div class="flow-grid">
+                            <div class="form-group" style="margin:0;">
+                                <label class="form-label">1. Category *</label>
+                                <select id="seqCategory" class="form-input">
+                                    <option value="">Select Category...</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" style="margin:0;">
+                                <label class="form-label" style="display:flex; align-items:center; gap:0.5rem; font-weight:700; color:#475569; user-select:none;">
+                                    2. Assign to Team *
+                                </label>
+                                <select id="seqTeam" class="form-input" disabled style="margin-top:0.25rem; background:#f8fafc; cursor:not-allowed; font-weight:700; color:#1e293b; border-color:#cbd5e1;">
+                                    <option id="seqTeamOption" value="">Loading team...</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" style="margin:0;">
+                                <label class="form-label">3. Gender *</label>
+                                <select id="seqGender" class="form-input" disabled>
+                                    <option value="">Select Gender (Disabled)...</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" style="margin:0;">
+                                <label class="form-label">4. Class *</label>
+                                <select id="seqClass" class="form-input" disabled>
+                                    <option value="">Select Class (Disabled)...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Chest Number Live Preview -->
+                        <div id="chestPreviewPanel" class="preview-panel" style="display: none;">
+                            <div class="preview-title">Chest Number Preview (Auto-Generated)</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1rem;">
+                                <div>Highest Existing: <strong id="lblHighestChest" style="color: #0f172a;">—</strong></div>
+                                <div>Next Available: <strong id="lblNextChest" style="color: #4f46e5;">—</strong></div>
+                                <div style="grid-column: span 2; border-top: 1px solid #e2e8f0; margin-top: 0.25rem; padding-top: 0.25rem;">
+                                    Expected Range for Batch: <strong id="lblExpectedRange" style="color: #0f172a;">—</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Student Names Area -->
+                        <div class="form-group" style="margin:0;">
+                            <label class="form-label">5. Student Names (One per line) *</label>
+                            <textarea id="bulkNamesTextarea" class="form-input" disabled rows="8" placeholder="Type or paste names here...&#10;Muhammed Ali&#10;Abdul Rahman&#10;Fathima..." style="padding: 0.8rem 1rem; font-family: monospace; line-height: 1.5; font-size: 0.9rem; resize: vertical;"></textarea>
+                        </div>
+
+                        <!-- Statistics panel -->
+                        <div id="statsPanel" style="display: none; justify-content: flex-start; gap: 0.75rem; flex-wrap: wrap; margin-top: -0.5rem;">
+                            <span class="stat-badge">Total Count: <strong id="statTotal">0</strong></span>
+                            <span class="stat-badge valid">Valid: <strong id="statValid">0</strong></span>
+                            <span class="stat-badge duplicate">Duplicates: <strong id="statDuplicate">0</strong></span>
+                            <span class="stat-badge invalid">Invalid: <strong id="statInvalid">0</strong></span>
+                        </div>
+
+                        <!-- Warning card for duplicates -->
+                        <div id="duplicateWarningCard" class="warning-card" style="display: none;">
+                            <h4 style="margin: 0; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 0.35rem;">
+                                ⚠️ Duplicate Entries Detected
+                            </h4>
+                            <p style="margin: 0; line-height: 1.4;">The following names are duplicates (in this batch or already exist in this category/team/class):</p>
+                            <div id="duplicateListContainer" style="max-height: 120px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; background: rgba(255, 255, 255, 0.5); padding: 0.5rem; border-radius: 6px; border: 1px solid #fde68a;">
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div style="display: flex; gap: 0.75rem; justify-content: flex-end; border-top: 1px solid #e2e8f0; padding-top: 1.25rem;">
+                            <button class="btn btn-secondary" id="btnCancelRegistration" style="min-height:40px; font-weight:700;">Cancel</button>
+                            <button class="btn btn-primary" id="btnSaveBulkStudents" disabled style="min-height:40px; font-weight:700;">
+                                <span class="btn-text">💾 Save Students</span>
+                                <span class="btn-spinner hidden" style="display:inline-block; width:16px; height:16px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:spin 0.6s linear infinite; margin-left:0.35rem;"></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Current Team Members Directory Card -->
+                    <div class="premium-card" style="margin-top: 1.25rem;">
+                        <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 0.75rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#0f172a;">📋 Current Team Members</h3>
+                                <p style="margin:0.2rem 0 0 0; font-size:0.8rem; color:#64748b;">Registered students currently in your team.</p>
+                            </div>
+                            <span id="mgTeamMemberCount" class="stat-badge" style="font-weight:700;">0 members</span>
+                        </div>
+                        <div id="mgTeamMembersList" style="max-height: 350px; overflow-y: auto; padding-top: 0.25rem;">
+                            <div class="pw-empty" style="padding:1.5rem;text-align:center;color:#94a3b8;font-size:0.8rem;">No students in team yet.</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Program Registration Assignment View -->

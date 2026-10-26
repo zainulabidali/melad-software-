@@ -231,6 +231,12 @@ match /institutes/{instituteId} {
 
     allow read: if true;
 
+    // Leaders can update nextChestNumber during student registration
+    allow update:
+    if request.auth != null &&
+      exists(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)) &&
+      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nextChestNumber', 'updatedAt']);
+
     allow create, update, delete:
     if isInstituteAdmin(instituteId)
     || isSuperAdmin();
@@ -242,12 +248,29 @@ match /institutes/{instituteId} {
 
   match /students/{studentId} {
 
+    // Leaders can read any student in the institute (needed to browse eligible students for team assignment)
     allow read: if request.auth != null &&
-      exists(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)) &&
-      get(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)).data.teamId == resource.data.teamId;
+      exists(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid));
 
     allow read: if isInstituteAdmin(instituteId);
     allow read: if isSuperAdmin();
+
+    // Leaders can create students ONLY for their own validated team
+    allow create:
+    if request.auth != null &&
+      exists(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)) &&
+      request.resource.data.teamId == get(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)).data.teamId &&
+      request.resource.data.isTeamParticipant == true &&
+      request.resource.data.name is string &&
+      request.resource.data.chestNumber is string &&
+      request.resource.data.categoryId is string;
+
+    // Leaders can update ONLY teamId and isTeamParticipant fields, and only to assign to their own validated team
+    allow update:
+    if request.auth != null &&
+      exists(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)) &&
+      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['teamId', 'isTeamParticipant', 'updatedAt']) &&
+      request.resource.data.teamId == get(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)).data.teamId;
 
     allow create, update, delete:
     if isInstituteAdmin(instituteId);
@@ -315,6 +338,13 @@ match /institutes/{instituteId} {
     allow read: if request.auth != null &&
       exists(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)) &&
       get(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)).data.teamId == teamId;
+
+    // Leaders can update memberCount on their own team
+    allow update:
+    if request.auth != null &&
+      exists(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)) &&
+      get(/databases/$(database)/documents/institutes/$(instituteId)/leaderSessions/$(request.auth.uid)).data.teamId == teamId &&
+      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount', 'updatedAt']);
 
     allow read: if isInstituteAdmin(instituteId);
     allow read: if isSuperAdmin();
