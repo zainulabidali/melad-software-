@@ -1,4 +1,4 @@
-import { auth, db, classifyProgram, resolveEffectiveParticipationLimits, checkStudentParticipationEligibility, normalizeCategoryName } from './firebase.js';
+import { auth, db, classifyProgram, resolveEffectiveParticipationLimits, checkStudentParticipationEligibility, normalizeCategoryName, invalidateStudentsCache } from './firebase.js';
 import {
     signInAnonymously,
     onAuthStateChanged
@@ -1142,6 +1142,7 @@ async function saveBulkStudents(e) {
         teamStudents = freshTeamSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         window.showToast(`Successfully registered ${validNames.length} student${validNames.length !== 1 ? 's' : ''}!`, "success");
+        invalidateStudentsCache(instId);
         bulkNamesTextarea.value = '';
         renderManageTeamMembersList();
         renderDashboard();

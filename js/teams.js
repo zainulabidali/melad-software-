@@ -1,4 +1,4 @@
-import { db, updateDashboardMetadata, migrateParticipantCounts, migrateTeamMemberCounts, invalidateTeamsCache, invalidateProgramsCache, cleanupOrphanedTeamData, getCachedPrograms, getCachedProgramOverview, setCachedProgramOverview, invalidateProgramOverviewCache, syncTeamNameGlobally } from './firebase.js';
+import { db, updateDashboardMetadata, migrateParticipantCounts, migrateTeamMemberCounts, invalidateTeamsCache, invalidateStudentsCache, invalidateProgramsCache, cleanupOrphanedTeamData, getCachedPrograms, getCachedProgramOverview, setCachedProgramOverview, invalidateProgramOverviewCache, syncTeamNameGlobally } from './firebase.js';
 
 
 import {
@@ -699,6 +699,7 @@ async function deleteTeam(teamId) {
         await migrateParticipantCounts(instId);
         await updateDashboardMetadata(instId);
         invalidateTeamsCache(instId);
+        invalidateStudentsCache(instId);
         if (typeof invalidateProgramsCache === 'function') invalidateProgramsCache(instId);
 
         window.showToast("Team deleted successfully.");

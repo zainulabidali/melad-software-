@@ -1,4 +1,4 @@
-import { auth, db, updateDashboardMetadata } from './firebase.js';
+import { auth, db, updateDashboardMetadata, getCachedTeams, getCachedCategories, setCachedStudents } from './firebase.js';
 import { getUserProfile, validateInstituteAccess, logoutUser, safeSessionClear } from './auth.js';
 import { onAuthStateChanged, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 import { doc, getDoc, collection, query, where, getCountFromServer, onSnapshot, updateDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -935,6 +935,82 @@ function updateCharts(teamLabels, teamData, catLabels, catData) {
     }
 }
 
+async function computeLiveCharts(liveStudents, instId) {
+    try {
+        const [teams, categories] = await Promise.all([
+            getCachedTeams(instId),
+            getCachedCategories(instId)
+        ]);
+
+        const teamCounts = new Map();
+        (teams || []).forEach(t => teamCounts.set(String(t.id), 0));
+        const teamMap = new Map((teams || []).map(t => [String(t.id), t]));
+
+        liveStudents.forEach(s => {
+            let teamId = s.teamId ? String(s.teamId).trim() : null;
+            if (teamId && !teamCounts.has(teamId)) {
+                const matchedTeam = Array.from(teamMap.values()).find(t =>
+                    t.name && t.name.toLowerCase().trim() === teamId.toLowerCase()
+                );
+                if (matchedTeam) teamId = String(matchedTeam.id);
+            }
+            if (!teamId && s.teamName) {
+                const matchedTeam = Array.from(teamMap.values()).find(t =>
+                    t.name && t.name.toLowerCase().trim() === s.teamName.toLowerCase().trim()
+                );
+                if (matchedTeam) teamId = String(matchedTeam.id);
+            }
+            if (teamId && teamCounts.has(teamId)) {
+                teamCounts.set(teamId, (teamCounts.get(teamId) || 0) + 1);
+            }
+        });
+
+        const catCounts = new Map();
+        (categories || []).forEach(c => {
+            if (c.name) catCounts.set(c.name, 0);
+        });
+
+        liveStudents.forEach(s => {
+            const cat = (categories || []).find(c => {
+                const sCatId = s.categoryId ? s.categoryId.toString().toLowerCase().trim() : '';
+                const sCatName = s.categoryName ? s.categoryName.toString().toLowerCase().trim() : '';
+                const cId = c.id ? c.id.toString().toLowerCase().trim() : '';
+                const cName = c.name ? c.name.toString().toLowerCase().trim() : '';
+                return (sCatId && (cId === sCatId || cName === sCatId)) ||
+                    (sCatName && (cId === sCatName || cName === sCatName));
+            });
+
+            const resolvedCatName = cat?.name || s.categoryName || 'General';
+            let matchedKey = null;
+            const targetLower = resolvedCatName.toLowerCase().trim();
+            for (const key of catCounts.keys()) {
+                if (key.toLowerCase().trim() === targetLower) {
+                    matchedKey = key;
+                    break;
+                }
+            }
+            const finalKey = matchedKey || resolvedCatName.trim();
+            if (finalKey) {
+                catCounts.set(finalKey, (catCounts.get(finalKey) || 0) + 1);
+            }
+        });
+
+        return {
+            radarChartData: {
+                labels: [...teamCounts.keys()].map(id => teamMap.get(id)?.name || 'Unknown'),
+                data: [...teamCounts.values()]
+            },
+            barChartData: {
+                labels: [...catCounts.keys()],
+                data: [...catCounts.values()]
+            }
+        };
+    } catch (e) {
+        console.error("Failed to compute live charts:", e);
+        return null;
+    }
+}
+
 let metadataCache = null;
 
 function recalculateDashboard() {
@@ -1326,7 +1402,74 @@ async function initDashboardOverview(container, topActions) {
     };
     document.getElementById('dashOpenLiveDisplay').onclick = () => window.open(liveDisplayUrl, '_blank');
 
-    // 1. Student counts and statistics are updated real-time via the metadata/dashboard document below.
+    // 1. Attach live Snapshot Listener to the students collection
+    try {
+        const studentsRef = collection(db, "institutes", instId, "students");
+        const studentsUnsub = onSnapshot(studentsRef, async (studentsSnap) => {
+            const liveStudents = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const liveTotal = liveStudents.length;
+
+            const isMale = (g) => {
+                const val = (g || '').toString().trim().toLowerCase();
+                return val === 'male' || val === 'm' || val === 'boy' || val === 'boys';
+            };
+            const isFemale = (g) => {
+                const val = (g || '').toString().trim().toLowerCase();
+                return val === 'female' || val === 'f' || val === 'girl' || val === 'girls';
+            };
+            const liveMale = liveStudents.filter(s => isMale(s.gender)).length;
+            const liveFemale = liveStudents.filter(s => isFemale(s.gender)).length;
+
+            // Invalidate/update cache
+            setCachedStudents(instId, liveStudents);
+
+            // Immediately update the summary card elements
+            const elStudents = document.getElementById('statStudents');
+            const elStudentsDesc = document.getElementById('statStudentsDesc');
+            if (elStudents) elStudents.textContent = liveTotal;
+            if (elStudentsDesc) elStudentsDesc.textContent = `Male: ${liveMale} | Female: ${liveFemale}`;
+
+            // Initialize or update metadataCache
+            if (!metadataCache) {
+                metadataCache = {
+                    studentsCount: liveTotal,
+                    maleStudentsCount: liveMale,
+                    femaleStudentsCount: liveFemale,
+                    radarChartData: { labels: [], data: [] },
+                    barChartData: { labels: [], data: [] }
+                };
+            } else {
+                metadataCache.studentsCount = liveTotal;
+                metadataCache.maleStudentsCount = liveMale;
+                metadataCache.femaleStudentsCount = liveFemale;
+            }
+
+            // Calculate live chart distributions immediately
+            const liveCharts = await computeLiveCharts(liveStudents, instId);
+            if (liveCharts) {
+                metadataCache.radarChartData = liveCharts.radarChartData;
+                metadataCache.barChartData = liveCharts.barChartData;
+                updateCharts(
+                    liveCharts.radarChartData.labels,
+                    liveCharts.radarChartData.data,
+                    liveCharts.barChartData.labels,
+                    liveCharts.barChartData.data
+                );
+            }
+
+            // Sync Firestore metadata/dashboard document if stored count differs from live count
+            if (metadataCache._storedStudentsCount === undefined || metadataCache._storedStudentsCount !== liveTotal) {
+                updateDashboardMetadata(instId).catch(err => {
+                    console.error("Failed to update dashboard metadata on student change:", err);
+                });
+            }
+        }, (err) => {
+            console.error("Error listening to students collection on dashboard:", err);
+        });
+        dbUnsubscribes.push(studentsUnsub);
+    } catch (err) {
+        console.error("Error launching students live listener on dashboard:", err);
+    }
 
     // 2. Attach Snapshot Listener to the dashboard metadata aggregates document
     try {
@@ -1334,19 +1477,22 @@ async function initDashboardOverview(container, topActions) {
         const metaUnsub = onSnapshot(metaRef, async (snap) => {
             if (snap.exists()) {
                 const data = snap.data();
-                const preservedLiveCount = metadataCache?.studentsCount;
-                const preservedMaleCount = metadataCache?.maleStudentsCount;
-                const preservedFemaleCount = metadataCache?.femaleStudentsCount;
+                data._storedStudentsCount = data.studentsCount;
 
-                metadataCache = data;
-
-                if (preservedLiveCount !== undefined && preservedLiveCount !== data.studentsCount) {
-                    // Live collection listener already established the authoritative live student count
-                    metadataCache.studentsCount = preservedLiveCount;
-                    if (preservedMaleCount !== undefined) metadataCache.maleStudentsCount = preservedMaleCount;
-                    if (preservedFemaleCount !== undefined) metadataCache.femaleStudentsCount = preservedFemaleCount;
+                // Live student listener is authoritative for student count & distribution
+                if (metadataCache && metadataCache.studentsCount !== undefined) {
+                    data.studentsCount = metadataCache.studentsCount;
+                    if (metadataCache.maleStudentsCount !== undefined) data.maleStudentsCount = metadataCache.maleStudentsCount;
+                    if (metadataCache.femaleStudentsCount !== undefined) data.femaleStudentsCount = metadataCache.femaleStudentsCount;
+                    if (metadataCache.radarChartData && metadataCache.radarChartData.data.some(v => v > 0)) {
+                        data.radarChartData = metadataCache.radarChartData;
+                    }
+                    if (metadataCache.barChartData && metadataCache.barChartData.data.some(v => v > 0)) {
+                        data.barChartData = metadataCache.barChartData;
+                    }
                 }
 
+                metadataCache = data;
                 recalculateDashboard();
                 
                 // Self-healing: if the sum of category chart counts doesn't match total students or missing stats, repair metadata
@@ -1359,8 +1505,8 @@ async function initDashboardOverview(container, topActions) {
                     data.individualProgramCount === undefined || 
                     data.groupProgramCount === undefined || 
                     data.generalProgramCount === undefined || 
-                    data.studentsCount !== metadataCache.studentsCount ||
-                    catTotal !== metadataCache.studentsCount;
+                    (data._storedStudentsCount !== undefined && data._storedStudentsCount !== metadataCache.studentsCount) ||
+                    (metadataCache.studentsCount > 0 && catTotal === 0);
 
                 if (needsSelfHealing) {
                     console.log("Self-healing dashboard metadata triggered due to legacy data or mismatch...");

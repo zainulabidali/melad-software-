@@ -1,4 +1,4 @@
-import { auth, db, updateDashboardMetadata, invalidateStudentsCache, getCachedCategories, getCachedTeams, getCachedPrograms } from './firebase.js';
+import { auth, db, updateDashboardMetadata, invalidateStudentsCache, setCachedStudents, getCachedCategories, getCachedTeams, getCachedPrograms } from './firebase.js';
 import {
     collection,
     addDoc,
@@ -384,6 +384,7 @@ function loadStudentsData() {
     // Live sync to ALL students in flat collection
     unsubscribeStudents = onSnapshot(studentsRef, (snapshot) => {
         localStudentsAll = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        setCachedStudents(window.currentInstituteId, localStudentsAll);
         applyStudentFiltersAndRender();
     }, (err) => {
         console.error("Students listener error:", err);
@@ -741,6 +742,7 @@ async function migrateLegacyStudents(docs) {
 
         await batch.commit();
         await updateDashboardMetadata(window.currentInstituteId);
+        invalidateStudentsCache(window.currentInstituteId);
         window.showToast(`Successfully moved ${docs.length} students.`);
         document.getElementById('legacyMigrationCheck').innerHTML = '';
         loadStudentsData();
@@ -1359,6 +1361,7 @@ export async function initAddStudentView(container, topActions) {
             });
 
             await updateDashboardMetadata(instId);
+            invalidateStudentsCache(instId);
             window.showToast(`Successfully enrolled ${validNames.length} students!`, "success");
             bulkNamesTextarea.value = '';
             bulkNamesTextarea.focus();
@@ -1860,6 +1863,7 @@ async function executeStudentDeletion(studentIds) {
         // 8. Update Dashboard Metadata
         lastQueryLabel = `updateDashboardMetadata("${instId}")`;
         await updateDashboardMetadata(instId);
+        invalidateStudentsCache(instId);
 
         console.log(`Successfully deleted ${studentIds.length} students.`);
     } catch (e) {
@@ -2538,6 +2542,7 @@ async function executeImportProcess(validList, duplicateList, duplicateAction) {
 
     try {
         await updateDashboardMetadata(window.currentInstituteId);
+        invalidateStudentsCache(window.currentInstituteId);
     } catch (e) {
         console.error("Failed to aggregate dashboard metadata", e);
     }

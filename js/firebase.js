@@ -248,9 +248,17 @@ async function _performUpdateDashboardMetadata(instituteId) {
         const judges = judgesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         const results = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+        const isMale = (g) => {
+            const val = (g || '').toString().trim().toLowerCase();
+            return val === 'male' || val === 'm' || val === 'boy' || val === 'boys';
+        };
+        const isFemale = (g) => {
+            const val = (g || '').toString().trim().toLowerCase();
+            return val === 'female' || val === 'f' || val === 'girl' || val === 'girls';
+        };
         const totalStudents = Math.max(countSnap.data()?.count || 0, students.length);
-        const maleCount = students.filter(s => s.gender && s.gender.toString().trim().toLowerCase() === 'male').length;
-        const femaleCount = students.filter(s => s.gender && s.gender.toString().trim().toLowerCase() === 'female').length;
+        const maleCount = students.filter(s => isMale(s.gender)).length;
+        const femaleCount = students.filter(s => isFemale(s.gender)).length;
         const totalCompetitions = programs.length;
         const totalTeams = teams.length;
         const totalCategories = categories.length;
@@ -346,9 +354,17 @@ async function _performUpdateDashboardMetadata(instituteId) {
             teamCounts.set(String(t.id), 0);
         });
         students.forEach(s => {
-            let teamId = s.teamId ? String(s.teamId) : null;
+            let teamId = s.teamId ? String(s.teamId).trim() : null;
+            if (teamId && !teamCounts.has(teamId)) {
+                const matchedTeam = Array.from(teamMap.values()).find(t =>
+                    t.name && t.name.toLowerCase().trim() === teamId.toLowerCase()
+                );
+                if (matchedTeam) teamId = String(matchedTeam.id);
+            }
             if (!teamId && s.teamName) {
-                const matchedTeam = Array.from(teamMap.values()).find(t => t.name === s.teamName);
+                const matchedTeam = Array.from(teamMap.values()).find(t =>
+                    t.name && t.name.toLowerCase().trim() === s.teamName.toLowerCase().trim()
+                );
                 if (matchedTeam) teamId = String(matchedTeam.id);
             }
             if (teamId && teamCounts.has(teamId)) {
@@ -830,10 +846,24 @@ export async function migrateTeamMemberCounts(instituteId) {
         const batch = writeBatch(db);
 
         const teamCounts = new Map();
+        const teamById = new Map(teamsSnap.docs.map(d => [d.id, d.data().name]));
         studentsSnap.forEach(s => {
             const data = s.data();
-            if (data.teamId) {
-                teamCounts.set(data.teamId, (teamCounts.get(data.teamId) || 0) + 1);
+            let tid = data.teamId ? String(data.teamId).trim() : null;
+            if (tid && !teamById.has(tid)) {
+                const matched = Array.from(teamById.entries()).find(([id, name]) =>
+                    name && name.toLowerCase().trim() === tid.toLowerCase()
+                );
+                if (matched) tid = matched[0];
+            }
+            if (!tid && data.teamName) {
+                const matched = Array.from(teamById.entries()).find(([id, name]) =>
+                    name && name.toLowerCase().trim() === data.teamName.toLowerCase().trim()
+                );
+                if (matched) tid = matched[0];
+            }
+            if (tid) {
+                teamCounts.set(tid, (teamCounts.get(tid) || 0) + 1);
             }
         });
 
