@@ -39,13 +39,46 @@ self.addEventListener('activate', (event) => {
     );
 });
 
+// Safe helper to check if a request has a cacheable HTTP/HTTPS scheme
+function isCacheableRequest(request) {
+    if (!request) return false;
+    const urlStr = typeof request === 'string' ? request : request.url;
+    if (!urlStr) return false;
+    return urlStr.startsWith('http://') || urlStr.startsWith('https://');
+}
+
+// Safe helper to put a response into cache without throwing unhandled rejections
+async function safeCachePut(cacheName, request, response) {
+    try {
+        if (!isCacheableRequest(request) || !response) return;
+        const cache = await caches.open(cacheName);
+        await cache.put(request, response);
+    } catch (err) {
+        console.warn('[Service Worker] Cache put warning:', err);
+    }
+}
+
 // Fetch Event - Stale-while-revalidate for static assets, NETWORK-ONLY for Firestore/APIs
 self.addEventListener('fetch', (event) => {
-    const url = new URL(event.request.url);
+    // Only intercept HTTP and HTTPS GET requests; bypass non-GET completely
+    if (event.request.method !== 'GET') {
+        return; // Network handles directly
+    }
 
-    // Bypass Service Worker completely for Firestore / Firebase / API / Non-GET requests
+    let url;
+    try {
+        url = new URL(event.request.url);
+    } catch (e) {
+        return;
+    }
+
+    // Exclude chrome-extension://, chrome://, devtools://, and other non-http(s) schemes
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        return; // Network/browser handles directly without service worker interference
+    }
+
+    // Bypass Service Worker completely for Firestore / Firebase / API
     if (
-        event.request.method !== 'GET' ||
         url.hostname.includes('firestore.googleapis.com') ||
         url.hostname.includes('firebaseio.com') ||
         url.hostname.includes('googleapis.com') ||
@@ -61,9 +94,7 @@ self.addEventListener('fetch', (event) => {
                 // Fetch fresh copy in background for next time
                 fetch(event.request).then((networkResponse) => {
                     if (networkResponse && networkResponse.status === 200) {
-                        caches.open(CACHE_NAME).then((cache) => {
-                            cache.put(event.request, networkResponse);
-                        });
+                        safeCachePut(CACHE_NAME, event.request, networkResponse.clone());
                     }
                 }).catch(() => { /* offline silent handling */ });
 
@@ -73,12 +104,13 @@ self.addEventListener('fetch', (event) => {
             return fetch(event.request).then((networkResponse) => {
                 if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
                     const responseToCache = networkResponse.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, responseToCache);
-                    });
+                    safeCachePut(CACHE_NAME, event.request, responseToCache);
                 }
                 return networkResponse;
             });
+        }).catch((err) => {
+            console.warn('[Service Worker] Fetch match fallback error:', err);
+            return fetch(event.request);
         })
     );
 });

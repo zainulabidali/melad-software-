@@ -1035,6 +1035,11 @@ async function saveBulkStudents(e) {
     const classId = seqClass?.value;
     const gender = seqGender?.value;
 
+    if (!instId || !teamId) {
+        window.showToast("Invalid team session. Please reload the portal.", "error");
+        return;
+    }
+
     if (!catId || !classId || !gender || !bulkNamesTextarea) {
         window.showToast("Please fill in all required fields.", "error");
         return;
